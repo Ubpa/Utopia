@@ -8,11 +8,12 @@
 #include <DustEngine/Transform/Components/Children.h>
 
 using namespace Ubpa::DustEngine;
+using namespace Ubpa::UECS;
 
-void LocalToParentSystem::ChildLocalToWorld(const transformf& parent_l2w, UECS::Entity e) {
+void LocalToParentSystem::ChildLocalToWorld(const transformf& parent_l2w, Entity e) {
 	transformf l2w;
 	auto w = GetWorld();
-	if (w->entityMngr.Have<LocalToWorld>(e) && w->entityMngr.Have<LocalToParent>(e)) {
+	if (w->entityMngr.Have(e, CmptType::Of<LocalToWorld>) && w->entityMngr.Have(e, CmptType::Of<LocalToParent>)) {
 		auto child_l2w = w->entityMngr.Get<LocalToWorld>(e);
 		auto child_l2p = w->entityMngr.Get<LocalToParent>(e);
 		l2w = parent_l2w * child_l2p->value;
@@ -21,7 +22,7 @@ void LocalToParentSystem::ChildLocalToWorld(const transformf& parent_l2w, UECS::
 	else
 		l2w = parent_l2w;
 
-	if (w->entityMngr.Have<Children>(e)) {
+	if (w->entityMngr.Have(e, CmptType::Of<Children>)) {
 		auto children = w->entityMngr.Get<Children>(e);
 		for (const auto& child : children->value)
 			ChildLocalToWorld(l2w, e);
