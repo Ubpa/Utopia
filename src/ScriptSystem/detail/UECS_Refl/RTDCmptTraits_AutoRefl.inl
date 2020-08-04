@@ -12,7 +12,8 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::RTDCmptTraits>
 
     static constexpr FieldList fields = {
         //Field{"default_alignment", &Ubpa::UECS::RTDCmptTraits::default_alignment},
-        Field{"Instance", &Ubpa::UECS::RTDCmptTraits::Instance},
+		Field{"Instance", &Ubpa::UECS::RTDCmptTraits::Instance},
+		Field{"Clear", &Ubpa::UECS::RTDCmptTraits::Clear},
         Field{"RegisterSize", &Ubpa::UECS::RTDCmptTraits::RegisterSize,
             AttrList {
                 Attr{UBPA_USREFL_NAME_ARG(0),

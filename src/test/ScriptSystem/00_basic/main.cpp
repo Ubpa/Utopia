@@ -1,4 +1,5 @@
 #include <DustEngine/ScriptSystem/LuaMngr.h>
+#include <UECS/World.h>
 
 #include <iostream>
 using namespace std;
@@ -101,7 +102,6 @@ e0_cmpt0_buf = LuaBuffer.new(e0_cmpt0:Ptr(), 64)
 e0_cmpt0_buf_strbuf = e0_cmpt0_buf:GetBuffer(0)
 str = e0_cmpt0_buf_strbuf:GetCString(0)
 print(str)
-
 --w:Update()
 --print(w:DumpUpdateJobGraph())
 )";
@@ -119,6 +119,8 @@ print(str)
 	}
 
 	Ubpa::DustEngine::LuaMngr::Instance().Recycle(L);
+
+	Ubpa::UECS::RTDCmptTraits::Instance().Clear();
 	Ubpa::DustEngine::LuaMngr::Instance().Clear();
 
 	return 0;
