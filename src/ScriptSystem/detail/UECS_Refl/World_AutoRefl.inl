@@ -35,8 +35,8 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::World>
 		},
 		Field{"Update", &Ubpa::UECS::World::Update},
 		Field{"DumpUpdateJobGraph", &Ubpa::UECS::World::DumpUpdateJobGraph},
-		Field{"GenUpdateFrameGraph", &Ubpa::UECS::World::GenUpdateFrameGraph}/*,
-		Field{"Accept", &Ubpa::UECS::World::Accept,
+		Field{"GenUpdateFrameGraph", &Ubpa::UECS::World::GenUpdateFrameGraph},
+		/*Field{"Accept", &Ubpa::UECS::World::Accept,
 			AttrList {
 				Attr{UBPA_USREFL_NAME_ARG(0),
 					AttrList{

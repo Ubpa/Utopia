@@ -1,8 +1,8 @@
-#include <DustEngine/LuaECS/LuaECS.h>
+#include "InitUECS.h"
 
-#include "ECSRefl/ECSRefl.h"
+#include "detail/UECS_Refl/UECS_Refl.h"
 
-void Ubpa::DustEngine::LuaECS::Init(lua_State* L) {
+void Ubpa::DustEngine::detail::InitUECS(lua_State* L) {
 	ULuaPP::Register<UECS::AccessMode>(L);
 	ULuaPP::Register<UECS::ChunkView>(L);
 	ULuaPP::Register<UECS::CmptPtr>(L);

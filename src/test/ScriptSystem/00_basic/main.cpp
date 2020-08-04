@@ -1,4 +1,4 @@
-#include <DustEngine/LuaECS/LuaECS.h>
+#include <DustEngine/ScriptSystem/LuaMngr.h>
 
 #include <iostream>
 using namespace std;
@@ -6,9 +6,8 @@ using namespace std;
 int main() {
 	char buff[256];
 	int error;
-	lua_State* L = luaL_newstate(); /* opens Lua */
-	luaL_openlibs(L); /* opens the standard libraries */
-	Ubpa::DustEngine::LuaECS::Instance().Init(L);
+	Ubpa::DustEngine::LuaMngr::Instance().Init();
+	auto L = Ubpa::DustEngine::LuaMngr::Instance().Request();
 	{
 		sol::state_view lua(L);
 		const char code[] = R"(
@@ -32,10 +31,13 @@ rtd:RegisterMoveAssignment(luaCmpt0, move_assignment)
 
 w = World.new()
 em = w:GetEntityMngr()
-e0 = em:Create(luaCmpt0, 1)
-em:Attach(e0, luaCmpt1, 1)
-e1 = em:Create(luaCmpt0, 1)
-em:Attach(e1, luaCmpt1, 1)
+cmpts = LuaArray_CmptType.new()
+cmpts:PushBack(luaCmpt0)
+cmpts:PushBack(luaCmpt1)
+
+e0 = em:Create(cmpts:Data(), cmpts:Size())
+e1 = em:Create(cmpts:Data(), cmpts:Size())
+
 em:Detach(e0, luaCmpt0, 1)
 
 w:Update()
@@ -53,6 +55,9 @@ print(w:DumpUpdateJobGraph())
 			lua_pop(L, 1); /* pop error message from the stack */
 		}
 	}
-	lua_close(L);
+
+	Ubpa::DustEngine::LuaMngr::Instance().Recycle(L);
+	Ubpa::DustEngine::LuaMngr::Instance().Clear();
+
 	return 0;
 }
