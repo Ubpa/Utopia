@@ -14,5 +14,6 @@
 #include "Entity_AutoRefl.inl"
 #include "RTDCmptTraits_AutoRefl.inl"
 #include "Schedule_AutoRefl.inl"
+#include "System_AutoRefl.inl"
 #include "SystemMngr_AutoRefl.inl"
 #include "World_AutoRefl.inl"

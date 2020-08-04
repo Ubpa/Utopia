@@ -6,6 +6,7 @@
 #include "LuaArray.h"
 #include "LuaBuffer.h"
 #include "LuaMemory.h"
+#include "LuaSystem.h"
 
 #include <mutex>
 
@@ -85,6 +86,7 @@ lua_State* LuaMngr::Impl::Construct() {
 	ULuaPP::Register<LuaArray_CmptType>(L);
 	ULuaPP::Register<LuaBuffer>(L);
 	ULuaPP::Register<LuaMemory>(L);
+	ULuaPP::Register<LuaSystem>(L);
 	return L;
 }
 

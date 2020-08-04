@@ -3,6 +3,7 @@
 #pragma once
 
 #include <USRefl/USRefl.h>
+#include <ULuaPP/ULuaPP.h>
 
 template<>
 struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::Schedule>
@@ -11,6 +12,13 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::Schedule>
     static constexpr AttrList attrs = {};
 
     static constexpr FieldList fields = {
+		Field{"RegisterChunkFunc",
+			static_cast<void(*)(Ubpa::UECS::Schedule*, sol::function, std::string, Ubpa::UECS::EntityFilter)>(
+				[](Ubpa::UECS::Schedule* s, sol::function func, std::string n, Ubpa::UECS::EntityFilter filter) {
+                    s->Register(func.as<std::function<void(Ubpa::UECS::ChunkView)>>(), std::move(n), std::move(filter));
+				}
+			)
+		},
         Field{"LockFilter", &Ubpa::UECS::Schedule::LockFilter,
             AttrList {
                 Attr{UBPA_USREFL_NAME_ARG(0),

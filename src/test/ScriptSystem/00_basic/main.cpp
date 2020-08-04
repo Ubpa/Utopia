@@ -102,11 +102,20 @@ e0_cmpt0_buf = LuaBuffer.new(e0_cmpt0:Ptr(), 64)
 e0_cmpt0_buf_strbuf = e0_cmpt0_buf:GetBuffer(0)
 str = e0_cmpt0_buf_strbuf:GetCString(0)
 print(str)
---w:Update()
---print(w:DumpUpdateJobGraph())
+
+f = function(schedule)
+  local g = function(chunk) print("entity number:", chunk:EntityNum()) end
+  local luaCmptType0 = CmptType.new("Cmpt0", AccessMode.WRITE)
+  local filter = EntityFilter.new()
+  filter:InsertAll(luaCmptType0, 1)
+  LuaSystem.RegisterChunkFunc(schedule, g, "test", filter)
+end
+LuaSystem.Register(w, "LuaSystem-001", f)
+
 )";
 		cout << code << endl
 			<< "----------------------------" << endl;
+		lua.script(code);
 		lua.script(code);
 	}
 
