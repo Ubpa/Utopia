@@ -7,4 +7,6 @@ Ubpa_AddTarget(
   LIB
     Ubpa::ULuaPP_core
     Ubpa::UECS_core
+  C_OPTION
+    /bigobj
 )

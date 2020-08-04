@@ -13,35 +13,82 @@ int main() {
 		const char code[] = R"(
 rtd = RTDCmptTraits.Instance()
 
-luaCmpt0 = CmptType.new("luaCmpt0", 0)
-luaCmpt1 = CmptType.new("luaCmpt1", 0)
+luaCmptType0 = CmptType.new("Cmpt0", AccessMode.WRITE)
+luaCmptType1 = CmptType.new("Cmpt1", AccessMode.WRITE)
 
-rtd:RegisterSize(luaCmpt0, 8)
-rtd:RegisterSize(luaCmpt1, 8)
+-- Cmpt0 : 64 bytes
+--  0 - 16 table
+-- 16 - 24 double
+-- 24 - 28 int32
+-- 28 - 32 int32
+-- 32 - 64 str[32]
 
-default_ctor = function () print("default_ctor") end
-move_ctor = function () print("move_ctor") end
-move_assignment = function () print("move_assignment") end
-dtor = function () print("dtor") end
+rtd:RegisterSize(luaCmptType0, 64)
 
-rtd:RegisterDefaultConstructor(luaCmpt0, default_ctor)
-rtd:RegisterMoveConstructor(luaCmpt0, move_ctor)
-rtd:RegisterDestructor(luaCmpt0, dtor)
-rtd:RegisterMoveAssignment(luaCmpt0, move_assignment)
+default_ctor = function (ptr)
+  print("default_ctor")
+  local cmpt = LuaCmpt.new(luaCmptType0, ptr)
+  cmpt:SetZero()
+  cmpt:DefaultConstructTable(0)
+end
+
+copy_ctor = function (dst, src)
+  print("copy ctor")
+  local cmpt_dst = LuaCmpt.new(luaCmptType0, dst)
+  local cmpt_src = LuaCmpt.new(luaCmptType0, src)
+  cmpt_dst:MemCpy(src)
+  cmpt_dst:CopyConstructTable(cmpt_src, 0)
+end
+
+move_ctor = function (dst, src)
+  print("move_ctor")
+  local cmpt_dst = LuaCmpt.new(luaCmptType0, dst)
+  local cmpt_src = LuaCmpt.new(luaCmptType0, src)
+  cmpt_dst:MemCpy(src)
+  cmpt_dst:MoveConstructTable(cmpt_src, 0)
+end
+
+move_assignment = function (dst, src)
+  print("move_assignment")
+  local cmpt_dst = LuaCmpt.new(luaCmptType0, dst)
+  local cmpt_src = LuaCmpt.new(luaCmptType0, src)
+  --cmpt_dst:MemCpy(src)
+  cmpt_dst:MemCpy(src, 16, 24)
+  cmpt_dst:MoveAssignTable(cmpt_src, 0)
+end
+
+dtor = function (ptr)
+  print("dtor")
+  local cmpt = LuaCmpt.new(luaCmptType0, ptr)
+  cmpt:DestructTable(0)
+end
+
+rtd:RegisterSize(luaCmptType1, 8)
+
+rtd:RegisterDefaultConstructor(luaCmptType0, default_ctor)
+rtd:RegisterCopyConstructor(luaCmptType0, copy_ctor)
+rtd:RegisterMoveConstructor(luaCmptType0, move_ctor)
+rtd:RegisterMoveAssignment(luaCmptType0, move_assignment)
+rtd:RegisterDestructor(luaCmptType0, dtor)
 
 w = World.new()
 em = w:GetEntityMngr()
 cmpts = LuaArray_CmptType.new()
-cmpts:PushBack(luaCmpt0)
-cmpts:PushBack(luaCmpt1)
+cmpts:PushBack(luaCmptType0)
+cmpts:PushBack(luaCmptType1)
 
 e0 = em:Create(cmpts:Data(), cmpts:Size())
 e1 = em:Create(cmpts:Data(), cmpts:Size())
 
-em:Detach(e0, luaCmpt0, 1)
+em:Detach(e0, luaCmptType1, 1)
 
-w:Update()
-print(w:DumpUpdateJobGraph())
+e0_cmpt0 = em:Get(e0, luaCmptType0)
+luaCmpt0 = LuaCmpt.new(e0_cmpt0)
+--t = luaCmpt:GetTable(0)
+--print(luaCmpt:GetDouble(0))
+
+--w:Update()
+--print(w:DumpUpdateJobGraph())
 )";
 		cout << code << endl
 			<< "----------------------------" << endl;
