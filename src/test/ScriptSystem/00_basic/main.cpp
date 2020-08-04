@@ -17,50 +17,64 @@ luaCmptType0 = CmptType.new("Cmpt0", AccessMode.WRITE)
 luaCmptType1 = CmptType.new("Cmpt1", AccessMode.WRITE)
 
 -- Cmpt0 : 64 bytes
---  0 - 16 table
--- 16 - 24 double
--- 24 - 28 int32
--- 28 - 32 int32
--- 32 - 64 str[32]
+--  0 - 16 str buffer -> (init) 128 bytes string
+-- 16 - 24 double {0}
+-- 24 - 28 int32  {0}
+-- 28 - 32 int32  {0}
+-- 32 - 64 str[32] ""
 
 rtd:RegisterSize(luaCmptType0, 64)
 
 default_ctor = function (ptr)
-  print("default_ctor")
-  local cmpt = LuaCmpt.new(luaCmptType0, ptr)
-  cmpt:SetZero()
-  cmpt:DefaultConstructTable(0)
+  print("default ctor")
+  local cmpt = LuaBuffer.new(ptr, 64)
+  LuaMemory.Set(ptr, 0, 64)
+  local str = LuaMemory.Malloc(128)
+  local strbuf = LuaBuffer.new(str, 128)
+  strbuf:SetCString(0, "hello world!")
+  cmpt:SetBuffer(0, strbuf)
 end
 
 copy_ctor = function (dst, src)
   print("copy ctor")
-  local cmpt_dst = LuaCmpt.new(luaCmptType0, dst)
-  local cmpt_src = LuaCmpt.new(luaCmptType0, src)
-  cmpt_dst:MemCpy(src)
-  cmpt_dst:CopyConstructTable(cmpt_src, 0)
+  local cmpt_dst = LuaBuffer.new(dst, 64)
+  local cmpt_src = LuaBuffer.new(src, 64)
+  LuaMemory.Copy(dst, src, 64)
+
+  local strbuf_src = cmpt_src:GetBuffer(0)
+  local str_dst = LuaMemory.Malloc(strbuf_src.size)
+  local strbuf_dst  LuaBuffer.new(str_dst, strbuf_src.size)
+  LuaMemory.Copy(str_dst, strbuf_src.ptr, strbuf_src.size)
+
+  cmpt_dst:SetBuffer(0, strbuf_dst)
 end
 
 move_ctor = function (dst, src)
-  print("move_ctor")
-  local cmpt_dst = LuaCmpt.new(luaCmptType0, dst)
-  local cmpt_src = LuaCmpt.new(luaCmptType0, src)
-  cmpt_dst:MemCpy(src)
-  cmpt_dst:MoveConstructTable(cmpt_src, 0)
+  print("move ctor")
+  local cmpt_dst = LuaBuffer.new(dst, 64)
+  local cmpt_src = LuaBuffer.new(src, 64)
+  LuaMemory.Copy(dst, src, 64)
+
+  local empty_buffer = LuaBuffer.new()
+  cmpt_src:SetBuffer(0, empty_buffer)
 end
 
 move_assignment = function (dst, src)
-  print("move_assignment")
-  local cmpt_dst = LuaCmpt.new(luaCmptType0, dst)
-  local cmpt_src = LuaCmpt.new(luaCmptType0, src)
-  --cmpt_dst:MemCpy(src)
-  cmpt_dst:MemCpy(src, 16, 24)
-  cmpt_dst:MoveAssignTable(cmpt_src, 0)
+  print("move assignment")
+  local cmpt_dst = LuaBuffer.new(dst, 64)
+  local cmpt_src = LuaBuffer.new(src, 64)
+  local strbuf_dst = cmpt_dst:GetBuffer(0)
+  LuaMemory.Free(strbuf_dst.ptr)
+  LuaMemory.Copy(dst, src, 64)
+  local empty_buffer = LuaBuffer.new()
+  cmpt_src:SetBuffer(0, empty_buffer)
 end
 
 dtor = function (ptr)
   print("dtor")
-  local cmpt = LuaCmpt.new(luaCmptType0, ptr)
-  cmpt:DestructTable(0)
+  local cmpt = LuaBuffer.new(ptr, 64)
+  local strbuf = cmpt:GetBuffer(0)
+  LuaMemory.Free(strbuf.ptr)
 end
 
 rtd:RegisterSize(luaCmptType1, 8)
@@ -83,9 +97,10 @@ e1 = em:Create(cmpts:Data(), cmpts:Size())
 em:Detach(e0, luaCmptType1, 1)
 
 e0_cmpt0 = em:Get(e0, luaCmptType0)
-luaCmpt0 = LuaCmpt.new(e0_cmpt0)
---t = luaCmpt:GetTable(0)
---print(luaCmpt:GetDouble(0))
+e0_cmpt0_buf = LuaBuffer.new(e0_cmpt0:Ptr(), 64)
+e0_cmpt0_buf_strbuf = e0_cmpt0_buf:GetBuffer(0)
+str = e0_cmpt0_buf_strbuf:GetCString(0)
+print(str)
 
 --w:Update()
 --print(w:DumpUpdateJobGraph())

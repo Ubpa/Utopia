@@ -4,7 +4,8 @@
 
 #include "InitUECS.h"
 #include "LuaArray.h"
-#include "LuaCmpt.h"
+#include "LuaBuffer.h"
+#include "LuaMemory.h"
 
 #include <mutex>
 
@@ -82,7 +83,8 @@ lua_State* LuaMngr::Impl::Construct() {
 	luaL_openlibs(L); /* opens the standard libraries */
 	detail::InitUECS(L);
 	ULuaPP::Register<LuaArray_CmptType>(L);
-	ULuaPP::Register<LuaCmpt>(L);
+	ULuaPP::Register<LuaBuffer>(L);
+	ULuaPP::Register<LuaMemory>(L);
 	return L;
 }
 

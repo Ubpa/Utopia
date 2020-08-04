@@ -7,6 +7,8 @@ Ubpa_AddTarget(
   LIB
     Ubpa::ULuaPP_core
     Ubpa::UECS_core
+  DEFINE
+    _CRT_SECURE_NO_WARNINGS
   C_OPTION
     /bigobj
 )
