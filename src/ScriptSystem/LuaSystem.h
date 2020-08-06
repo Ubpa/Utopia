@@ -10,9 +10,29 @@ namespace Ubpa::DustEngine {
 
 		static void Register(UECS::World* world, std::string name, sol::function onUpdate);
 
-		static void RegisterChunkFunc(UECS::Schedule*, sol::function onUpdate, std::string name, UECS::EntityFilter);
+		// World, Entity, size_t index, CmptsView
+		static const UECS::SystemFunc* RegisterSystemFunc_Entity(
+			UECS::Schedule*,
+			sol::function systemFunc,
+			std::string name,
+			UECS::EntityLocator,
+			UECS::EntityFilter
+		);
 
-		static std::function<void(UECS::ChunkView)> WrapChunkFunc(sol::function);
+		// World, ChunkView
+		static const UECS::SystemFunc* RegisterSystemFunc_Chunk(
+			UECS::Schedule*,
+			sol::function systemFunc,
+			std::string name,
+			UECS::EntityFilter
+		);
+
+		// World
+		static const UECS::SystemFunc* RegisterSystemFunc_Job(
+			UECS::Schedule*,
+			sol::function systemFunc,
+			std::string name
+		);
 
 	private:
 		LuaSystem(UECS::World* world, std::string name, sol::function onUpdate);
@@ -23,5 +43,5 @@ namespace Ubpa::DustEngine {
 	};
 }
 
-#include "detail/UECS_Refl/System_AutoRefl.inl"
+#include "detail/UECS_AutoRefl/System_AutoRefl.inl"
 #include "detail/LuaSystem_AutoRefl.inl"

@@ -12,13 +12,6 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::Schedule>
     static constexpr AttrList attrs = {};
 
     static constexpr FieldList fields = {
-		Field{"RegisterChunkFunc",
-			static_cast<void(*)(Ubpa::UECS::Schedule*, sol::function, std::string, Ubpa::UECS::EntityFilter)>(
-				[](Ubpa::UECS::Schedule* s, sol::function func, std::string n, Ubpa::UECS::EntityFilter filter) {
-                    s->Register(func.as<std::function<void(Ubpa::UECS::ChunkView)>>(), std::move(n), std::move(filter));
-				}
-			)
-		},
         Field{"LockFilter", &Ubpa::UECS::Schedule::LockFilter,
             AttrList {
                 Attr{UBPA_USREFL_NAME_ARG(0),
@@ -28,17 +21,6 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::Schedule>
                 },
             }
         },
-        Field{"EntityNumInQuery", &Ubpa::UECS::Schedule::EntityNumInQuery,
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "sys"},
-                    }
-                },
-            }
-        },
-        Field{"GetEntityMngr", &Ubpa::UECS::Schedule::GetEntityMngr},
-        Field{"GetSystemMngr", &Ubpa::UECS::Schedule::GetSystemMngr},
         Field{"Order", &Ubpa::UECS::Schedule::Order,
             AttrList {
                 Attr{UBPA_USREFL_NAME_ARG(0),

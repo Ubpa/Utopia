@@ -1,6 +1,6 @@
 #include "InitUECS.h"
 
-#include "detail/UECS_Refl/UECS_Refl.h"
+#include "detail/UECS_AutoRefl/UECS_AutoRefl.h"
 
 void Ubpa::DustEngine::detail::InitUECS(lua_State* L) {
 	ULuaPP::Register<UECS::AccessMode>(L);

@@ -94,15 +94,6 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::EntityMngr>
                 Attr{UBPA_USREFL_NAME_ARG(0)},
             }
         },
-        Field{"AddCommand", &Ubpa::UECS::EntityMngr::AddCommand,
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "command"},
-                    }
-                },
-            }
-        },
         Field{"Accept", &Ubpa::UECS::EntityMngr::Accept,
             AttrList {
                 Attr{UBPA_USREFL_NAME_ARG(0),

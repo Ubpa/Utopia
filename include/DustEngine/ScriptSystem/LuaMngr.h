@@ -19,6 +19,8 @@ namespace Ubpa::DustEngine {
 
 		void Reserve(size_t n);
 
+		lua_State* Main() const;
+
 		// lock
 		lua_State* Request();
 		// lock

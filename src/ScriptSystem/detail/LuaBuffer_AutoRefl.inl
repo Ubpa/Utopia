@@ -28,6 +28,29 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::DustEngine::LuaBuffer>
 				},
 			}
 		},
+		Field{"GetEntity", &Ubpa::DustEngine::LuaBuffer::GetEntity,
+			AttrList {
+				Attr{UBPA_USREFL_NAME_ARG(0),
+					AttrList{
+						Attr{Name::name, "offset"},
+					}
+				},
+			}
+		},
+		Field{"SetEntity", &Ubpa::DustEngine::LuaBuffer::SetEntity,
+			AttrList {
+				Attr{UBPA_USREFL_NAME_ARG(0),
+					AttrList{
+						Attr{Name::name, "offset"},
+					}
+				},
+				Attr{UBPA_USREFL_NAME_ARG(1),
+					AttrList{
+						Attr{Name::name, "e"},
+					}
+				},
+			}
+		},
 		Field{"GetPointer", &Ubpa::DustEngine::LuaBuffer::GetPointer,
 			AttrList {
 				Attr{UBPA_USREFL_NAME_ARG(0),

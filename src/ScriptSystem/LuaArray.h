@@ -14,4 +14,4 @@ namespace Ubpa::DustEngine {
 	};
 }
 
-#include "detail/LuaArray_Refl.inl"
+#include "detail/LuaArray_AutoRefl.inl"

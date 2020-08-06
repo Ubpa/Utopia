@@ -1,15 +1,19 @@
 #pragma once
 
 #include <string_view>
+#include <UECS/Entity.h>
 
 namespace Ubpa::DustEngine {
-	// Get/Set + Bool / (U)Int[8|16|32|64] / Float / Double / String / Pointer
+	// Get/Set + Bool / (U)Int[8|16|32|64] / Float / Double / String / Pointer / Entity
 	struct LuaBuffer {
 		void* ptr;
 		uint64_t size; // uint64_t
 
 		LuaBuffer() : ptr{ nullptr }, size{ static_cast<uint64_t>(-1) } {}
 		LuaBuffer(void* ptr, uint64_t size) : ptr{ ptr }, size{ size } {}
+
+		UECS::Entity GetEntity(size_t offset) const { return Get<UECS::Entity>(offset); }
+		void SetEntity(size_t offset, UECS::Entity e) { Set(offset, e); }
 
 		void* GetPointer(size_t offset) const { return Get<void*>(offset); }
 		void SetPointer(size_t offset, void* p) { Set(offset, p); }

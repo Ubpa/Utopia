@@ -41,6 +41,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::ChunkView>
                 Attr{UBPA_USREFL_NAME_ARG(0)},
             }
         },
+		Field{"GetEntityArray", &Ubpa::UECS::ChunkView::GetEntityArray},
         Field{"EntityNum", &Ubpa::UECS::ChunkView::EntityNum},
     };
 };

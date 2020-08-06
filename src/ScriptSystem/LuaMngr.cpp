@@ -3,6 +3,7 @@
 #include <UECS/CmptType.h>
 
 #include "InitUECS.h"
+#include "InitUGraphviz.h"
 #include "LuaArray.h"
 #include "LuaBuffer.h"
 #include "LuaMemory.h"
@@ -16,6 +17,7 @@ struct LuaMngr::Impl {
 	std::mutex m;
 	std::set<lua_State*> busyLuas;
 	std::vector<lua_State*> freeLuas;
+	lua_State* mainLua;
 
 	static lua_State* Construct();
 	static void Destruct(lua_State* L);
@@ -23,6 +25,11 @@ struct LuaMngr::Impl {
 
 void LuaMngr::Init() {
 	pImpl = new LuaMngr::Impl;
+	pImpl->mainLua = Impl::Construct();
+}
+
+lua_State* LuaMngr::Main() const {
+	return pImpl->mainLua;
 }
 
 void LuaMngr::Reserve(size_t n) {
@@ -63,6 +70,7 @@ void LuaMngr::Clear() {
 	assert(pImpl->busyLuas.empty());
 	for (auto L : pImpl->freeLuas)
 		Impl::Destruct(L);
+	Impl::Destruct(pImpl->mainLua);
 	delete pImpl;
 }
 
@@ -83,6 +91,7 @@ lua_State* LuaMngr::Impl::Construct() {
 	lua_State* L = luaL_newstate(); /* opens Lua */
 	luaL_openlibs(L); /* opens the standard libraries */
 	detail::InitUECS(L);
+	detail::InitUGraphviz(L);
 	ULuaPP::Register<LuaArray_CmptType>(L);
 	ULuaPP::Register<LuaBuffer>(L);
 	ULuaPP::Register<LuaMemory>(L);
