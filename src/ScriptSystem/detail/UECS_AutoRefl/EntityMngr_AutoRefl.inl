@@ -93,7 +93,34 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::EntityMngr>
             AttrList {
                 Attr{UBPA_USREFL_NAME_ARG(0)},
             }
-        },
+		},
+		Field{"LocateSingletons", &Ubpa::UECS::EntityMngr::LocateSingletons,
+			AttrList {
+				Attr{UBPA_USREFL_NAME_ARG(0)},
+			}
+		},
+		Field{"IsSingleton", &Ubpa::UECS::EntityMngr::IsSingleton,
+			AttrList {
+				Attr{UBPA_USREFL_NAME_ARG(0)},
+			}
+		},
+		Field{"GetSingletonEntity", &Ubpa::UECS::EntityMngr::GetSingletonEntity,
+			AttrList {
+				Attr{UBPA_USREFL_NAME_ARG(0)},
+			}
+		},
+		Field{"GetSingleton",
+            static_cast<Ubpa::UECS::CmptPtr(Ubpa::UECS::EntityMngr::*)(Ubpa::UECS::CmptType)const>(&Ubpa::UECS::EntityMngr::GetSingleton),
+			AttrList {
+				Attr{UBPA_USREFL_NAME_ARG(0)},
+			}
+		},
+		Field{"GetIfSingleton",
+            static_cast<Ubpa::UECS::CmptPtr(Ubpa::UECS::EntityMngr::*)(Ubpa::UECS::CmptType)const>(&Ubpa::UECS::EntityMngr::GetIfSingleton),
+			AttrList {
+				Attr{UBPA_USREFL_NAME_ARG(0)},
+			}
+		},
         Field{"Accept", &Ubpa::UECS::EntityMngr::Accept,
             AttrList {
                 Attr{UBPA_USREFL_NAME_ARG(0),

@@ -5,14 +5,14 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::EntityFilter>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::EntityFilter>
+struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::ArchetypeFilter>
+    : Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::ArchetypeFilter>
 {
     static constexpr AttrList attrs = {};
 
     static constexpr FieldList fields = {
-        Field{Name::constructor, WrapConstructor<Ubpa::UECS::EntityFilter()>()},
-        Field{Name::constructor, WrapConstructor<Ubpa::UECS::EntityFilter(std::set<Ubpa::UECS::CmptType>, std::set<Ubpa::UECS::CmptType>, std::set<Ubpa::UECS::CmptType>)>(),
+        Field{Name::constructor, WrapConstructor<Ubpa::UECS::ArchetypeFilter()>()},
+        Field{Name::constructor, WrapConstructor<Ubpa::UECS::ArchetypeFilter(std::set<Ubpa::UECS::CmptType>, std::set<Ubpa::UECS::CmptType>, std::set<Ubpa::UECS::CmptType>)>(),
             AttrList {
                 Attr{UBPA_USREFL_NAME_ARG(0),
                     AttrList{
@@ -31,12 +31,12 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::EntityFilter>
                 },
             }
         },
-        Field{"HashCode", &Ubpa::UECS::EntityFilter::HashCode},
-        Field{"AllCmptTypes", &Ubpa::UECS::EntityFilter::AllCmptTypes},
-        Field{"AnyCmptTypes", &Ubpa::UECS::EntityFilter::AnyCmptTypes},
-        Field{"NoneCmptTypes", &Ubpa::UECS::EntityFilter::NoneCmptTypes},
+        Field{"HashCode", &Ubpa::UECS::ArchetypeFilter::HashCode},
+        Field{"AllCmptTypes", &Ubpa::UECS::ArchetypeFilter::AllCmptTypes},
+        Field{"AnyCmptTypes", &Ubpa::UECS::ArchetypeFilter::AnyCmptTypes},
+        Field{"NoneCmptTypes", &Ubpa::UECS::ArchetypeFilter::NoneCmptTypes},
         Field{"InsertAll",
-            static_cast<void(Ubpa::UECS::EntityFilter::*)(const Ubpa::UECS::CmptType*, size_t)>(&Ubpa::UECS::EntityFilter::InsertAll),
+            static_cast<void(Ubpa::UECS::ArchetypeFilter::*)(const Ubpa::UECS::CmptType*, size_t)>(&Ubpa::UECS::ArchetypeFilter::InsertAll),
             AttrList {
                 Attr{UBPA_USREFL_NAME_ARG(0),
                     AttrList{
@@ -51,7 +51,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::EntityFilter>
             }
         },
 		Field{"InsertAny",
-			static_cast<void(Ubpa::UECS::EntityFilter::*)(const Ubpa::UECS::CmptType*, size_t)>(&Ubpa::UECS::EntityFilter::InsertAny),
+			static_cast<void(Ubpa::UECS::ArchetypeFilter::*)(const Ubpa::UECS::CmptType*, size_t)>(&Ubpa::UECS::ArchetypeFilter::InsertAny),
             AttrList {
                 Attr{UBPA_USREFL_NAME_ARG(0),
                     AttrList{
@@ -66,7 +66,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::EntityFilter>
             }
         },
 		Field{"InsertNone",
-			static_cast<void(Ubpa::UECS::EntityFilter::*)(const Ubpa::UECS::CmptType*, size_t)>(&Ubpa::UECS::EntityFilter::InsertNone),
+			static_cast<void(Ubpa::UECS::ArchetypeFilter::*)(const Ubpa::UECS::CmptType*, size_t)>(&Ubpa::UECS::ArchetypeFilter::InsertNone),
             AttrList {
                 Attr{UBPA_USREFL_NAME_ARG(0),
                     AttrList{
@@ -81,7 +81,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::EntityFilter>
             }
         },
 		Field{"EraseAll",
-			static_cast<void(Ubpa::UECS::EntityFilter::*)(const Ubpa::UECS::CmptType*, size_t)>(&Ubpa::UECS::EntityFilter::EraseAll),
+			static_cast<void(Ubpa::UECS::ArchetypeFilter::*)(const Ubpa::UECS::CmptType*, size_t)>(&Ubpa::UECS::ArchetypeFilter::EraseAll),
             AttrList {
                 Attr{UBPA_USREFL_NAME_ARG(0),
                     AttrList{
@@ -96,7 +96,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::EntityFilter>
             }
         },
 		Field{"EraseAny",
-			static_cast<void(Ubpa::UECS::EntityFilter::*)(const Ubpa::UECS::CmptType*, size_t)>(&Ubpa::UECS::EntityFilter::EraseAny),
+			static_cast<void(Ubpa::UECS::ArchetypeFilter::*)(const Ubpa::UECS::CmptType*, size_t)>(&Ubpa::UECS::ArchetypeFilter::EraseAny),
             AttrList {
                 Attr{UBPA_USREFL_NAME_ARG(0),
                     AttrList{
@@ -111,7 +111,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::EntityFilter>
             }
         },
 		Field{"EraseNone",
-			static_cast<void(Ubpa::UECS::EntityFilter::*)(const Ubpa::UECS::CmptType*, size_t)>(&Ubpa::UECS::EntityFilter::EraseNone),
+			static_cast<void(Ubpa::UECS::ArchetypeFilter::*)(const Ubpa::UECS::CmptType*, size_t)>(&Ubpa::UECS::ArchetypeFilter::EraseNone),
             AttrList {
                 Attr{UBPA_USREFL_NAME_ARG(0),
                     AttrList{
@@ -125,7 +125,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::EntityFilter>
                 },
             }
         },
-        Field{"operator==", &Ubpa::UECS::EntityFilter::operator==,
+        Field{"operator==", &Ubpa::UECS::ArchetypeFilter::operator==,
             AttrList {
                 Attr{UBPA_USREFL_NAME_ARG(0),
                     AttrList{

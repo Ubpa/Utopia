@@ -6,14 +6,17 @@
 
 template<>
 struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::AccessMode>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::AccessMode>
+	: Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::AccessMode>
 {
-    static constexpr AttrList attrs = {};
+	static constexpr AttrList attrs = {};
 
-    static constexpr FieldList fields = {
-        Field{"LAST_FRAME", Ubpa::UECS::AccessMode::LAST_FRAME},
-        Field{"WRITE", Ubpa::UECS::AccessMode::WRITE},
-        Field{"LATEST", Ubpa::UECS::AccessMode::LATEST},
-    };
+	static constexpr FieldList fields = {
+		Field{"LAST_FRAME", Ubpa::UECS::AccessMode::LAST_FRAME},
+		Field{"WRITE", Ubpa::UECS::AccessMode::WRITE},
+		Field{"LATEST", Ubpa::UECS::AccessMode::LATEST},
+		Field{"LAST_FRAME_SINGLETON", Ubpa::UECS::AccessMode::LAST_FRAME_SINGLETON},
+		Field{"WRITE_SINGLETON", Ubpa::UECS::AccessMode::WRITE_SINGLETON},
+		Field{"LATEST_SINGLETON", Ubpa::UECS::AccessMode::LATEST_SINGLETON},
+	};
 };
 

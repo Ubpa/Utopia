@@ -11,84 +11,9 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::DustEngine::LuaSystem>
 	static constexpr AttrList attrs = {};
 
 	static constexpr FieldList fields = {
-		Field{"Register", &Ubpa::DustEngine::LuaSystem::Register,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "world"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "name"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(2),
-					AttrList{
-						Attr{Name::name, "onUpdate"},
-					}
-				},
-			}
-		},
-		Field{"RegisterSystemFunc_Entity", &Ubpa::DustEngine::LuaSystem::RegisterSystemFunc_Entity,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0)},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "systemFunc"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(2),
-					AttrList{
-						Attr{Name::name, "name"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(3),
-					AttrList{
-						Attr{Name::name, "EntityLocator"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(4),
-					AttrList{
-						Attr{Name::name, "EntityFilter"},
-					}
-				},
-			}
-		},
-		Field{"RegisterSystemFunc_Chunk", &Ubpa::DustEngine::LuaSystem::RegisterSystemFunc_Chunk,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0)},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "systemFunc"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(2),
-					AttrList{
-						Attr{Name::name, "name"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(3),
-					AttrList{
-						Attr{Name::name, "EntityFilter"},
-					}
-				},
-			}
-		},
-		Field{"RegisterSystemFunc_Job", &Ubpa::DustEngine::LuaSystem::RegisterSystemFunc_Job,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0)},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "systemFunc"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(2),
-					AttrList{
-						Attr{Name::name, "name"},
-					}
-				},
-			}
-		},
+		Field{"RegisterSystem", &Ubpa::DustEngine::LuaSystem::RegisterSystem},
+		Field{"RegisterEntityJob", &Ubpa::DustEngine::LuaSystem::RegisterEntityJob},
+		Field{"RegisterChunkJob", &Ubpa::DustEngine::LuaSystem::RegisterChunkJob},
+		Field{"RegisterJob", &Ubpa::DustEngine::LuaSystem::RegisterJob},
 	};
 };

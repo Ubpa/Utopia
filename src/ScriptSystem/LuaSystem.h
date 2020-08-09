@@ -8,30 +8,33 @@ namespace Ubpa::DustEngine {
 	public:
 		using System::System;
 
-		static void Register(UECS::World* world, std::string name, sol::function onUpdate);
+		static void RegisterSystem(UECS::World* world, std::string name, sol::function onUpdate);
 
-		// World, Entity, size_t index, CmptsView
-		static const UECS::SystemFunc* RegisterSystemFunc_Entity(
+		// World, SingletonsView, Entity, size_t index, CmptsView
+		static const UECS::SystemFunc* RegisterEntityJob(
 			UECS::Schedule*,
 			sol::function systemFunc,
 			std::string name,
-			UECS::EntityLocator,
-			UECS::EntityFilter
+			UECS::ArchetypeFilter,
+			UECS::CmptLocator,
+			UECS::SingletonLocator
 		);
 
-		// World, ChunkView
-		static const UECS::SystemFunc* RegisterSystemFunc_Chunk(
+		// World, SingletonsView, ChunkView
+		static const UECS::SystemFunc* RegisterChunkJob(
 			UECS::Schedule*,
 			sol::function systemFunc,
 			std::string name,
-			UECS::EntityFilter
+			UECS::ArchetypeFilter,
+			UECS::SingletonLocator
 		);
 
-		// World
-		static const UECS::SystemFunc* RegisterSystemFunc_Job(
+		// World, SingletonsView
+		static const UECS::SystemFunc* RegisterJob(
 			UECS::Schedule*,
 			sol::function systemFunc,
-			std::string name
+			std::string name,
+			UECS::SingletonLocator
 		);
 
 	private:

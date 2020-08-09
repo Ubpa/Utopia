@@ -4,21 +4,23 @@
 
 using namespace Ubpa::DustEngine;
 
-void LuaSystem::Register(UECS::World* world, std::string name, sol::function onUpdate) {
+void LuaSystem::RegisterSystem(UECS::World* world, std::string name, sol::function onUpdate) {
 	world->systemMngr.Register(std::unique_ptr<LuaSystem>(new LuaSystem(world, name, onUpdate)));
 }
 
-// World, Entity, size_t index, CmptsView
-const Ubpa::UECS::SystemFunc* LuaSystem::RegisterSystemFunc_Entity(
+const Ubpa::UECS::SystemFunc* LuaSystem::RegisterEntityJob(
 	UECS::Schedule* s,
 	sol::function systemFunc,
 	std::string name,
-	UECS::EntityLocator locator,
-	UECS::EntityFilter filter
+	UECS::ArchetypeFilter filter,
+	UECS::CmptLocator cmptLocator,
+	UECS::SingletonLocator singletonLocator
 ) {
-	assert(!locator.CmptTypes().empty());
+	assert(!cmptLocator.CmptTypes().empty());
 	auto bytes = systemFunc.dump();
-	auto sysfunc = s->Register([bytes, locator = std::move(locator)](UECS::World* w, UECS::ChunkView chunk) {
+	auto sysfunc = s->RegisterChunkJob(
+	[bytes = std::move(bytes), cmptLocator = std::move(cmptLocator)]
+	(UECS::World* w, UECS::SingletonsView singletonsView, UECS::ChunkView chunk) {
 		if (chunk.EntityNum() == 0)
 			return;
 
@@ -26,69 +28,75 @@ const Ubpa::UECS::SystemFunc* LuaSystem::RegisterSystemFunc_Entity(
 		{
 			sol::state_view lua(L);
 			sol::function f = lua.load(bytes.as_string_view());
+
 			auto arrayEntity = chunk.GetCmptArray<UECS::Entity>();
 			std::vector<void*> cmpts;
+			std::vector<UECS::CmptType> types;
+			std::vector<UECS::CmptPtr> cmptPtrs;
 			std::vector<size_t> sizes;
-			cmpts.reserve(locator.CmptTypes().size());
-			sizes.reserve(locator.CmptTypes().size());
-			for (const auto& t : locator.CmptTypes()) {
+			cmpts.reserve(cmptLocator.CmptTypes().size());
+			types.reserve(cmptLocator.CmptTypes().size());
+			cmptPtrs.reserve(cmptLocator.CmptTypes().size());
+			sizes.reserve(cmptLocator.CmptTypes().size());
+			for (const auto& t : cmptLocator.CmptTypes()) {
 				cmpts.push_back(chunk.GetCmptArray(t));
+				types.push_back(t);
+				cmptPtrs.emplace_back(t, cmpts.back());
 				sizes.push_back(UECS::RTDCmptTraits::Instance().Sizeof(t));
 			}
 
 			size_t i = 0;
 			do {
-				UECS::CmptsView view{ &locator, cmpts.data() };
-				f(w, arrayEntity[i], i, view);
-				for (size_t j = 0; j < cmpts.size(); j++)
+				UECS::CmptsView view{ cmptPtrs.data(), cmptPtrs.size() };
+				f(w, singletonsView, arrayEntity[i], i, view);
+				for (size_t j = 0; j < cmpts.size(); j++) {
 					cmpts[j] = (reinterpret_cast<uint8_t*>(cmpts[j]) + sizes[j]);
+					cmptPtrs[j] = { types[j], cmpts[j] };
+				}
 			} while (++i < chunk.EntityNum());
 		}
 		LuaMngr::Instance().Recycle(L);
-	}, std::move(name), std::move(filter));
+	}, std::move(name), std::move(filter), std::move(singletonLocator));
 	return sysfunc;
 }
 
-// World, ChunkView
-const Ubpa::UECS::SystemFunc* LuaSystem::RegisterSystemFunc_Chunk(
+const Ubpa::UECS::SystemFunc* LuaSystem::RegisterChunkJob(
 	UECS::Schedule* s,
 	sol::function systemFunc,
 	std::string name,
-	UECS::EntityFilter filter
+	UECS::ArchetypeFilter filter,
+	UECS::SingletonLocator singletonLocator
 ) {
 	assert(!filter.AllCmptTypes().empty() || !filter.AnyCmptTypes().empty());
 	auto bytes = systemFunc.dump();
-	auto sysfunc = s->Register([bytes](UECS::World* w, UECS::ChunkView chunk) {
-		if (chunk.EntityNum() == 0)
-			return;
-
+	auto sysfunc = s->RegisterChunkJob([bytes](UECS::World* w, UECS::SingletonsView singletonsView, UECS::ChunkView chunk) {
 		auto L = LuaMngr::Instance().Request();
 		{
 			sol::state_view lua(L);
 			sol::function f = lua.load(bytes.as_string_view());
-			f.call(w, chunk);
+			f.call(w, singletonsView, chunk);
 		}
 		LuaMngr::Instance().Recycle(L);
-	}, std::move(name), std::move(filter));
+	}, std::move(name), std::move(filter), std::move(singletonLocator));
 	return sysfunc;
 }
 
-// World
-const Ubpa::UECS::SystemFunc* LuaSystem::RegisterSystemFunc_Job(
+const Ubpa::UECS::SystemFunc* LuaSystem::RegisterJob(
 	UECS::Schedule* s,
 	sol::function systemFunc,
-	std::string name
+	std::string name,
+	UECS::SingletonLocator singletonLocator
 ) {
 	auto bytes = systemFunc.dump();
-	auto sysfunc = s->Register([bytes](UECS::World* w) {
+	auto sysfunc = s->RegisterJob([bytes](UECS::World* w, UECS::SingletonsView singletonsView) {
 		auto L = LuaMngr::Instance().Request();
 		{
 			sol::state_view lua(L);
 			sol::function f = lua.load(bytes.as_string_view());
-			f.call(w);
+			f.call(w, singletonsView);
 		}
 		LuaMngr::Instance().Recycle(L);
-	}, std::move(name));
+	}, std::move(name), std::move(singletonLocator));
 	return sysfunc;
 }
 

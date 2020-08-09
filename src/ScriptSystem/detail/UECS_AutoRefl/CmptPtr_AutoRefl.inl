@@ -26,6 +26,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::CmptPtr>
             }
         },
         Field{"Type", &Ubpa::UECS::CmptPtr::Type},
-        Field{"Ptr", &Ubpa::UECS::CmptPtr::Ptr},
+		Field{"Ptr", &Ubpa::UECS::CmptPtr::Ptr},
+		Field{"Valid", &Ubpa::UECS::CmptPtr::Valid},
     };
 };

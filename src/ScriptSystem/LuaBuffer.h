@@ -11,6 +11,7 @@ namespace Ubpa::DustEngine {
 
 		LuaBuffer() : ptr{ nullptr }, size{ static_cast<uint64_t>(-1) } {}
 		LuaBuffer(void* ptr, uint64_t size) : ptr{ ptr }, size{ size } {}
+		LuaBuffer(UECS::Entity* entityArray, size_t num) : ptr{ entityArray }, size{ num * sizeof(UECS::Entity) } {}
 
 		UECS::Entity GetEntity(size_t offset) const { return Get<UECS::Entity>(offset); }
 		void SetEntity(size_t offset, UECS::Entity e) { Set(offset, e); }
@@ -20,6 +21,9 @@ namespace Ubpa::DustEngine {
 
 		LuaBuffer GetBuffer(size_t offset) const { return Get<LuaBuffer>(offset); }
 		void SetBuffer(size_t offset, LuaBuffer buffer) { Set(offset, buffer); }
+
+		LuaBuffer GetBuffer(size_t offset, uint64_t size) const { return { Offset(offset), size }; }
+		void SetBuffer(size_t offset, void* ptr, size_t size) { memcpy(Offset(offset), ptr, size); }
 
 		bool GetBool(size_t offset) const { return Get<bool>(offset); }
 		void SetBool(size_t offset, bool value) { Set(offset, value); }

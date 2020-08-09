@@ -30,7 +30,7 @@ void LocalToParentSystem::ChildLocalToWorld(const transformf& parent_l2w, Entity
 }
 
 void LocalToParentSystem::OnUpdate(UECS::Schedule& schedule) {
-	UECS::EntityFilter rootFilter{
+	UECS::ArchetypeFilter rootFilter{
 		TypeList<>{},      // all
 		TypeList<>{},      // any
 		TypeList<Parent>{} // none

@@ -5,17 +5,17 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::CmptsView>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::CmptsView>
+struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::SingletonsView>
+    : Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::SingletonsView>
 {
     static constexpr AttrList attrs = {};
 
     static constexpr FieldList fields = {
-        Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptsView(const Ubpa::UECS::CmptPtr *, size_t)>(),
+        Field{Name::constructor, WrapConstructor<Ubpa::UECS::SingletonsView(const Ubpa::UECS::CmptPtr *, size_t)>(),
             AttrList {
                 Attr{UBPA_USREFL_NAME_ARG(0),
                     AttrList{
-                        Attr{Name::name, "cmpts"},
+                        Attr{Name::name, "singletons"},
                     }
                 },
                 Attr{UBPA_USREFL_NAME_ARG(1),
@@ -25,13 +25,13 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::CmptsView>
                 },
             }
         },
-        Field{"GetCmpt", &Ubpa::UECS::CmptsView::GetCmpt,
+        Field{"GetSingleton", &Ubpa::UECS::SingletonsView::GetSingleton,
             AttrList {
                 Attr{UBPA_USREFL_NAME_ARG(0)},
             }
         },
-        Field{"Components", &Ubpa::UECS::CmptsView::Components},
-        Field{"NumberOfComponents", &Ubpa::UECS::CmptsView::NumberOfComponents},
+        Field{"Singletons", &Ubpa::UECS::SingletonsView::Singletons},
+        Field{"NumberOfSingletons", &Ubpa::UECS::SingletonsView::NumberOfSingletons},
     };
 };
 

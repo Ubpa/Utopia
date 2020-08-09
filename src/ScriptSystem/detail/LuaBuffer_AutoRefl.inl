@@ -28,6 +28,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::DustEngine::LuaBuffer>
 				},
 			}
 		},
+		Field{Name::constructor, WrapConstructor<Ubpa::DustEngine::LuaBuffer(UECS::Entity*, size_t)>()},
 		Field{"GetEntity", &Ubpa::DustEngine::LuaBuffer::GetEntity,
 			AttrList {
 				Attr{UBPA_USREFL_NAME_ARG(0),
@@ -74,7 +75,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::DustEngine::LuaBuffer>
 				},
 			}
 		},
-		Field{"GetBuffer", &Ubpa::DustEngine::LuaBuffer::GetBuffer,
+		Field{"GetBuffer", static_cast<Ubpa::DustEngine::LuaBuffer(Ubpa::DustEngine::LuaBuffer::*)(size_t)const>(&Ubpa::DustEngine::LuaBuffer::GetBuffer),
 			AttrList {
 				Attr{UBPA_USREFL_NAME_ARG(0),
 					AttrList{
@@ -83,7 +84,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::DustEngine::LuaBuffer>
 				},
 			}
 		},
-		Field{"SetBuffer", &Ubpa::DustEngine::LuaBuffer::SetBuffer,
+		Field{"SetBuffer", static_cast<void(Ubpa::DustEngine::LuaBuffer::*)(size_t, Ubpa::DustEngine::LuaBuffer)>(&Ubpa::DustEngine::LuaBuffer::SetBuffer),
 			AttrList {
 				Attr{UBPA_USREFL_NAME_ARG(0),
 					AttrList{
@@ -93,6 +94,39 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::DustEngine::LuaBuffer>
 				Attr{UBPA_USREFL_NAME_ARG(1),
 					AttrList{
 						Attr{Name::name, "buffer"},
+					}
+				},
+			}
+		},
+		Field{"GetBuffer", static_cast<Ubpa::DustEngine::LuaBuffer(Ubpa::DustEngine::LuaBuffer::*)(size_t, uint64_t)const>(&Ubpa::DustEngine::LuaBuffer::GetBuffer),
+			AttrList {
+				Attr{UBPA_USREFL_NAME_ARG(0),
+					AttrList{
+						Attr{Name::name, "offset"},
+					}
+				},
+				Attr{UBPA_USREFL_NAME_ARG(1),
+					AttrList{
+						Attr{Name::name, "size"},
+					}
+				},
+			}
+		},
+		Field{"SetBuffer", static_cast<void(Ubpa::DustEngine::LuaBuffer::*)(size_t, void*, size_t)>(&Ubpa::DustEngine::LuaBuffer::SetBuffer),
+			AttrList {
+				Attr{UBPA_USREFL_NAME_ARG(0),
+					AttrList{
+						Attr{Name::name, "offset"},
+					}
+				},
+				Attr{UBPA_USREFL_NAME_ARG(1),
+					AttrList{
+						Attr{Name::name, "ptr"},
+					}
+				},
+				Attr{UBPA_USREFL_NAME_ARG(2),
+					AttrList{
+						Attr{Name::name, "size"},
 					}
 				},
 			}

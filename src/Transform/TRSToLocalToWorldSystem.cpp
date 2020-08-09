@@ -8,7 +8,7 @@
 using namespace Ubpa::DustEngine;
 
 void TRSToLocalToWorldSystem::OnUpdate(UECS::Schedule& schedule) {
-	UECS::EntityFilter filter{
+	UECS::ArchetypeFilter filter{
 		TypeList<LocalToWorld>{},
 		TypeList<UECS::Latest<Translation>, UECS::Latest<Rotation>, UECS::Latest<Scale>>{},
 		TypeList<>{},
