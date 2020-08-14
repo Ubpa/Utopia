@@ -6,7 +6,7 @@
 using namespace Ubpa::DustEngine;
 
 void RotationEulerSystem::OnUpdate(UECS::Schedule& schedule) {
-	schedule.Register([](Rotation* rot, const RotationEuler* rot_euler) {
+	schedule.RegisterEntityJob([](Rotation* rot, const RotationEuler* rot_euler) {
 			rot->value = rot_euler->value.to_quat();
 		}, SystemFuncName);
 }

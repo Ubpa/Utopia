@@ -13,7 +13,7 @@ public:
 	mutex m;
 
 	virtual void OnUpdate(Schedule& schedule) override {
-		schedule.Register([&](const LocalToWorld* l2w) {
+		schedule.RegisterEntityJob([&](const LocalToWorld* l2w) {
 			m.lock();
 			l2w->value.print();
 			m.unlock();

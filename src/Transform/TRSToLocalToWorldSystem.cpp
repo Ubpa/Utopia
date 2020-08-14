@@ -8,13 +8,15 @@
 using namespace Ubpa::DustEngine;
 
 void TRSToLocalToWorldSystem::OnUpdate(UECS::Schedule& schedule) {
-	UECS::ArchetypeFilter filter{
-		TypeList<LocalToWorld>{},
-		TypeList<UECS::Latest<Translation>, UECS::Latest<Rotation>, UECS::Latest<Scale>>{},
-		TypeList<>{},
+	UECS::ArchetypeFilter filter;
+	filter.all = { UECS::CmptType::Of<UECS::Write<LocalToWorld>> };
+	filter.any = {
+		UECS::CmptType::Of<UECS::Latest<Translation>>,
+		UECS::CmptType::Of<UECS::Latest<Rotation>>,
+		UECS::CmptType::Of<UECS::Latest<Scale>>,
 	};
 
-	schedule.Register([](UECS::ChunkView chunk) {
+	schedule.RegisterChunkJob([](UECS::ChunkView chunk) {
 		auto chunkL2W = chunk.GetCmptArray<LocalToWorld>();
 		auto chunkT = chunk.GetCmptArray<Translation>();
 		auto chunkR = chunk.GetCmptArray<Rotation>();
