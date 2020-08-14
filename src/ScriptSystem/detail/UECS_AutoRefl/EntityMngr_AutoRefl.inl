@@ -115,12 +115,6 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::EntityMngr>
 				Attr{UBPA_USREFL_NAME_ARG(0)},
 			}
 		},
-		Field{"GetIfSingleton",
-            static_cast<Ubpa::UECS::CmptPtr(Ubpa::UECS::EntityMngr::*)(Ubpa::UECS::CmptType)const>(&Ubpa::UECS::EntityMngr::GetIfSingleton),
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0)},
-			}
-		},
         Field{"Accept", &Ubpa::UECS::EntityMngr::Accept,
             AttrList {
                 Attr{UBPA_USREFL_NAME_ARG(0),

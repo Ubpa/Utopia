@@ -67,7 +67,6 @@ const Ubpa::UECS::SystemFunc* LuaSystem::RegisterChunkJob(
 	UECS::ArchetypeFilter filter,
 	UECS::SingletonLocator singletonLocator
 ) {
-	assert(!filter.AllCmptTypes().empty() || !filter.AnyCmptTypes().empty());
 	auto bytes = systemFunc.dump();
 	auto sysfunc = s->RegisterChunkJob([bytes](UECS::World* w, UECS::SingletonsView singletonsView, UECS::ChunkView chunk) {
 		auto L = LuaMngr::Instance().Request();

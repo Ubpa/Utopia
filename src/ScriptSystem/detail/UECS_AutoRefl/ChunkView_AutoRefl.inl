@@ -11,7 +11,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::ChunkView>
     static constexpr AttrList attrs = {};
 
     static constexpr FieldList fields = {
-        Field{Name::constructor, WrapConstructor<Ubpa::UECS::ChunkView(Ubpa::UECS::Archetype*, size_t, Ubpa::UECS::Chunk*)>(),
+        Field{Name::constructor, WrapConstructor<Ubpa::UECS::ChunkView(Ubpa::UECS::Archetype*, size_t)>(),
             AttrList {
                 Attr{UBPA_USREFL_NAME_ARG(0),
                     AttrList{
@@ -21,11 +21,6 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::ChunkView>
                 Attr{UBPA_USREFL_NAME_ARG(1),
                     AttrList{
                         Attr{Name::name, "chunkIdx"},
-                    }
-                },
-                Attr{UBPA_USREFL_NAME_ARG(2),
-                    AttrList{
-                        Attr{Name::name, "chunk"},
                     }
                 },
             }

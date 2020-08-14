@@ -11,125 +11,15 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::ArchetypeFilter>
     static constexpr AttrList attrs = {};
 
     static constexpr FieldList fields = {
-        Field{Name::constructor, WrapConstructor<Ubpa::UECS::ArchetypeFilter()>()},
-        Field{Name::constructor, WrapConstructor<Ubpa::UECS::ArchetypeFilter(std::set<Ubpa::UECS::CmptType>, std::set<Ubpa::UECS::CmptType>, std::set<Ubpa::UECS::CmptType>)>(),
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "allCmptTypes"},
-                    }
-                },
-                Attr{UBPA_USREFL_NAME_ARG(1),
-                    AttrList{
-                        Attr{Name::name, "anyCmptTypes"}
-                    }
-                },
-                Attr{UBPA_USREFL_NAME_ARG(2),
-                    AttrList{
-                        Attr{Name::name, "noneCmptTypes"}
-                    }
-                },
-            }
-        },
+        Field{"all", &Ubpa::UECS::ArchetypeFilter::all},
+        Field{"any", &Ubpa::UECS::ArchetypeFilter::any},
+        Field{"none", &Ubpa::UECS::ArchetypeFilter::none},
         Field{"HashCode", &Ubpa::UECS::ArchetypeFilter::HashCode},
-        Field{"AllCmptTypes", &Ubpa::UECS::ArchetypeFilter::AllCmptTypes},
-        Field{"AnyCmptTypes", &Ubpa::UECS::ArchetypeFilter::AnyCmptTypes},
-        Field{"NoneCmptTypes", &Ubpa::UECS::ArchetypeFilter::NoneCmptTypes},
-        Field{"InsertAll",
-            static_cast<void(Ubpa::UECS::ArchetypeFilter::*)(const Ubpa::UECS::CmptType*, size_t)>(&Ubpa::UECS::ArchetypeFilter::InsertAll),
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "types"},
-                    }
-                },
-                Attr{UBPA_USREFL_NAME_ARG(1),
-                    AttrList{
-                        Attr{Name::name, "num"},
-                    }
-                },
-            }
-        },
-		Field{"InsertAny",
-			static_cast<void(Ubpa::UECS::ArchetypeFilter::*)(const Ubpa::UECS::CmptType*, size_t)>(&Ubpa::UECS::ArchetypeFilter::InsertAny),
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "types"},
-                    }
-                },
-                Attr{UBPA_USREFL_NAME_ARG(1),
-                    AttrList{
-                        Attr{Name::name, "num"},
-                    }
-                },
-            }
-        },
-		Field{"InsertNone",
-			static_cast<void(Ubpa::UECS::ArchetypeFilter::*)(const Ubpa::UECS::CmptType*, size_t)>(&Ubpa::UECS::ArchetypeFilter::InsertNone),
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "types"},
-                    }
-                },
-                Attr{UBPA_USREFL_NAME_ARG(1),
-                    AttrList{
-                        Attr{Name::name, "num"},
-                    }
-                },
-            }
-        },
-		Field{"EraseAll",
-			static_cast<void(Ubpa::UECS::ArchetypeFilter::*)(const Ubpa::UECS::CmptType*, size_t)>(&Ubpa::UECS::ArchetypeFilter::EraseAll),
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "types"},
-                    }
-                },
-                Attr{UBPA_USREFL_NAME_ARG(1),
-                    AttrList{
-                        Attr{Name::name, "num"},
-                    }
-                },
-            }
-        },
-		Field{"EraseAny",
-			static_cast<void(Ubpa::UECS::ArchetypeFilter::*)(const Ubpa::UECS::CmptType*, size_t)>(&Ubpa::UECS::ArchetypeFilter::EraseAny),
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "types"},
-                    }
-                },
-                Attr{UBPA_USREFL_NAME_ARG(1),
-                    AttrList{
-                        Attr{Name::name, "num"},
-                    }
-                },
-            }
-        },
-		Field{"EraseNone",
-			static_cast<void(Ubpa::UECS::ArchetypeFilter::*)(const Ubpa::UECS::CmptType*, size_t)>(&Ubpa::UECS::ArchetypeFilter::EraseNone),
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "types"},
-                    }
-                },
-                Attr{UBPA_USREFL_NAME_ARG(1),
-                    AttrList{
-                        Attr{Name::name, "num"},
-                    }
-                },
-            }
-        },
         Field{"operator==", &Ubpa::UECS::ArchetypeFilter::operator==,
             AttrList {
                 Attr{UBPA_USREFL_NAME_ARG(0),
                     AttrList{
-                        Attr{Name::name, "filter"},
+                        Attr{Name::name, "rhs"},
                     }
                 },
             }

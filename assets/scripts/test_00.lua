@@ -114,7 +114,7 @@ f = function(schedule)
   end
   local luaCmptType0 = CmptType.new("Cmpt0", AccessMode.LATEST)
   local filter = ArchetypeFilter.new()
-  filter:InsertAll(luaCmptType0, 1)
+  filter.all:add(luaCmptType0)
   LuaSystem.RegisterChunkJob(
     schedule,
 	g,
