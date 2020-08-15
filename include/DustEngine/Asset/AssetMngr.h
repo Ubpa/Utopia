@@ -18,7 +18,6 @@ namespace Ubpa::DustEngine {
 			return instance;
 		}
 
-		void Init();
 		void Clear();
 
 		// Get the GUID for the asset at path.
@@ -41,12 +40,17 @@ namespace Ubpa::DustEngine {
 
 		// load first asset at path
 		void* LoadAsset(const std::filesystem::path& path);
+		// returns the first asset object of type at given path
+		void* LoadAsset(const std::filesystem::path& path, const std::type_info&);
 		template<typename T>
-		T* LoadAssetAs(const std::filesystem::path& path) { return reinterpret_cast<T*>(LoadAsset(path)); }
+		T* LoadAsset(const std::filesystem::path& path);
 
 	private:
 		struct Impl;
-		Impl* pImpl{ nullptr };
-		AssetMngr() = default;
+		Impl* pImpl;
+		AssetMngr();
+		~AssetMngr();
 	};
 }
+
+#include "detail/AssetMngr.inl"

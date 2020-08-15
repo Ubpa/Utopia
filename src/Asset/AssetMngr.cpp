@@ -18,9 +18,10 @@ struct AssetMngr::Impl {
 	struct Asset {
 		xg::Guid localID;
 		std::unique_ptr<void, std::function<void(void*)>> ptr;
+		const std::type_info& typeinfo;
 
 		template<typename T>
-		static std::function<void(void*)> DefaultDeletor() {
+		static std::function<void(void*)> DefaultDeletor() noexcept {
 			return [](void* p) {
 				delete (T*)p;
 			};
@@ -28,13 +29,17 @@ struct AssetMngr::Impl {
 
 		template<typename T>
 		Asset(T* p)
-			: ptr{ p, DefaultDeletor<T>() } {}
+			:
+			ptr{ p, DefaultDeletor<T>() },
+			typeinfo{ typeid(std::decay_t<T>) }
+		{}
 
 		template<typename T>
 		Asset(xg::Guid localID, T* p)
 			:
 			localID{ localID },
-			ptr { p, DefaultDeletor<T>() }
+			ptr { p, DefaultDeletor<T>() },
+			typeinfo{ typeid(std::decay_t<T>) }
 		{}
 	};
 
@@ -48,44 +53,43 @@ struct AssetMngr::Impl {
 	static rapidjson::Document LoadMeta(const std::filesystem::path& metapath);
 };
 
-void AssetMngr::Init() {
-	assert(!pImpl);
-	pImpl = new AssetMngr::Impl;
+AssetMngr::AssetMngr()
+	: pImpl{ new Impl }
+{}
+
+AssetMngr::~AssetMngr() {
+	delete pImpl;
 }
 
 void AssetMngr::Clear() {
-	assert(pImpl != nullptr);
-	delete pImpl;
-	pImpl = nullptr;
+	pImpl->asset2path.clear();
+	pImpl->path2assert.clear();
+	pImpl->path2guid.clear();
+	pImpl->guid2path.clear();
 }
 
 xg::Guid AssetMngr::AssetPathToGUID(const std::filesystem::path& path) const {
-	assert("Init first" && pImpl != nullptr);
 	auto target = pImpl->path2guid.find(path);
 	return target == pImpl->path2guid.end() ? xg::Guid{} : target->second;
 }
 
 bool AssetMngr::Contains(const void* ptr) const {
-	assert("Init first" && pImpl != nullptr);
 	return pImpl->asset2path.find(ptr) != pImpl->asset2path.end();
 }
 
 const std::filesystem::path& AssetMngr::GetAssetPath(const void* ptr) const {
-	assert("Init first" && pImpl != nullptr);
 	static const std::filesystem::path ERROR;
 	auto target = pImpl->asset2path.find(ptr);
 	return target == pImpl->asset2path.end() ? ERROR : target->second;
 }
 
 const std::filesystem::path& AssetMngr::GUIDToAssetPath(const xg::Guid& guid) const {
-	assert("Init first" && pImpl != nullptr);
 	static const std::filesystem::path ERROR;
 	auto target = pImpl->guid2path.find(guid);
 	return target == pImpl->guid2path.end() ? ERROR : target->second;
 }
 
 void AssetMngr::ImportAsset(const std::filesystem::path& path) {
-	assert("Init first" && pImpl != nullptr);
 	assert(!path.empty() && path.is_relative());
 
 	if (pImpl->path2guid.find(path) != pImpl->path2guid.end())
@@ -123,7 +127,7 @@ void AssetMngr::ImportAsset(const std::filesystem::path& path) {
 		}
 		else {
 			rapidjson::Document doc = Impl::LoadMeta(metapath);
-			guid = xg::Guid{ doc["uuid"].GetString() };
+			guid = xg::Guid{ doc["guid"].GetString() };
 		}
 		pImpl->path2guid.emplace(path, guid);
 		pImpl->guid2path.emplace(guid, path);
@@ -133,9 +137,30 @@ void AssetMngr::ImportAsset(const std::filesystem::path& path) {
 }
 
 void* AssetMngr::LoadAsset(const std::filesystem::path& path) {
-	assert("Init first" && pImpl != nullptr);
 	ImportAsset(path);
 	if (path.extension() == ".lua") {
+		auto target = pImpl->path2assert.find(path);
+		if (target != pImpl->path2assert.end())
+			return target->second.ptr.get();
+
+		auto str = Impl::LoadFile(path);
+		auto lua = new LuaScript(std::move(str));
+		pImpl->path2assert.emplace(path, Impl::Asset{ lua });
+		pImpl->asset2path.emplace(lua, path);
+		return lua;
+	}
+	else {
+		assert(false);
+		return nullptr;
+	}
+}
+
+void* AssetMngr::LoadAsset(const std::filesystem::path& path, const std::type_info& typeinfo) {
+	ImportAsset(path);
+	if (path.extension() == ".lua") {
+		if (typeinfo != typeid(LuaScript))
+			return nullptr;
+
 		auto target = pImpl->path2assert.find(path);
 		if (target != pImpl->path2assert.end())
 			return target->second.ptr.get();
