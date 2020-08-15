@@ -4,6 +4,8 @@
 #include <ULuaPP/ULuaPP.h>
 
 namespace Ubpa::DustEngine {
+	class LuaContext;
+
 	class LuaSystem : public UECS::System {
 	public:
 		using System::System;
@@ -42,7 +44,8 @@ namespace Ubpa::DustEngine {
 
 		virtual void OnUpdate(UECS::Schedule& schedule) override;
 
-		sol::bytecode onUpdate;
+		LuaContext* luaCtx;
+		sol::function mainOnUpdate;
 	};
 }
 

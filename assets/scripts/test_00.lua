@@ -1,5 +1,3 @@
-rtd = RTDCmptTraits.Instance()
-
 luaCmptType0 = CmptType.new("Cmpt0", AccessMode.WRITE)
 luaCmptType1 = CmptType.new("Cmpt1", AccessMode.WRITE)
 
@@ -9,9 +7,6 @@ luaCmptType1 = CmptType.new("Cmpt1", AccessMode.WRITE)
 -- 24 - 28 int32  {0}
 -- 28 - 32 int32  {0}
 -- 32 - 64 str[32] ""
-
-rtd:RegisterSize(luaCmptType0, 64)
-rtd:RegisterName(luaCmptType0, "Cmpt0")
 
 default_ctor = function (ptr)
   print("default ctor")
@@ -65,27 +60,21 @@ dtor = function (ptr)
   LuaMemory.Free(strbuf.ptr)
 end
 
-rtd:RegisterSize(luaCmptType1, 8)
-
-rtd:RegisterDefaultConstructor(luaCmptType0, default_ctor)
-rtd:RegisterCopyConstructor(luaCmptType0, copy_ctor)
-rtd:RegisterMoveConstructor(luaCmptType0, move_ctor)
-rtd:RegisterMoveAssignment(luaCmptType0, move_assignment)
-rtd:RegisterDestructor(luaCmptType0, dtor)
-
 --------------------------------------------------------------------
 
-w = World.new()
-em = w:GetEntityMngr()
-cmpts = LuaArray_CmptType.new()
-cmpts:PushBack(luaCmptType0)
-cmpts:PushBack(luaCmptType1)
+em = world:GetEntityMngr()
 
-e0 = em:Create(cmpts:Data(), cmpts:Size())
-e1 = em:Create(cmpts:Data(), cmpts:Size())
-e2 = em:Create(luaCmptType0, 1)
+em.cmptTraits:RegisterSize(luaCmptType0, 64)
+em.cmptTraits:RegisterName(luaCmptType0, "Cmpt0")
 
-em:Detach(e0, luaCmptType1, 1)
+em.cmptTraits:RegisterDefaultConstructor(luaCmptType0, default_ctor)
+em.cmptTraits:RegisterCopyConstructor(luaCmptType0, copy_ctor)
+em.cmptTraits:RegisterMoveConstructor(luaCmptType0, move_ctor)
+em.cmptTraits:RegisterMoveAssignment(luaCmptType0, move_assignment)
+em.cmptTraits:RegisterDestructor(luaCmptType0, dtor)
+
+em.cmptTraits:RegisterSize(luaCmptType1, 8)
+em.cmptTraits:RegisterName(luaCmptType1, "Cmpt1")
 
 f = function(schedule)
   local g = function(w, singletons, chunk)
@@ -123,12 +112,4 @@ f = function(schedule)
 	SingletonLocator.new()
   )
 end
-LuaSystem.RegisterSystem(w, "LuaSystem-001", f)
-
-print("------update------")
-w:Update()
-print("------DumpUpdateJobGraph------")
-print(w:DumpUpdateJobGraph())
-print("------DumpFrameGraph------")
-fg = w:GenUpdateFrameGraph()
-print(fg:Dump())
+LuaSystem.RegisterSystem(world, "LuaSystem-001", f)

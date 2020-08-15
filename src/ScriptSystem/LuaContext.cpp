@@ -1,6 +1,4 @@
-#include <DustEngine/ScriptSystem/LuaMngr.h>
-
-#include <UECS/CmptType.h>
+#include <DustEngine/ScriptSystem/LuaContext.h>
 
 #include "InitUECS.h"
 #include "InitUGraphviz.h"
@@ -9,30 +7,40 @@
 #include "LuaMemory.h"
 #include "LuaSystem.h"
 
+#include <ULuaPP/ULuaPP.h>
+
 #include <mutex>
+#include <set>
+#include <vector>
 
 using namespace Ubpa::DustEngine;
 
-struct LuaMngr::Impl {
+struct LuaContext::Impl {
+	Impl() : main{ Construct() } {}
+	~Impl() { Destruct(main); }
 	std::mutex m;
+	lua_State* main;
 	std::set<lua_State*> busyLuas;
 	std::vector<lua_State*> freeLuas;
-	lua_State* mainLua;
 
 	static lua_State* Construct();
 	static void Destruct(lua_State* L);
 };
 
-void LuaMngr::Init() {
-	pImpl = new LuaMngr::Impl;
-	pImpl->mainLua = Impl::Construct();
+LuaContext::LuaContext()
+	: pImpl{ new Impl }
+{
 }
 
-lua_State* LuaMngr::Main() const {
-	return pImpl->mainLua;
+LuaContext::~LuaContext() {
+	delete pImpl;
 }
 
-void LuaMngr::Reserve(size_t n) {
+lua_State* LuaContext::Main() const {
+	return pImpl->main;
+}
+
+void LuaContext::Reserve(size_t n) {
 	size_t num = pImpl->busyLuas.size() + pImpl->freeLuas.size();
 	if (num < n) {
 		for (size_t i = 0; i < n - num; i++) {
@@ -42,7 +50,8 @@ void LuaMngr::Reserve(size_t n) {
 	}
 }
 
-lua_State* LuaMngr::Request() {
+// lock
+lua_State* LuaContext::Request() {
 	std::lock_guard<std::mutex> guard(pImpl->m);
 
 	if (pImpl->freeLuas.empty()) {
@@ -57,7 +66,8 @@ lua_State* LuaMngr::Request() {
 	return L;
 }
 
-void LuaMngr::Recycle(lua_State* L) {
+// lock
+void LuaContext::Recycle(lua_State* L) {
 	std::lock_guard<std::mutex> guard(pImpl->m);
 
 	assert(pImpl->busyLuas.find(L) != pImpl->busyLuas.end());
@@ -66,17 +76,14 @@ void LuaMngr::Recycle(lua_State* L) {
 	pImpl->freeLuas.push_back(L);
 }
 
-void LuaMngr::Clear() {
+void LuaContext::Clear() {
 	assert(pImpl->busyLuas.empty());
 	for (auto L : pImpl->freeLuas)
 		Impl::Destruct(L);
-	Impl::Destruct(pImpl->mainLua);
 	delete pImpl;
 }
 
-// ================================
-
-class LuaArray_CmptType : public LuaArray<Ubpa::UECS::CmptType>{};
+class LuaArray_CmptType : public LuaArray<Ubpa::UECS::CmptType> {};
 template<>
 struct Ubpa::USRefl::TypeInfo<LuaArray_CmptType>
 	: Ubpa::USRefl::TypeInfoBase<LuaArray_CmptType, Base<LuaArray<Ubpa::UECS::CmptType>>>
@@ -87,7 +94,7 @@ struct Ubpa::USRefl::TypeInfo<LuaArray_CmptType>
 	};
 };
 
-lua_State* LuaMngr::Impl::Construct() {
+lua_State* LuaContext::Impl::Construct() {
 	lua_State* L = luaL_newstate(); /* opens Lua */
 	luaL_openlibs(L); /* opens the standard libraries */
 	detail::InitUECS(L);
@@ -99,6 +106,6 @@ lua_State* LuaMngr::Impl::Construct() {
 	return L;
 }
 
-void LuaMngr::Impl::Destruct(lua_State* L) {
+void LuaContext::Impl::Destruct(lua_State* L) {
 	lua_close(L);
 }

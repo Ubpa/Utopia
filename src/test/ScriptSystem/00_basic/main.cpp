@@ -1,4 +1,6 @@
-#include <DustEngine/ScriptSystem/LuaMngr.h>
+#include <DustEngine/ScriptSystem/LuaCtxMngr.h>
+#include <DustEngine/ScriptSystem/LuaContext.h>
+#include <UluaPP/ULuaPP.h>
 #include <UECS/World.h>
 
 #include <iostream>
@@ -7,12 +9,26 @@ using namespace std;
 int main() {
 	char buff[256];
 	int error;
-	Ubpa::DustEngine::LuaMngr::Instance().Init();
-	auto L = Ubpa::DustEngine::LuaMngr::Instance().Request();
+	Ubpa::UECS::World world;
+	auto luaCtx = Ubpa::DustEngine::LuaCtxMngr::Instance().Register(&world);
+	auto L = luaCtx->Main();
 	{
 		sol::state_view lua(L);
+		lua["world"] = &world;
 		lua.script_file("../assets/scripts/test_00.lua");
 	}
+
+	auto cmptType0 = Ubpa::UECS::CmptType{ "Cmpt0" };
+	auto cmptType1 = Ubpa::UECS::CmptType{ "Cmpt1" };
+	std::array cmptTypes = { cmptType0, cmptType1 };
+	auto e0 = world.entityMngr.Create(cmptTypes.data(), cmptTypes.size());
+	auto e1 = world.entityMngr.Create(cmptTypes.data(), cmptTypes.size());
+	auto e2 = world.entityMngr.Create(&cmptType0, 1);
+	world.entityMngr.Detach(e0, &cmptType0, 1);
+
+	world.Update();
+	std::cout << world.DumpUpdateJobGraph() << std::endl;
+	std::cout << world.GenUpdateFrameGraph().Dump() << std::endl;
 
 	while (fgets(buff, sizeof(buff), stdin) != NULL) {
 		error = luaL_loadstring(L, buff) || lua_pcall(L, 0, 0, 0);
@@ -22,10 +38,7 @@ int main() {
 		}
 	}
 
-	Ubpa::DustEngine::LuaMngr::Instance().Recycle(L);
-
-	Ubpa::UECS::RTDCmptTraits::Instance().Clear();
-	Ubpa::DustEngine::LuaMngr::Instance().Clear();
+	Ubpa::DustEngine::LuaCtxMngr::Instance().Clear();
 
 	return 0;
 }

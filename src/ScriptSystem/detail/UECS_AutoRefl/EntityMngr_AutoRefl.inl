@@ -11,6 +11,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::EntityMngr>
     static constexpr AttrList attrs = {};
 
     static constexpr FieldList fields = {
+        Field{"cmptTraits", &Ubpa::UECS::EntityMngr::cmptTraits},
         Field{"Create",
             static_cast<Ubpa::UECS::Entity(Ubpa::UECS::EntityMngr::*)(const Ubpa::UECS::CmptType*, size_t)> (&Ubpa::UECS::EntityMngr::Create),
             AttrList {
