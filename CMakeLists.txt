@@ -22,6 +22,7 @@ Ubpa_DownloadZip(
 	SHA256 567663B30C1CEB24C8C9D815C1D60579A7CA9D3D3888702858EB2FD672E429B5
 )
 
+Ubpa_AddSubDirsRec(include)
 Ubpa_AddSubDirsRec(src)
 
 Ubpa_Export(DIRECTORIES "include")
