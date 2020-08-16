@@ -10,6 +10,9 @@ using namespace Ubpa;
 int main() {
 	std::filesystem::path imgPath = "../assets/textures/test.png";
 	std::filesystem::path tex2dPath = "../assets/textures/test.tex2d";
+
+	if (!std::filesystem::is_directory("../assets/textures"))
+		std::filesystem::create_directories("../assets/textures");
 	
 	{ // create image
 		size_t width = 20;
@@ -25,12 +28,12 @@ int main() {
 	{
 		auto img = AssetMngr::Instance().LoadAsset<Image>(imgPath);
 
-		Texture2D tex2d;
-		tex2d.image = img;
-		tex2d.wrapMode = Texture2D::WrapMode::Clamp;
-		tex2d.filterMode = Texture2D::FilterMode::Point;
+		auto tex2d = new Texture2D;
+		tex2d->image = img;
+		tex2d->wrapMode = Texture2D::WrapMode::Clamp;
+		tex2d->filterMode = Texture2D::FilterMode::Point;
 
-		AssetMngr::Instance().CreateAsset(&tex2d, tex2dPath);
+		AssetMngr::Instance().CreateAsset(tex2d, tex2dPath);
 		AssetMngr::Instance().Clear();
 	}
 

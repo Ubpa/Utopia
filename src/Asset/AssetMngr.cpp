@@ -6,6 +6,7 @@
 #include <DustEngine/Core/Shader.h>
 #include <DustEngine/Core/Image.h>
 #include <DustEngine/Core/Texture2D.h>
+#include <DustEngine/Core/Material.h>
 
 #include <DustEngine/_deps/tinyobjloader/tiny_obj_loader.h>
 
@@ -296,6 +297,37 @@ void AssetMngr::ImportAsset(const std::filesystem::path& path) {
 		pImpl->path2guid.emplace(path, guid);
 		pImpl->guid2path.emplace(guid, path);
 	}
+	else if (path.extension() == ".mat")
+	{
+	xg::Guid guid;
+	if (!existMeta) {
+		// generate meta file
+
+		guid = xg::newGuid();
+
+		rapidjson::StringBuffer sb;
+		rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+		writer.StartObject();
+		writer.Key("guid");
+		writer.String(guid.str());
+		writer.EndObject();
+
+		auto dirPath = path.parent_path();
+		if (!std::filesystem::is_directory(dirPath))
+			std::filesystem::create_directories(dirPath);
+
+		std::ofstream ofs(metapath);
+		assert(ofs.is_open());
+		ofs << sb.GetString();
+		ofs.close();
+	}
+	else {
+		rapidjson::Document doc = Impl::LoadJSON(metapath);
+		guid = xg::Guid{ doc["guid"].GetString() };
+	}
+	pImpl->path2guid.emplace(path, guid);
+	pImpl->guid2path.emplace(guid, path);
+	}
 	else
 		assert("not support" && false);
 }
@@ -384,6 +416,26 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path) {
 		pImpl->asset2path.emplace(tex2d, path);
 		return tex2d;
 	}
+	else if (path.extension() == ".mat") {
+		auto target = pImpl->path2assert.find(path);
+		if (target != pImpl->path2assert.end())
+			return target->second.ptr.get();
+
+		auto materialJSON = Impl::LoadJSON(path);
+		auto guidstr = materialJSON["shader"].GetString();
+		xg::Guid guid{ guidstr };
+		auto shaderTarget = pImpl->guid2path.find(guid);
+		auto material = new Material;
+		material->shader = shaderTarget != pImpl->guid2path.end() ? LoadAsset<Shader>(shaderTarget->second) : nullptr;
+		const auto& texture2DsJSON = materialJSON["texture2Ds"].GetObject();
+		for (const auto& [name, value] : texture2DsJSON) {
+			xg::Guid guid{ value.GetString() };
+			material->texture2Ds.emplace(name.GetString(), LoadAsset<Texture2D>(GUIDToAssetPath(guid)));
+		}
+		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ material });
+		pImpl->asset2path.emplace(material, path);
+		return material;
+	}
 	else {
 		assert(false);
 		return nullptr;
@@ -430,15 +482,20 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path, const std::type_in
 			return nullptr;
 		return LoadAsset(path);
 	}
+	else if (path.extension() == ".mat") {
+		if (typeinfo != typeid(Material))
+			return nullptr;
+		return LoadAsset(path);
+	}
 	else {
 		assert(false);
 		return nullptr;
 	}
 }
 
-void AssetMngr::CreateAsset(const void* ptr, const std::filesystem::path& path) {
+void AssetMngr::CreateAsset(void* ptr, const std::filesystem::path& path) {
 	if (path.extension() == ".shader") {
-		auto shader = reinterpret_cast<const Shader*>(ptr);
+		auto shader = reinterpret_cast<Shader*>(ptr);
 		auto guid = AssetPathToGUID(GetAssetPath(shader->hlslFile));
 		rapidjson::StringBuffer sb;
 		rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
@@ -465,9 +522,13 @@ void AssetMngr::CreateAsset(const void* ptr, const std::filesystem::path& path) 
 		ofs.close();
 
 		ImportAsset(path);
+
+		pImpl->path2assert.emplace(path, Impl::Asset{ shader });
+		pImpl->asset2path.emplace(shader, path);
+
 	}
 	else if (path.extension() == ".tex2d") {
-		auto tex2d = reinterpret_cast<const Texture2D*>(ptr);
+		auto tex2d = reinterpret_cast<Texture2D*>(ptr);
 		auto guid = AssetPathToGUID(GetAssetPath(tex2d->image));
 		rapidjson::StringBuffer sb;
 		rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
@@ -490,6 +551,40 @@ void AssetMngr::CreateAsset(const void* ptr, const std::filesystem::path& path) 
 		ofs.close();
 
 		ImportAsset(path);
+
+		pImpl->path2assert.emplace(path, Impl::Asset{ tex2d });
+		pImpl->asset2path.emplace(tex2d, path);
+	}
+	else if (path.extension() == ".mat") {
+		auto material = reinterpret_cast<Material*>(ptr);
+		auto guid = AssetPathToGUID(GetAssetPath(material->shader));
+		rapidjson::StringBuffer sb;
+		rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+		writer.StartObject();
+		writer.Key("shader");
+		writer.String(guid.str());
+		writer.Key("texture2Ds");
+		writer.StartObject();
+		for (const auto& [name, tex2D] : material->texture2Ds) {
+			writer.Key(name);
+			writer.String(AssetPathToGUID(GetAssetPath(tex2D)));
+		}
+		writer.EndObject(); // texture2Ds
+		writer.EndObject();
+
+		auto dirPath = path.parent_path();
+		if (!std::filesystem::is_directory(dirPath))
+			std::filesystem::create_directories(dirPath);
+
+		std::ofstream ofs(path);
+		assert(ofs.is_open());
+		ofs << sb.GetString();
+		ofs.close();
+
+		ImportAsset(path);
+
+		pImpl->path2assert.emplace(path, Impl::Asset{ material });
+		pImpl->asset2path.emplace(material, path);
 	}
 	else
 		assert("not support" && false);
