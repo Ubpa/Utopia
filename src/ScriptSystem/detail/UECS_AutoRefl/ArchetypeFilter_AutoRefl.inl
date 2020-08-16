@@ -15,15 +15,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::ArchetypeFilter>
         Field{"any", &Ubpa::UECS::ArchetypeFilter::any},
         Field{"none", &Ubpa::UECS::ArchetypeFilter::none},
         Field{"HashCode", &Ubpa::UECS::ArchetypeFilter::HashCode},
-        Field{"operator==", &Ubpa::UECS::ArchetypeFilter::operator==,
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "rhs"},
-                    }
-                },
-            }
-        },
+        Field{"operator==", &Ubpa::UECS::ArchetypeFilter::operator==},
     };
 };
 

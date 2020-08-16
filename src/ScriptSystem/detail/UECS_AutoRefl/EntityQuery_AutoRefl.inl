@@ -13,30 +13,11 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::EntityQuery>
     static constexpr FieldList fields = {
         Field{"filter", &Ubpa::UECS::EntityQuery::filter},
         Field{"locator", &Ubpa::UECS::EntityQuery::locator},
-        Field{Name::constructor, WrapConstructor<Ubpa::UECS::EntityQuery(Ubpa::UECS::ArchetypeFilter, Ubpa::UECS::CmptLocator)>(),
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "filter"},
-                    }
-                },
-                Attr{UBPA_USREFL_NAME_ARG(1),
-                    AttrList{
-                        Attr{Name::name, "locator"},
-                    }
-                },
-            }
+        Field{Name::constructor,
+            WrapConstructor<Ubpa::UECS::EntityQuery(Ubpa::UECS::ArchetypeFilter, Ubpa::UECS::CmptLocator)>()
         },
         Field{"HashCode", &Ubpa::UECS::EntityQuery::HashCode},
-        Field{"operator==", &Ubpa::UECS::EntityQuery::operator==,
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "query"},
-                    }
-                },
-            }
-        },
+        Field{"operator==", &Ubpa::UECS::EntityQuery::operator==},
     };
 };
 

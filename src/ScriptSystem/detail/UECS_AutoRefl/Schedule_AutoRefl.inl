@@ -12,89 +12,14 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::Schedule>
     static constexpr AttrList attrs = {};
 
     static constexpr FieldList fields = {
-        Field{"LockFilter", &Ubpa::UECS::Schedule::LockFilter,
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "sys"},
-                    }
-                },
-            }
-        },
-        Field{"Order", &Ubpa::UECS::Schedule::Order,
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "x"},
-                    }
-                },
-                Attr{UBPA_USREFL_NAME_ARG(1),
-                    AttrList{
-                        Attr{Name::name, "y"},
-                    }
-                },
-            }
-        },
-        Field{"InsertAll", &Ubpa::UECS::Schedule::InsertAll,
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "sys"},
-                    }
-                },
-                Attr{UBPA_USREFL_NAME_ARG(1)},
-            }
-        },
-        Field{"InsertAny", &Ubpa::UECS::Schedule::InsertAny,
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "sys"},
-                    }
-                },
-                Attr{UBPA_USREFL_NAME_ARG(1)},
-            }
-        },
-        Field{"InsertNone", &Ubpa::UECS::Schedule::InsertNone,
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "sys"},
-                    }
-                },
-                Attr{UBPA_USREFL_NAME_ARG(1)},
-            }
-        },
-        Field{"EraseAll", &Ubpa::UECS::Schedule::EraseAll,
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "sys"},
-                    }
-                },
-                Attr{UBPA_USREFL_NAME_ARG(1)},
-            }
-        },
-        Field{"EraseAny", &Ubpa::UECS::Schedule::EraseAny,
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "sys"},
-                    }
-                },
-                Attr{UBPA_USREFL_NAME_ARG(1)},
-            }
-        },
-        Field{"EraseNone", &Ubpa::UECS::Schedule::EraseNone,
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "sys"},
-                    }
-                },
-                Attr{UBPA_USREFL_NAME_ARG(1)},
-            }
-        },
+        Field{"LockFilter", &Ubpa::UECS::Schedule::LockFilter},
+        Field{"Order", &Ubpa::UECS::Schedule::Order},
+        Field{"InsertAll", &Ubpa::UECS::Schedule::InsertAll},
+        Field{"InsertAny", &Ubpa::UECS::Schedule::InsertAny},
+        Field{"InsertNone", &Ubpa::UECS::Schedule::InsertNone},
+        Field{"EraseAll", &Ubpa::UECS::Schedule::EraseAll},
+        Field{"EraseAny", &Ubpa::UECS::Schedule::EraseAny},
+        Field{"EraseNone", &Ubpa::UECS::Schedule::EraseNone},
     };
 };
 

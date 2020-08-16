@@ -22,7 +22,9 @@ public:
 };
 
 int main() {
-	RTDCmptTraits::Instance().Register<
+	World w;
+
+	w.entityMngr.cmptTraits.Register<
 		Children,
 		LocalToParent,
 		LocalToWorld,
@@ -33,8 +35,6 @@ int main() {
 		Translation,
 		WorldToLocal
 	>();
-
-	World w;
 
 	w.systemMngr.Register<
 		PrintSystem,

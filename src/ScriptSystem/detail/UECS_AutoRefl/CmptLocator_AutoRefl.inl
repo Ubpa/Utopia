@@ -11,32 +11,11 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::CmptLocator>
     static constexpr AttrList attrs = {};
 
     static constexpr FieldList fields = {
-        Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptLocator(const Ubpa::UECS::CmptType *, size_t)>(),
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "types"},
-                    }
-                },
-                Attr{UBPA_USREFL_NAME_ARG(1),
-                    AttrList{
-                        Attr{Name::name, "num"},
-                    }
-                },
-            }
-        },
+        Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptLocator(const Ubpa::UECS::CmptType *, size_t)>()},
         Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptLocator()>()},
         Field{"HashCode", &Ubpa::UECS::CmptLocator::HashCode},
         Field{"CmptTypes", &Ubpa::UECS::CmptLocator::CmptTypes},
-        Field{"operator==", &Ubpa::UECS::CmptLocator::operator==,
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "rhs"},
-                    }
-                },
-            }
-        },
+        Field{"operator==", &Ubpa::UECS::CmptLocator::operator==},
     };
 };
 

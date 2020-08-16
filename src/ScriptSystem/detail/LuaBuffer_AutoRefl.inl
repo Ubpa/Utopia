@@ -14,404 +14,52 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::DustEngine::LuaBuffer>
 		Field{"ptr", &Ubpa::DustEngine::LuaBuffer::ptr},
 		Field{"size", &Ubpa::DustEngine::LuaBuffer::size},
 		Field{Name::constructor, WrapConstructor<Ubpa::DustEngine::LuaBuffer()>()},
-		Field{Name::constructor, WrapConstructor<Ubpa::DustEngine::LuaBuffer(void*, uint64_t)>(),
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "ptr"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "size"},
-					}
-				},
-			}
-		},
+		Field{Name::constructor, WrapConstructor<Ubpa::DustEngine::LuaBuffer(void*, uint64_t)>()},
 		Field{Name::constructor, WrapConstructor<Ubpa::DustEngine::LuaBuffer(UECS::Entity*, size_t)>()},
-		Field{"GetEntity", &Ubpa::DustEngine::LuaBuffer::GetEntity,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-			}
+		Field{"GetEntity", &Ubpa::DustEngine::LuaBuffer::GetEntity},
+		Field{"SetEntity", &Ubpa::DustEngine::LuaBuffer::SetEntity},
+		Field{"GetPointer", &Ubpa::DustEngine::LuaBuffer::GetPointer},
+		Field{"SetPointer", &Ubpa::DustEngine::LuaBuffer::SetPointer},
+		Field{"GetBuffer",
+			static_cast<Ubpa::DustEngine::LuaBuffer(Ubpa::DustEngine::LuaBuffer::*)(size_t)const>
+			(&Ubpa::DustEngine::LuaBuffer::GetBuffer)
 		},
-		Field{"SetEntity", &Ubpa::DustEngine::LuaBuffer::SetEntity,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "e"},
-					}
-				},
-			}
+		Field{"SetBuffer",
+			static_cast<void(Ubpa::DustEngine::LuaBuffer::*)(size_t, Ubpa::DustEngine::LuaBuffer)>
+			(&Ubpa::DustEngine::LuaBuffer::SetBuffer),
 		},
-		Field{"GetPointer", &Ubpa::DustEngine::LuaBuffer::GetPointer,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-			}
+		Field{"GetBuffer",
+			static_cast<Ubpa::DustEngine::LuaBuffer(Ubpa::DustEngine::LuaBuffer::*)(size_t, uint64_t)const>
+			(&Ubpa::DustEngine::LuaBuffer::GetBuffer),
 		},
-		Field{"SetPointer", &Ubpa::DustEngine::LuaBuffer::SetPointer,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "p"},
-					}
-				},
-			}
+		Field{"SetBuffer",
+			static_cast<void(Ubpa::DustEngine::LuaBuffer::*)(size_t, void*, size_t)>
+			(&Ubpa::DustEngine::LuaBuffer::SetBuffer),
 		},
-		Field{"GetBuffer", static_cast<Ubpa::DustEngine::LuaBuffer(Ubpa::DustEngine::LuaBuffer::*)(size_t)const>(&Ubpa::DustEngine::LuaBuffer::GetBuffer),
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-			}
-		},
-		Field{"SetBuffer", static_cast<void(Ubpa::DustEngine::LuaBuffer::*)(size_t, Ubpa::DustEngine::LuaBuffer)>(&Ubpa::DustEngine::LuaBuffer::SetBuffer),
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "buffer"},
-					}
-				},
-			}
-		},
-		Field{"GetBuffer", static_cast<Ubpa::DustEngine::LuaBuffer(Ubpa::DustEngine::LuaBuffer::*)(size_t, uint64_t)const>(&Ubpa::DustEngine::LuaBuffer::GetBuffer),
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "size"},
-					}
-				},
-			}
-		},
-		Field{"SetBuffer", static_cast<void(Ubpa::DustEngine::LuaBuffer::*)(size_t, void*, size_t)>(&Ubpa::DustEngine::LuaBuffer::SetBuffer),
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "ptr"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(2),
-					AttrList{
-						Attr{Name::name, "size"},
-					}
-				},
-			}
-		},
-		Field{"GetBool", &Ubpa::DustEngine::LuaBuffer::GetBool,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-			}
-		},
-		Field{"SetBool", &Ubpa::DustEngine::LuaBuffer::SetBool,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "value"},
-					}
-				},
-			}
-		},
-		Field{"GetInt8", &Ubpa::DustEngine::LuaBuffer::GetInt8,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-			}
-		},
-		Field{"SetInt8", &Ubpa::DustEngine::LuaBuffer::SetInt8,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "value"},
-					}
-				},
-			}
-		},
-		Field{"GetInt16", &Ubpa::DustEngine::LuaBuffer::GetInt16,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-			}
-		},
-		Field{"SetInt16", &Ubpa::DustEngine::LuaBuffer::SetInt16,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "value"},
-					}
-				},
-			}
-		},
-		Field{"GetInt32", &Ubpa::DustEngine::LuaBuffer::GetInt32,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-			}
-		},
-		Field{"SetInt32", &Ubpa::DustEngine::LuaBuffer::SetInt32,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "value"},
-					}
-				},
-			}
-		},
-		Field{"GetInt64", &Ubpa::DustEngine::LuaBuffer::GetInt64,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-			}
-		},
-		Field{"SetInt64", &Ubpa::DustEngine::LuaBuffer::SetInt64,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "value"},
-					}
-				},
-			}
-		},
-		Field{"GetUInt8", &Ubpa::DustEngine::LuaBuffer::GetUInt8,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-			}
-		},
-		Field{"SetUInt8", &Ubpa::DustEngine::LuaBuffer::SetUInt8,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "value"},
-					}
-				},
-			}
-		},
-		Field{"GetUInt16", &Ubpa::DustEngine::LuaBuffer::GetUInt16,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-			}
-		},
-		Field{"SetUInt16", &Ubpa::DustEngine::LuaBuffer::SetUInt16,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "value"},
-					}
-				},
-			}
-		},
-		Field{"GetUInt32", &Ubpa::DustEngine::LuaBuffer::GetUInt32,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-			}
-		},
-		Field{"SetUInt32", &Ubpa::DustEngine::LuaBuffer::SetUInt32,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "value"},
-					}
-				},
-			}
-		},
-		Field{"GetUInt64", &Ubpa::DustEngine::LuaBuffer::GetUInt64,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-			}
-		},
-		Field{"SetUInt64", &Ubpa::DustEngine::LuaBuffer::SetUInt64,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "value"},
-					}
-				},
-			}
-		},
-		Field{"GetFloat", &Ubpa::DustEngine::LuaBuffer::GetFloat,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-			}
-		},
-		Field{"SetFloat", &Ubpa::DustEngine::LuaBuffer::SetFloat,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "value"},
-					}
-				},
-			}
-		},
-		Field{"GetDouble", &Ubpa::DustEngine::LuaBuffer::GetDouble,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-			}
-		},
-		Field{"SetDouble", &Ubpa::DustEngine::LuaBuffer::SetDouble,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "value"},
-					}
-				},
-			}
-		},
-		Field{"GetCString", &Ubpa::DustEngine::LuaBuffer::GetCString,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "size"},
-					}
-				},
-			}
-		},
-		Field{"SetCString", &Ubpa::DustEngine::LuaBuffer::SetCString,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "offset"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "value"},
-					}
-				},
-			}
-		},
+		Field{"GetBool", &Ubpa::DustEngine::LuaBuffer::GetBool},
+		Field{"SetBool", &Ubpa::DustEngine::LuaBuffer::SetBool},
+		Field{"GetInt8", &Ubpa::DustEngine::LuaBuffer::GetInt8},
+		Field{"SetInt8", &Ubpa::DustEngine::LuaBuffer::SetInt8},
+		Field{"GetInt16", &Ubpa::DustEngine::LuaBuffer::GetInt16},
+		Field{"SetInt16", &Ubpa::DustEngine::LuaBuffer::SetInt16},
+		Field{"GetInt32", &Ubpa::DustEngine::LuaBuffer::GetInt32},
+		Field{"SetInt32", &Ubpa::DustEngine::LuaBuffer::SetInt32},
+		Field{"GetInt64", &Ubpa::DustEngine::LuaBuffer::GetInt64},
+		Field{"SetInt64", &Ubpa::DustEngine::LuaBuffer::SetInt64},
+		Field{"GetUInt8", &Ubpa::DustEngine::LuaBuffer::GetUInt8},
+		Field{"SetUInt8", &Ubpa::DustEngine::LuaBuffer::SetUInt8},
+		Field{"GetUInt16", &Ubpa::DustEngine::LuaBuffer::GetUInt16},
+		Field{"SetUInt16", &Ubpa::DustEngine::LuaBuffer::SetUInt16},
+		Field{"GetUInt32", &Ubpa::DustEngine::LuaBuffer::GetUInt32},
+		Field{"SetUInt32", &Ubpa::DustEngine::LuaBuffer::SetUInt32},
+		Field{"GetUInt64", &Ubpa::DustEngine::LuaBuffer::GetUInt64},
+		Field{"SetUInt64", &Ubpa::DustEngine::LuaBuffer::SetUInt64},
+		Field{"GetFloat", &Ubpa::DustEngine::LuaBuffer::GetFloat},
+		Field{"SetFloat", &Ubpa::DustEngine::LuaBuffer::SetFloat},
+		Field{"GetDouble", &Ubpa::DustEngine::LuaBuffer::GetDouble},
+		Field{"SetDouble", &Ubpa::DustEngine::LuaBuffer::SetDouble},
+		Field{"GetCString", &Ubpa::DustEngine::LuaBuffer::GetCString},
+		Field{"SetCString", &Ubpa::DustEngine::LuaBuffer::SetCString},
 	};
 };
 

@@ -11,15 +11,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::DustEngine::LuaArray<T>>
 	static constexpr AttrList attrs = {};
 
 	static constexpr FieldList fields = {
-		Field{"PushBack", &Ubpa::DustEngine::LuaArray<T>::PushBack,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "val"},
-					}
-				},
-			}
-		},
+		Field{"PushBack", &Ubpa::DustEngine::LuaArray<T>::PushBack},
 		Field{"Data", &Ubpa::DustEngine::LuaArray<T>::Data},
 		Field{"Size", &Ubpa::DustEngine::LuaArray<T>::Size},
 	};

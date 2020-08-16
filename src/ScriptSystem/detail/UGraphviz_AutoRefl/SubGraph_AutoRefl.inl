@@ -11,164 +11,24 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UGraphviz::Subgraph>
 	static constexpr AttrList attrs = {};
 
 	static constexpr FieldList fields = {
-		Field{Name::constructor, WrapConstructor<Ubpa::UGraphviz::Subgraph(Ubpa::UGraphviz::Registry*, std::string)>(),
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "registry"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "id"},
-					}
-				},
-			}
-		},
+		Field{Name::constructor, WrapConstructor<Ubpa::UGraphviz::Subgraph(Ubpa::UGraphviz::Registry*, std::string)>()},
 		Field{Name::destructor, WrapDestructor<Ubpa::UGraphviz::Subgraph>()},
 		Field{"GetID", &Ubpa::UGraphviz::Subgraph::GetID},
-		Field{"GetSubgraph", &Ubpa::UGraphviz::Subgraph::GetSubgraph,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "subgraphID"},
-					}
-				},
-			}
-		},
+		Field{"GetSubgraph", &Ubpa::UGraphviz::Subgraph::GetSubgraph},
 		Field{"GetRegistry", &Ubpa::UGraphviz::Subgraph::GetRegistry},
-		Field{"GenSubgraph", &Ubpa::UGraphviz::Subgraph::GenSubgraph,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "ID"},
-					}
-				},
-			}
-		},
-		Field{"RegisterGraphAttr", &Ubpa::UGraphviz::Subgraph::RegisterGraphAttr,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "key"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "value"},
-					}
-				},
-			}
-		},
-		Field{"RegisterGraphNodeAttr", &Ubpa::UGraphviz::Subgraph::RegisterGraphNodeAttr,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "key"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "value"},
-					}
-				},
-			}
-		},
-		Field{"RegisterGraphEdgeAttr", &Ubpa::UGraphviz::Subgraph::RegisterGraphEdgeAttr,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "key"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "value"},
-					}
-				},
-			}
-		},
-		Field{"DeregisterGraphAttr", &Ubpa::UGraphviz::Subgraph::DeregisterGraphAttr,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "key"},
-					}
-				},
-			}
-		},
-		Field{"DeregisterGraphNodeAttr", &Ubpa::UGraphviz::Subgraph::DeregisterGraphNodeAttr,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "key"},
-					}
-				},
-			}
-		},
-		Field{"DeregisterGraphEdgeAttr", &Ubpa::UGraphviz::Subgraph::DeregisterGraphEdgeAttr,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "key"},
-					}
-				},
-			}
-		},
-		Field{"HaveNode", &Ubpa::UGraphviz::Subgraph::HaveNode,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "nodeIndex"},
-					}
-				},
-			}
-		},
-		Field{"HaveEdge", &Ubpa::UGraphviz::Subgraph::HaveEdge,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "edgeIndex"},
-					}
-				},
-			}
-		},
-		Field{"AddNode", &Ubpa::UGraphviz::Subgraph::AddNode,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "nodeIndex"},
-					}
-				},
-			}
-		},
-		Field{"AddEdge", &Ubpa::UGraphviz::Subgraph::AddEdge,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "edgeIndex"},
-					}
-				},
-			}
-		},
-		Field{"EraseNode", &Ubpa::UGraphviz::Subgraph::EraseNode,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "nodeIndex"},
-					}
-				},
-			}
-		},
-		Field{"EraseEdge", &Ubpa::UGraphviz::Subgraph::EraseEdge,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "edgeIndex"},
-					}
-				},
-			}
-		},
+		Field{"GenSubgraph", &Ubpa::UGraphviz::Subgraph::GenSubgraph},
+		Field{"RegisterGraphAttr", &Ubpa::UGraphviz::Subgraph::RegisterGraphAttr},
+		Field{"RegisterGraphNodeAttr", &Ubpa::UGraphviz::Subgraph::RegisterGraphNodeAttr},
+		Field{"RegisterGraphEdgeAttr", &Ubpa::UGraphviz::Subgraph::RegisterGraphEdgeAttr},
+		Field{"DeregisterGraphAttr", &Ubpa::UGraphviz::Subgraph::DeregisterGraphAttr},
+		Field{"DeregisterGraphNodeAttr", &Ubpa::UGraphviz::Subgraph::DeregisterGraphNodeAttr},
+		Field{"DeregisterGraphEdgeAttr", &Ubpa::UGraphviz::Subgraph::DeregisterGraphEdgeAttr},
+		Field{"HaveNode", &Ubpa::UGraphviz::Subgraph::HaveNode},
+		Field{"HaveEdge", &Ubpa::UGraphviz::Subgraph::HaveEdge},
+		Field{"AddNode", &Ubpa::UGraphviz::Subgraph::AddNode},
+		Field{"AddEdge", &Ubpa::UGraphviz::Subgraph::AddEdge},
+		Field{"EraseNode", &Ubpa::UGraphviz::Subgraph::EraseNode},
+		Field{"EraseEdge", &Ubpa::UGraphviz::Subgraph::EraseEdge},
 	};
 };
 

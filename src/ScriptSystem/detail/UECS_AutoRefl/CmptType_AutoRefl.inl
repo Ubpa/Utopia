@@ -11,66 +11,14 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::CmptType>
     static constexpr AttrList attrs = {};
 
     static constexpr FieldList fields = {
-        Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptType(size_t, Ubpa::UECS::AccessMode)>(),
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "id"},
-                    }
-                },
-                Attr{UBPA_USREFL_NAME_ARG(1),
-                    AttrList{
-                        Attr{Name::name, "mode"},
-                        Attr{"Name::default_value", Ubpa::UECS::AccessMode::WRITE},
-                    }
-                },
-            }
-        },
-        Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptType(std::string_view, Ubpa::UECS::AccessMode)>(),
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "type_name"},
-                    }
-                },
-                Attr{UBPA_USREFL_NAME_ARG(1),
-                    AttrList{
-                        Attr{Name::name, "mode"},
-                        Attr{"Name::default_value", Ubpa::UECS::AccessMode::WRITE},
-                    }
-                },
-            }
-        },
+        Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptType(size_t, Ubpa::UECS::AccessMode)>()},
+        Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptType(std::string_view, Ubpa::UECS::AccessMode)>()},
         Field{"HashCode", &Ubpa::UECS::CmptType::HashCode},
         Field{"GetAccessMode", &Ubpa::UECS::CmptType::GetAccessMode},
         Field{"Invalid", &Ubpa::UECS::CmptType::Invalid},
-        Field{"operator<", &Ubpa::UECS::CmptType::operator<,
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "rhs"},
-                    }
-                },
-            }
-        },
-        Field{"operator==", &Ubpa::UECS::CmptType::operator==,
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "rhs"},
-                    }
-                },
-            }
-        },
-        Field{"operator!=", &Ubpa::UECS::CmptType::operator!=,
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "rhs"},
-                    }
-                },
-            }
-        },
+        Field{"operator<", &Ubpa::UECS::CmptType::operator<},
+        Field{"operator==", &Ubpa::UECS::CmptType::operator==},
+        Field{"operator!=", &Ubpa::UECS::CmptType::operator!=},
     };
 };
 

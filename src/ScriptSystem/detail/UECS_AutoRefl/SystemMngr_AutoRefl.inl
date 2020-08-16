@@ -11,54 +11,17 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::SystemMngr>
     static constexpr AttrList attrs = {};
 
     static constexpr FieldList fields = {
-        Field{Name::constructor, WrapConstructor<Ubpa::UECS::SystemMngr(Ubpa::UECS::World *)>(),
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "world"},
-                    }
-                },
-            }
-        },
+        Field{Name::constructor, WrapConstructor<Ubpa::UECS::SystemMngr(Ubpa::UECS::World *)>()},
         /*Field{"Register",
-        static_cast<void(Ubpa::UECS::SystemMngr::*)(std::unique_ptr<Ubpa::UECS::System>)>(&Ubpa::UECS::SystemMngr::Register),
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "system"},
-                    }
-                },
-            }
-		},*/
+            static_cast<void(Ubpa::UECS::SystemMngr::*)(std::unique_ptr<Ubpa::UECS::System>)>(&Ubpa::UECS::SystemMngr::Register),
+        },*/
 		Field{"IsRegister",
 		    static_cast<bool(Ubpa::UECS::SystemMngr::*)(std::string_view)const>(&Ubpa::UECS::SystemMngr::IsRegister),
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "name"},
-                    }
-                },
-            }
         },
 		Field{"Deregister",
 			static_cast<void(Ubpa::UECS::SystemMngr::*)(std::string_view)>(&Ubpa::UECS::SystemMngr::Deregister),
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "name"},
-                    }
-                },
-            }
         },
-        Field{"Accept", &Ubpa::UECS::SystemMngr::Accept,
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "listener"},
-                    }
-                },
-            }
-        },
+        Field{"Accept", &Ubpa::UECS::SystemMngr::Accept},
     };
 };
 

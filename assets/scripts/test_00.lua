@@ -98,7 +98,6 @@ f = function(schedule)
 		  em:Attach(e, luaCmptType1, 1)
 	    end)
       end
-	  
 	end
   end
   local luaCmptType0 = CmptType.new("Cmpt0", AccessMode.LATEST)

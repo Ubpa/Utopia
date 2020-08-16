@@ -11,30 +11,10 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::ChunkView>
     static constexpr AttrList attrs = {};
 
     static constexpr FieldList fields = {
-        Field{Name::constructor, WrapConstructor<Ubpa::UECS::ChunkView(Ubpa::UECS::Archetype*, size_t)>(),
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "archetype"},
-                    }
-                },
-                Attr{UBPA_USREFL_NAME_ARG(1),
-                    AttrList{
-                        Attr{Name::name, "chunkIdx"},
-                    }
-                },
-            }
-        },
-        Field{"Contains", &Ubpa::UECS::ChunkView::Contains,
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0)},
-            }
-        },
+        Field{Name::constructor, WrapConstructor<Ubpa::UECS::ChunkView(Ubpa::UECS::Archetype*, size_t)>()},
+        Field{"Contains", &Ubpa::UECS::ChunkView::Contains},
 		Field{"GetCmptArray",
-			static_cast<void*(Ubpa::UECS::ChunkView::*)(Ubpa::UECS::CmptType)const>(&Ubpa::UECS::ChunkView::GetCmptArray),
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0)},
-            }
+			static_cast<void* (Ubpa::UECS::ChunkView::*)(Ubpa::UECS::CmptType)const>(&Ubpa::UECS::ChunkView::GetCmptArray)
         },
 		Field{"GetEntityArray", &Ubpa::UECS::ChunkView::GetEntityArray},
         Field{"EntityNum", &Ubpa::UECS::ChunkView::EntityNum},

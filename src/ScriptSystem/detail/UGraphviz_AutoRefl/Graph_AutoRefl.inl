@@ -11,32 +11,10 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UGraphviz::Graph>
     static constexpr AttrList attrs = {};
 
     static constexpr FieldList fields = {
-        Field{Name::constructor, WrapConstructor<Ubpa::UGraphviz::Graph(std::string, bool)>(),
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "id"},
-                    }
-                },
-                Attr{UBPA_USREFL_NAME_ARG(1),
-                    AttrList{
-                        Attr{Name::name, "isDigraph"},
-                        Attr{"Name::default_value", false},
-                    }
-                },
-            }
-        },
+        Field{Name::constructor, WrapConstructor<Ubpa::UGraphviz::Graph(std::string, bool)>()},
         Field{Name::destructor, WrapDestructor<Ubpa::UGraphviz::Graph>()},
-		/*Field{Name::constructor, WrapConstructor<Ubpa::UGraphviz::Graph(Ubpa::UGraphviz::Graph &&)>(),
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0)},
-			}
-		},*/
-		/*Field{"operator=", &Ubpa::UGraphviz::Graph::operator=,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0)},
-			}
-		},*/
+		//Field{Name::constructor, WrapConstructor<Ubpa::UGraphviz::Graph(Ubpa::UGraphviz::Graph &&)>()},
+		//Field{"operator=", &Ubpa::UGraphviz::Graph::operator=},
         Field{"Dump", &Ubpa::UGraphviz::Graph::Dump},
         Field{"IsDigraph", &Ubpa::UGraphviz::Graph::IsDigraph},
     };

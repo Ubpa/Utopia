@@ -11,31 +11,10 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::System>
     static constexpr AttrList attrs = {};
 
     static constexpr FieldList fields = {
-		/*Field{Name::constructor, WrapConstructor<Ubpa::UECS::System(Ubpa::UECS::World *, std::string)>(),
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "world"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "name"},
-					}
-				},
-			}
-		},*/
+		//Field{Name::constructor, WrapConstructor<Ubpa::UECS::System(Ubpa::UECS::World *, std::string)>()},
         Field{"GetWorld", &Ubpa::UECS::System::GetWorld},
         Field{"GetName", &Ubpa::UECS::System::GetName},
-		/*Field{"OnUpdate", &Ubpa::UECS::System::OnUpdate,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "schedule"},
-					}
-				},
-			}
-		},*/
+		//Field{"OnUpdate", &Ubpa::UECS::System::OnUpdate},
     };
 };
 

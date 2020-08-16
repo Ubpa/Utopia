@@ -11,20 +11,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::CmptPtr>
     static constexpr AttrList attrs = {};
 
     static constexpr FieldList fields = {
-        Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptPtr(Ubpa::UECS::CmptType, void *)>(),
-            AttrList {
-                Attr{UBPA_USREFL_NAME_ARG(0),
-                    AttrList{
-                        Attr{Name::name, "type"},
-                    }
-                },
-                Attr{UBPA_USREFL_NAME_ARG(1),
-                    AttrList{
-                        Attr{Name::name, "p"},
-                    }
-                },
-            }
-        },
+        Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptPtr(Ubpa::UECS::CmptType, void *)>()},
         Field{"Type", &Ubpa::UECS::CmptPtr::Type},
 		Field{"Ptr", &Ubpa::UECS::CmptPtr::Ptr},
 		Field{"Valid", &Ubpa::UECS::CmptPtr::Valid},

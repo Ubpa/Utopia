@@ -11,90 +11,12 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::DustEngine::LuaMemory>
 	static constexpr AttrList attrs = {};
 
 	static constexpr FieldList fields = {
-		Field{"Malloc", &Ubpa::DustEngine::LuaMemory::Malloc,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "size"},
-					}
-				},
-			}
-		},
-		Field{"Free", &Ubpa::DustEngine::LuaMemory::Free,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "block"},
-					}
-				},
-			}
-		},
-		Field{"Offset", &Ubpa::DustEngine::LuaMemory::Offset,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "ptr"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "n"},
-					}
-				},
-			}
-		},
-		Field{"Copy", &Ubpa::DustEngine::LuaMemory::Copy,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "dst"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "src"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(2),
-					AttrList{
-						Attr{Name::name, "size"},
-					}
-				},
-			}
-		},
-		Field{"Set", &Ubpa::DustEngine::LuaMemory::Set,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "dst"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "value"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(2),
-					AttrList{
-						Attr{Name::name, "size"},
-					}
-				},
-			}
-		},
-		Field{"StrCpy", &Ubpa::DustEngine::LuaMemory::StrCpy,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "dst"},
-					}
-				},
-				Attr{UBPA_USREFL_NAME_ARG(1),
-					AttrList{
-						Attr{Name::name, "src"},
-					}
-				},
-			}
-		},
+		Field{"Malloc", &Ubpa::DustEngine::LuaMemory::Malloc},
+		Field{"Free", &Ubpa::DustEngine::LuaMemory::Free},
+		Field{"Offset", &Ubpa::DustEngine::LuaMemory::Offset},
+		Field{"Copy", &Ubpa::DustEngine::LuaMemory::Copy},
+		Field{"Set", &Ubpa::DustEngine::LuaMemory::Set},
+		Field{"StrCpy", &Ubpa::DustEngine::LuaMemory::StrCpy},
 	};
 };
 

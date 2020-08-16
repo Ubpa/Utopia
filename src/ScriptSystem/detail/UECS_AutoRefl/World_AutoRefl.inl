@@ -36,24 +36,8 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::World>
 		Field{"Update", &Ubpa::UECS::World::Update},
 		Field{"DumpUpdateJobGraph", &Ubpa::UECS::World::DumpUpdateJobGraph},
 		Field{"GenUpdateFrameGraph", &Ubpa::UECS::World::GenUpdateFrameGraph},
-		Field{"AddCommand", &Ubpa::UECS::World::AddCommand,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "command"},
-					}
-				},
-			}
-		},
-		/*Field{"Accept", &Ubpa::UECS::World::Accept,
-			AttrList {
-				Attr{UBPA_USREFL_NAME_ARG(0),
-					AttrList{
-						Attr{Name::name, "listener"},
-					}
-				},
-			}
-		},*/
+		Field{"AddCommand", &Ubpa::UECS::World::AddCommand},
+		//Field{"Accept", &Ubpa::UECS::World::Accept},
 	};
 };
 
