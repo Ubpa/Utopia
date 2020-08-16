@@ -4,8 +4,12 @@
 #include <DustEngine/Core/Mesh.h>
 #include <DustEngine/Core/HLSLFile.h>
 #include <DustEngine/Core/Shader.h>
+#include <DustEngine/Core/Image.h>
+#include <DustEngine/Core/Texture2D.h>
 
 #include <DustEngine/_deps/tinyobjloader/tiny_obj_loader.h>
+
+#include <USRefl/USRefl.h>
 
 #include <rapidjson/document.h>
 #include <rapidjson/writer.h>
@@ -225,6 +229,73 @@ void AssetMngr::ImportAsset(const std::filesystem::path& path) {
 		pImpl->path2guid.emplace(path, guid);
 		pImpl->guid2path.emplace(guid, path);
 	}
+	else if (
+	path.extension() == ".png"
+	|| path.extension() == ".jpg"
+	|| path.extension() == ".bmp"
+	|| path.extension() == ".hdr"
+	|| path.extension() == ".tga")
+	{
+		xg::Guid guid;
+		if (!existMeta) {
+			// generate meta file
+
+			guid = xg::newGuid();
+
+			rapidjson::StringBuffer sb;
+			rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+			writer.StartObject();
+			writer.Key("guid");
+			writer.String(guid.str());
+			writer.EndObject();
+
+			auto dirPath = path.parent_path();
+			if (!std::filesystem::is_directory(dirPath))
+				std::filesystem::create_directories(dirPath);
+
+			std::ofstream ofs(metapath);
+			assert(ofs.is_open());
+			ofs << sb.GetString();
+			ofs.close();
+		}
+		else {
+			rapidjson::Document doc = Impl::LoadJSON(metapath);
+			guid = xg::Guid{ doc["guid"].GetString() };
+		}
+		pImpl->path2guid.emplace(path, guid);
+		pImpl->guid2path.emplace(guid, path);
+	}
+	else if (path.extension() == ".tex2d")
+	{
+		xg::Guid guid;
+		if (!existMeta) {
+			// generate meta file
+
+			guid = xg::newGuid();
+
+			rapidjson::StringBuffer sb;
+			rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+			writer.StartObject();
+			writer.Key("guid");
+			writer.String(guid.str());
+			writer.EndObject();
+
+			auto dirPath = path.parent_path();
+			if (!std::filesystem::is_directory(dirPath))
+				std::filesystem::create_directories(dirPath);
+
+			std::ofstream ofs(metapath);
+			assert(ofs.is_open());
+			ofs << sb.GetString();
+			ofs.close();
+		}
+		else {
+			rapidjson::Document doc = Impl::LoadJSON(metapath);
+			guid = xg::Guid{ doc["guid"].GetString() };
+		}
+		pImpl->path2guid.emplace(path, guid);
+		pImpl->guid2path.emplace(guid, path);
+	}
 	else
 		assert("not support" && false);
 }
@@ -281,6 +352,38 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path) {
 		pImpl->asset2path.emplace(shader, path);
 		return shader;
 	}
+	else if (
+		path.extension() == ".png"
+		|| path.extension() == ".jpg"
+		|| path.extension() == ".bmp"
+		|| path.extension() == ".hdr"
+		|| path.extension() == ".tga"
+	) {
+		auto target = pImpl->path2assert.find(path);
+		if (target != pImpl->path2assert.end())
+			return target->second.ptr.get();
+		auto img = new Image(path.string());
+		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ img });
+		pImpl->asset2path.emplace(img, path);
+		return img;
+	}
+	else if (path.extension() == ".tex2d") {
+		auto target = pImpl->path2assert.find(path);
+		if (target != pImpl->path2assert.end())
+			return target->second.ptr.get();
+
+		auto tex2dJSON = Impl::LoadJSON(path);
+		auto guidstr = tex2dJSON["image"].GetString();
+		xg::Guid guid{ guidstr };
+		auto imgTarget = pImpl->guid2path.find(guid);
+		auto tex2d = new Texture2D;
+		tex2d->image = imgTarget != pImpl->guid2path.end() ? LoadAsset<Image>(imgTarget->second) : nullptr;
+		tex2d->wrapMode = static_cast<Texture2D::WrapMode>(tex2dJSON["wrapMode"].GetUint());
+		tex2d->filterMode = static_cast<Texture2D::FilterMode>(tex2dJSON["filterMode"].GetUint());
+		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ tex2d });
+		pImpl->asset2path.emplace(tex2d, path);
+		return tex2d;
+	}
 	else {
 		assert(false);
 		return nullptr;
@@ -311,6 +414,22 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path, const std::type_in
 			return nullptr;
 		return LoadAsset(path);
 	}
+	else if (
+		path.extension() == ".png"
+		|| path.extension() == ".jpg"
+		|| path.extension() == ".bmp"
+		|| path.extension() == ".hdr"
+		|| path.extension() == ".tga"
+	) {
+		if (typeinfo != typeid(Image))
+			return nullptr;
+		return LoadAsset(path);
+	}
+	else if (path.extension() == ".tex2d") {
+		if (typeinfo != typeid(Texture2D))
+			return nullptr;
+		return LoadAsset(path);
+	}
 	else {
 		assert(false);
 		return nullptr;
@@ -334,6 +453,31 @@ void AssetMngr::CreateAsset(const void* ptr, const std::filesystem::path& path) 
 		writer.String(shader->fragmentName);
 		writer.Key("targetName");
 		writer.String(shader->targetName);
+		writer.EndObject();
+
+		auto dirPath = path.parent_path();
+		if (!std::filesystem::is_directory(dirPath))
+			std::filesystem::create_directories(dirPath);
+
+		std::ofstream ofs(path);
+		assert(ofs.is_open());
+		ofs << sb.GetString();
+		ofs.close();
+
+		ImportAsset(path);
+	}
+	else if (path.extension() == ".tex2d") {
+		auto tex2d = reinterpret_cast<const Texture2D*>(ptr);
+		auto guid = AssetPathToGUID(GetAssetPath(tex2d->image));
+		rapidjson::StringBuffer sb;
+		rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+		writer.StartObject();
+		writer.Key("image");
+		writer.String(guid.str());
+		writer.Key("wrapMode");
+		writer.Uint(static_cast<unsigned int>(tex2d->wrapMode));
+		writer.Key("filterMode");
+		writer.Uint(static_cast<unsigned int>(tex2d->filterMode));
 		writer.EndObject();
 
 		auto dirPath = path.parent_path();
