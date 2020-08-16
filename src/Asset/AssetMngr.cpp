@@ -1,11 +1,14 @@
 #include <DustEngine/Asset/AssetMngr.h>
 
-#include <rapidjson/document.h>
-#include <rapidjson/writer.h>
 #include <DustEngine/ScriptSystem/LuaScript.h>
 #include <DustEngine/Core/Mesh.h>
+#include <DustEngine/Core/HLSLFile.h>
+#include <DustEngine/Core/Shader.h>
 
 #include <DustEngine/_deps/tinyobjloader/tiny_obj_loader.h>
+
+#include <rapidjson/document.h>
+#include <rapidjson/writer.h>
 
 #include <fstream>
 #include <map>
@@ -53,7 +56,7 @@ struct AssetMngr::Impl {
 	std::unordered_map<xg::Guid, std::filesystem::path> guid2path;
 
 	static std::string LoadText(const std::filesystem::path& path);
-	static rapidjson::Document LoadMeta(const std::filesystem::path& metapath);
+	static rapidjson::Document LoadJSON(const std::filesystem::path& metapath);
 	static Mesh* LoadObj(const std::filesystem::path& path);
 };
 
@@ -126,7 +129,7 @@ void AssetMngr::ImportAsset(const std::filesystem::path& path) {
 			ofs.close();
 		}
 		else {
-			rapidjson::Document doc = Impl::LoadMeta(metapath);
+			rapidjson::Document doc = Impl::LoadJSON(metapath);
 			guid = xg::Guid{ doc["guid"].GetString() };
 		}
 		pImpl->path2guid.emplace(path, guid);
@@ -156,7 +159,67 @@ void AssetMngr::ImportAsset(const std::filesystem::path& path) {
 			ofs.close();
 		}
 		else {
-			rapidjson::Document doc = Impl::LoadMeta(metapath);
+			rapidjson::Document doc = Impl::LoadJSON(metapath);
+			guid = xg::Guid{ doc["guid"].GetString() };
+		}
+		pImpl->path2guid.emplace(path, guid);
+		pImpl->guid2path.emplace(guid, path);
+	}
+	else if (path.extension() == ".hlsl") {
+		xg::Guid guid;
+		if (!existMeta) {
+			// generate meta file
+
+			guid = xg::newGuid();
+
+			rapidjson::StringBuffer sb;
+			rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+			writer.StartObject();
+			writer.Key("guid");
+			writer.String(guid.str());
+			writer.EndObject();
+
+			auto dirPath = path.parent_path();
+			if (!std::filesystem::is_directory(dirPath))
+				std::filesystem::create_directories(dirPath);
+
+			std::ofstream ofs(metapath);
+			assert(ofs.is_open());
+			ofs << sb.GetString();
+			ofs.close();
+		}
+		else {
+			rapidjson::Document doc = Impl::LoadJSON(metapath);
+			guid = xg::Guid{ doc["guid"].GetString() };
+		}
+		pImpl->path2guid.emplace(path, guid);
+		pImpl->guid2path.emplace(guid, path);
+	}
+	else if (path.extension() == ".shader") {
+		xg::Guid guid;
+		if (!existMeta) {
+			// generate meta file
+
+			guid = xg::newGuid();
+
+			rapidjson::StringBuffer sb;
+			rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+			writer.StartObject();
+			writer.Key("guid");
+			writer.String(guid.str());
+			writer.EndObject();
+
+			auto dirPath = path.parent_path();
+			if (!std::filesystem::is_directory(dirPath))
+				std::filesystem::create_directories(dirPath);
+
+			std::ofstream ofs(metapath);
+			assert(ofs.is_open());
+			ofs << sb.GetString();
+			ofs.close();
+		}
+		else {
+			rapidjson::Document doc = Impl::LoadJSON(metapath);
 			guid = xg::Guid{ doc["guid"].GetString() };
 		}
 		pImpl->path2guid.emplace(path, guid);
@@ -188,6 +251,36 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path) {
 		pImpl->asset2path.emplace(mesh, path);
 		return mesh;
 	}
+	else if (path.extension() == ".hlsl") {
+		auto target = pImpl->path2assert.find(path);
+		if (target != pImpl->path2assert.end())
+			return target->second.ptr.get();
+
+		auto str = Impl::LoadText(path);
+		auto hlsl = new HLSLFile(std::move(str));
+		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ hlsl });
+		pImpl->asset2path.emplace(hlsl, path);
+		return hlsl;
+	}
+	else if (path.extension() == ".shader") {
+		auto target = pImpl->path2assert.find(path);
+		if (target != pImpl->path2assert.end())
+			return target->second.ptr.get();
+
+		auto shaderJSON = Impl::LoadJSON(path);
+		auto guidstr = shaderJSON["hlslFile"].GetString();
+		xg::Guid guid{ guidstr };
+		auto hlslTarget = pImpl->guid2path.find(guid);
+		auto shader = new Shader;
+		shader->hlslFile = hlslTarget != pImpl->guid2path.end() ? LoadAsset<HLSLFile>(hlslTarget->second) : nullptr;
+		shader->shaderName = shaderJSON["shaderName"].GetString();
+		shader->vertexName = shaderJSON["vertexName"].GetString();
+		shader->fragmentName = shaderJSON["fragmentName"].GetString();
+		shader->targetName = shaderJSON["targetName"].GetString();
+		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ shader });
+		pImpl->asset2path.emplace(shader, path);
+		return shader;
+	}
 	else {
 		assert(false);
 		return nullptr;
@@ -200,33 +293,62 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path, const std::type_in
 		if (typeinfo != typeid(LuaScript))
 			return nullptr;
 
-		auto target = pImpl->path2assert.find(path);
-		if (target != pImpl->path2assert.end())
-			return target->second.ptr.get();
-
-		auto str = Impl::LoadText(path);
-		auto lua = new LuaScript(std::move(str));
-		pImpl->path2assert.emplace(path, Impl::Asset{ lua });
-		pImpl->asset2path.emplace(lua, path);
-		return lua;
+		return LoadAsset(path);
 	}
 	else if (path.extension() == ".obj") {
 		if (typeinfo != typeid(Mesh))
 			return nullptr;
 
-		auto target = pImpl->path2assert.find(path);
-		if (target != pImpl->path2assert.end())
-			return target->second.ptr.get();
-
-		auto mesh = Impl::LoadObj(path);
-		pImpl->path2assert.emplace(path, Impl::Asset{ mesh });
-		pImpl->asset2path.emplace(mesh, path);
-		return mesh;
+		return LoadAsset(path);
+	}
+	else if (path.extension() == ".hlsl") {
+		if (typeinfo != typeid(HLSLFile))
+			return nullptr;
+		return LoadAsset(path);
+	}
+	else if (path.extension() == ".shader") {
+		if (typeinfo != typeid(Shader))
+			return nullptr;
+		return LoadAsset(path);
 	}
 	else {
 		assert(false);
 		return nullptr;
 	}
+}
+
+void AssetMngr::CreateAsset(const void* ptr, const std::filesystem::path& path) {
+	if (path.extension() == ".shader") {
+		auto shader = reinterpret_cast<const Shader*>(ptr);
+		auto guid = AssetPathToGUID(GetAssetPath(shader->hlslFile));
+		rapidjson::StringBuffer sb;
+		rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+		writer.StartObject();
+		writer.Key("hlslFile");
+		writer.String(guid.str());
+		writer.Key("shaderName");
+		writer.String(shader->shaderName);
+		writer.Key("vertexName");
+		writer.String(shader->vertexName);
+		writer.Key("fragmentName");
+		writer.String(shader->fragmentName);
+		writer.Key("targetName");
+		writer.String(shader->targetName);
+		writer.EndObject();
+
+		auto dirPath = path.parent_path();
+		if (!std::filesystem::is_directory(dirPath))
+			std::filesystem::create_directories(dirPath);
+
+		std::ofstream ofs(path);
+		assert(ofs.is_open());
+		ofs << sb.GetString();
+		ofs.close();
+
+		ImportAsset(path);
+	}
+	else
+		assert("not support" && false);
 }
 
 // ========================
@@ -247,7 +369,7 @@ std::string AssetMngr::Impl::LoadText(const std::filesystem::path& path) {
 	return str;
 }
 
-rapidjson::Document AssetMngr::Impl::LoadMeta(const std::filesystem::path& metapath) {
+rapidjson::Document AssetMngr::Impl::LoadJSON(const std::filesystem::path& metapath) {
 	// load guid
 	auto str = LoadText(metapath);
 	rapidjson::Document doc;

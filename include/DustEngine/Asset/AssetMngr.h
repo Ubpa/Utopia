@@ -24,6 +24,8 @@ namespace Ubpa::DustEngine {
 		// If the asset does not exist, AssetPathToGUID will return invalid xg::Guid
 		xg::Guid AssetPathToGUID(const std::filesystem::path& path) const;
 
+		void CreateAsset(const void* ptr, const std::filesystem::path& path);
+
 		bool Contains(const void* ptr) const;
 
 		// if ptr is not an asset, return empty path
