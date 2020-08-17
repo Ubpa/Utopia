@@ -13,6 +13,8 @@ _deps/
 *.png
 *.jpg
 *.gif
+*.dds
+
 *.mp4
 *.pdf
 

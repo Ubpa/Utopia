@@ -494,6 +494,9 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path, const std::type_in
 }
 
 void AssetMngr::CreateAsset(void* ptr, const std::filesystem::path& path) {
+	if (std::filesystem::exists(path))
+		return;
+
 	if (path.extension() == ".shader") {
 		auto shader = reinterpret_cast<Shader*>(ptr);
 		auto guid = AssetPathToGUID(GetAssetPath(shader->hlslFile));

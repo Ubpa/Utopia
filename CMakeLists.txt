@@ -8,13 +8,13 @@ Ubpa_InitUCMake()
 
 Ubpa_InitProject()
 
-Ubpa_AddDep(URapidJSON  0.0.1)
-Ubpa_AddDep(USTL        0.1.1)
-Ubpa_AddDep(UDP         0.7.1)
-Ubpa_AddDep(UGM         0.6.9)
-Ubpa_AddDep(ULuaPP      0.1.4)
-Ubpa_AddDep(UECS        0.11.6)
-Ubpa_AddDep(UDXRenderer 0.0.3)
+Ubpa_AddDep(URapidJSON 0.0.1)
+Ubpa_AddDep(USTL       0.1.1)
+Ubpa_AddDep(UDP        0.7.1)
+Ubpa_AddDep(UGM        0.6.9)
+Ubpa_AddDep(ULuaPP     0.1.4)
+Ubpa_AddDep(UECS       0.11.6)
+Ubpa_AddDep(UDX12      0.0.8)
 
 Ubpa_DownloadZip(
 	https://cdn.jsdelivr.net/gh/Ubpa/UData@master/DustEngine/crossguid/crossguid_20200809.zip
