@@ -7,6 +7,7 @@
 
 namespace Ubpa::DustEngine {
 	struct Texture2D;
+	struct Shader;
 
 	class RsrcMngrDX12 {
 	public:
@@ -27,10 +28,12 @@ namespace Ubpa::DustEngine {
 		RsrcMngrDX12& RegisterDDSTextureArrayFromFile(DirectX::ResourceUploadBatch& upload,
 			size_t id, const std::wstring_view* filenameArr, UINT num);
 		*/
-		RsrcMngrDX12& RegisterTexture2D(DirectX::ResourceUploadBatch& upload,
-			size_t id, const Texture2D* tex2D);
-		RsrcMngrDX12& RegisterTexture2DArray(DirectX::ResourceUploadBatch& upload,
-			size_t id, const Texture2D** tex2Ds, size_t num);
+		RsrcMngrDX12& RegisterTexture2D(
+			DirectX::ResourceUploadBatch& upload,
+			const Texture2D* tex2D
+		);
+		/*RsrcMngrDX12& RegisterTexture2DArray(DirectX::ResourceUploadBatch& upload,
+			size_t id, const Texture2D** tex2Ds, size_t num);*/
 
 		UDX12::MeshGPUBuffer& RegisterStaticMeshGPUBuffer(
 			DirectX::ResourceUploadBatch& upload, size_t id,
@@ -72,13 +75,13 @@ namespace Ubpa::DustEngine {
 			size_t id,
 			const D3D12_GRAPHICS_PIPELINE_STATE_DESC* desc);
 
-		RsrcMngrDX12& RegisterRenderTexture2D(size_t id, UINT width, UINT height, DXGI_FORMAT format);
-		RsrcMngrDX12& RegisterRenderTextureCube(size_t id, UINT size, DXGI_FORMAT format);
+		/*RsrcMngrDX12& RegisterRenderTexture2D(size_t id, UINT width, UINT height, DXGI_FORMAT format);
+		RsrcMngrDX12& RegisterRenderTextureCube(size_t id, UINT size, DXGI_FORMAT format);*/
 
-		D3D12_CPU_DESCRIPTOR_HANDLE GetTextureSrvCpuHandle(size_t id, UINT index = 0) const;
-		D3D12_GPU_DESCRIPTOR_HANDLE GetTextureSrvGpuHandle(size_t id, UINT index = 0) const;
+		D3D12_CPU_DESCRIPTOR_HANDLE GetTexture2DSrvCpuHandle(const Texture2D* tex2D) const;
+		D3D12_GPU_DESCRIPTOR_HANDLE GetTexture2DSrvGpuHandle(const Texture2D* tex2D) const;
 
-		UDX12::DescriptorHeapAllocation& GetTextureRtvs(size_t id) const;
+		//UDX12::DescriptorHeapAllocation& GetTextureRtvs(const Texture2D* tex2D) const;
 
 		UDX12::MeshGPUBuffer& GetMeshGPUBuffer(size_t id) const;
 

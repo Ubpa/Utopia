@@ -21,7 +21,6 @@ const int gNumFrameResources = 3;
 
 constexpr size_t ID_PSO_opaque = 0;
 constexpr size_t ID_RootSignature_default = 0;
-constexpr size_t ID_Texture2D_chessboard = 0;
 
 constexpr size_t ID_ShaderByteCode_std_vs = 0;
 constexpr size_t ID_ShaderByteCode_opaque_ps = 1;
@@ -184,6 +183,9 @@ private:
 	Ubpa::UDX12::FG::Executor fgExecutor;
 	Ubpa::UFG::Compiler fgCompiler;
 	Ubpa::UFG::FrameGraph fg;
+
+	// resources
+	Ubpa::DustEngine::Texture2D* chessboardTex2D;
 };
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
@@ -546,13 +548,16 @@ void DeferApp::LoadTextures()
 {
 	auto chessboardImg = Ubpa::DustEngine::AssetMngr::Instance()
 		.LoadAsset<Ubpa::DustEngine::Image>("../assets/textures/chessboard.png");
-	auto chessboardTex2D = new Ubpa::DustEngine::Texture2D;
+	chessboardTex2D = new Ubpa::DustEngine::Texture2D;
 	chessboardTex2D->image = chessboardImg;
-	Ubpa::DustEngine::AssetMngr::Instance().CreateAsset(chessboardTex2D,"../assets/textures/chessboard.tex2d");
+	if (!Ubpa::DustEngine::AssetMngr::Instance().CreateAsset(chessboardTex2D, "../assets/textures/chessboard.tex2d")) {
+		delete chessboardTex2D;
+		chessboardTex2D = Ubpa::DustEngine::AssetMngr::Instance()
+			.LoadAsset<Ubpa::DustEngine::Texture2D>("../assets/textures/chessboard.tex2d");
+	}
 
 	Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
 		Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
-		ID_Texture2D_chessboard,
 		chessboardTex2D
 	);
 }
@@ -675,7 +680,7 @@ void DeferApp::BuildMaterials()
 	auto woodCrate = std::make_unique<Material>();
 	woodCrate->Name = "woodCrate";
 	woodCrate->MatCBIndex = 0;
-	woodCrate->DiffuseSrvGpuHandle = Ubpa::DustEngine::RsrcMngrDX12::Instance().GetTextureSrvGpuHandle(ID_Texture2D_chessboard);
+	woodCrate->DiffuseSrvGpuHandle = Ubpa::DustEngine::RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(chessboardTex2D);
 	woodCrate->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 	woodCrate->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
 	woodCrate->Roughness = 0.2f;

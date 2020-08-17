@@ -11,6 +11,11 @@ using namespace Ubpa::DustEngine;
 using namespace Ubpa;
 
 int main() {
+	// Enable run-time memory check for debug builds.
+#if defined(DEBUG) | defined(_DEBUG)
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+#endif
+
 	std::filesystem::path imgPath = "../assets/textures/test.png";
 	std::filesystem::path tex2dPath = "../assets/textures/test.tex2d";
 	std::filesystem::path hlslPath = "../assets/shaders/Default.hlsl";
@@ -42,8 +47,10 @@ int main() {
 		shader->fragmentName = "frag";
 		shader->targetName = "5_0";
 		shader->shaderName = "Default";
-
-		AssetMngr::Instance().CreateAsset(shader, shaderPath);
+		if (!AssetMngr::Instance().CreateAsset(shader, shaderPath)) {
+			delete shader;
+			shader = AssetMngr::Instance().LoadAsset<Shader>(shaderPath);
+		}
 
 		auto img = AssetMngr::Instance().LoadAsset<Image>(imgPath);
 
@@ -52,13 +59,17 @@ int main() {
 		tex2d->wrapMode = Texture2D::WrapMode::Clamp;
 		tex2d->filterMode = Texture2D::FilterMode::Point;
 
-		AssetMngr::Instance().CreateAsset(tex2d, tex2dPath);
+		if (!AssetMngr::Instance().CreateAsset(tex2d, tex2dPath)) {
+			delete tex2d;
+			tex2d = AssetMngr::Instance().LoadAsset<Texture2D>(tex2dPath);
+		}
 
 		auto material = new Material;
 		material->shader = shader;
 		material->texture2Ds.emplace("gDiffuseMap", tex2d);
 
-		AssetMngr::Instance().CreateAsset(material, matPath);
+		if (!AssetMngr::Instance().CreateAsset(material, matPath))
+			delete material;
 
 		AssetMngr::Instance().Clear();
 	}

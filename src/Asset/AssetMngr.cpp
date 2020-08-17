@@ -493,9 +493,9 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path, const std::type_in
 	}
 }
 
-void AssetMngr::CreateAsset(void* ptr, const std::filesystem::path& path) {
+bool AssetMngr::CreateAsset(void* ptr, const std::filesystem::path& path) {
 	if (std::filesystem::exists(path))
-		return;
+		return false;
 
 	if (path.extension() == ".shader") {
 		auto shader = reinterpret_cast<Shader*>(ptr);
@@ -589,8 +589,12 @@ void AssetMngr::CreateAsset(void* ptr, const std::filesystem::path& path) {
 		pImpl->path2assert.emplace(path, Impl::Asset{ material });
 		pImpl->asset2path.emplace(material, path);
 	}
-	else
+	else {
 		assert("not support" && false);
+		return false;
+	}
+
+	return true;
 }
 
 // ========================

@@ -6,6 +6,11 @@
 using namespace Ubpa::DustEngine;
 
 int main() {
+	// Enable run-time memory check for debug builds.
+#if defined(DEBUG) | defined(_DEBUG)
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+#endif
+
 	std::filesystem::path path = "../assets/scripts/test_00.lua";
 	AssetMngr::Instance().ImportAsset(path);
 	auto luaS = AssetMngr::Instance().LoadAsset<LuaScript>(path);

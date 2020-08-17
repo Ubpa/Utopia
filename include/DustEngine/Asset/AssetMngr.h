@@ -25,7 +25,7 @@ namespace Ubpa::DustEngine {
 		xg::Guid AssetPathToGUID(const std::filesystem::path& path) const;
 
 		// unique
-		void CreateAsset(void* ptr, const std::filesystem::path& path);
+		bool CreateAsset(void* ptr, const std::filesystem::path& path);
 
 		bool Contains(const void* ptr) const;
 

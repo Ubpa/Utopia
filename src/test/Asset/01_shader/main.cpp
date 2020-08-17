@@ -7,6 +7,11 @@
 using namespace Ubpa::DustEngine;
 
 int main() {
+	// Enable run-time memory check for debug builds.
+#if defined(DEBUG) | defined(_DEBUG)
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+#endif
+
 	std::filesystem::path path = "../assets/shaders/Default.hlsl";
 
 	if (!std::filesystem::is_directory("../assets/shaders"))
@@ -29,7 +34,8 @@ int main() {
 	shader->targetName = "5_0";
 	shader->shaderName = "Default";
 
-	AssetMngr::Instance().CreateAsset(shader, "../assets/shaders/Default.shader");
+	if (!AssetMngr::Instance().CreateAsset(shader, "../assets/shaders/Default.shader"))
+		delete shader;
 
 	AssetMngr::Instance().Clear();
 	AssetMngr::Instance().ImportAsset(path);

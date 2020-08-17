@@ -8,6 +8,11 @@ using namespace Ubpa::DustEngine;
 using namespace Ubpa;
 
 int main() {
+	// Enable run-time memory check for debug builds.
+#if defined(DEBUG) | defined(_DEBUG)
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+#endif
+
 	std::filesystem::path imgPath = "../assets/textures/test.png";
 	std::filesystem::path tex2dPath = "../assets/textures/test.tex2d";
 
@@ -33,7 +38,8 @@ int main() {
 		tex2d->wrapMode = Texture2D::WrapMode::Clamp;
 		tex2d->filterMode = Texture2D::FilterMode::Point;
 
-		AssetMngr::Instance().CreateAsset(tex2d, tex2dPath);
+		if (!AssetMngr::Instance().CreateAsset(tex2d, tex2dPath))
+			delete tex2d;
 		AssetMngr::Instance().Clear();
 	}
 
