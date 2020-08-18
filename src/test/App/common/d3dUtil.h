@@ -91,6 +91,10 @@ struct Material
 
 	D3D12_GPU_DESCRIPTOR_HANDLE DiffuseSrvGpuHandle{ 0 };
 
+	D3D12_GPU_DESCRIPTOR_HANDLE AlbedoSrvGpuHandle{ 0 };
+	D3D12_GPU_DESCRIPTOR_HANDLE RoughnessSrvGpuHandle{ 0 };
+	D3D12_GPU_DESCRIPTOR_HANDLE MetalnessSrvGpuHandle{ 0 };
+
 	D3D12_GPU_DESCRIPTOR_HANDLE NormalSrvGpuHandle{ 0 };
 
 	// Dirty flag indicating the material has changed and we need to update the constant buffer.
