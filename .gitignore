@@ -38,3 +38,8 @@ _deps/
 *.exe
 *.ilk
 *.pdb
+
+*.meta
+*.shader
+*.tex2d
+*.mat
