@@ -360,7 +360,7 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path) {
 			return target->second.ptr.get();
 
 		auto str = Impl::LoadText(path);
-		auto hlsl = new HLSLFile(std::move(str));
+		auto hlsl = new HLSLFile(std::move(str), path.parent_path().string());
 		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ hlsl });
 		pImpl->asset2path.emplace(hlsl, path);
 		return hlsl;

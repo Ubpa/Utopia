@@ -44,28 +44,8 @@ namespace Ubpa::DustEngine {
 			size_t id,
 			const void* vb_data, UINT vb_count, UINT vb_stride,
 			const void* ib_data, UINT ib_count, DXGI_FORMAT ib_format);
-
-		// [summary]
-		// compile shader file to bytecode
-		// [arguments]
-		// - defines: marco array, end with {NULL, NULL}
-		// - - e.g. #define zero 0 <-> D3D_SHADER_MACRO Shader_Macros[] = { "zero", "0", NULL, NULL };
-		// - entrypoint: begin function name, like 'main'
-		// - target: e.g. cs/ds/gs/hs/ps/vs + _5_ + 0/1
-		// [ref] https://docs.microsoft.com/en-us/windows/win32/api/d3dcompiler/nf-d3dcompiler-d3dcompilefromfile
-		ID3DBlob* RegisterShaderByteCode(
-			size_t id,
-			const std::wstring& filename,
-			const D3D_SHADER_MACRO* defines,
-			const std::string& entrypoint,
-			const std::string& target);
-
-		ID3DBlob* RegisterShaderByteCode(
-			size_t id,
-			std::string_view source,
-			const D3D_SHADER_MACRO* defines,
-			const std::string& entrypoint,
-			const std::string& target);
+		
+		RsrcMngrDX12& RegisterShader(const Shader* shader);
 
 		RsrcMngrDX12& RegisterRootSignature(
 			size_t id,
@@ -85,7 +65,8 @@ namespace Ubpa::DustEngine {
 
 		UDX12::MeshGPUBuffer& GetMeshGPUBuffer(size_t id) const;
 
-		ID3DBlob* GetShaderByteCode(size_t id) const;
+		const ID3DBlob* GetShaderByteCode_vs(const Shader* shader) const;
+		const ID3DBlob* GetShaderByteCode_ps(const Shader* shader) const;
 
 		ID3D12RootSignature* GetRootSignature(size_t id) const;
 

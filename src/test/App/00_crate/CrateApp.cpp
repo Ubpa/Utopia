@@ -12,6 +12,8 @@
 #include <DustEngine/Asset/AssetMngr.h>
 #include <DustEngine/Core/Texture2D.h>
 #include <DustEngine/Core/Image.h>
+#include <DustEngine/Core/HLSLFile.h>
+#include <DustEngine/Core/Shader.h>
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -186,6 +188,7 @@ private:
 
 	// resources
 	Ubpa::DustEngine::Texture2D* chessboardTex2D;
+	Ubpa::DustEngine::Shader* shader;
 };
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
@@ -593,10 +596,36 @@ void DeferApp::BuildDescriptorHeaps()
 
 void DeferApp::BuildShadersAndInputLayout()
 {
-	Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterShaderByteCode(ID_ShaderByteCode_std_vs,
-		L"..\\assets\\shaders\\Default.hlsl", nullptr, "VS", "vs_5_0");
-	Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterShaderByteCode(ID_ShaderByteCode_opaque_ps,
-		L"..\\assets\\shaders\\Default.hlsl", nullptr, "PS", "ps_5_0");
+	std::filesystem::path hlslPath = "../assets/shaders/Default.hlsl";
+	std::filesystem::path shaderPath = "../assets/shaders/Default.shader";
+
+	if (!std::filesystem::is_directory("../assets/shaders"))
+		std::filesystem::create_directories("../assets/shaders");
+
+	auto& assetMngr = Ubpa::DustEngine::AssetMngr::Instance();
+	assetMngr.ImportAsset(hlslPath);
+	auto hlslFile = assetMngr.LoadAsset<Ubpa::DustEngine::HLSLFile>(hlslPath);
+	std::cout << hlslFile->GetString() << std::endl;
+
+	std::cout << assetMngr.Contains(hlslFile) << std::endl;
+	auto guid = assetMngr.AssetPathToGUID(hlslPath);
+	std::cout << guid.str() << std::endl;
+	std::cout << assetMngr.GUIDToAssetPath(guid).string() << std::endl;
+	std::cout << assetMngr.GetAssetPath(hlslFile).string() << std::endl;
+
+	shader = new Ubpa::DustEngine::Shader;
+	shader->hlslFile = hlslFile;
+	shader->vertexName = "vert";
+	shader->fragmentName = "frag";
+	shader->targetName = "5_0";
+	shader->shaderName = "Default";
+
+	if (!assetMngr.CreateAsset(shader, shaderPath)) {
+		delete shader;
+		shader = assetMngr.LoadAsset<Ubpa::DustEngine::Shader>(shaderPath);
+	}
+
+	Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterShader(shader);
 	
     mInputLayout =
     {
@@ -637,8 +666,8 @@ void DeferApp::BuildPSOs()
 	auto opaquePsoDesc = Ubpa::UDX12::Desc::PSO::Basic(
 		Ubpa::DustEngine::RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_default),
 		mInputLayout.data(), (UINT)mInputLayout.size(),
-		Ubpa::DustEngine::RsrcMngrDX12::Instance().GetShaderByteCode(ID_ShaderByteCode_std_vs),
-		Ubpa::DustEngine::RsrcMngrDX12::Instance().GetShaderByteCode(ID_ShaderByteCode_opaque_ps),
+		Ubpa::DustEngine::RsrcMngrDX12::Instance().GetShaderByteCode_vs(shader),
+		Ubpa::DustEngine::RsrcMngrDX12::Instance().GetShaderByteCode_ps(shader),
 		mBackBufferFormat,
 		mDepthStencilFormat
 	);

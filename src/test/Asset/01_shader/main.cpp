@@ -29,8 +29,8 @@ int main() {
 
 	auto shader = new Shader;
 	shader->hlslFile = hlslFile;
-	shader->vertexName = "vert";
-	shader->fragmentName = "frag";
+	shader->vertexName = "VS";
+	shader->fragmentName = "PS";
 	shader->targetName = "5_0";
 	shader->shaderName = "Default";
 
