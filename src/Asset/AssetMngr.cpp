@@ -650,29 +650,6 @@ Mesh* AssetMngr::Impl::LoadObj(const std::filesystem::path& path) {
 	std::vector<SubMeshDescriptor> submeshes;
 	std::map<valu3, size_t> vertexIndexMap;
 
-	positions.reserve(attrib.vertices.size() / 3);
-	for (size_t i = 0; i < attrib.vertices.size(); i += 3) {
-		auto x = attrib.vertices[i + 0];
-		auto y = attrib.vertices[i + 1];
-		auto z = attrib.vertices[i + 2];
-		positions.emplace_back(x, y, z);
-	}
-
-	normals.reserve(attrib.normals.size() / 3);
-	for (size_t i = 0; i < attrib.normals.size(); i += 3) {
-		auto x = attrib.normals[i + 0];
-		auto y = attrib.normals[i + 1];
-		auto z = attrib.normals[i + 2];
-		normals.emplace_back(x, y, z);
-	}
-
-	uv.reserve(attrib.texcoords.size() / 2);
-	for (size_t i = 0; i < attrib.texcoords.size(); i += 2) {
-		auto x = attrib.texcoords[i + 0];
-		auto y = attrib.texcoords[i + 1];
-		uv.emplace_back(x, y);
-	}
-
 	// Loop over shapes
 	for (size_t s = 0; s < shapes.size(); s++) {
 		// Loop over faces(polygon)
@@ -740,6 +717,8 @@ Mesh* AssetMngr::Impl::LoadObj(const std::filesystem::path& path) {
 	mesh->SetSubMeshCount(submeshes.size());
 	for (size_t i = 0; i < submeshes.size(); i++)
 		mesh->SetSubMesh(i, submeshes[i]);
+
+	mesh->UpdateVertexBuffer(true);
 
 	return mesh;
 }

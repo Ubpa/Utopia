@@ -67,3 +67,66 @@ void Mesh::SetSubMesh(size_t index, SubMeshDescriptor desc) {
 	}
 	submeshes[index] = desc;
 }
+
+bool Mesh::IsVertexValid() {
+	size_t num = positions.size();
+	if (num != 0
+		&& (uv.size() == 0 || uv.size() == num)
+		&& (normals.size() == 0 || normals.size() == num)
+		&& (tangents.size() == 0 || tangents.size() == num)
+		&& (colors.size() == 0 || colors.size() == num)
+	)
+		return true;
+	else
+		return false;
+}
+
+void Mesh::UpdateVertexBuffer(bool setToNonEditable) {
+	assert(IsVertexValid());
+
+	if (setToNonEditable)
+		isEditable = false;
+
+	if (!IsDirty())
+		return;
+
+	size_t num = GetVertexBufferVertexCount();
+
+	size_t stride = 0;
+	stride += sizeof(decltype(positions)::value_type);
+	if (!uv.empty()) stride += sizeof(decltype(uv)::value_type);
+	if (!normals.empty()) stride += sizeof(decltype(normals)::value_type);
+	if (!tangents.empty()) stride += sizeof(decltype(tangents)::value_type);
+	if (!colors.empty()) stride += sizeof(decltype(colors)::value_type);
+
+	vertexBuffer.resize(stride * positions.size());
+
+	size_t offset = 0;
+	uint8_t* data = vertexBuffer.data();
+	for (size_t i = 0; i < num; i++) {
+		memcpy(data + offset, positions[i].data(), sizeof(decltype(positions)::value_type));
+		offset += sizeof(decltype(positions)::value_type);
+
+		if (!uv.empty()) {
+			memcpy(data + offset, uv[i].data(), sizeof(decltype(uv)::value_type));
+			offset += sizeof(decltype(uv)::value_type);
+		}
+
+		if (!normals.empty()) {
+			memcpy(data + offset, normals[i].data(), sizeof(decltype(normals)::value_type));
+			offset += sizeof(decltype(normals)::value_type);
+		}
+
+		if (!tangents.empty()) {
+			memcpy(data + offset, tangents[i].data(), sizeof(decltype(tangents)::value_type));
+			offset += sizeof(decltype(tangents)::value_type);
+		}
+
+		if (!colors.empty()) {
+			memcpy(data + offset, colors[i].data(), sizeof(decltype(colors)::value_type));
+			offset += sizeof(decltype(colors)::value_type);
+		}
+	}
+
+	dirty = false;
+}

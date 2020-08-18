@@ -8,7 +8,12 @@
 namespace Ubpa::DustEngine {
 	struct Texture2D;
 	struct Shader;
+	class Mesh;
 
+	// TODO
+	// 1. IsRegistered
+	// 2. DynamicMesh
+	// 3. Shader multi-compile
 	class RsrcMngrDX12 {
 	public:
 		static RsrcMngrDX12& Instance() noexcept {
@@ -35,15 +40,16 @@ namespace Ubpa::DustEngine {
 		/*RsrcMngrDX12& RegisterTexture2DArray(DirectX::ResourceUploadBatch& upload,
 			size_t id, const Texture2D** tex2Ds, size_t num);*/
 
-		UDX12::MeshGPUBuffer& RegisterStaticMeshGPUBuffer(
-			DirectX::ResourceUploadBatch& upload, size_t id,
-			const void* vb_data, UINT vb_count, UINT vb_stride,
-			const void* ib_data, UINT ib_count, DXGI_FORMAT ib_format);
+		// non-const mesh -> update
+		UDX12::MeshGPUBuffer& RegisterStaticMesh(
+			DirectX::ResourceUploadBatch& upload,
+			Mesh* mesh
+		);
 
-		UDX12::MeshGPUBuffer& RegisterDynamicMeshGPUBuffer(
+		/*UDX12::MeshGPUBuffer& RegisterDynamicMesh(
 			size_t id,
 			const void* vb_data, UINT vb_count, UINT vb_stride,
-			const void* ib_data, UINT ib_count, DXGI_FORMAT ib_format);
+			const void* ib_data, UINT ib_count, DXGI_FORMAT ib_format);*/
 		
 		RsrcMngrDX12& RegisterShader(const Shader* shader);
 
@@ -63,7 +69,7 @@ namespace Ubpa::DustEngine {
 
 		//UDX12::DescriptorHeapAllocation& GetTextureRtvs(const Texture2D* tex2D) const;
 
-		UDX12::MeshGPUBuffer& GetMeshGPUBuffer(size_t id) const;
+		UDX12::MeshGPUBuffer& GetMeshGPUBuffer(const Mesh* mesh) const;
 
 		const ID3DBlob* GetShaderByteCode_vs(const Shader* shader) const;
 		const ID3DBlob* GetShaderByteCode_ps(const Shader* shader) const;

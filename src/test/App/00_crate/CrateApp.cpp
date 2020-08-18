@@ -14,6 +14,7 @@
 #include <DustEngine/Core/Image.h>
 #include <DustEngine/Core/HLSLFile.h>
 #include <DustEngine/Core/Shader.h>
+#include <DustEngine/Core/Mesh.h>
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -176,7 +177,7 @@ private:
 
 	float mTheta = 1.3f*XM_PI;
 	float mPhi = 0.4f*XM_PI;
-	float mRadius = 2.5f;
+	float mRadius = 4.0f;
 
     POINT mLastMousePos;
 
@@ -189,6 +190,7 @@ private:
 	// resources
 	Ubpa::DustEngine::Texture2D* chessboardTex2D;
 	Ubpa::DustEngine::Shader* shader;
+	Ubpa::DustEngine::Mesh* mesh;
 };
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
@@ -427,7 +429,7 @@ void DeferApp::OnMouseMove(WPARAM btnState, int x, int y)
         mRadius += dx - dy;
 
         // Restrict the radius.
-        mRadius = MathHelper::Clamp(mRadius, 5.0f, 150.0f);
+        mRadius = MathHelper::Clamp(mRadius, 4.0f, 150.0f);
     }
 
     mLastMousePos.x = x;
@@ -629,36 +631,19 @@ void DeferApp::BuildShadersAndInputLayout()
 	
     mInputLayout =
     {
-        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 20, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
     };
 }
 
 void DeferApp::BuildShapeGeometry()
 {
-    GeometryGenerator geoGen;
-	GeometryGenerator::MeshData box = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3);
- 
-	std::vector<Vertex> vertices(box.Vertices.size());
-
-	for(size_t i = 0; i < box.Vertices.size(); ++i)
-	{
-		vertices[i].Pos = box.Vertices[i].Position;
-		vertices[i].Normal = box.Vertices[i].Normal;
-		vertices[i].TexC = box.Vertices[i].TexC;
-	}
-
-	std::vector<std::uint16_t> indices = box.GetIndices16();
-
-    const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
-    const UINT ibByteSize = (UINT)indices.size()  * sizeof(std::uint16_t);
-
-	Ubpa::DustEngine::RsrcMngrDX12::Instance()
-		.RegisterStaticMeshGPUBuffer(
-			Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(), ID_MeshGPUBuffer_box,
-			vertices.data(), (UINT)vertices.size(), sizeof(Vertex),
-			indices.data(), (UINT)indices.size(), DXGI_FORMAT_R16_UINT);
+	mesh = Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Mesh>("../assets/models/cube.obj");
+	Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterStaticMesh(
+		Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+		mesh
+	);
 }
 
 void DeferApp::BuildPSOs()
@@ -722,7 +707,7 @@ void DeferApp::BuildRenderItems()
 	auto boxRitem = std::make_unique<RenderItem>();
 	boxRitem->ObjCBIndex = 0;
 	boxRitem->Mat = mMaterials["woodCrate"].get();
-	boxRitem->Geo = &Ubpa::DustEngine::RsrcMngrDX12::Instance().GetMeshGPUBuffer(ID_MeshGPUBuffer_box);
+	boxRitem->Geo = &Ubpa::DustEngine::RsrcMngrDX12::Instance().GetMeshGPUBuffer(mesh);
 	boxRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 	boxRitem->IndexCount = boxRitem->Geo->IndexBufferByteSize / (boxRitem->Geo->IndexFormat == DXGI_FORMAT_R16_UINT ? 2 : 4);
 	boxRitem->StartIndexLocation = 0;
