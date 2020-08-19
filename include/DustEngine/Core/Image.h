@@ -62,4 +62,4 @@ namespace Ubpa::DustEngine {
 	};
 }
 
-#include "detail/Image.inl"
+#include "details/Image.inl"

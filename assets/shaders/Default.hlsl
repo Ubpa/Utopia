@@ -85,18 +85,18 @@ VertexOut VS(VertexIn vin)
 	VertexOut vout = (VertexOut)0.0f;
 	
     // Transform to world space.
-    float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
+    float4 posW = mul(gWorld, float4(vin.PosL, 1.0f));
     vout.PosW = posW.xyz;
 
     // Assumes nonuniform scaling; otherwise, need to use inverse-transpose of world matrix.
-    vout.NormalW = mul(vin.NormalL, (float3x3)gWorld);
+    vout.NormalW = mul((float3x3)gWorld, vin.NormalL);
 
     // Transform to homogeneous clip space.
-    vout.PosH = mul(posW, gViewProj);
+    vout.PosH = mul(gViewProj, posW);
 	
 	// Output vertex attributes for interpolation across triangle.
-    float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
-    vout.TexC = mul(texC, gMatTransform).xy;
+    float4 texC = mul(gTexTransform, float4(vin.TexC, 0.0f, 1.0f));
+    vout.TexC = mul(gMatTransform, texC).xy;
 
     return vout;
 }
