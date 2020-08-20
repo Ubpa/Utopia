@@ -325,14 +325,14 @@ RsrcMngrDX12& RsrcMngrDX12::RegisterShader(const Shader* shader) {
 	};
 	Ubpa::UDX12::D3DInclude d3dInclude{ shader->hlslFile->GetLocalDir(), "../" };
 	auto vsByteCode = UDX12::Util::CompileShader(
-		shader->hlslFile->GetString(),
+		shader->hlslFile->GetText(),
 		macros,
 		shader->vertexName,
 		"vs_" + shader->targetName,
 		&d3dInclude
 	);
 	auto psByteCode = UDX12::Util::CompileShader(
-		shader->hlslFile->GetString(),
+		shader->hlslFile->GetText(),
 		macros,
 		shader->fragmentName,
 		"ps_" + shader->targetName,

@@ -14,7 +14,7 @@ int main() {
 	std::filesystem::path path = "../assets/scripts/test_00.lua";
 	AssetMngr::Instance().ImportAsset(path);
 	auto luaS = AssetMngr::Instance().LoadAsset<LuaScript>(path);
-	std::cout << luaS->GetString() << std::endl;
+	std::cout << luaS->GetText() << std::endl;
 
 	std::cout << AssetMngr::Instance().Contains(luaS) << std::endl;
 	auto guid = AssetMngr::Instance().AssetPathToGUID(path);
