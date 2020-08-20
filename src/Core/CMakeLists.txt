@@ -10,13 +10,32 @@ Ubpa_DownloadFile(
 	SHA256 F34D6E55C7BB69C98BF66F191A7636A0B022047BCE7C7B16A9A9F356046FDC8A
 )
 
+set(components
+  Camera
+  MeshFilter
+  MeshRenderer
+)
+
+set(refls "")
+
+foreach(cmpt ${components})
+  set(dst "${PROJECT_SOURCE_DIR}/include/DustEngine/Core/Components/details/${cmpt}_AutoRefl.inl")
+  Ubpa_USReflAutoRefl(
+    "${PROJECT_SOURCE_DIR}/include/DustEngine/Core/Components/${cmpt}.h"
+    ${dst}
+  )
+  list(APPEND refls ${dst})
+endforeach()
+
 Ubpa_AddTarget(
   MODE STATIC
   SOURCE
     "${PROJECT_SOURCE_DIR}/include/DustEngine/Core"
+	${refls}
   INC
     "${PROJECT_SOURCE_DIR}/include"
   LIB
     Ubpa::UGM_core
     Ubpa::UDP_core
+    Ubpa::DustEngine_Transform
 )

@@ -62,10 +62,12 @@ cbuffer cbPass : register(b1)
 
 cbuffer cbMaterial : register(b2)
 {
-	float4 gDiffuseAlbedo;
-    float3 gFresnelR0;
-    float  gRoughness;
-    float4x4 gMatTransform;
+	// float4 gDiffuseAlbedo;
+    // float3 gFresnelR0;
+    // float  gRoughness;
+    // float4x4 gMatTransform;
+	float3 gAlbedoFactor;
+    float  gRoughnessFactor;
 };
 
 struct VertexIn
@@ -99,7 +101,7 @@ VertexOut VS(VertexIn vin)
 	
 	// Output vertex attributes for interpolation across triangle.
     float4 texC = mul(gTexTransform, float4(vin.TexC, 0.0f, 1.0f));
-    vout.TexC = mul(gMatTransform, texC).xy;
+    vout.TexC = texC;//mul(gMatTransform, texC).xy;
 
     return vout;
 }

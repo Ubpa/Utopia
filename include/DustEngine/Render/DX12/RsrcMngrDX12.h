@@ -66,6 +66,7 @@ namespace Ubpa::DustEngine {
 
 		D3D12_CPU_DESCRIPTOR_HANDLE GetTexture2DSrvCpuHandle(const Texture2D* tex2D) const;
 		D3D12_GPU_DESCRIPTOR_HANDLE GetTexture2DSrvGpuHandle(const Texture2D* tex2D) const;
+		ID3D12Resource* GetTexture2DResource(const Texture2D* tex2D) const;
 
 		//UDX12::DescriptorHeapAllocation& GetTextureRtvs(const Texture2D* tex2D) const;
 

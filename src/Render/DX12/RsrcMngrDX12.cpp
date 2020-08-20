@@ -283,6 +283,9 @@ D3D12_CPU_DESCRIPTOR_HANDLE RsrcMngrDX12::GetTexture2DSrvCpuHandle(const Texture
 D3D12_GPU_DESCRIPTOR_HANDLE RsrcMngrDX12::GetTexture2DSrvGpuHandle(const Texture2D* tex2D) const {
 	return pImpl->texture2DMap.find(tex2D->GetInstanceID())->second.allocationSRV.GetGpuHandle(0);
 }
+ID3D12Resource* RsrcMngrDX12::GetTexture2DResource(const Texture2D* tex2D) const {
+	return pImpl->texture2DMap.find(tex2D->GetInstanceID())->second.resource;
+}
 
 //UDX12::DescriptorHeapAllocation& RsrcMngrDX12::GetTextureRtvs(const Texture2D* tex2D) const {
 //	return pImpl->textureMap.find(tex2D->GetInstanceID())->second.allocationRTV;
