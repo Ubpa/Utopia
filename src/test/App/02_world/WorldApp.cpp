@@ -86,48 +86,6 @@ struct RenderContext {
 		std::vector<Object>>> objectMap;
 };
 
-struct Vertex
-{
-	Ubpa::pointf3 Pos;
-	Ubpa::normalf Normal;
-	Ubpa::pointf2 TexC;
-};
-
-// Lightweight structure stores parameters to draw a shape.  This will
-// vary from app-to-app.
-struct RenderItem
-{
-	RenderItem() = default;
-
-    // World matrix of the shape that describes the object's local space
-    // relative to the world space, which defines the position, orientation,
-	// and scale of the object in the world.
-	Ubpa::transformf World = Ubpa::transformf::eye();
-
-	Ubpa::transformf TexTransform = Ubpa::transformf::eye();
-
-	// Dirty flag indicating the object data has changed and we need to update the constant buffer.
-	// Because we have an object cbuffer for each FrameResource, we have to apply the
-	// update to each FrameResource.  Thus, when we modify obect data we should set 
-	// NumFramesDirty = gNumFrameResources so that each frame resource gets the update.
-	int NumFramesDirty = gNumFrameResources;
-
-	// Index into GPU constant buffer corresponding to the ObjectCB for this render item.
-	UINT ObjCBIndex = -1;
-
-	Material* Mat = nullptr;
-	Ubpa::UDX12::MeshGPUBuffer* Geo = nullptr;
-	//std::string Geo;
-
-    // Primitive topology.
-    D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-
-    // DrawIndexedInstanced parameters.
-    UINT IndexCount = 0;
-    UINT StartIndexLocation = 0;
-    int BaseVertexLocation = 0;
-};
-
 struct RotateSystem : Ubpa::UECS::System {
 	using Ubpa::UECS::System::System;
 	virtual void OnUpdate(Ubpa::UECS::Schedule& schedule) override {
@@ -160,20 +118,14 @@ private:
 
     void OnKeyboardInput(const GameTimer& gt);
 	void UpdateCamera(const GameTimer& gt);
-	void AnimateMaterials(const GameTimer& gt);
-	void UpdateObjectCBs(const GameTimer& gt);
-	void UpdateMaterialCBs(const GameTimer& gt);
-	void UpdateMainPassCB(const GameTimer& gt);
 
 	void LoadTextures();
     void BuildRootSignature();
-	void BuildDescriptorHeaps();
     void BuildShadersAndInputLayout();
     void BuildShapeGeometry();
     void BuildPSOs();
     void BuildFrameResources();
     void BuildMaterials();
-    void BuildRenderItems();
     void DrawRenderItems(ID3D12GraphicsCommandList* cmdList);
 
 private:
@@ -181,18 +133,8 @@ private:
 	std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
 
     std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
- 
-	// List of all the render items.
-	std::vector<std::unique_ptr<RenderItem>> mAllRitems;
-
-	// Render items divided by PSO.
-	std::vector<RenderItem*> mOpaqueRitems;
 
     PassConstants mMainPassCB;
-
-	//Ubpa::pointf3 mEyePos = { 0.0f, 0.0f, 0.0f };
-	//Ubpa::transformf mView = Ubpa::transformf::eye();
-	//Ubpa::transformf mProj = Ubpa::transformf::eye();
 
 	float mTheta = 0.4f * XM_PI;
 	float mPhi = 1.3f * XM_PI;
@@ -201,7 +143,6 @@ private:
     POINT mLastMousePos;
 
 	// frame graph
-	//Ubpa::UDX12::FG::RsrcMngr fgRsrcMngr;
 	Ubpa::UDX12::FG::Executor fgExecutor;
 	Ubpa::UFG::Compiler fgCompiler;
 	Ubpa::UFG::FrameGraph fg;
@@ -217,7 +158,6 @@ private:
 	Ubpa::UECS::World world;
 	Ubpa::UECS::Entity cam{ Ubpa::UECS::Entity::Invalid() };
 	float fov{ 0.33f * Ubpa::PI<float> };
-	float aspect{ 16.f / 9.f };
 
 	std::unique_ptr<Ubpa::UDX12::FrameResourceMngr> frameRsrcMngr;
 
@@ -314,24 +254,16 @@ bool WorldApp::Initialize()
 		}
 	}
 
-	//fgRsrcMngr.Init(uGCmdList, uDevice);
-
     // Reset the command list to prep for initialization commands.
     ThrowIfFailed(uGCmdList->Reset(mDirectCmdListAlloc.Get(), nullptr));
-
-    // Get the increment size of a descriptor in this heap type.  This is hardware specific, 
-	// so we have to query this information.
-    //mCbvSrvDescriptorSize = uDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 	Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload().Begin();
  
 	LoadTextures();
     BuildRootSignature();
-	BuildDescriptorHeaps();
     BuildShadersAndInputLayout();
     BuildShapeGeometry();
 	BuildMaterials();
-    BuildRenderItems();
     BuildFrameResources();
     BuildPSOs();
 
@@ -351,14 +283,15 @@ void WorldApp::OnResize()
 {
     D3DApp::OnResize();
 
-	// The window resized, so update the aspect ratio and recompute the projection matrix.
-	auto clearFGRsrcMngr = [](std::shared_ptr<Ubpa::UDX12::FG::RsrcMngr> rsrcMngr) {
-		rsrcMngr->Clear();
-	};
-
 	if (frameRsrcMngr) {
-		for (auto& frsrc : frameRsrcMngr->GetFrameResources())
-			frsrc->DelayUpdateResource("FrameGraphRsrcMngr", clearFGRsrcMngr);
+		for (auto& frsrc : frameRsrcMngr->GetFrameResources()) {
+			frsrc->DelayUpdateResource(
+				"FrameGraphRsrcMngr",
+				[](std::shared_ptr<Ubpa::UDX12::FG::RsrcMngr> rsrcMngr) {
+					rsrcMngr->Clear();
+				}
+			);
+		}
 	}
 }
 
@@ -369,15 +302,30 @@ void WorldApp::Update(const GameTimer& gt)
 
 	world.Update();
 
-	// Cycle through the circular frame resource array.
-	// Has the GPU finished processing the commands of the current frame resource?
-	// If not, wait until the GPU has completed commands up to this fence point.
-	frameRsrcMngr->BeginFrame();
+	auto camera = world.entityMngr.Get<Ubpa::DustEngine::Camera>(cam);
+	auto view = world.entityMngr.Get<Ubpa::DustEngine::WorldToLocal>(cam);
+	auto pos = world.entityMngr.Get<Ubpa::DustEngine::Translation>(cam);
+	mMainPassCB.View = view->value;
+	mMainPassCB.InvView = mMainPassCB.View.inverse();
+	mMainPassCB.Proj = camera->prjectionMatrix;
+	mMainPassCB.InvProj = mMainPassCB.Proj.inverse();
+	mMainPassCB.ViewProj = mMainPassCB.Proj * mMainPassCB.View;
+	mMainPassCB.InvViewProj = mMainPassCB.InvView * mMainPassCB.InvProj;
+	mMainPassCB.EyePosW = pos->value.as<Ubpa::pointf3>();
+	mMainPassCB.RenderTargetSize = { mClientWidth, mClientHeight };
+	mMainPassCB.InvRenderTargetSize = { 1.0f / mClientWidth, 1.0f / mClientHeight };
 
-	//AnimateMaterials(gt);
-	//UpdateObjectCBs(gt);
-	//UpdateMaterialCBs(gt);
-	UpdateMainPassCB(gt);
+	mMainPassCB.NearZ = 1.0f;
+	mMainPassCB.FarZ = 1000.0f;
+	mMainPassCB.TotalTime = gt.TotalTime();
+	mMainPassCB.DeltaTime = gt.DeltaTime();
+	mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
+	mMainPassCB.Lights[0].Direction = { 0.57735f, -0.57735f, 0.57735f };
+	mMainPassCB.Lights[0].Strength = { 0.6f, 0.6f, 0.6f };
+	mMainPassCB.Lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
+	mMainPassCB.Lights[1].Strength = { 0.3f, 0.3f, 0.3f };
+	mMainPassCB.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
+	mMainPassCB.Lights[2].Strength = { 0.15f, 0.15f, 0.15f };
 
 	renderContext.cameras.clear();
 	renderContext.objectMap.clear();
@@ -402,6 +350,11 @@ void WorldApp::Update(const GameTimer& gt)
 		Ubpa::UECS::CmptType::Of<Ubpa::DustEngine::Camera>
 	};
 	renderContext.cameras = world.entityMngr.GetEntityArray(cameraFilter);
+
+	// Cycle through the circular frame resource array.
+	// Has the GPU finished processing the commands of the current frame resource?
+	// If not, wait until the GPU has completed commands up to this fence point.
+	frameRsrcMngr->BeginFrame();
 
 	auto& shaderCBMngr = frameRsrcMngr->GetCurrentFrameResource()
 		->GetResource<Ubpa::DustEngine::ShaderCBMngrDX12>("ShaderCBMngrDX12");
@@ -547,8 +500,8 @@ void WorldApp::Draw(const GameTimer& gt)
 			uGCmdList->SetGraphicsRootSignature(Ubpa::DustEngine::RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_geometry));
 
 			auto passCB = frameRsrcMngr->GetCurrentFrameResource()
-				->GetResource<Ubpa::UDX12::ArrayUploadBuffer<PassConstants>>("gbPass constants")
-				.GetResource();
+				->GetResource<Ubpa::DustEngine::ShaderCBMngrDX12>("ShaderCBMngrDX12")
+				.GetBuffer(geomrtryShader)->GetResource();
 			uGCmdList->SetGraphicsRootConstantBufferView(4, passCB->GetGPUVirtualAddress());
 
 			DrawRenderItems(uGCmdList.raw.Get());
@@ -701,92 +654,6 @@ void WorldApp::UpdateCamera(const GameTimer& gt)
 	world.entityMngr.Get<Ubpa::DustEngine::Rotation>(cam)->value = c2w.decompose_quatenion();
 }
 
-void WorldApp::AnimateMaterials(const GameTimer& gt)
-{
-	
-}
-
-void WorldApp::UpdateObjectCBs(const GameTimer& gt)
-{
-	auto& currObjectCB = frameRsrcMngr->GetCurrentFrameResource()
-		->GetResource<Ubpa::UDX12::ArrayUploadBuffer<ObjectConstants>>("ArrayUploadBuffer<ObjectConstants>");
-	for(auto& e : mAllRitems)
-	{
-		// Only update the cbuffer data if the constants have changed.  
-		// This needs to be tracked per frame resource.
-		if(e->NumFramesDirty > 0)
-		{
-			ObjectConstants objConstants;
-			objConstants.World = e->World;
-			objConstants.TexTransform = e->TexTransform;
-
-			currObjectCB.Set(e->ObjCBIndex, objConstants);
-
-			// Next FrameResource need to be updated too.
-			e->NumFramesDirty--;
-		}
-	}
-}
-
-void WorldApp::UpdateMaterialCBs(const GameTimer& gt)
-{
-	auto& currMaterialCB = frameRsrcMngr->GetCurrentFrameResource()
-		->GetResource<Ubpa::UDX12::ArrayUploadBuffer<MaterialConstants>>("ArrayUploadBuffer<MaterialConstants>");
-	for(auto& e : mMaterials)
-	{
-		// Only update the cbuffer data if the constants have changed.  If the cbuffer
-		// data changes, it needs to be updated for each FrameResource.
-		Material* mat = e.second.get();
-		if(mat->NumFramesDirty > 0)
-		{
-			XMMATRIX matTransform = XMLoadFloat4x4(&mat->MatTransform);
-
-			MaterialConstants matConstants;
-			matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
-			matConstants.FresnelR0 = mat->FresnelR0;
-			matConstants.Roughness = mat->Roughness;
-			XMStoreFloat4x4(&matConstants.MatTransform, XMMatrixTranspose(matTransform));
-
-			currMaterialCB.Set(mat->MatCBIndex, matConstants);
-
-			// Next FrameResource need to be updated too.
-			mat->NumFramesDirty--;
-		}
-	}
-}
-
-void WorldApp::UpdateMainPassCB(const GameTimer& gt)
-{
-	auto camera = world.entityMngr.Get<Ubpa::DustEngine::Camera>(cam);
-	auto view = world.entityMngr.Get<Ubpa::DustEngine::WorldToLocal>(cam);
-	auto pos = world.entityMngr.Get<Ubpa::DustEngine::Translation>(cam);
-	mMainPassCB.View = view->value;
-	mMainPassCB.InvView = mMainPassCB.View.inverse();
-	mMainPassCB.Proj = camera->prjectionMatrix;
-	mMainPassCB.InvProj = mMainPassCB.Proj.inverse();
-	mMainPassCB.ViewProj = mMainPassCB.Proj * mMainPassCB.View;
-	mMainPassCB.InvViewProj = mMainPassCB.InvView * mMainPassCB.InvProj;
-	mMainPassCB.EyePosW = pos->value.as<Ubpa::pointf3>();
-	mMainPassCB.RenderTargetSize = { mClientWidth, mClientHeight };
-	mMainPassCB.InvRenderTargetSize = { 1.0f / mClientWidth, 1.0f / mClientHeight };
-
-	mMainPassCB.NearZ = 1.0f;
-	mMainPassCB.FarZ = 1000.0f;
-	mMainPassCB.TotalTime = gt.TotalTime();
-	mMainPassCB.DeltaTime = gt.DeltaTime();
-	mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
-	mMainPassCB.Lights[0].Direction = { 0.57735f, -0.57735f, 0.57735f };
-	mMainPassCB.Lights[0].Strength = { 0.6f, 0.6f, 0.6f };
-	mMainPassCB.Lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
-	mMainPassCB.Lights[1].Strength = { 0.3f, 0.3f, 0.3f };
-	mMainPassCB.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
-	mMainPassCB.Lights[2].Strength = { 0.15f, 0.15f, 0.15f };
-
-	auto& currPassCB = frameRsrcMngr->GetCurrentFrameResource()
-		->GetResource<Ubpa::UDX12::ArrayUploadBuffer<PassConstants>>("gbPass constants");
-	currPassCB.Set(0, mMainPassCB);
-}
-
 void WorldApp::LoadTextures()
 {
 	auto albedoImg = Ubpa::DustEngine::AssetMngr::Instance()
@@ -906,10 +773,6 @@ void WorldApp::BuildRootSignature()
 
 		Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterRootSignature(ID_RootSignature_defer_light, &rootSigDesc);
 	}
-}
-
-void WorldApp::BuildDescriptorHeaps()
-{
 }
 
 void WorldApp::BuildShadersAndInputLayout()
@@ -1041,15 +904,6 @@ void WorldApp::BuildFrameResources()
 
 		fr->RegisterResource("CommandAllocator", allocator);
 
-		fr->RegisterResource("gbPass constants",
-			Ubpa::UDX12::ArrayUploadBuffer<PassConstants>{ uDevice.raw.Get(), 1, true });
-
-		/*fr->RegisterResource("ArrayUploadBuffer<MaterialConstants>",
-			Ubpa::UDX12::ArrayUploadBuffer<MaterialConstants>{ uDevice.raw.Get(), mMaterials.size(), true });
-
-		fr->RegisterResource("ArrayUploadBuffer<ObjectConstants>",
-			Ubpa::UDX12::ArrayUploadBuffer<ObjectConstants>{ uDevice.raw.Get(), mAllRitems.size(), true });*/
-
 		fr->RegisterResource("ShaderCBMngrDX12", Ubpa::DustEngine::ShaderCBMngrDX12{ uDevice.raw.Get() });
 
 		auto fgRsrcMngr = std::make_shared<Ubpa::UDX12::FG::RsrcMngr>();
@@ -1093,57 +947,11 @@ void WorldApp::BuildMaterials()
 	mMaterials["iron"] = std::move(iron);
 }
 
-void WorldApp::BuildRenderItems()
-{
-	//auto boxRitem = std::make_unique<RenderItem>();
-	//boxRitem->ObjCBIndex = 0;
-	//boxRitem->Mat = mMaterials["iron"].get();
-	//boxRitem->Geo = &Ubpa::DustEngine::RsrcMngrDX12::Instance().GetMeshGPUBuffer(mesh);
-	//boxRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	//boxRitem->IndexCount = boxRitem->Geo->IndexBufferByteSize / (boxRitem->Geo->IndexFormat == DXGI_FORMAT_R16_UINT ? 2 : 4);
-	//boxRitem->StartIndexLocation = 0;
-	//boxRitem->BaseVertexLocation = 0;
-	//mAllRitems.push_back(std::move(boxRitem));
-
-	//// All the render items are opaque.
-	//for(auto& e : mAllRitems)
-	//	mOpaqueRitems.push_back(e.get());
-}
-
 void WorldApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList)
 {
 	UINT passCBByteSize = Ubpa::UDX12::Util::CalcConstantBufferByteSize(sizeof(PassConstants));
 	UINT matCBByteSize = Ubpa::UDX12::Util::CalcConstantBufferByteSize(sizeof(MaterialConstants));
     UINT objCBByteSize = Ubpa::UDX12::Util::CalcConstantBufferByteSize(sizeof(ObjectConstants));
- 
-	/*auto objectCB = frameRsrcMngr->GetCurrentFrameResource()
-		->GetResource<Ubpa::UDX12::ArrayUploadBuffer<ObjectConstants>>("ArrayUploadBuffer<ObjectConstants>")
-		.GetResource();
-	auto matCB = frameRsrcMngr->GetCurrentFrameResource()
-		->GetResource<Ubpa::UDX12::ArrayUploadBuffer<MaterialConstants>>("ArrayUploadBuffer<MaterialConstants>")
-		.GetResource();
-
-	// For each render item...
-	for (size_t i = 0; i < ritems.size(); ++i)
-	{
-		auto ri = ritems[i];
-
-		cmdList->IASetVertexBuffers(0, 1, &ri->Geo->VertexBufferView());
-		cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
-		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
-
-		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex * objCBByteSize;
-		D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() + ri->Mat->MatCBIndex * matCBByteSize;
-
-		cmdList->SetGraphicsRootDescriptorTable(0, ri->Mat->AlbedoSrvGpuHandle);
-		cmdList->SetGraphicsRootDescriptorTable(1, ri->Mat->RoughnessSrvGpuHandle);
-		cmdList->SetGraphicsRootDescriptorTable(2, ri->Mat->MetalnessSrvGpuHandle);
-		cmdList->SetGraphicsRootConstantBufferView(3, objCBAddress);
-		cmdList->SetGraphicsRootConstantBufferView(5, matCBAddress);
-
-		cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
-	}
-	*/
 
 	auto& shaderCBMngr = frameRsrcMngr->GetCurrentFrameResource()
 		->GetResource<Ubpa::DustEngine::ShaderCBMngrDX12>("ShaderCBMngrDX12");
