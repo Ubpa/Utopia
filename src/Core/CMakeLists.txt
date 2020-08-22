@@ -14,6 +14,7 @@ set(components
   Camera
   MeshFilter
   MeshRenderer
+  WorldTime
 )
 
 set(refls "")
