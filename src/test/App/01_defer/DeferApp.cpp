@@ -117,19 +117,19 @@ public:
 
 private:
     virtual void OnResize()override;
-    virtual void Update(const GameTimer& gt)override;
-    virtual void Draw(const GameTimer& gt)override;
+    virtual void Update()override;
+    virtual void Draw()override;
 
     virtual void OnMouseDown(WPARAM btnState, int x, int y)override;
     virtual void OnMouseUp(WPARAM btnState, int x, int y)override;
     virtual void OnMouseMove(WPARAM btnState, int x, int y)override;
 
-    void OnKeyboardInput(const GameTimer& gt);
-	void UpdateCamera(const GameTimer& gt);
-	void AnimateMaterials(const GameTimer& gt);
-	void UpdateObjectCBs(const GameTimer& gt);
-	void UpdateMaterialCBs(const GameTimer& gt);
-	void UpdateMainPassCB(const GameTimer& gt);
+    void OnKeyboardInput();
+	void UpdateCamera();
+	void AnimateMaterials();
+	void UpdateObjectCBs();
+	void UpdateMaterialCBs();
+	void UpdateMainPassCB();
 
 	void LoadTextures();
     void BuildRootSignature();
@@ -282,37 +282,33 @@ void DeferApp::OnResize()
 	}
 }
 
-void DeferApp::Update(const GameTimer& gt)
+void DeferApp::Update()
 {
-    OnKeyboardInput(gt);
-	UpdateCamera(gt);
+    OnKeyboardInput();
+	UpdateCamera();
 
 	// Cycle through the circular frame resource array.
 	// Has the GPU finished processing the commands of the current frame resource?
 	// If not, wait until the GPU has completed commands up to this fence point.
 	frameRsrcMngr->BeginFrame();
 
-	AnimateMaterials(gt);
-	UpdateObjectCBs(gt);
-	UpdateMaterialCBs(gt);
-	UpdateMainPassCB(gt);
+	AnimateMaterials();
+	UpdateObjectCBs();
+	UpdateMaterialCBs();
+	UpdateMainPassCB();
 }
 
-void DeferApp::Draw(const GameTimer& gt)
+void DeferApp::Draw()
 {
-	auto cmdListAlloc = frameRsrcMngr->GetCurrentFrameResource()->GetResource<Microsoft::WRL::ComPtr<ID3D12CommandAllocator>>("CommandAllocator");
+	auto cmdAlloc = frameRsrcMngr->GetCurrentFrameResource()->GetResource<Microsoft::WRL::ComPtr<ID3D12CommandAllocator>>("CommandAllocator");
 
     // Reuse the memory associated with command recording.
     // We can only reset when the associated command lists have finished execution on the GPU.
-    ThrowIfFailed(cmdListAlloc->Reset());
+    ThrowIfFailed(cmdAlloc->Reset());
 
     // A command list can be reset after it has been added to the command queue via ExecuteCommandList.
     // Reusing the command list reuses memory.
-	ThrowIfFailed(uGCmdList->Reset(cmdListAlloc.Get(), nullptr));
-	uGCmdList.SetDescriptorHeaps(Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap());
-
-	uGCmdList->RSSetViewports(1, &mScreenViewport);
-	uGCmdList->RSSetScissorRects(1, &mScissorRect);
+	//ThrowIfFailed(uGCmdList->Reset(cmdAlloc.Get(), nullptr));
 
 	fg.Clear();
 	auto fgRsrcMngr = frameRsrcMngr->GetCurrentFrameResource()->GetResource<std::shared_ptr<Ubpa::UDX12::FG::RsrcMngr>>("FrameGraphRsrcMngr");
@@ -384,88 +380,101 @@ void DeferApp::Draw(const GameTimer& gt)
 
 	fgExecutor.RegisterPassFunc(
 		gbPass,
-		[&](const Ubpa::UDX12::FG::PassRsrcs& rsrcs) {
-			uGCmdList->SetPipelineState(Ubpa::DustEngine::RsrcMngrDX12::Instance().GetPSO(ID_PSO_geometry));
+		[&](ID3D12GraphicsCommandList* cmdList, const Ubpa::UDX12::FG::PassRsrcs& rsrcs) {
+			auto heap = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
+			cmdList->SetDescriptorHeaps(1, &heap);
+			cmdList->RSSetViewports(1, &mScreenViewport);
+			cmdList->RSSetScissorRects(1, &mScissorRect);
+
+			cmdList->SetPipelineState(Ubpa::DustEngine::RsrcMngrDX12::Instance().GetPSO(ID_PSO_geometry));
 			auto gb0 = rsrcs.find(gbuffer0)->second;
 			auto gb1 = rsrcs.find(gbuffer1)->second;
 			auto gb2 = rsrcs.find(gbuffer2)->second;
 			auto ds = rsrcs.find(depthstencil)->second;
 
 			// Clear the render texture and depth buffer.
-			uGCmdList.ClearRenderTargetView(gb0.cpuHandle, Colors::Black);
-			uGCmdList.ClearRenderTargetView(gb1.cpuHandle, Colors::Black);
-			uGCmdList.ClearRenderTargetView(gb2.cpuHandle, Colors::Black);
-			uGCmdList.ClearDepthStencilView(ds.cpuHandle);
+			cmdList->ClearRenderTargetView(gb0.cpuHandle, Colors::Black, 0, nullptr);
+			cmdList->ClearRenderTargetView(gb1.cpuHandle, Colors::Black, 0, nullptr);
+			cmdList->ClearRenderTargetView(gb2.cpuHandle, Colors::Black, 0, nullptr);
+			cmdList->ClearDepthStencilView(ds.cpuHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.f, 0, 0, nullptr);
 
 			// Specify the buffers we are going to render to.
 			std::array rts{ gb0.cpuHandle,gb1.cpuHandle,gb2.cpuHandle };
-			uGCmdList->OMSetRenderTargets(rts.size(), rts.data(), false, &ds.cpuHandle);
+			cmdList->OMSetRenderTargets(rts.size(), rts.data(), false, &ds.cpuHandle);
 
-			uGCmdList->SetGraphicsRootSignature(Ubpa::DustEngine::RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_geometry));
+			cmdList->SetGraphicsRootSignature(Ubpa::DustEngine::RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_geometry));
 
 			auto passCB = frameRsrcMngr->GetCurrentFrameResource()
 				->GetResource<Ubpa::UDX12::ArrayUploadBuffer<PassConstants>>("gbPass constants")
 				.GetResource();
-			uGCmdList->SetGraphicsRootConstantBufferView(4, passCB->GetGPUVirtualAddress());
+			cmdList->SetGraphicsRootConstantBufferView(4, passCB->GetGPUVirtualAddress());
 
-			DrawRenderItems(uGCmdList.raw.Get(), mOpaqueRitems);
+			DrawRenderItems(cmdList, mOpaqueRitems);
 		}
 	);
 
 	//fgExecutor.RegisterPassFunc(
 	//	debugPass,
-	//	[&](const Ubpa::UDX12::FG::PassRsrcs& rsrcs) {
-	//		uGCmdList->SetPipelineState(Ubpa::DustEngine::RsrcMngrDX12::Instance().GetPSO(ID_PSO_screen));
+	//	[&](ID3D12GraphicsCommandList* cmdList, const Ubpa::UDX12::FG::PassRsrcs& rsrcs) {
+	//		auto heap = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
+	//		cmdList->SetDescriptorHeaps(1, &heap);
+	//		cmdList->RSSetViewports(1, &mScreenViewport);
+	//		cmdList->RSSetScissorRects(1, &mScissorRect);
+	//		cmdList->SetPipelineState(Ubpa::DustEngine::RsrcMngrDX12::Instance().GetPSO(ID_PSO_screen));
 	//		auto img = rsrcs.find(gbuffer1)->second;
 	//		auto bb = rsrcs.find(backbuffer)->second;
 	//		
-	//		//uGCmdList->CopyResource(bb.resource, rt.resource);
+	//		//cmdList->CopyResource(bb.resource, rt.resource);
 
 	//		// Clear the render texture and depth buffer.
-	//		uGCmdList.ClearRenderTargetView(bb.cpuHandle, Colors::LightSteelBlue);
+	//		cmdList.ClearRenderTargetView(bb.cpuHandle, Colors::LightSteelBlue);
 
 	//		// Specify the buffers we are going to render to.
-	//		//uGCmdList.OMSetRenderTarget(bb.cpuHandle, ds.cpuHandle);
-	//		uGCmdList->OMSetRenderTargets(1, &bb.cpuHandle, false, nullptr);
+	//		//cmdList.OMSetRenderTarget(bb.cpuHandle, ds.cpuHandle);
+	//		cmdList->OMSetRenderTargets(1, &bb.cpuHandle, false, nullptr);
 
-	//		uGCmdList->SetGraphicsRootSignature(Ubpa::DustEngine::RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_screen));
+	//		cmdList->SetGraphicsRootSignature(Ubpa::DustEngine::RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_screen));
 
-	//		uGCmdList->SetGraphicsRootDescriptorTable(0, img.gpuHandle);
+	//		cmdList->SetGraphicsRootDescriptorTable(0, img.gpuHandle);
 
-	//		uGCmdList->IASetVertexBuffers(0, 0, nullptr);
-	//		uGCmdList->IASetIndexBuffer(nullptr);
-	//		uGCmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	//		uGCmdList->DrawInstanced(6, 1, 0, 0);
+	//		cmdList->IASetVertexBuffers(0, 0, nullptr);
+	//		cmdList->IASetIndexBuffer(nullptr);
+	//		cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	//		cmdList->DrawInstanced(6, 1, 0, 0);
 	//	}
 	//);
 
 	fgExecutor.RegisterPassFunc(
 		deferLightingPass,
-		[&](const Ubpa::UDX12::FG::PassRsrcs& rsrcs) {
-			uGCmdList->SetPipelineState(Ubpa::DustEngine::RsrcMngrDX12::Instance().GetPSO(ID_PSO_defer_light));
+		[&](ID3D12GraphicsCommandList* cmdList, const Ubpa::UDX12::FG::PassRsrcs& rsrcs) {
+			auto heap = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
+			cmdList->SetDescriptorHeaps(1, &heap);
+			cmdList->RSSetViewports(1, &mScreenViewport);
+			cmdList->RSSetScissorRects(1, &mScissorRect);
+
+			cmdList->SetPipelineState(Ubpa::DustEngine::RsrcMngrDX12::Instance().GetPSO(ID_PSO_defer_light));
 			auto gb0 = rsrcs.find(gbuffer0)->second;
 			auto gb1 = rsrcs.find(gbuffer1)->second;
 			auto gb2 = rsrcs.find(gbuffer2)->second;
 
 			auto bb = rsrcs.find(backbuffer)->second;
 
-			//uGCmdList->CopyResource(bb.resource, rt.resource);
+			//cmdList->CopyResource(bb.resource, rt.resource);
 
 			// Clear the render texture and depth buffer.
-			uGCmdList.ClearRenderTargetView(bb.cpuHandle, Colors::LightSteelBlue);
+			cmdList->ClearRenderTargetView(bb.cpuHandle, Colors::LightSteelBlue, 0, nullptr);
 
 			// Specify the buffers we are going to render to.
-			//uGCmdList.OMSetRenderTarget(bb.cpuHandle, ds.cpuHandle);
-			uGCmdList->OMSetRenderTargets(1, &bb.cpuHandle, false, nullptr);
+			cmdList->OMSetRenderTargets(1, &bb.cpuHandle, false, nullptr);
 
-			uGCmdList->SetGraphicsRootSignature(Ubpa::DustEngine::RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_defer_light));
+			cmdList->SetGraphicsRootSignature(Ubpa::DustEngine::RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_defer_light));
 
-			uGCmdList->SetGraphicsRootDescriptorTable(0, gb0.gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(0, gb0.gpuHandle);
 
-			uGCmdList->IASetVertexBuffers(0, 0, nullptr);
-			uGCmdList->IASetIndexBuffer(nullptr);
-			uGCmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-			uGCmdList->DrawInstanced(6, 1, 0, 0);
+			cmdList->IASetVertexBuffers(0, 0, nullptr);
+			cmdList->IASetIndexBuffer(nullptr);
+			cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+			cmdList->DrawInstanced(6, 1, 0, 0);
 		}
 	);
 
@@ -476,13 +485,19 @@ void DeferApp::Draw(const GameTimer& gt)
 	}
 
 	auto [success, crst] = fgCompiler.Compile(fg);
-	fgExecutor.Execute(crst, *fgRsrcMngr);
+	fgExecutor.Execute(
+		uDevice.raw.Get(),
+		uCmdQueue.raw.Get(),
+		cmdAlloc.Get(),
+		crst,
+		*fgRsrcMngr
+	);
 
-    // Done recording commands.
-    ThrowIfFailed(uGCmdList->Close());
+ //   // Done recording commands.
+ //   ThrowIfFailed(uGCmdList->Close());
 
-    // Add the command list to the queue for execution.
-	uCmdQueue.Execute(uGCmdList.raw.Get());
+ //   // Add the command list to the queue for execution.
+	//uCmdQueue.Execute(uGCmdList.raw.Get());
 
     // Swap the back and front buffers
     ThrowIfFailed(mSwapChain->Present(0, 0));
@@ -536,11 +551,11 @@ void DeferApp::OnMouseMove(WPARAM btnState, int x, int y)
     mLastMousePos.y = y;
 }
  
-void DeferApp::OnKeyboardInput(const GameTimer& gt)
+void DeferApp::OnKeyboardInput()
 {
 }
  
-void DeferApp::UpdateCamera(const GameTimer& gt)
+void DeferApp::UpdateCamera()
 {
 	// Convert Spherical to Cartesian coordinates.
 	mEyePos[0] = mRadius * sinf(mTheta) * sinf(mPhi);
@@ -549,12 +564,12 @@ void DeferApp::UpdateCamera(const GameTimer& gt)
 	mView = Ubpa::transformf::look_at(mEyePos, { 0.f });
 }
 
-void DeferApp::AnimateMaterials(const GameTimer& gt)
+void DeferApp::AnimateMaterials()
 {
 	
 }
 
-void DeferApp::UpdateObjectCBs(const GameTimer& gt)
+void DeferApp::UpdateObjectCBs()
 {
 	auto& currObjectCB = frameRsrcMngr->GetCurrentFrameResource()
 		->GetResource<Ubpa::UDX12::ArrayUploadBuffer<ObjectConstants>>("ArrayUploadBuffer<ObjectConstants>");
@@ -576,7 +591,7 @@ void DeferApp::UpdateObjectCBs(const GameTimer& gt)
 	}
 }
 
-void DeferApp::UpdateMaterialCBs(const GameTimer& gt)
+void DeferApp::UpdateMaterialCBs()
 {
 	auto& currMaterialCB = frameRsrcMngr->GetCurrentFrameResource()
 		->GetResource<Ubpa::UDX12::ArrayUploadBuffer<MaterialConstants>>("ArrayUploadBuffer<MaterialConstants>");
@@ -603,7 +618,7 @@ void DeferApp::UpdateMaterialCBs(const GameTimer& gt)
 	}
 }
 
-void DeferApp::UpdateMainPassCB(const GameTimer& gt)
+void DeferApp::UpdateMainPassCB()
 {
 	mMainPassCB.View = mView;
 	mMainPassCB.InvView = mMainPassCB.View.inverse();
@@ -617,8 +632,8 @@ void DeferApp::UpdateMainPassCB(const GameTimer& gt)
 
 	mMainPassCB.NearZ = 1.0f;
 	mMainPassCB.FarZ = 1000.0f;
-	mMainPassCB.TotalTime = gt.TotalTime();
-	mMainPassCB.DeltaTime = gt.DeltaTime();
+	mMainPassCB.TotalTime = Ubpa::DustEngine::GameTimer::Instance().TotalTime();
+	mMainPassCB.DeltaTime = Ubpa::DustEngine::GameTimer::Instance().DeltaTime();
 	mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
 	mMainPassCB.Lights[0].Direction = { 0.57735f, -0.57735f, 0.57735f };
 	mMainPassCB.Lights[0].Strength = { 0.6f, 0.6f, 0.6f };
@@ -891,7 +906,6 @@ void DeferApp::BuildFrameResources()
 			Ubpa::UDX12::ArrayUploadBuffer<ObjectConstants>{ uDevice.raw.Get(), mAllRitems.size(), true });
 
 		auto fgRsrcMngr = std::make_shared<Ubpa::UDX12::FG::RsrcMngr>();
-		fgRsrcMngr->Init(uGCmdList, uDevice);
 		fr->RegisterResource("FrameGraphRsrcMngr", fgRsrcMngr);
     }
 }
