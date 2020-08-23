@@ -1,4 +1,4 @@
-# shader constant buffer
+# Shader Constant Buffer
 
 每个 shader 需要一些 constant buffer
 

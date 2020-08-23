@@ -22,6 +22,7 @@ namespace Ubpa::DustEngine {
 		}
 
 		DirectX::ResourceUploadBatch& GetUpload() const;
+		UDX12::ResourceDeleteBatch& GetDeleteBatch() const;
 
 		RsrcMngrDX12& Init(ID3D12Device* device);
 		void Clear();
@@ -40,9 +41,10 @@ namespace Ubpa::DustEngine {
 		/*RsrcMngrDX12& RegisterTexture2DArray(DirectX::ResourceUploadBatch& upload,
 			size_t id, const Texture2D** tex2Ds, size_t num);*/
 
-		// non-const mesh -> update
-		UDX12::MeshGPUBuffer& RegisterStaticMesh(
+		UDX12::MeshGPUBuffer& RegisterMesh(
 			DirectX::ResourceUploadBatch& upload,
+			UDX12::ResourceDeleteBatch& deleteBatch,
+			ID3D12GraphicsCommandList* cmdList,
 			Mesh* mesh
 		);
 

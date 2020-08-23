@@ -31,6 +31,7 @@ struct RsrcMngrDX12::Impl {
 	bool isInit{ false };
 	ID3D12Device* device{ nullptr };
 	DirectX::ResourceUploadBatch* upload{ nullptr };
+	UDX12::ResourceDeleteBatch deleteBatch;
 
 	unordered_map<size_t, Texture2DGPUData> texture2DMap;
 	unordered_map<size_t, RenderTargetGPUData> renderTargetMap;
@@ -149,6 +150,10 @@ void RsrcMngrDX12::Clear() {
 
 DirectX::ResourceUploadBatch& RsrcMngrDX12::GetUpload() const {
 	return *pImpl->upload;
+}
+
+UDX12::ResourceDeleteBatch& RsrcMngrDX12::GetDeleteBatch() const {
+	return pImpl->deleteBatch;
 }
 
 //RsrcMngrDX12& RsrcMngrDX12::RegisterTexture2D(
@@ -291,16 +296,95 @@ ID3D12Resource* RsrcMngrDX12::GetTexture2DResource(const Texture2D* tex2D) const
 //	return pImpl->textureMap.find(tex2D->GetInstanceID())->second.allocationRTV;
 //}
 
-UDX12::MeshGPUBuffer& RsrcMngrDX12::RegisterStaticMesh(
+UDX12::MeshGPUBuffer& RsrcMngrDX12::RegisterMesh(
 	DirectX::ResourceUploadBatch& upload,
+	UDX12::ResourceDeleteBatch& deleteBatch,
+	ID3D12GraphicsCommandList* cmdList,
 	Mesh* mesh
 ) {
-	auto& meshGPUBuffer = pImpl->meshMap[mesh->GetInstanceID()];
-	meshGPUBuffer.InitBuffer(pImpl->device, upload,
-		mesh->GetVertexBufferData(), (UINT)mesh->GetVertexBufferVertexCount(), (UINT)mesh->GetVertexBufferVertexStride(),
-		mesh->GetIndices().data(), (UINT)mesh->GetIndices().size(), DXGI_FORMAT_R32_UINT
-	);
-	return meshGPUBuffer;
+	auto target = pImpl->meshMap.find(mesh->GetInstanceID());
+	if (target == pImpl->meshMap.end()) {
+		if (mesh->IsDirty())
+			mesh->UpdateVertexBuffer();
+
+		auto vb_data = mesh->GetVertexBufferData();
+		auto vb_count = (UINT)mesh->GetVertexBufferVertexCount();
+		auto vb_stride = (UINT)mesh->GetVertexBufferVertexStride();
+		auto ib_data = mesh->GetIndices().data();
+		auto ib_count = (UINT)mesh->GetIndices().size();
+		auto ib_format = DXGI_FORMAT_R32_UINT;
+
+		if (mesh->IsEditable()) {
+			auto [iter, success] = pImpl->meshMap.try_emplace(
+				mesh->GetInstanceID(),
+				pImpl->device, cmdList,
+				mesh->GetVertexBufferData(),
+				(UINT)mesh->GetVertexBufferVertexCount(),
+				(UINT)mesh->GetVertexBufferVertexStride(),
+				mesh->GetIndices().data(),
+				(UINT)mesh->GetIndices().size(),
+				DXGI_FORMAT_R32_UINT
+			);
+			assert(success);
+			return iter->second;
+		}
+		else {
+			auto [iter, success] = pImpl->meshMap.try_emplace(
+				mesh->GetInstanceID(),
+				pImpl->device, upload,
+				mesh->GetVertexBufferData(),
+				(UINT)mesh->GetVertexBufferVertexCount(),
+				(UINT)mesh->GetVertexBufferVertexStride(),
+				mesh->GetIndices().data(),
+				(UINT)mesh->GetIndices().size(),
+				DXGI_FORMAT_R32_UINT
+			);
+			assert(success);
+			return iter->second;
+		}
+	}
+	else {
+		auto& meshGpuBuffer = target->second;
+		if (!meshGpuBuffer.IsStatic()) {
+			if (mesh->IsEditable()) {
+				if (mesh->IsDirty()) {
+					mesh->UpdateVertexBuffer();
+					meshGpuBuffer.Update(
+						pImpl->device, cmdList,
+						mesh->GetVertexBufferData(),
+						(UINT)mesh->GetVertexBufferVertexCount(),
+						(UINT)mesh->GetVertexBufferVertexStride(),
+						mesh->GetIndices().data(),
+						(UINT)mesh->GetIndices().size(),
+						DXGI_FORMAT_R32_UINT
+					);
+				}
+				//else
+				//	;// do nothing
+			}
+			else {
+				if (mesh->IsDirty()) {
+					meshGpuBuffer.UpdateAndConvertToStatic(
+						deleteBatch,
+						pImpl->device, cmdList,
+						mesh->GetVertexBufferData(),
+						(UINT)mesh->GetVertexBufferVertexCount(),
+						(UINT)mesh->GetVertexBufferVertexStride(),
+						mesh->GetIndices().data(),
+						(UINT)mesh->GetIndices().size(),
+						DXGI_FORMAT_R32_UINT
+					);
+				}
+				else
+					meshGpuBuffer.ConvertToStatic();
+			}
+		}
+		else
+			assert(!mesh->IsEditable() && !mesh->IsDirty());
+
+		return meshGpuBuffer;
+	}
+	return pImpl->meshMap.find(mesh->GetInstanceID())->second;
 }
 
 //UDX12::MeshGPUBuffer& RsrcMngrDX12::RegisterDynamicMesh(

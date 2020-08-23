@@ -162,7 +162,6 @@ void AssetMngr::ImportAsset(const std::filesystem::path& path) {
 
 void AssetMngr::ImportAssetRecursively(const std::filesystem::path& directory) {
 	assert(!directory.has_extension());
-	ImportAsset(directory);
 	for (const auto& entry : std::filesystem::recursive_directory_iterator(directory)) {
 		auto path = entry.path();
 		if(path.extension() == ".meta")
@@ -576,7 +575,8 @@ Mesh* AssetMngr::Impl::LoadObj(const std::filesystem::path& path) {
 	for (size_t i = 0; i < submeshes.size(); i++)
 		mesh->SetSubMesh(i, submeshes[i]);
 
-	mesh->UpdateVertexBuffer(true);
+	mesh->UpdateVertexBuffer();
+	mesh->SetToNonEditable();
 
 	return mesh;
 }

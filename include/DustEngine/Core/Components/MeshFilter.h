@@ -6,7 +6,7 @@
 
 namespace Ubpa::DustEngine {
 	struct MeshFilter {
-		const Mesh* mesh{ nullptr };
+		Mesh* mesh{ nullptr };
 	};
 }
 

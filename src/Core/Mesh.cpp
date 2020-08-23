@@ -81,14 +81,10 @@ bool Mesh::IsVertexValid() {
 		return false;
 }
 
-void Mesh::UpdateVertexBuffer(bool setToNonEditable) {
+void Mesh::UpdateVertexBuffer() {
+	assert(IsDirty());
+
 	assert(IsVertexValid());
-
-	if (setToNonEditable)
-		isEditable = false;
-
-	if (!IsDirty())
-		return;
 
 	size_t num = GetVertexBufferVertexCount();
 

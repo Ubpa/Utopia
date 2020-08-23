@@ -41,6 +41,7 @@ namespace Ubpa::DustEngine {
 		// * generate meta
 		void ImportAsset(const std::filesystem::path& path);
 		// recursively import asset in directory (relative)
+		// not import the 'directory'
 		void ImportAssetRecursively(const std::filesystem::path& directory);
 
 		// load first asset at path

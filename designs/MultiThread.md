@@ -1,51 +1,31 @@
 # 多线程
 
-## 流水线
-
 cpu 的工作如下
 
 1. world update (**parallel**)
-2. world -> context
-3. wait
-4. frame graph
+2. wait and world -> GPU (flush)
+3. frame graph
    1. register resource nodes
    2. register pass nodes
    3. compile frame graph
    4. **parallelly** execute frame graph (avoid conflict for some operations)
-5. sequentially commit comand lists to the command queue
+   5. sequentially commit comand lists to the command queue
 
-如果直接串行的执行上述步骤，则有一些步骤上浪费了 cpu 资源（没有并行）
+步骤 1 和 3 内部是并行的，步骤 2 过程中 world 不能修改
 
-考虑采用**多线程流水线模式**，分两段流水即可，如下
+- level 1：直接串行执行各步骤，且 3.4 串行执行
 
-- 1-2：update
-- 3-5：draw
+- level 2：3.4 并行
+- level 3：1-2 和 3 进行流水线并行模式
 
-> 这两段内部皆有多线程，因此一般情况下，核心都在满载跑
->
-> 另外，update 一般比 draw 长，根据木桶效应，没必要再划分 draw
->
-> 如果有需要（draw 确实比 update 长，且 cpu 是瓶颈）可继续划分 draw
->
-> 流水线阶段过多会有延迟问题
+- level 4：为了 1-2 也能执行流水线并行模式，分3级上传数据
+  - 1级：上传 dynamic 大数据（网格，贴图等），拷贝小数据（pass，material，object constant）
+  - 2级：将需要上传的 static 数据标记为锁定状态（不允许删除），此时可让步骤 1 运行，然后上传这些数据，并逐步解锁
+  - 3级：上传小数据
 
-## 三缓冲
+level 2 肯定要实现
 
-这里的缓冲是动态变量缓冲，如 per object constant buffer，per material constant buffer 等
+level 3 在之后可以实现
 
-由于 cpu 和 gpu 是异步的，所以至少需要双缓冲才能发挥 cpu 和 gpu 间的并行
-
-> cpu 提交完渲染指令后，无需等待 gpu 完成渲染指令就可以进入下一帧，但当 cpu 需要填充新一帧的数据（各种 constant buffer）到 gpu 时，如果 gpu 还在读取这些缓冲区，则发生了冲突，必须等待 gpu 执行完，然后 gpu 等待 cpu 更新好数据才结束等待。双缓冲就能解决这个问题（这里假设 gpu 是瓶颈或者 cpu 和 gpu 耗时差不多）。
-
-考虑 cpu 和 gpu 每帧耗时差不多的情况，如果只有双缓冲，由于 cpu 提交命令到 gpu 和 gpu 通知 cpu 渲染完成有延时，则可能会造成 cpu 和 gpu 的停顿 [^triple_buffer]，而三缓冲就可以规避这个问题（当 cpu 或 gpu 是明显瓶颈时，则这个延时并无影响）
-
-![image: ../Art/ResourceManagement_TripleBuffering_2x.png](https://developer.apple.com/library/archive/documentation/3DDrawing/Conceptual/MTLBestPracticesGuide/Art/ResourceManagement_TripleBuffering_2x.png)
-
-> 图中的 Commit Frame n 和  Frame n callback 就是命令传递造成的延时
-
-总结一下，双缓冲解决了数据冲突，三缓冲解决了命令传递延时
-
-# 参考
-
-[^triple_buffer]: https://developer.apple.com/library/archive/documentation/3DDrawing/Conceptual/MTLBestPracticesGuide/TripleBuffering.html
+level 4 会对整个框架有较大影响
 

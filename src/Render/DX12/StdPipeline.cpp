@@ -425,6 +425,7 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, const FrameData& fr
 	size_t height = resizeData.height;
 
 	auto cmdAlloc = frameRsrcMngr.GetCurrentFrameResource()->GetResource<Microsoft::WRL::ComPtr<ID3D12CommandAllocator>>("CommandAllocator");
+	cmdAlloc->Reset();
 
 	fg.Clear();
 	auto fgRsrcMngr = frameRsrcMngr.GetCurrentFrameResource()->GetResource<std::shared_ptr<Ubpa::UDX12::FG::RsrcMngr>>("FrameGraphRsrcMngr");
