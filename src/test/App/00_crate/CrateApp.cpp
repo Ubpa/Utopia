@@ -632,8 +632,10 @@ void DeferApp::BuildShadersAndInputLayout()
 void DeferApp::BuildShapeGeometry()
 {
 	mesh = Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Mesh>("../assets/models/cube.obj");
-	Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterStaticMesh(
+	Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterMesh(
 		Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+		Ubpa::DustEngine::RsrcMngrDX12::Instance().GetDeleteBatch(),
+		uGCmdList.raw.Get(),
 		mesh
 	);
 }

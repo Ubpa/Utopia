@@ -1,6 +1,7 @@
 #include <DustEngine/Render/DX12/StdPipeline.h>
 
 #include <DustEngine/Render/DX12/RsrcMngrDX12.h>
+#include <DustEngine/Render/DX12/MeshLayoutMngr.h>
 
 #include <DustEngine/Asset/AssetMngr.h>
 #include <DustEngine/Core/Texture2D.h>
@@ -37,9 +38,8 @@ struct StdPipeline::Impl {
 		BuildPSOs();
 	}
 
-	static constexpr size_t ID_PSO_geometry = 0;
-	static constexpr size_t ID_PSO_defer_light = 1;
-	static constexpr size_t ID_PSO_screen = 2;
+	size_t ID_PSO_defer_light;
+	size_t ID_PSO_screen;
 
 	static constexpr size_t ID_RootSignature_geometry = 0;
 	static constexpr size_t ID_RootSignature_screen = 1;
@@ -121,6 +121,9 @@ struct StdPipeline::Impl {
 	void BuildShadersAndInputLayout();
 	void BuildRootSignature();
 	void BuildPSOs();
+
+	size_t GetGeometryPSO_ID(const Mesh* mesh);
+	std::unordered_map<size_t, size_t> PSOIDMap;
 
 	void UpdateRenderContext(const UECS::World& world);
 	void UpdateShaderCBs(const ResizeData& resizeData);
@@ -209,6 +212,7 @@ void StdPipeline::Impl::BuildShadersAndInputLayout()
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 20, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 32, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 	};
 }
 
@@ -297,9 +301,9 @@ void StdPipeline::Impl::BuildPSOs() {
 	screenPsoDesc.RasterizerState.FrontCounterClockwise = TRUE;
 	screenPsoDesc.DepthStencilState.DepthEnable = false;
 	screenPsoDesc.DepthStencilState.StencilEnable = false;
-	RsrcMngrDX12::Instance().RegisterPSO(ID_PSO_screen, &screenPsoDesc);
+	ID_PSO_screen = RsrcMngrDX12::Instance().RegisterPSO(&screenPsoDesc);
 
-	auto geometryPsoDesc = Ubpa::UDX12::Desc::PSO::MRT(
+	/*auto geometryPsoDesc = Ubpa::UDX12::Desc::PSO::MRT(
 		RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_geometry),
 		mInputLayout.data(), (UINT)mInputLayout.size(),
 		RsrcMngrDX12::Instance().GetShaderByteCode_vs(geomrtryShader),
@@ -309,7 +313,7 @@ void StdPipeline::Impl::BuildPSOs() {
 		initDesc.depthStencilFormat
 	);
 	geometryPsoDesc.RasterizerState.FrontCounterClockwise = TRUE;
-	RsrcMngrDX12::Instance().RegisterPSO(ID_PSO_geometry, &geometryPsoDesc);
+	ID_PSO_geometry = RsrcMngrDX12::Instance().RegisterPSO(&geometryPsoDesc);*/
 
 	auto deferLightingPsoDesc = Ubpa::UDX12::Desc::PSO::Basic(
 		RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_defer_light),
@@ -322,7 +326,32 @@ void StdPipeline::Impl::BuildPSOs() {
 	deferLightingPsoDesc.RasterizerState.FrontCounterClockwise = TRUE;
 	deferLightingPsoDesc.DepthStencilState.DepthEnable = false;
 	deferLightingPsoDesc.DepthStencilState.StencilEnable = false;
-	RsrcMngrDX12::Instance().RegisterPSO(ID_PSO_defer_light, &deferLightingPsoDesc);
+	ID_PSO_defer_light = RsrcMngrDX12::Instance().RegisterPSO(&deferLightingPsoDesc);
+}
+
+size_t StdPipeline::Impl::GetGeometryPSO_ID(const Mesh* mesh) {
+	size_t layoutID = MeshLayoutMngr::Instance().GetMeshLayoutID(mesh);
+	auto target = PSOIDMap.find(layoutID);
+	if (target == PSOIDMap.end()) {
+		auto [uv, normal, tangent, color] = MeshLayoutMngr::Instance().DecodeMeshLayoutID(layoutID);
+		if (!uv || !normal)
+			return static_cast<size_t>(-1); // not support
+
+		const auto& layout = MeshLayoutMngr::Instance().GetMeshLayoutValue(layoutID);
+		auto geometryPsoDesc = Ubpa::UDX12::Desc::PSO::MRT(
+			RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_geometry),
+			layout.data(), (UINT)layout.size(),
+			RsrcMngrDX12::Instance().GetShaderByteCode_vs(geomrtryShader),
+			RsrcMngrDX12::Instance().GetShaderByteCode_ps(geomrtryShader),
+			3,
+			DXGI_FORMAT_R32G32B32A32_FLOAT,
+			initDesc.depthStencilFormat
+		);
+		geometryPsoDesc.RasterizerState.FrontCounterClockwise = TRUE;
+		size_t ID_PSO_geometry = RsrcMngrDX12::Instance().RegisterPSO(&geometryPsoDesc);
+		target = PSOIDMap.emplace_hint(target, std::pair{ layoutID, ID_PSO_geometry });
+	}
+	return target->second;
 }
 
 void StdPipeline::Impl::UpdateRenderContext(const UECS::World& world) {
@@ -493,7 +522,6 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, const FrameData& fr
 			cmdList->RSSetViewports(1, &resizeData.screenViewport);
 			cmdList->RSSetScissorRects(1, &resizeData.scissorRect);
 
-			cmdList->SetPipelineState(RsrcMngrDX12::Instance().GetPSO(Impl::ID_PSO_geometry));
 			auto gb0 = rsrcs.find(gbuffer0)->second;
 			auto gb1 = rsrcs.find(gbuffer1)->second;
 			auto gb2 = rsrcs.find(gbuffer2)->second;
@@ -528,7 +556,7 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, const FrameData& fr
 			cmdList->RSSetViewports(1, &resizeData.screenViewport);
 			cmdList->RSSetScissorRects(1, &resizeData.scissorRect);
 
-			cmdList->SetPipelineState(RsrcMngrDX12::Instance().GetPSO(Impl::ID_PSO_defer_light));
+			cmdList->SetPipelineState(RsrcMngrDX12::Instance().GetPSO(ID_PSO_defer_light));
 			auto gb0 = rsrcs.find(gbuffer0)->second;
 			auto gb1 = rsrcs.find(gbuffer1)->second;
 			auto gb2 = rsrcs.find(gbuffer2)->second;
@@ -571,9 +599,9 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, const FrameData& fr
 }
 
 void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList) {
-	UINT passCBByteSize = Ubpa::UDX12::Util::CalcConstantBufferByteSize(sizeof(PassConstants));
-	UINT matCBByteSize = Ubpa::UDX12::Util::CalcConstantBufferByteSize(sizeof(MatConstants));
-	UINT objCBByteSize = Ubpa::UDX12::Util::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+	constexpr UINT passCBByteSize = Ubpa::UDX12::Util::CalcConstantBufferByteSize(sizeof(PassConstants));
+	constexpr UINT matCBByteSize = Ubpa::UDX12::Util::CalcConstantBufferByteSize(sizeof(MatConstants));
+	constexpr UINT objCBByteSize = Ubpa::UDX12::Util::CalcConstantBufferByteSize(sizeof(ObjectConstants));
 
 	auto& shaderCBMngr = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<Ubpa::DustEngine::ShaderCBMngrDX12>("ShaderCBMngrDX12");
@@ -615,6 +643,7 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList) {
 			cmdList->SetGraphicsRootConstantBufferView(3, objCBAddress);
 			cmdList->SetGraphicsRootConstantBufferView(5, matCBAddress);
 
+			cmdList->SetPipelineState(RsrcMngrDX12::Instance().GetPSO(GetGeometryPSO_ID(object.mesh)));
 			cmdList->DrawIndexedInstanced(submesh.indexCount, 1, submesh.indexStart, submesh.baseVertex, 0);
 			objIdx++;
 		}
@@ -641,9 +670,6 @@ void StdPipeline::UpdateRenderContext(const UECS::World& world) {
 	pImpl->frameRsrcMngr.BeginFrame();
 
 	pImpl->UpdateShaderCBs(GetResizeData());
-
-	// TODO
-	// register mesh, shader, texture
 }
 
 void StdPipeline::Render() {

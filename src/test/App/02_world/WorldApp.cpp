@@ -1,27 +1,26 @@
-//***************************************************************************************
-// WorldApp.cpp by Frank Luna (C) 2015 All Rights Reserved.
-//***************************************************************************************
-
-
 #include "../common/d3dApp.h"
 #include "../common/MathHelper.h"
-#include <UDX12/UploadBuffer.h>
 #include "../common/GeometryGenerator.h"
 
+#include <DustEngine/Render/DX12/ShaderCBMngrDX12.h>
+#include <DustEngine/Render/DX12/MeshLayoutMngr.h>
+#include <DustEngine/Render/DX12/StdPipeline.h>
+
 #include <DustEngine/Asset/AssetMngr.h>
+
+#include <DustEngine/Transform/Transform.h>
+
 #include <DustEngine/Core/Texture2D.h>
 #include <DustEngine/Core/Image.h>
 #include <DustEngine/Core/HLSLFile.h>
 #include <DustEngine/Core/Shader.h>
 #include <DustEngine/Core/Mesh.h>
-#include <DustEngine/Transform/Transform.h>
 #include <DustEngine/Core/Components/Camera.h>
 #include <DustEngine/Core/Components/MeshFilter.h>
 #include <DustEngine/Core/Components/MeshRenderer.h>
 #include <DustEngine/Core/Systems/CameraSystem.h>
-#include <DustEngine/Render/DX12/ShaderCBMngrDX12.h>
 
-#include <DustEngine/Render/DX12/StdPipeline.h>
+#include <UDX12/UploadBuffer.h>
 
 #include <UGM/UGM.h>
 
@@ -143,6 +142,8 @@ bool WorldApp::Initialize()
 	initDesc.cmdQueue = uCmdQueue.raw.Get();
 	initDesc.numFrame = gNumFrameResources;
 	pipeline = std::make_unique<Ubpa::DustEngine::StdPipeline>(initDesc);
+
+	Ubpa::DustEngine::MeshLayoutMngr::Instance().Init();
 
 	// Do the initial resize code.
 	OnResize();
@@ -346,8 +347,10 @@ void WorldApp::LoadTextures() {
 
 void WorldApp::BuildShapeGeometry() {
 	auto mesh = Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Mesh>("../assets/models/cube.obj");
-	Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterStaticMesh(
+	Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterMesh(
 		Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+		Ubpa::DustEngine::RsrcMngrDX12::Instance().GetDeleteBatch(),
+		uGCmdList.raw.Get(),
 		mesh
 	);
 	Ubpa::UECS::ArchetypeFilter filter;

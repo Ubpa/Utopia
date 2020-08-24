@@ -1,27 +1,26 @@
-//***************************************************************************************
-// DynamicMeshApp.cpp by Frank Luna (C) 2015 All Rights Reserved.
-//***************************************************************************************
-
-
 #include "../common/d3dApp.h"
 #include "../common/MathHelper.h"
-#include <UDX12/UploadBuffer.h>
 #include "../common/GeometryGenerator.h"
 
+#include <DustEngine/Render/DX12/ShaderCBMngrDX12.h>
+#include <DustEngine/Render/DX12/MeshLayoutMngr.h>
+#include <DustEngine/Render/DX12/StdPipeline.h>
+
 #include <DustEngine/Asset/AssetMngr.h>
+
+#include <DustEngine/Transform/Transform.h>
+
 #include <DustEngine/Core/Texture2D.h>
 #include <DustEngine/Core/Image.h>
 #include <DustEngine/Core/HLSLFile.h>
 #include <DustEngine/Core/Shader.h>
 #include <DustEngine/Core/Mesh.h>
-#include <DustEngine/Transform/Transform.h>
 #include <DustEngine/Core/Components/Camera.h>
 #include <DustEngine/Core/Components/MeshFilter.h>
 #include <DustEngine/Core/Components/MeshRenderer.h>
 #include <DustEngine/Core/Systems/CameraSystem.h>
-#include <DustEngine/Render/DX12/ShaderCBMngrDX12.h>
 
-#include <DustEngine/Render/DX12/StdPipeline.h>
+#include <UDX12/UploadBuffer.h>
 
 #include <UGM/UGM.h>
 
@@ -167,6 +166,8 @@ bool DynamicMeshApp::Initialize()
 			IID_PPV_ARGS(&allocator)));
 		fr->RegisterResource("CommandAllocator", allocator);
 	}
+
+	Ubpa::DustEngine::MeshLayoutMngr::Instance().Init();
 
 	// Do the initial resize code.
 	OnResize();

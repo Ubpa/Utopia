@@ -59,9 +59,7 @@ namespace Ubpa::DustEngine {
 			size_t id,
 			const D3D12_ROOT_SIGNATURE_DESC* descs);
 
-		RsrcMngrDX12& RegisterPSO(
-			size_t id,
-			const D3D12_GRAPHICS_PIPELINE_STATE_DESC* desc);
+		size_t RegisterPSO(const D3D12_GRAPHICS_PIPELINE_STATE_DESC* desc);
 
 		/*RsrcMngrDX12& RegisterRenderTexture2D(size_t id, UINT width, UINT height, DXGI_FORMAT format);
 		RsrcMngrDX12& RegisterRenderTextureCube(size_t id, UINT size, DXGI_FORMAT format);*/
