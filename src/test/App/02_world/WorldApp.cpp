@@ -360,8 +360,7 @@ void WorldApp::BuildShapeGeometry() {
 		meshFilter->mesh = mesh;
 }
 
-void WorldApp::BuildMaterials()
-{
+void WorldApp::BuildMaterials() {
 	std::filesystem::path matPath = "../assets/materials/iron.mat";
 	auto material = new Ubpa::DustEngine::Material;
 	material->shader = Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Shader>("../assets/shaders/geometry.shader");

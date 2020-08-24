@@ -1,19 +1,16 @@
-//***************************************************************************************
-// DeferApp.cpp by Frank Luna (C) 2015 All Rights Reserved.
-//***************************************************************************************
-
-
 #include "../common/d3dApp.h"
 #include "../common/MathHelper.h"
-#include <UDX12/UploadBuffer.h>
 #include "../common/GeometryGenerator.h"
 
 #include <DustEngine/Asset/AssetMngr.h>
+
 #include <DustEngine/Core/Texture2D.h>
 #include <DustEngine/Core/Image.h>
 #include <DustEngine/Core/HLSLFile.h>
 #include <DustEngine/Core/Shader.h>
 #include <DustEngine/Core/Mesh.h>
+
+#include <UDX12/UploadBuffer.h>
 
 #include <UGM/UGM.h>
 
@@ -23,22 +20,16 @@ using namespace DirectX::PackedVector;
 
 const int gNumFrameResources = 3;
 
-constexpr size_t ID_PSO_geometry = 0;
-constexpr size_t ID_PSO_defer_light = 1;
-constexpr size_t ID_PSO_screen = 2;
-
 constexpr size_t ID_RootSignature_geometry = 0;
 constexpr size_t ID_RootSignature_screen = 1;
 constexpr size_t ID_RootSignature_defer_light = 2;
 
-struct ObjectConstants
-{
+struct ObjectConstants {
 	Ubpa::transformf World = Ubpa::transformf::eye();
 	Ubpa::transformf TexTransform = Ubpa::transformf::eye();
 };
 
-struct PassConstants
-{
+struct PassConstants {
 	Ubpa::transformf View = Ubpa::transformf::eye();
 	Ubpa::transformf InvView = Ubpa::transformf::eye();
 	Ubpa::transformf Proj = Ubpa::transformf::eye();
@@ -63,8 +54,7 @@ struct PassConstants
 	Light Lights[MaxLights];
 };
 
-struct Vertex
-{
+struct Vertex {
 	Ubpa::pointf3 Pos;
 	Ubpa::normalf Normal;
 	Ubpa::pointf2 TexC;
@@ -72,8 +62,7 @@ struct Vertex
 
 // Lightweight structure stores parameters to draw a shape.  This will
 // vary from app-to-app.
-struct RenderItem
-{
+struct RenderItem {
 	RenderItem() = default;
 
     // World matrix of the shape that describes the object's local space
@@ -182,6 +171,10 @@ private:
 	Ubpa::DustEngine::Mesh* mesh;
 
 	std::unique_ptr<Ubpa::UDX12::FrameResourceMngr> frameRsrcMngr;
+
+	size_t ID_PSO_geometry;
+	size_t ID_PSO_defer_light;
+	size_t ID_PSO_screen;
 };
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
@@ -862,7 +855,7 @@ void DeferApp::BuildPSOs()
 		DXGI_FORMAT_UNKNOWN
 	);
 	screenPsoDesc.RasterizerState.FrontCounterClockwise = TRUE;
-	Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterPSO(ID_PSO_screen, &screenPsoDesc);
+	ID_PSO_screen = Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterPSO(&screenPsoDesc);
 
 	auto geometryPsoDesc = Ubpa::UDX12::Desc::PSO::MRT(
 		Ubpa::DustEngine::RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_geometry),
@@ -874,7 +867,7 @@ void DeferApp::BuildPSOs()
 		mDepthStencilFormat
 	);
 	geometryPsoDesc.RasterizerState.FrontCounterClockwise = TRUE;
-	Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterPSO(ID_PSO_geometry, &geometryPsoDesc);
+	ID_PSO_geometry = Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterPSO(&geometryPsoDesc);
 
 	auto deferLightingPsoDesc = Ubpa::UDX12::Desc::PSO::Basic(
 		Ubpa::DustEngine::RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_defer_light),
@@ -885,7 +878,7 @@ void DeferApp::BuildPSOs()
 		DXGI_FORMAT_UNKNOWN
 	);
 	deferLightingPsoDesc.RasterizerState.FrontCounterClockwise = TRUE;
-	Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterPSO(ID_PSO_defer_light, &deferLightingPsoDesc);
+	ID_PSO_defer_light = Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterPSO(&deferLightingPsoDesc);
 }
 
 void DeferApp::BuildFrameResources()
@@ -937,7 +930,8 @@ void DeferApp::BuildRenderItems()
 	boxRitem->Mat = mMaterials["iron"].get();
 	boxRitem->Geo = &Ubpa::DustEngine::RsrcMngrDX12::Instance().GetMeshGPUBuffer(mesh);
 	boxRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	boxRitem->IndexCount = boxRitem->Geo->IndexBufferByteSize / (boxRitem->Geo->IndexFormat == DXGI_FORMAT_R16_UINT ? 2 : 4);
+	boxRitem->IndexCount = boxRitem->Geo->IndexBufferView().SizeInBytes
+		/ (boxRitem->Geo->IndexBufferView().Format == DXGI_FORMAT_R16_UINT ? 2 : 4);
 	boxRitem->StartIndexLocation = 0;
 	boxRitem->BaseVertexLocation = 0;
 	mAllRitems.push_back(std::move(boxRitem));

@@ -1,20 +1,16 @@
-//***************************************************************************************
-// DeferApp.cpp by Frank Luna (C) 2015 All Rights Reserved.
-//***************************************************************************************
-
-
 #include "../common/d3dApp.h"
 #include "../common/MathHelper.h"
-#include <UDX12/UploadBuffer.h>
 #include "../common/GeometryGenerator.h"
-#include <memory>
 
 #include <DustEngine/Asset/AssetMngr.h>
+
 #include <DustEngine/Core/Texture2D.h>
 #include <DustEngine/Core/Image.h>
 #include <DustEngine/Core/HLSLFile.h>
 #include <DustEngine/Core/Shader.h>
 #include <DustEngine/Core/Mesh.h>
+
+#include <UDX12/UploadBuffer.h>
 
 #include <UGM/UGM.h>
 #include <DirectXMath.h>
@@ -24,8 +20,6 @@ using namespace DirectX;
 using namespace DirectX::PackedVector;
 
 const int gNumFrameResources = 3;
-
-constexpr size_t ID_PSO_opaque = 0;
 constexpr size_t ID_RootSignature_default = 0;
 
 struct ObjectConstants
@@ -186,6 +180,8 @@ private:
 	Ubpa::DustEngine::Mesh* mesh;
 
 	std::unique_ptr<Ubpa::UDX12::FrameResourceMngr> frameRsrcMngr;
+
+	size_t ID_PSO_opaque;
 };
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
@@ -651,7 +647,7 @@ void DeferApp::BuildPSOs()
 		mDepthStencilFormat
 	);
 	opaquePsoDesc.RasterizerState.FrontCounterClockwise = TRUE;
-	Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterPSO(ID_PSO_opaque, &opaquePsoDesc);
+	ID_PSO_opaque = Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterPSO(&opaquePsoDesc);
 }
 
 void DeferApp::BuildFrameResources()
@@ -698,7 +694,8 @@ void DeferApp::BuildRenderItems()
 	boxRitem->Mat = mMaterials["woodCrate"].get();
 	boxRitem->Geo = &Ubpa::DustEngine::RsrcMngrDX12::Instance().GetMeshGPUBuffer(mesh);
 	boxRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	boxRitem->IndexCount = boxRitem->Geo->IndexBufferByteSize / (boxRitem->Geo->IndexFormat == DXGI_FORMAT_R16_UINT ? 2 : 4);
+	boxRitem->IndexCount = boxRitem->Geo->IndexBufferView().SizeInBytes
+		/ (boxRitem->Geo->IndexBufferView().Format == DXGI_FORMAT_R16_UINT ? 2 : 4);
 	boxRitem->StartIndexLocation = 0;
 	boxRitem->BaseVertexLocation = 0;
 	mAllRitems.push_back(std::move(boxRitem));
