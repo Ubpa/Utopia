@@ -22,6 +22,12 @@ Ubpa_DownloadZip(
 	SHA256 567663B30C1CEB24C8C9D815C1D60579A7CA9D3D3888702858EB2FD672E429B5
 )
 
+Ubpa_DownloadZip(
+	https://cdn.jsdelivr.net/gh/Ubpa/UData@master/DustEngine/imgui/imgui_1_78.zip
+	imgui_1_78.zip
+	SHA256 7620326BE62F5748B2547462496C6A6552ED61BA46A71E744215FF17C1022F25
+)
+
 Ubpa_AddSubDirsRec(include)
 Ubpa_AddSubDirsRec(src)
 

@@ -19,6 +19,10 @@
 
 #include <UDX12/FrameResourceMngr.h>
 
+#include <DustEngine/_deps/imgui/imgui.h>
+#include <DustEngine/_deps/imgui/imgui_impl_win32.h>
+#include <DustEngine/_deps/imgui/imgui_impl_dx12.h>
+
 #include <UECS/World.h>
 #include <UGM/UGM.h>
 
@@ -579,6 +583,13 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, const FrameData& fr
 			cmdList->IASetIndexBuffer(nullptr);
 			cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 			cmdList->DrawInstanced(6, 1, 0, 0);
+
+			//==
+			
+			if (ImGui::GetCurrentContext()) {
+				ImGui::Render();
+				ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmdList);
+			}
 		}
 	);
 

@@ -43,3 +43,5 @@ _deps/
 *.shader
 *.tex2d
 *.mat
+
+imgui.ini

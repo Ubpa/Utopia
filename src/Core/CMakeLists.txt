@@ -39,4 +39,5 @@ Ubpa_AddTarget(
     Ubpa::UGM_core
     Ubpa::UDP_core
     Ubpa::DustEngine_Transform
+    Ubpa::DustEngine__deps_imgui
 )
