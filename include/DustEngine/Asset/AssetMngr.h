@@ -60,4 +60,4 @@ namespace Ubpa::DustEngine {
 	};
 }
 
-#include "detail/AssetMngr.inl"
+#include "details/AssetMngr.inl"

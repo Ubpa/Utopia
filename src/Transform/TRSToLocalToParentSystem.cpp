@@ -9,11 +9,11 @@ using namespace Ubpa::DustEngine;
 
 void TRSToLocalToParentSystem::OnUpdate(UECS::Schedule& schedule) {
 	UECS::ArchetypeFilter filter;
-	filter.all = { UECS::CmptType::Of<UECS::Write<LocalToParent>> };
+	filter.all = { UECS::CmptAccessType::Of<UECS::Write<LocalToParent>> };
 	filter.any = {
-		UECS::CmptType::Of<UECS::Latest<Translation>>,
-		UECS::CmptType::Of<UECS::Latest<Rotation>>,
-		UECS::CmptType::Of<UECS::Latest<Scale>>,
+		UECS::CmptAccessType::Of<UECS::Latest<Translation>>,
+		UECS::CmptAccessType::Of<UECS::Latest<Rotation>>,
+		UECS::CmptAccessType::Of<UECS::Latest<Scale>>,
 	};
 
 	schedule.RegisterChunkJob([](UECS::ChunkView chunk) {
