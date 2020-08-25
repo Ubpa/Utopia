@@ -1,5 +1,5 @@
-luaCmptType0 = CmptType.new("Cmpt0", AccessMode.WRITE)
-luaCmptType1 = CmptType.new("Cmpt1", AccessMode.WRITE)
+luaCmptType0 = CmptType.new("Cmpt0")
+luaCmptType1 = CmptType.new("Cmpt1")
 
 -- Cmpt0 : 64 bytes
 --  0 - 16 str buffer -> (init) 128 bytes string
@@ -78,9 +78,9 @@ em.cmptTraits:RegisterName(luaCmptType1, "Cmpt1")
 
 f = function(schedule)
   local g = function(w, singletons, chunk)
-    local luaCmptType0 = CmptType.new("Cmpt0", AccessMode.LATEST)
-    local luaCmptType1 = CmptType.new("Cmpt1", AccessMode.LATEST)
-    local entityType = CmptType.new("Ubpa::UECS::Entity", AccessMode.LATEST)
+    local luaCmptType0 = CmptType.new("Cmpt0")
+    local luaCmptType1 = CmptType.new("Cmpt1")
+    local entityType = CmptType.new("Ubpa::UECS::Entity")
     local num = chunk:EntityNum()
 	local arrayCmpt0 = chunk:GetCmptArray(luaCmptType0)
 	local arrayEntity = chunk:GetCmptArray(entityType)
@@ -100,9 +100,8 @@ f = function(schedule)
       end
 	end
   end
-  local luaCmptType0 = CmptType.new("Cmpt0", AccessMode.LATEST)
   local filter = ArchetypeFilter.new()
-  filter.all:add(luaCmptType0)
+  filter.all:add(CmptAccessType.new("Cmpt0", AccessMode.LATEST))
   LuaSystem.RegisterChunkJob(
     schedule,
 	g,

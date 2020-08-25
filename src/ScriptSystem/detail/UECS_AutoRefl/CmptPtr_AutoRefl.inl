@@ -6,14 +6,34 @@
 
 template<>
 struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::CmptPtr>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::CmptPtr>
+	: Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::CmptPtr>
 {
-    static constexpr AttrList attrs = {};
+	static constexpr AttrList attrs = {};
 
-    static constexpr FieldList fields = {
-        Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptPtr(Ubpa::UECS::CmptType, void *)>()},
-        Field{"Type", &Ubpa::UECS::CmptPtr::Type},
+	static constexpr FieldList fields = {
+		Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptPtr(Ubpa::UECS::CmptType, void*)>()},
 		Field{"Ptr", &Ubpa::UECS::CmptPtr::Ptr},
+		Field{"Type", &Ubpa::UECS::CmptPtr::Type},
+		Field{"Invalid", &Ubpa::UECS::CmptPtr::Invalid},
 		Field{"Valid", &Ubpa::UECS::CmptPtr::Valid},
-    };
+	};
 };
+
+template<>
+struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::CmptAccessPtr>
+	: Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::CmptAccessPtr>
+{
+	static constexpr AttrList attrs = {};
+
+	static constexpr FieldList fields = {
+		Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptAccessPtr(Ubpa::UECS::CmptType, void*, Ubpa::UECS::AccessMode)>()},
+		Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptAccessPtr(Ubpa::UECS::CmptAccessType, void*)>()},
+		Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptAccessPtr(Ubpa::UECS::CmptPtr, Ubpa::UECS::AccessMode)>()},
+		Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptAccessPtr(Ubpa::UECS::CmptPtr)>()},
+		Field{"Ptr", &Ubpa::UECS::CmptAccessPtr::Ptr},
+		Field{"AccessType", &Ubpa::UECS::CmptAccessPtr::AccessType},
+		Field{"Invalid", &Ubpa::UECS::CmptAccessPtr::Invalid},
+		Field{"Valid", &Ubpa::UECS::CmptAccessPtr::Valid},
+	};
+};
+

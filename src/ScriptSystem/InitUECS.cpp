@@ -8,8 +8,10 @@ void Ubpa::DustEngine::detail::InitUECS(lua_State* L) {
 	ULuaPP::Register<UECS::ChunkView>(L);
 	ULuaPP::Register<UECS::CmptLocator>(L);
 	ULuaPP::Register<UECS::CmptPtr>(L);
+	ULuaPP::Register<UECS::CmptAccessPtr>(L);
 	ULuaPP::Register<UECS::CmptsView>(L);
 	ULuaPP::Register<UECS::CmptType>(L);
+	ULuaPP::Register<UECS::CmptAccessType>(L);
 	ULuaPP::Register<UECS::Entity>(L);
 	ULuaPP::Register<UECS::EntityMngr>(L);
 	ULuaPP::Register<UECS::EntityQuery>(L);

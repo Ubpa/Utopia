@@ -11,7 +11,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::CmptsView>
     static constexpr AttrList attrs = {};
 
     static constexpr FieldList fields = {
-        Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptsView(const Ubpa::UECS::CmptPtr *, size_t)>()},
+        Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptsView(const Ubpa::UECS::CmptAccessPtr *, size_t)>()},
         Field{"GetCmpt", &Ubpa::UECS::CmptsView::GetCmpt},
         Field{"Components", &Ubpa::UECS::CmptsView::Components},
         Field{"NumberOfComponents", &Ubpa::UECS::CmptsView::NumberOfComponents},

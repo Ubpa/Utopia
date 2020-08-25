@@ -17,7 +17,7 @@ const Ubpa::UECS::SystemFunc* LuaSystem::RegisterEntityJob(
 	UECS::CmptLocator cmptLocator,
 	UECS::SingletonLocator singletonLocator
 ) {
-	assert(!cmptLocator.CmptTypes().empty());
+	assert(!cmptLocator.CmptAccessTypes().empty());
 	auto bytes = systemFunc.dump();
 	auto sysfunc = s->RegisterChunkJob(
 	[bytes = std::move(bytes), cmptLocator = std::move(cmptLocator)]
@@ -33,14 +33,14 @@ const Ubpa::UECS::SystemFunc* LuaSystem::RegisterEntityJob(
 
 			auto arrayEntity = chunk.GetCmptArray<UECS::Entity>();
 			std::vector<void*> cmpts;
-			std::vector<UECS::CmptType> types;
-			std::vector<UECS::CmptPtr> cmptPtrs;
+			std::vector<UECS::CmptAccessType> types;
+			std::vector<UECS::CmptAccessPtr> cmptPtrs;
 			std::vector<size_t> sizes;
-			cmpts.reserve(cmptLocator.CmptTypes().size());
-			types.reserve(cmptLocator.CmptTypes().size());
-			cmptPtrs.reserve(cmptLocator.CmptTypes().size());
-			sizes.reserve(cmptLocator.CmptTypes().size());
-			for (const auto& t : cmptLocator.CmptTypes()) {
+			cmpts.reserve(cmptLocator.CmptAccessTypes().size());
+			types.reserve(cmptLocator.CmptAccessTypes().size());
+			cmptPtrs.reserve(cmptLocator.CmptAccessTypes().size());
+			sizes.reserve(cmptLocator.CmptAccessTypes().size());
+			for (const auto& t : cmptLocator.CmptAccessTypes()) {
 				cmpts.push_back(chunk.GetCmptArray(t));
 				types.push_back(t);
 				cmptPtrs.emplace_back(t, cmpts.back());

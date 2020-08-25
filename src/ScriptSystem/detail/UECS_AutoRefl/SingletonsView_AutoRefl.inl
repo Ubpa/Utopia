@@ -11,7 +11,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::SingletonsView>
     static constexpr AttrList attrs = {};
 
     static constexpr FieldList fields = {
-        Field{Name::constructor, WrapConstructor<Ubpa::UECS::SingletonsView(const Ubpa::UECS::CmptPtr *, size_t)>()},
+        Field{Name::constructor, WrapConstructor<Ubpa::UECS::SingletonsView(const Ubpa::UECS::CmptAccessPtr *, size_t)>()},
         Field{"GetSingleton", &Ubpa::UECS::SingletonsView::GetSingleton},
         Field{"Singletons", &Ubpa::UECS::SingletonsView::Singletons},
         Field{"NumberOfSingletons", &Ubpa::UECS::SingletonsView::NumberOfSingletons},

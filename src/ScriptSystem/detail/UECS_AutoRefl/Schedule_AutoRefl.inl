@@ -14,11 +14,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::Schedule>
     static constexpr FieldList fields = {
         Field{"LockFilter", &Ubpa::UECS::Schedule::LockFilter},
         Field{"Order", &Ubpa::UECS::Schedule::Order},
-        Field{"InsertAll", &Ubpa::UECS::Schedule::InsertAll},
-        Field{"InsertAny", &Ubpa::UECS::Schedule::InsertAny},
         Field{"InsertNone", &Ubpa::UECS::Schedule::InsertNone},
-        Field{"EraseAll", &Ubpa::UECS::Schedule::EraseAll},
-        Field{"EraseAny", &Ubpa::UECS::Schedule::EraseAny},
         Field{"EraseNone", &Ubpa::UECS::Schedule::EraseNone},
     };
 };

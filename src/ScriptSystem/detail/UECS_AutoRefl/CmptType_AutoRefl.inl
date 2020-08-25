@@ -6,19 +6,47 @@
 
 template<>
 struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::CmptType>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::CmptType>
+	: Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::CmptType>
 {
-    static constexpr AttrList attrs = {};
+	static constexpr AttrList attrs = {};
 
-    static constexpr FieldList fields = {
-        Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptType(size_t, Ubpa::UECS::AccessMode)>()},
-        Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptType(std::string_view, Ubpa::UECS::AccessMode)>()},
-        Field{"HashCode", &Ubpa::UECS::CmptType::HashCode},
-        Field{"GetAccessMode", &Ubpa::UECS::CmptType::GetAccessMode},
-        Field{"Invalid", &Ubpa::UECS::CmptType::Invalid},
-        Field{"operator<", &Ubpa::UECS::CmptType::operator<},
-        Field{"operator==", &Ubpa::UECS::CmptType::operator==},
-        Field{"operator!=", &Ubpa::UECS::CmptType::operator!=},
-    };
+	static constexpr FieldList fields = {
+		Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptType(size_t)>()},
+		Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptType(std::string_view)>()},
+		Field{"HashCode", &Ubpa::UECS::CmptType::HashCode},
+		Field{"Invalid", &Ubpa::UECS::CmptType::Invalid},
+		Field{"Valid", &Ubpa::UECS::CmptType::Valid},
+		Field{"operator<", &Ubpa::UECS::CmptType::operator<},
+		Field{"operator<=", &Ubpa::UECS::CmptType::operator<=},
+		Field{"operator>", &Ubpa::UECS::CmptType::operator>},
+		Field{"operator>=", &Ubpa::UECS::CmptType::operator>=},
+		Field{"operator==", &Ubpa::UECS::CmptType::operator==},
+		Field{"operator!=", &Ubpa::UECS::CmptType::operator!=},
+	};
+};
+
+template<>
+struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::CmptAccessType>
+	: Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::CmptAccessType>
+{
+	static constexpr AttrList attrs = {};
+
+	static constexpr FieldList fields = {
+		Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptAccessType(size_t, Ubpa::UECS::AccessMode)>()},
+		Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptAccessType(std::string_view, Ubpa::UECS::AccessMode)>()},
+		Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptAccessType(Ubpa::UECS::CmptType, Ubpa::UECS::AccessMode)>()},
+		Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptAccessType(Ubpa::UECS::CmptType)>()},
+		Field{"HashCode", &Ubpa::UECS::CmptAccessType::HashCode},
+		Field{"GetCmptType", &Ubpa::UECS::CmptAccessType::GetCmptType},
+		Field{"GetAccessMode", &Ubpa::UECS::CmptAccessType::GetAccessMode},
+		Field{"Invalid", &Ubpa::UECS::CmptAccessType::Invalid},
+		Field{"Valid", &Ubpa::UECS::CmptAccessType::Valid},
+		Field{"operator<", &Ubpa::UECS::CmptAccessType::operator<},
+		Field{"operator<=", &Ubpa::UECS::CmptAccessType::operator<=},
+		Field{"operator>", &Ubpa::UECS::CmptAccessType::operator>},
+		Field{"operator>=", &Ubpa::UECS::CmptAccessType::operator>=},
+		Field{"operator==", &Ubpa::UECS::CmptAccessType::operator==},
+		Field{"operator!=", &Ubpa::UECS::CmptAccessType::operator!=},
+	};
 };
 

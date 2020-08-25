@@ -11,7 +11,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::SingletonLocator>
     static constexpr AttrList attrs = {};
 
     static constexpr FieldList fields = {
-        Field{Name::constructor, WrapConstructor<Ubpa::UECS::SingletonLocator(const Ubpa::UECS::CmptType *, size_t)>()},
+        Field{Name::constructor, WrapConstructor<Ubpa::UECS::SingletonLocator(const Ubpa::UECS::CmptAccessType *, size_t)>()},
         Field{Name::constructor, WrapConstructor<Ubpa::UECS::SingletonLocator()>()},
         Field{"SingletonTypes", &Ubpa::UECS::SingletonLocator::SingletonTypes},
     };

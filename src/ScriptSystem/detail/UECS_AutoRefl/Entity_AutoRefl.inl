@@ -13,9 +13,10 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::Entity>
     static constexpr FieldList fields = {
         Field{"Idx", &Ubpa::UECS::Entity::Idx},
         Field{"Version", &Ubpa::UECS::Entity::Version},
-        Field{"operator==", &Ubpa::UECS::Entity::operator==},
-        Field{"operator<", &Ubpa::UECS::Entity::operator<},
-        Field{"Invalid", &Ubpa::UECS::Entity::Invalid},
+		Field{"Invalid", &Ubpa::UECS::Entity::Invalid},
+		Field{"IsValid", &Ubpa::UECS::Entity::IsValid},
+		Field{"operator==", &Ubpa::UECS::Entity::operator==},
+		Field{"operator<", &Ubpa::UECS::Entity::operator<},
     };
 };
 
