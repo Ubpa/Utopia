@@ -116,10 +116,6 @@ struct Ubpa::USRefl::TypeInfo<UserType1>
 };
 
 int main() {
-	/*Serializer::Instance().RegisterComponentSerializeFunction([](const A* a, Serializer::JSONWriter& writer) {
-		writer.Key("data");
-		writer.Double(a->data);
-	});*/
 	Serializer::Instance().RegisterComponentSerializeFunction<A>();
 	Serializer::Instance().RegisterComponentDeserializeFunction<A>();
 	Serializer::Instance().RegisterUserTypeSerializeFunction([](const UserType0* t, Serializer::SerializeContext ctx) {

@@ -24,8 +24,11 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::EntityMngr>
 		Field{"Get", &Ubpa::UECS::EntityMngr::Get},
         Field{"Components", &Ubpa::UECS::EntityMngr::Components},
         Field{"Exist", &Ubpa::UECS::EntityMngr::Exist},
-        Field{"Destroy", &Ubpa::UECS::EntityMngr::Destroy},
-        Field{"EntityNum", &Ubpa::UECS::EntityMngr::EntityNum},
+		Field{"Destroy", &Ubpa::UECS::EntityMngr::Destroy},
+		Field{"TotalEntityNum", &Ubpa::UECS::EntityMngr::TotalEntityNum},
+		Field{"EntityNum", &Ubpa::UECS::EntityMngr::EntityNum},
+		Field{"GetEntityFreeEntries", &Ubpa::UECS::EntityMngr::GetEntityFreeEntries},
+		Field{"GetEntityVersion", &Ubpa::UECS::EntityMngr::GetEntityVersion},
 		Field{"LocateSingletons", &Ubpa::UECS::EntityMngr::LocateSingletons},
 		Field{"IsSingleton", &Ubpa::UECS::EntityMngr::IsSingleton},
 		Field{"GetSingletonEntity", &Ubpa::UECS::EntityMngr::GetSingletonEntity},
@@ -35,4 +38,3 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::EntityMngr>
         Field{"Accept", &Ubpa::UECS::EntityMngr::Accept},
     };
 };
-

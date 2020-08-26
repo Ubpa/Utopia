@@ -10,7 +10,9 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::Entity>
 {
     static constexpr AttrList attrs = {};
 
-    static constexpr FieldList fields = {
+	static constexpr FieldList fields = {
+		Field{Name::constructor, WrapConstructor<Ubpa::UECS::Entity(size_t, size_t)>()},
+		Field{Name::constructor, WrapConstructor<Ubpa::UECS::Entity()>()},
         Field{"Idx", &Ubpa::UECS::Entity::Idx},
         Field{"Version", &Ubpa::UECS::Entity::Version},
 		Field{"Invalid", &Ubpa::UECS::Entity::Invalid},

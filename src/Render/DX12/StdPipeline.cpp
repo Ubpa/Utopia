@@ -363,8 +363,8 @@ void StdPipeline::Impl::UpdateRenderContext(const UECS::World& world) {
 
 	Ubpa::UECS::ArchetypeFilter objectFilter;
 	objectFilter.all = {
-		Ubpa::UECS::CmptType::Of<MeshFilter>,
-		Ubpa::UECS::CmptType::Of<MeshRenderer>
+		Ubpa::UECS::CmptAccessType::Of<MeshFilter>,
+		Ubpa::UECS::CmptAccessType::Of<MeshRenderer>
 	};
 	auto objectEntities = world.entityMngr.GetEntityArray(objectFilter);
 	for (auto e : objectEntities) {
@@ -385,7 +385,7 @@ void StdPipeline::Impl::UpdateRenderContext(const UECS::World& world) {
 
 	Ubpa::UECS::ArchetypeFilter cameraFilter;
 	cameraFilter.all = {
-		Ubpa::UECS::CmptType::Of<Camera>
+		Ubpa::UECS::CmptAccessType::Of<Camera>
 	};
 	auto cameras = world.entityMngr.GetEntityArray(cameraFilter);
 	assert(cameras.size() == 1);

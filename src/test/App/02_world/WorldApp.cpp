@@ -34,7 +34,7 @@ struct RotateSystem : Ubpa::UECS::System {
 	using Ubpa::UECS::System::System;
 	virtual void OnUpdate(Ubpa::UECS::Schedule& schedule) override {
 		Ubpa::UECS::ArchetypeFilter filter;
-		filter.all = { Ubpa::UECS::CmptType::Of<Ubpa::DustEngine::MeshFilter> };
+		filter.all = { Ubpa::UECS::CmptAccessType::Of<Ubpa::DustEngine::MeshFilter> };
 		schedule.RegisterEntityJob([](Ubpa::DustEngine::Rotation* rot) {
 			rot->value = rot->value * Ubpa::quatf{ Ubpa::vecf3{0,1,0}, Ubpa::to_radian(2.f) };
 		}, "rotate", filter);
@@ -354,7 +354,7 @@ void WorldApp::BuildShapeGeometry() {
 		mesh
 	);
 	Ubpa::UECS::ArchetypeFilter filter;
-	filter.all = { Ubpa::UECS::CmptType::Of<Ubpa::DustEngine::MeshFilter> };
+	filter.all = { Ubpa::UECS::CmptAccessType::Of<Ubpa::DustEngine::MeshFilter> };
 	auto meshFilters = world.entityMngr.GetCmptArray<Ubpa::DustEngine::MeshFilter>(filter);
 	for (auto meshFilter : meshFilters)
 		meshFilter->mesh = mesh;
@@ -373,7 +373,7 @@ void WorldApp::BuildMaterials() {
 		material = Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Material>(matPath);
 	}
 	Ubpa::UECS::ArchetypeFilter filter;
-	filter.all = { Ubpa::UECS::CmptType::Of<Ubpa::DustEngine::MeshRenderer> };
+	filter.all = { Ubpa::UECS::CmptAccessType::Of<Ubpa::DustEngine::MeshRenderer> };
 	auto meshRenderers = world.entityMngr.GetCmptArray<Ubpa::DustEngine::MeshRenderer>(filter);
 	for (auto meshRenderer : meshRenderers)
 		meshRenderer->material.push_back(material);

@@ -213,7 +213,7 @@ void DynamicMeshApp::Update()
 
 	// update mesh
 	Ubpa::UECS::ArchetypeFilter filter;
-	filter.all = { Ubpa::UECS::CmptType::Of<Ubpa::DustEngine::MeshFilter> };
+	filter.all = { Ubpa::UECS::CmptAccessType::Of<Ubpa::DustEngine::MeshFilter> };
 	auto meshFilters = world.entityMngr.GetCmptArray<Ubpa::DustEngine::MeshFilter>(filter);
 	upload.Begin();
 	for (auto meshFilter : meshFilters) {
@@ -422,7 +422,7 @@ void DynamicMeshApp::BuildMaterials()
 		material = Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Material>(matPath);
 	}
 	Ubpa::UECS::ArchetypeFilter filter;
-	filter.all = { Ubpa::UECS::CmptType::Of<Ubpa::DustEngine::MeshRenderer> };
+	filter.all = { Ubpa::UECS::CmptAccessType::Of<Ubpa::DustEngine::MeshRenderer> };
 	auto meshRenderers = world.entityMngr.GetCmptArray<Ubpa::DustEngine::MeshRenderer>(filter);
 	for (auto meshRenderer : meshRenderers)
 		meshRenderer->material.push_back(material);
