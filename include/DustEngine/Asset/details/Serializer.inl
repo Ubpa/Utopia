@@ -7,6 +7,18 @@
 #include <UGM/UGM.h>
 
 namespace Ubpa::DustEngine::detail {
+	template<typename Void, typename T>
+	struct HasDefinitionHelper : std::false_type {};
+	template<typename T>
+	struct HasDefinitionHelper<std::void_t<decltype(sizeof(T))>, T> : std::true_type {};
+	template<typename T>
+	struct HasDefinition : HasDefinitionHelper<void, T> {};
+
+	template<typename T>
+	struct HasTypeInfo : HasDefinition<Ubpa::USRefl::TypeInfo<T>> {};
+
+	// =========================================================================================
+
 	template<typename T> struct ArrayTraits {
 		static constexpr bool isArray = false;
 	};
@@ -172,155 +184,171 @@ namespace Ubpa::DustEngine::detail {
 	// =========================================================================================
 
 	template<typename Value>
-	void WriteVar(const Value& var, Serializer::JSONWriter& writer) {
+	void WriteVar(const Value& var, Serializer::SerializeContext ctx) {
 		if constexpr (std::is_floating_point_v<Value>)
-			writer.Double(static_cast<double>(var));
+			ctx.writer->Double(static_cast<double>(var));
 		else if constexpr (std::is_integral_v<Value>) {
 			if constexpr (std::is_same_v<Value, bool>)
-				writer.Bool(var);
+				ctx.writer->Bool(var);
 			else {
 				constexpr size_t size = sizeof(Value);
 				if constexpr (std::is_unsigned_v<Value>) {
 					if constexpr (size <= 4)
-						writer.Uint(static_cast<std::uint32_t>(var));
+						ctx.writer->Uint(static_cast<std::uint32_t>(var));
 					else
-						writer.Uint64(static_cast<std::uint64_t>(var));
+						ctx.writer->Uint64(static_cast<std::uint64_t>(var));
 				}
 				else {
 					if constexpr (size <= 4)
-						writer.Int(static_cast<std::uint32_t>(var));
+						ctx.writer->Int(static_cast<std::uint32_t>(var));
 					else
-						writer.Int64(static_cast<std::uint64_t>(var));
+						ctx.writer->Int64(static_cast<std::uint64_t>(var));
 				}
 			}
 		}
 		else if constexpr (std::is_same_v<Value, std::string>)
-			writer.String(var);
+			ctx.writer->String(var);
 		else if constexpr (std::is_pointer_v<Value>) {
 			if (var == nullptr)
-				writer.Null();
+				ctx.writer->Null();
 			else {
 				auto& assetMngr = AssetMngr::Instance();
 				if (assetMngr.Contains(var))
-					writer.String(assetMngr.AssetPathToGUID(assetMngr.GetAssetPath(var)).str());
+					ctx.writer->String(assetMngr.AssetPathToGUID(assetMngr.GetAssetPath(var)).str());
 				else {
-					assert(false);
-					writer.Null();
+					assert("not support" && false);
+					ctx.writer->Null();
 				}
 			}
 		}
 		else if constexpr (std::is_same_v<Value, UECS::Entity>)
-			writer.Uint64(var.Idx());
+			ctx.writer->Uint64(var.Idx());
 		else if constexpr (ArrayTraits<Value>::isArray) {
-			writer.StartArray();
+			ctx.writer->StartArray();
 			for (size_t i = 0; i < ArrayTraits<Value>::size; i++)
-				WriteVar(ArrayTraits_Get(var, i), writer);
-			writer.EndArray();
+				WriteVar(ArrayTraits_Get(var, i), ctx);
+			ctx.writer->EndArray();
 		}
 		else if constexpr (VectorTraits<Value>::isVector) {
-			writer.StartArray();
+			ctx.writer->StartArray();
 			auto iter_end = VectorTraits_End(var);
 			for(auto iter = VectorTraits_Begin(var); iter != iter_end; iter++)
-				WriteVar(*iter, writer);
-			writer.EndArray();
+				WriteVar(*iter, ctx);
+			ctx.writer->EndArray();
 		}
 		else if constexpr (MapTraits<Value>::isMap) {
 			auto iter_end = MapTraits_End(var);
 			if constexpr (std::is_same_v<std::string, MapTraits_KeyType<Value>>) {
-				writer.StartObject();
+				ctx.writer->StartObject();
 				for (auto iter = MapTraits_Begin(var); iter != iter_end; ++iter) {
 					const auto& key = MapTraits_Iterator_Key(iter);
 					const auto& mapped = MapTraits_Iterator_Mapped(iter);
-					writer.Key(key);
-					WriteVar(mapped, writer);
+					ctx.writer->Key(key);
+					WriteVar(mapped, ctx);
 				}
-				writer.EndObject();
+				ctx.writer->EndObject();
 			}
 			else {
-				writer.StartArray();
+				ctx.writer->StartArray();
 				for (auto iter = MapTraits_Begin(var); iter != iter_end; ++iter) {
 					const auto& key = MapTraits_Iterator_Key(iter);
 					const auto& mapped = MapTraits_Iterator_Mapped(iter);
-					writer.StartObject();
-					writer.Key("key");
-					WriteVar(key, writer);
-					writer.Key("mapped");
-					WriteVar(mapped, writer);
-					writer.EndObject();
+					ctx.writer->StartObject();
+					ctx.writer->Key("key");
+					WriteVar(key, ctx);
+					ctx.writer->Key("mapped");
+					WriteVar(mapped, ctx);
+					ctx.writer->EndObject();
 				}
-				writer.EndArray();
+				ctx.writer->EndArray();
 			}
 		}
 		else if constexpr (TupleTraits<Value>::isTuple) {
-			writer.StartArray();
+			ctx.writer->StartArray();
 			std::apply([&](const auto& ... elements) {
-				(WriteVar(elements, writer), ...);
+				(WriteVar(elements, ctx), ...);
 			}, var);
-			writer.EndArray();
+			ctx.writer->EndArray();
 		}
-		else
-			// static_assert(false);
-			writer.String("__NOT_SUPPORT");
+		else if constexpr (HasTypeInfo<Value>::value) {
+			ctx.writer->StartObject();
+			Ubpa::USRefl::TypeInfo<Value>::ForEachVarOf(
+				var,
+				[&ctx](auto field, const auto& var) {
+					ctx.writer->Key(field.name.data());
+					detail::WriteVar(var, ctx);
+				}
+			);
+			ctx.writer->EndObject();
+		}
+		else {
+			if (ctx.fieldSerializer->IsRegistered(TypeID<Value>))
+				ctx.fieldSerializer->Visit(TypeID<Value>, &var, ctx);
+			else {
+				assert("not support" && false);
+				ctx.writer->String("__NOT_SUPPORT");
+			}
+		}
 	}
 
 	template<typename Value, typename JSONValue>
-	Value GetVar(const JSONValue& val_var, const Serializer::EntityIndexMap& entityIndexMap) {
+	Value ReadVar(const JSONValue& jsonValueField, Serializer::DeserializeContext ctx) {
 		if constexpr (std::is_floating_point_v<Value>)
-			return static_cast<Value>(val_var.GetDouble());
+			return static_cast<Value>(jsonValueField.GetDouble());
 		else if constexpr (std::is_integral_v<Value>) {
 			if constexpr (std::is_same_v<Value, bool>)
-				return val_var.GetBool();
+				return jsonValueField.GetBool();
 			else {
 				constexpr size_t size = sizeof(Value);
 				if constexpr (std::is_unsigned_v<Value>) {
 					if constexpr (size <= 4)
-						return static_cast<Value>(val_var.GetUint());
+						return static_cast<Value>(jsonValueField.GetUint());
 					else
-						return static_cast<Value>(val_var.GetUint64());
+						return static_cast<Value>(jsonValueField.GetUint64());
 				}
 				else {
 					if constexpr (size <= 4)
-						return static_cast<Value>(val_var.GetInt());
+						return static_cast<Value>(jsonValueField.GetInt());
 					else
-						return static_cast<Value>(val_var.GetInt64());
+						return static_cast<Value>(jsonValueField.GetInt64());
 				}
 			}
 		}
 		else if constexpr (std::is_same_v<Value, std::string>)
-			return val_var.GetString();
+			return jsonValueField.GetString();
 		else if constexpr (std::is_pointer_v<Value>) {
-			if (val_var.IsNull())
+			if (jsonValueField.IsNull())
 				return nullptr;
 			else {
 				using Asset = std::remove_const_t<std::remove_pointer_t<Value>>;
-				std::string guid = val_var.GetString();
+				std::string guid = jsonValueField.GetString();
 				const auto& path = AssetMngr::Instance().GUIDToAssetPath(xg::Guid{ guid });
 				return AssetMngr::Instance().LoadAsset<Asset>(path);
 			}
 		}
 		else if constexpr (std::is_same_v<Value, UECS::Entity>) {
-			auto index = val_var.GetUint64();
-			return { entityIndexMap.find(index)->second, 0 };
+			auto index = jsonValueField.GetUint64();
+			return ctx.entityIdxMap->find(index)->second;
 		}
 		else if constexpr (ArrayTraits<Value>::isArray) {
-			const auto& arr = val_var.GetArray();
+			const auto& arr = jsonValueField.GetArray();
 			assert(ArrayTraits<Value>::size == arr.Size());
 			Value rst;
 			for (size_t i = 0; i < ArrayTraits<Value>::size; i++) {
 				ArrayTraits_Set(
 					rst, i,
-					GetVar<ArrayTraits_ValueType<Value>>(arr[static_cast<rapidjson::SizeType>(i)], entityIndexMap)
+					ReadVar<ArrayTraits_ValueType<Value>>(arr[static_cast<rapidjson::SizeType>(i)], ctx)
 				);
 			}
 			return rst;
 		}
 		else if constexpr (VectorTraits<Value>::isVector) {
-			const auto& arr = val_var.GetArray();
+			const auto& arr = jsonValueField.GetArray();
 			Value rst;
 			for (size_t i = 0; i < arr.Size(); i++) {
 				VectorTraits_Add(
 					rst,
-					GetVar<VectorTraits_ValueType<Value>>(arr[static_cast<rapidjson::SizeType>(i)], entityIndexMap)
+					ReadVar<VectorTraits_ValueType<Value>>(arr[static_cast<rapidjson::SizeType>(i)], ctx)
 				);
 			}
 			VectorTraits_PostProcess(rst);
@@ -328,26 +356,26 @@ namespace Ubpa::DustEngine::detail {
 		}
 		else if constexpr (MapTraits<Value>::isMap) {
 			if constexpr (std::is_same_v<MapTraits_KeyType<Value>, std::string>) {
-				const auto& m = val_var.GetObject();
+				const auto& m = jsonValueField.GetObject();
 				Value rst;
 				for (const auto& [val_key, val_mapped] : m) {
 					MapTraits_Emplace(
 						rst,
 						MapTraits_KeyType<Value>{val_key.GetString()},
-						GetVar<MapTraits_MappedType<Value>>(val_mapped, entityIndexMap)
+						ReadVar<MapTraits_MappedType<Value>>(val_mapped, ctx)
 					);
 				}
 				return rst;
 			}
 			else {
-				const auto& m = val_var.GetArray();
+				const auto& m = jsonValueField.GetArray();
 				Value rst;
 				for (const auto& val_pair : m) {
 					const auto& pair = val_pair.GetObject();
 					MapTraits_Emplace(
 						rst,
-						GetVar<MapTraits_KeyType<Value>>(pair["key"], entityIndexMap),
-						GetVar<MapTraits_MappedType<Value>>(pair["mapped"], entityIndexMap)
+						ReadVar<MapTraits_KeyType<Value>>(pair["key"], ctx),
+						ReadVar<MapTraits_MappedType<Value>>(pair["mapped"], ctx)
 					);
 				}
 				return rst;
@@ -356,14 +384,38 @@ namespace Ubpa::DustEngine::detail {
 		else if constexpr (TupleTraits<Value>::isTuple) {
 			Value rst;
 			std::apply([&](auto& ... elements) {
-				const auto& arr = val_var.GetArray();
+				const auto& arr = jsonValueField.GetArray();
 				rapidjson::SizeType i = 0;
-				((elements = GetVar<std::remove_reference_t<decltype(elements)>>(arr[i++], entityIndexMap)),...);
+				((elements = ReadVar<std::remove_reference_t<decltype(elements)>>(arr[i++], ctx)),...);
 			}, rst);
 			return rst;
 		}
-		else
-			return {}; // not support
+		else if constexpr (HasTypeInfo<Value>::value) {
+			const auto& jsonObject = jsonValueField.GetObject();
+			Value rst;
+			USRefl::TypeInfo<Value>::ForEachVarOf(
+				rst,
+				[&](auto field, auto& var) {
+					const auto& jsonValueField = jsonObject[field.name.data()];
+					var = detail::ReadVar<std::remove_reference_t<decltype(var)>>(
+						jsonValueField,
+						ctx
+					);
+				}
+			);
+			return rst;
+		}
+		else {
+			if (ctx.fieldDeserializer->IsRegistered(TypeID<Value>)) {
+				Value rst;
+				ctx.fieldDeserializer->Visit(TypeID<Value>, &rst, jsonValueField, ctx);
+				return rst;
+			}
+			else {
+				assert("not support" && false);
+				return {}; // not support
+			}
+		}
 	};
 }
 
@@ -372,7 +424,7 @@ namespace Ubpa::DustEngine {
 	void Serializer::RegisterComponentSerializeFunction(Func&& func) {
 		using ArgList = FuncTraits_ArgList<Func>;
 		static_assert(Length_v<ArgList> == 2);
-		static_assert(std::is_same_v<At_t<ArgList, 1>, JSONWriter&>);
+		static_assert(std::is_same_v<At_t<ArgList, 1>, SerializeContext>);
 		using ConstCmptPtr = At_t<ArgList, 0>;
 		static_assert(std::is_pointer_v<ConstCmptPtr>);
 		using ConstCmpt = std::remove_pointer_t<ConstCmptPtr>;
@@ -380,33 +432,96 @@ namespace Ubpa::DustEngine {
 		using Cmpt = std::remove_const_t<ConstCmpt>;
 		RegisterComponentSerializeFunction(
 			UECS::CmptType::Of<Cmpt>,
-			[func = std::forward<Func>(func)](const void* p, JSONWriter& writer) {
-				func(reinterpret_cast<const Cmpt*>(p), writer);
+			[f = std::forward<Func>(func)](const void* p, SerializeContext ctx) {
+				f(reinterpret_cast<const Cmpt*>(p), ctx);
+			}
+		);
+	}
+
+	template<typename Func>
+	void Serializer::RegisterComponentDeserializeFunction(Func&& func) {
+		using ArgList = FuncTraits_ArgList<Func>;
+		static_assert(Length_v<ArgList> == 3);
+		static_assert(std::is_same_v<At_t<ArgList, 1>, const rapidjson::Value&>);
+		static_assert(std::is_same_v<At_t<ArgList, 2>, DeserializeContext>);
+		using CmptPtr = At_t<ArgList, 0>;
+		static_assert(std::is_pointer_v<CmptPtr>);
+		using Cmpt = std::remove_pointer_t<CmptPtr>;
+		static_assert(!std::is_const_v<Cmpt>);
+		RegisterComponentDeserializeFunction(
+			UECS::CmptType::Of<Cmpt>,
+			[f = std::forward<Func>(func)](void* p, const rapidjson::Value& jsonValueCmpt, DeserializeContext ctx) {
+				f(reinterpret_cast<Cmpt*>(p), jsonValueCmpt, ctx);
+			}
+		);
+	}
+
+	template<typename Func>
+	void Serializer::RegisterUserTypeSerializeFunction(Func&& func) {
+		using ArgList = FuncTraits_ArgList<Func>;
+		static_assert(Length_v<ArgList> == 2);
+		static_assert(std::is_same_v<At_t<ArgList, 1>, SerializeContext>);
+		using ConstUserTypePtr = At_t<ArgList, 0>;
+		static_assert(std::is_pointer_v<ConstUserTypePtr>);
+		using ConstUserType = std::remove_pointer_t<ConstUserTypePtr>;
+		static_assert(std::is_const_v<ConstUserType>);
+		using UserType = std::remove_const_t<ConstUserType>;
+		RegisterUserTypeSerializeFunction(
+			TypeID<UserType>,
+			[f = std::forward<Func>(func)](const void* p, SerializeContext ctx) {
+				f(reinterpret_cast<const UserType*>(p), ctx);
+			}
+		);
+	}
+
+	template<typename Func>
+	void Serializer::RegisterUserTypeDeserializeFunction(Func&& func) {
+		using ArgList = FuncTraits_ArgList<Func>;
+		static_assert(Length_v<ArgList> == 3);
+		static_assert(std::is_same_v<At_t<ArgList, 1>, const rapidjson::Value&>);
+		static_assert(std::is_same_v<At_t<ArgList, 2>, DeserializeContext>);
+		using UserTypePtr = At_t<ArgList, 0>;
+		static_assert(std::is_pointer_v<UserTypePtr>);
+		using UserType = std::remove_pointer_t<UserTypePtr>;
+		static_assert(!std::is_const_v<UserType>);
+		RegisterUserTypeDeserializeFunction(
+			TypeID<UserType>,
+			[f = std::forward<Func>(func)](void* p, const rapidjson::Value& jsonValueCmpt, DeserializeContext ctx) {
+				f(reinterpret_cast<UserType*>(p), jsonValueCmpt, ctx);
 			}
 		);
 	}
 
 	template<typename Cmpt>
 	void Serializer::RegisterComponentSerializeFunction() {
-		RegisterComponentSerializeFunction([](const Cmpt* cmpt, JSONWriter& writer) {
-			USRefl::TypeInfo<Cmpt>::ForEachVarOf(*cmpt, [&writer](auto field, const auto& var) {
-				writer.Key(field.name.data());
-				detail::WriteVar(var, writer);
-			});
+		RegisterComponentSerializeFunction(
+			[](const Cmpt* cmpt, SerializeContext ctx) {
+			USRefl::TypeInfo<Cmpt>::ForEachVarOf(
+				*cmpt,
+				[&ctx](auto field, const auto& var) {
+					ctx.writer->Key(field.name.data());
+					detail::WriteVar(var, ctx);
+				}
+			);
 		});
 	}
 
 	template<typename Cmpt>
 	void Serializer::RegisterComponentDeserializeFunction() {
 		RegisterComponentDeserializeFunction(
-			UECS::CmptType::Of<Cmpt>,
-			[](UECS::World* world, UECS::Entity e, const JSONCmpt& cmptJSON, const EntityIndexMap& entityIndexMap) {
-				auto [cmpt] = world->entityMngr.Attach<Cmpt>(e);
-				USRefl::TypeInfo<Cmpt>::ForEachVarOf(*cmpt, [&](auto field, auto& var) {
-					const auto& val_var = cmptJSON[field.name.data()];
-					var = detail::GetVar<std::remove_reference_t<decltype(var)>>(val_var, entityIndexMap);
-				}
-			);
-		});
+			[](Cmpt* cmpt, const rapidjson::Value& jsonValueCmpt, DeserializeContext ctx) {
+				const auto& jsonObjectCmpt = jsonValueCmpt.GetObject();
+				USRefl::TypeInfo<Cmpt>::ForEachVarOf(
+					*cmpt,
+					[&](auto field, auto& var) {
+						const auto& jsonValueCmptField = jsonObjectCmpt[field.name.data()];
+						var = detail::ReadVar<std::remove_reference_t<decltype(var)>>(
+							jsonValueCmptField,
+							ctx
+						);
+					}
+				);
+			}
+		);
 	}
 }

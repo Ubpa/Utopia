@@ -2,6 +2,9 @@
 
 #include <UECS/World.h>
 
+#include <UDP/Visitor/cVisitor.h>
+#include <UDP/Visitor/ncVisitor.h>
+
 #include <rapidjson/document.h>
 #include <rapidjson/writer.h>
 
@@ -16,23 +19,42 @@ namespace Ubpa::DustEngine {
 		}
 
 		using JSONWriter = rapidjson::Writer<rapidjson::StringBuffer>;
-		using CmptSerializeFunc = std::function<void(const void*, JSONWriter&)>;
-		using JSONCmpt = rapidjson::GenericObject<true, rapidjson::Value>;
-		using EntityIndexMap = std::unordered_map<size_t, size_t>;
-		using CmptDeserializeFunc = std::function<void(UECS::World*, UECS::Entity, const JSONCmpt&, const EntityIndexMap&)>;
+		struct SerializeContext {
+			JSONWriter* const writer;
+			const Visitor<void(const void*, SerializeContext)>* const fieldSerializer;
+		};
+		using SerializeFunc = std::function<void(const void*, SerializeContext)>;
+		using EntityIdxMap = std::unordered_map<size_t, UECS::Entity>;
+		struct DeserializeContext {
+			const EntityIdxMap* entityIdxMap;
+			const Visitor<void(void*, const rapidjson::Value&, DeserializeContext)>*const fieldDeserializer;
+		};
+		using DeserializeFunc = std::function<void(void*, const rapidjson::Value&, DeserializeContext)>;
 
-		void RegisterComponentSerializeFunction(UECS::CmptType, CmptSerializeFunc);
-		void RegisterComponentDeserializeFunction(UECS::CmptType, CmptDeserializeFunc);
+		void RegisterComponentSerializeFunction(UECS::CmptType, SerializeFunc);
+		void RegisterComponentDeserializeFunction(UECS::CmptType, DeserializeFunc);
+
 		template<typename Func>
 		void RegisterComponentSerializeFunction(Func&& func);
 		template<typename Cmpt>
 		void RegisterComponentSerializeFunction();
+
+		template<typename Func>
+		void RegisterComponentDeserializeFunction(Func&& func);
 		template<typename Cmpt>
 		void RegisterComponentDeserializeFunction();
 
+		template<typename Func>
+		void RegisterUserTypeSerializeFunction(Func&& func);
+		template<typename Func>
+		void RegisterUserTypeDeserializeFunction(Func&& func);
+
 		std::string ToJSON(const UECS::World*);
-		UECS::World* ToWorld(std::string_view json);
+		void ToWorld(UECS::World*, std::string_view json);
 	private:
+		void RegisterUserTypeSerializeFunction(size_t id, SerializeFunc func);
+		void RegisterUserTypeDeserializeFunction(size_t id, DeserializeFunc func);
+
 		Serializer();
 		~Serializer();
 

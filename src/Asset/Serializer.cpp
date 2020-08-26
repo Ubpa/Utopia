@@ -3,8 +3,6 @@
 #include <UECS/World.h>
 #include <UECS/IListener.h>
 
-#include <UDP/Visitor/cVisitor.h>
-
 #include <rapidjson/error/en.h>
 
 #include <USRefl/USRefl.h>
@@ -21,8 +19,8 @@ struct Serializer::Impl : IListener {
 	StringBuffer sb;
 	Writer<StringBuffer> writer;
 
-	Visitor<void(const void*, Writer<StringBuffer>&)> cmptSerializer;
-	std::map<CmptType, CmptDeserializeFunc> cmptDeserializer;
+	Visitor<void(const void*, Serializer::SerializeContext)> serializer;
+	Visitor<void(void*, const rapidjson::Value&, Serializer::DeserializeContext)> deserializer;
 
 	Impl() {
 		writer.Reset(sb);
@@ -73,8 +71,8 @@ struct Serializer::Impl : IListener {
 		writer.StartObject();
 		writer.Key("type");
 		writer.Uint64(p->Type().HashCode());
-		if (cmptSerializer.IsRegistered(p->Type().HashCode()))
-			cmptSerializer.Visit(p->Type().HashCode(), p->Ptr(), writer);
+		if (serializer.IsRegistered(p->Type().HashCode()))
+			serializer.Visit(p->Type().HashCode(), p->Ptr(), Serializer::SerializeContext{&writer, &serializer});
 	}
 	virtual void ExistCmptPtr(const CmptPtr*) override {
 		writer.EndObject();
@@ -96,8 +94,7 @@ string Serializer::ToJSON(const World* world) {
 	return json;
 }
 
-World* Serializer::ToWorld(string_view json) {
-	auto world = new World;
+void Serializer::ToWorld(UECS::World* world, string_view json) {
 	Document doc;
 	ParseResult rst = doc.Parse(json.data());
 
@@ -105,47 +102,73 @@ World* Serializer::ToWorld(string_view json) {
 		cerr << "ERROR::DeserializerJSON::DeserializeScene:" << endl
 			<< "\t" << "JSON parse error: "
 			<< GetParseError_En(rst.Code()) << " (" << rst.Offset() << ")" << endl;
-		return nullptr;
+		return;
 	}
 
 	auto entityMngr = doc["entityMngr"].GetObject();
 	auto entities = entityMngr["entities"].GetArray();
 
-	EntityIndexMap entityIndexMap;
+	// 1. use free entry
+	// 2. use new entry
+	EntityIdxMap entityIdxMap;
 
-	size_t curEntityIndex = 0;
+	const auto& freeEntries = world->entityMngr.GetEntityFreeEntries();
+	size_t leftFreeEntryNum = freeEntries.size();
+	size_t newEntityIndex = world->entityMngr.TotalEntityNum() + leftFreeEntryNum;
 	for (const auto& val_e : entities) {
 		const auto& e = val_e.GetObject();
 		size_t index = e["index"].GetUint64();
-		entityIndexMap.emplace(index, curEntityIndex++);
+		if (leftFreeEntryNum > 0) {
+			size_t freeIdx = freeEntries[--leftFreeEntryNum];
+			size_t version = world->entityMngr.GetEntityVersion(freeIdx);
+			entityIdxMap.emplace(index, Entity{ freeIdx, version });
+		}
+		else
+			entityIdxMap.emplace(index, Entity{ newEntityIndex++, 0 });
 	}
 
 	for (const auto& val_e : entities) {
-		const auto& e = val_e.GetObject();
-		const auto& components = e["components"].GetArray();
-		auto [entity] = world->entityMngr.Create();
+		const auto& jsonEntity = val_e.GetObject();
+		const auto& components = jsonEntity["components"].GetArray();
+
+		std::vector<CmptType> cmptTypes;
 		for (const auto& val_cmpt : components) {
 			const auto& cmpt = val_cmpt.GetObject();
 			size_t cmptID = cmpt["type"].GetUint64();
 			auto type = CmptType{ cmptID };
-			auto target = pImpl->cmptDeserializer.find(type);
-			if (target != pImpl->cmptDeserializer.end())
-				target->second(world, entity, cmpt, entityIndexMap);
-			else {
-				world->entityMngr.Attach(entity, &type, 1);
-				// use binary to init
-				// base64 string
+			cmptTypes.push_back(type);
+		}
+
+		auto entity = world->entityMngr.Create(cmptTypes.data(), cmptTypes.size());
+		auto cmpts = world->entityMngr.Components(entity);
+		for (size_t i = 0; i < cmpts.size(); i++) {
+			if (pImpl->deserializer.IsRegistered(cmpts[i].Type().HashCode())) {
+				pImpl->deserializer.Visit(
+					cmpts[i].Type().HashCode(),
+					cmpts[i].Ptr(),
+					components[static_cast<SizeType>(i)],
+					DeserializeContext{
+						&entityIdxMap,
+						&(pImpl->deserializer)
+					}
+				);
 			}
 		}
 	}
-
-	return world;
 }
 
-void Serializer::RegisterComponentSerializeFunction(UECS::CmptType type, CmptSerializeFunc func) {
-	pImpl->cmptSerializer.Register(type.HashCode(), std::move(func));
+void Serializer::RegisterComponentSerializeFunction(UECS::CmptType type, SerializeFunc func) {
+	RegisterUserTypeSerializeFunction(type.HashCode(), std::move(func));
 }
 
-void Serializer::RegisterComponentDeserializeFunction(UECS::CmptType type, CmptDeserializeFunc func) {
-	pImpl->cmptDeserializer.emplace(type, std::move(func));
+void Serializer::RegisterComponentDeserializeFunction(UECS::CmptType type, DeserializeFunc func) {
+	RegisterUserTypeDeserializeFunction(type.HashCode(), std::move(func));
+}
+
+void Serializer::RegisterUserTypeSerializeFunction(size_t id, SerializeFunc func) {
+	pImpl->serializer.Register(id, std::move(func));
+}
+
+void Serializer::RegisterUserTypeDeserializeFunction(size_t id, DeserializeFunc func) {
+	pImpl->deserializer.Register(id, std::move(func));
 }

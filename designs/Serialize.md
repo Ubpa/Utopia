@@ -29,7 +29,7 @@
 
 ### TODO
 
-- [ ] 对于不支持的类型，用户可自定义函数
+- [x] 对于不支持的类型，用户可自定义函数
 - [ ] reserve
 
 ## 2. Deserialize
@@ -40,8 +40,8 @@
 
 ### TODO
 
-- [ ] 用户自行提供 world（注册好 cmpt traits，无 entity）
-- [ ] 一次性添加多组件 components
+- [x] 用户自行提供 world（注册好 cmpt traits，无 entity）
+- [x] 一次性添加多组件 components
 - [ ] reserve
-- [ ] 支持 append 模式（索引映射表包含版本）
+- [x] 支持 append 模式（索引映射表包含版本）
 
