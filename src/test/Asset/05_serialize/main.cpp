@@ -8,6 +8,7 @@
 
 using namespace Ubpa::DustEngine;
 using namespace Ubpa::UECS;
+using namespace Ubpa;
 using namespace std;
 
 struct A {
@@ -26,6 +27,24 @@ struct A {
 	std::string v_string;
 	Entity v_entity{ Entity::Invalid() };
 	const HLSLFile* v_hlslFile;
+	std::array<int, 3> v_array;
+	std::array<std::array<float, 2>, 3> v_array2;
+	bboxf3 v_bbox;
+	vecf3 v_vec;
+	std::vector<std::string> v_vector;
+	std::deque<size_t> v_deque;
+	std::forward_list<size_t> v_forward_list;
+	std::list<size_t> v_list;
+	std::set<size_t> v_set;
+	std::multiset<size_t> v_multiset;
+	std::unordered_set<size_t> v_unordered_set;
+	std::unordered_multiset<size_t> v_unordered_multiset;
+	std::map<std::string, std::vector<bool>> v_map;
+	std::multimap<size_t, std::string> v_multimap;
+	std::unordered_map<std::string, std::string> v_unordered_map;
+	std::unordered_multimap<std::string, std::string> v_unordered_multimap;
+	std::tuple<size_t, bool, float> v_tuple;
+	std::pair<size_t, bool> v_pair;
 };
 
 template<>
@@ -50,6 +69,24 @@ struct Ubpa::USRefl::TypeInfo<A>
 		Field{"v_string", &A::v_string},
 		Field{"v_entity", &A::v_entity},
 		Field{"v_hlslFile", &A::v_hlslFile},
+		Field{"v_array", &A::v_array},
+		Field{"v_array2", &A::v_array2},
+		Field{"v_bbox", &A::v_bbox},
+		Field{"v_vec", &A::v_vec},
+		Field{"v_vector", &A::v_vector},
+		Field{"v_deque", &A::v_deque},
+		Field{"v_forward_list", &A::v_forward_list},
+		Field{"v_list", &A::v_list},
+		Field{"v_set", &A::v_set},
+		Field{"v_multiset", &A::v_multiset},
+		Field{"v_unordered_set", &A::v_unordered_set},
+		Field{"v_unordered_multiset", &A::v_unordered_multiset},
+		Field{"v_map", &A::v_map},
+		Field{"v_multimap", &A::v_multimap},
+		Field{"v_unordered_map", &A::v_unordered_map},
+		Field{"v_unordered_multimap", &A::v_unordered_multimap},
+		Field{"v_tuple", &A::v_tuple},
+		Field{"v_pair", &A::v_pair},
 	};
 };
 
@@ -79,14 +116,32 @@ int main() {
 	a->v_string = { "hello world" };
 	//a->v_entity = { Entity::Invalid() };
 	a->v_hlslFile = AssetMngr::Instance().LoadAsset<HLSLFile>("../assets/shaders/Default.hlsl");
+	a->v_array = { 1,2,3 };
+	a->v_array2 = { { {1,2},{3,4},{5,6} } };
+	a->v_bbox = { {1,2,3},{4,5,6} };
+	a->v_vec = { 1,2,3 };
+	a->v_vector = { "str0","str1" };
+	a->v_deque = { 1,2,3 };
+	a->v_forward_list = { 1,2,3 };
+	a->v_list = { 1,2,3 };
+	a->v_set = { 1,2,3 };
+	a->v_multiset = { 1,1,2,3 };
+	a->v_unordered_set = { 1,2,3 };
+	a->v_unordered_multiset = { 1,1,2,3 };
+	a->v_map = { { "tf",{true, false} },{ "ft",{false, true} } };
+	a->v_multimap = { { 0,"a" },{ 0,"b"}, {1,"c"} };
+	a->v_unordered_map = { { "a","b" },{ "b","c"}, {"c","d"} };
+	a->v_unordered_multimap = { { "a","a" },{ "a","b"}, {"b","a"} };
+	a->v_tuple = { 0,false,1.5f };
+	a->v_pair = { 0,false };
 
 	w.entityMngr.Create();
-
 	auto json = Serializer::Instance().ToJSON(&w);
 	cout << json << endl;
 	auto new_w = Serializer::Instance().ToWorld(json);
 	auto new_json = Serializer::Instance().ToJSON(new_w);
 	cout << new_json << endl;
-
+	std::pair p{ 1,2 };
+	std::apply([](auto...) {}, p);
 	return 0;
 }
