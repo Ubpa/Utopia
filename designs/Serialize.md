@@ -1,10 +1,6 @@
 # 序列化
 
-引擎核心使用 [USRefl](https://github.com/Ubpa/USRefl) 来进行序列化，用户亦可自定义特定组件的序列化方法
-
-## TODO
-
-- [ ] 自定义指针操作
+引擎核心使用 [USRefl](https://github.com/Ubpa/USRefl) 来进行序列化，用户亦可自定义序列化方法
 
 ## 1. Serialize
 
@@ -31,21 +27,13 @@
 
 - 有序定长：UGM 的 `vec`, `val` 等
 
-### TODO
+支持注册了 TypeInfo 的类型
 
-- [x] 对于不支持的类型，用户可自定义函数
-- [ ] reserve
+支持自定义类型的处理
 
 ## 2. Deserialize
 
 首先遍历一遍，求实体索引映射表（用于实体索引重映射）
 
 按逆过程实现即可
-
-### TODO
-
-- [x] 用户自行提供 world（注册好 cmpt traits，无 entity）
-- [x] 一次性添加多组件 components
-- [ ] reserve
-- [x] 支持 append 模式（索引映射表包含版本）
 

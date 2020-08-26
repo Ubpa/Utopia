@@ -21,6 +21,7 @@ struct Serializer::Impl : IListener {
 
 	Visitor<void(const void*, SerializeContext)> serializer;
 	Visitor<void(void*, const rapidjson::Value&, DeserializeContext)> deserializer;
+	Serializer::SerializeContext ctx{ &writer, &serializer };
 
 	Impl() {
 		writer.Reset(sb);
@@ -73,7 +74,7 @@ struct Serializer::Impl : IListener {
 		writer.Uint64(p->Type().HashCode());
 		writer.Key(Key::CONTENT);
 		if (serializer.IsRegistered(p->Type().HashCode()))
-			serializer.Visit(p->Type().HashCode(), p->Ptr(), Serializer::SerializeContext{&writer, &serializer});
+			serializer.Visit(p->Type().HashCode(), p->Ptr(), ctx);
 		else
 			writer.Key(Key::NOT_SUPPORT);
 	}
@@ -102,7 +103,7 @@ void Serializer::ToWorld(UECS::World* world, string_view json) {
 	ParseResult rst = doc.Parse(json.data());
 
 	if (!rst) {
-		cerr << "ERROR::DeserializerJSON::DeserializeScene:" << endl
+		cerr << "ERROR::Serializer::ToWorld:" << endl
 			<< "\t" << "JSON parse error: "
 			<< GetParseError_En(rst.Code()) << " (" << rst.Offset() << ")" << endl;
 		return;
@@ -114,6 +115,7 @@ void Serializer::ToWorld(UECS::World* world, string_view json) {
 	// 1. use free entry
 	// 2. use new entry
 	EntityIdxMap entityIdxMap;
+	entityIdxMap.reserve(entities.Size());
 
 	const auto& freeEntries = world->entityMngr.GetEntityFreeEntries();
 	size_t leftFreeEntryNum = freeEntries.size();
@@ -135,25 +137,23 @@ void Serializer::ToWorld(UECS::World* world, string_view json) {
 		const auto& components = jsonEntity[Key::COMPONENTS].GetArray();
 
 		std::vector<CmptType> cmptTypes;
-		for (const auto& val_cmpt : components) {
-			const auto& cmpt = val_cmpt.GetObject();
+		cmptTypes.resize(components.Size());
+		for (SizeType i = 0; i < components.Size(); i++) {
+			const auto& cmpt = components[i].GetObject();
 			size_t cmptID = cmpt[Key::TYPE].GetUint64();
-			auto type = CmptType{ cmptID };
-			cmptTypes.push_back(type);
+			cmptTypes[i] = CmptType{ cmptID };
 		}
 
 		auto entity = world->entityMngr.Create(cmptTypes.data(), cmptTypes.size());
 		auto cmpts = world->entityMngr.Components(entity);
+		DeserializeContext ctx{ &entityIdxMap,&(pImpl->deserializer) };
 		for (size_t i = 0; i < cmpts.size(); i++) {
 			if (pImpl->deserializer.IsRegistered(cmpts[i].Type().HashCode())) {
 				pImpl->deserializer.Visit(
 					cmpts[i].Type().HashCode(),
 					cmpts[i].Ptr(),
 					components[static_cast<SizeType>(i)].GetObject()[Key::CONTENT],
-					DeserializeContext{
-						&entityIdxMap,
-						&(pImpl->deserializer)
-					}
+					ctx
 				);
 			}
 		}
