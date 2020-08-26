@@ -111,6 +111,15 @@ World* Serializer::ToWorld(string_view json) {
 	auto entityMngr = doc["entityMngr"].GetObject();
 	auto entities = entityMngr["entities"].GetArray();
 
+	EntityIndexMap entityIndexMap;
+
+	size_t curEntityIndex = 0;
+	for (const auto& val_e : entities) {
+		const auto& e = val_e.GetObject();
+		size_t index = e["index"].GetUint64();
+		entityIndexMap.emplace(index, curEntityIndex++);
+	}
+
 	for (const auto& val_e : entities) {
 		const auto& e = val_e.GetObject();
 		const auto& components = e["components"].GetArray();
@@ -121,7 +130,7 @@ World* Serializer::ToWorld(string_view json) {
 			auto type = CmptType{ cmptID };
 			auto target = pImpl->cmptDeserializer.find(type);
 			if (target != pImpl->cmptDeserializer.end())
-				target->second(world, entity, cmpt);
+				target->second(world, entity, cmpt, entityIndexMap);
 			else {
 				world->entityMngr.Attach(entity, &type, 1);
 				// use binary to init

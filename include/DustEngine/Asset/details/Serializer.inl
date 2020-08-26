@@ -66,6 +66,8 @@ namespace Ubpa::DustEngine::detail {
 	void VectorTraits_Add(Vector& vec, VectorTraits_ValueType<Vector>&& value) {
 		vec.push_back(std::move(value));
 	}
+	template<typename Vector>
+	void VectorTraits_PostProcess(const Vector& vec) noexcept {}
 	template<typename T, typename Alloc>
 	struct VectorTraits<std::vector<T, Alloc>> : VectorTraitsBase {};
 	template<typename T, typename Alloc>
@@ -86,6 +88,11 @@ namespace Ubpa::DustEngine::detail {
 	template<typename T, typename Alloc>
 	void VectorTraits_Add(std::forward_list<T, Alloc>& container, T&& value) {
 		container.push_front(std::move(value));
+	}
+
+	template<typename T, typename Alloc>
+	void VectorTraits_PostProcess(std::forward_list<T, Alloc>& container) {
+		container.reverse();
 	}
 
 	template<typename T, typename Pr, typename Alloc>
@@ -257,7 +264,7 @@ namespace Ubpa::DustEngine::detail {
 	}
 
 	template<typename Value, typename JSONValue>
-	Value GetVar(const JSONValue& val_var) {
+	Value GetVar(const JSONValue& val_var, const Serializer::EntityIndexMap& entityIndexMap) {
 		if constexpr (std::is_floating_point_v<Value>)
 			return static_cast<Value>(val_var.GetDouble());
 		else if constexpr (std::is_integral_v<Value>) {
@@ -291,8 +298,10 @@ namespace Ubpa::DustEngine::detail {
 				return AssetMngr::Instance().LoadAsset<Asset>(path);
 			}
 		}
-		else if constexpr (std::is_same_v<Value, UECS::Entity>)
-			return UECS::Entity::Invalid();
+		else if constexpr (std::is_same_v<Value, UECS::Entity>) {
+			auto index = val_var.GetUint64();
+			return { entityIndexMap.find(index)->second, 0 };
+		}
 		else if constexpr (ArrayTraits<Value>::isArray) {
 			const auto& arr = val_var.GetArray();
 			assert(ArrayTraits<Value>::size == arr.Size());
@@ -300,7 +309,7 @@ namespace Ubpa::DustEngine::detail {
 			for (size_t i = 0; i < ArrayTraits<Value>::size; i++) {
 				ArrayTraits_Set(
 					rst, i,
-					GetVar<ArrayTraits_ValueType<Value>>(arr[static_cast<rapidjson::SizeType>(i)])
+					GetVar<ArrayTraits_ValueType<Value>>(arr[static_cast<rapidjson::SizeType>(i)], entityIndexMap)
 				);
 			}
 			return rst;
@@ -311,9 +320,10 @@ namespace Ubpa::DustEngine::detail {
 			for (size_t i = 0; i < arr.Size(); i++) {
 				VectorTraits_Add(
 					rst,
-					GetVar<VectorTraits_ValueType<Value>>(arr[static_cast<rapidjson::SizeType>(i)])
+					GetVar<VectorTraits_ValueType<Value>>(arr[static_cast<rapidjson::SizeType>(i)], entityIndexMap)
 				);
 			}
+			VectorTraits_PostProcess(rst);
 			return rst;
 		}
 		else if constexpr (MapTraits<Value>::isMap) {
@@ -324,7 +334,7 @@ namespace Ubpa::DustEngine::detail {
 					MapTraits_Emplace(
 						rst,
 						MapTraits_KeyType<Value>{val_key.GetString()},
-						GetVar<MapTraits_MappedType<Value>>(val_mapped)
+						GetVar<MapTraits_MappedType<Value>>(val_mapped, entityIndexMap)
 					);
 				}
 				return rst;
@@ -336,8 +346,8 @@ namespace Ubpa::DustEngine::detail {
 					const auto& pair = val_pair.GetObject();
 					MapTraits_Emplace(
 						rst,
-						GetVar<MapTraits_KeyType<Value>>(pair["key"]),
-						GetVar<MapTraits_MappedType<Value>>(pair["mapped"])
+						GetVar<MapTraits_KeyType<Value>>(pair["key"], entityIndexMap),
+						GetVar<MapTraits_MappedType<Value>>(pair["mapped"], entityIndexMap)
 					);
 				}
 				return rst;
@@ -348,7 +358,7 @@ namespace Ubpa::DustEngine::detail {
 			std::apply([&](auto& ... elements) {
 				const auto& arr = val_var.GetArray();
 				rapidjson::SizeType i = 0;
-				((elements = GetVar<std::remove_reference_t<decltype(elements)>>(arr[i++])),...);
+				((elements = GetVar<std::remove_reference_t<decltype(elements)>>(arr[i++], entityIndexMap)),...);
 			}, rst);
 			return rst;
 		}
@@ -390,11 +400,11 @@ namespace Ubpa::DustEngine {
 	void Serializer::RegisterComponentDeserializeFunction() {
 		RegisterComponentDeserializeFunction(
 			UECS::CmptType::Of<Cmpt>,
-			[](UECS::World* world, UECS::Entity e, const JSONCmpt& cmptJSON) {
+			[](UECS::World* world, UECS::Entity e, const JSONCmpt& cmptJSON, const EntityIndexMap& entityIndexMap) {
 				auto [cmpt] = world->entityMngr.Attach<Cmpt>(e);
-				USRefl::TypeInfo<Cmpt>::ForEachVarOf(*cmpt, [&cmptJSON](auto field, auto& var) {
+				USRefl::TypeInfo<Cmpt>::ForEachVarOf(*cmpt, [&](auto field, auto& var) {
 					const auto& val_var = cmptJSON[field.name.data()];
-					var = detail::GetVar<std::remove_reference_t<decltype(var)>>(val_var);
+					var = detail::GetVar<std::remove_reference_t<decltype(var)>>(val_var, entityIndexMap);
 				}
 			);
 		});

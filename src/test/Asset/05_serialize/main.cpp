@@ -45,6 +45,7 @@ struct A {
 	std::unordered_multimap<std::string, std::string> v_unordered_multimap;
 	std::tuple<size_t, bool, float> v_tuple;
 	std::pair<size_t, bool> v_pair;
+	std::vector<Entity> v_vector_entity;
 };
 
 template<>
@@ -87,6 +88,7 @@ struct Ubpa::USRefl::TypeInfo<A>
 		Field{"v_unordered_multimap", &A::v_unordered_multimap},
 		Field{"v_tuple", &A::v_tuple},
 		Field{"v_pair", &A::v_pair},
+		Field{"v_vector_entity", &A::v_vector_entity},
 	};
 };
 
@@ -100,7 +102,9 @@ int main() {
 
 	World w;
 
-	auto [e, a] = w.entityMngr.Create<A>();
+	auto [e0] = w.entityMngr.Create();
+
+	auto [e1, a] = w.entityMngr.Create<A>();
 	a->v_bool = true;
 	a->v_uint8 = { 8 };
 	a->v_uint16 = { 16 };
@@ -114,7 +118,7 @@ int main() {
 	a->v_float = { 0.1f };
 	a->v_double = { 0.2 };
 	a->v_string = { "hello world" };
-	//a->v_entity = { Entity::Invalid() };
+	a->v_entity = e0;
 	a->v_hlslFile = AssetMngr::Instance().LoadAsset<HLSLFile>("../assets/shaders/Default.hlsl");
 	a->v_array = { 1,2,3 };
 	a->v_array2 = { { {1,2},{3,4},{5,6} } };
@@ -135,7 +139,11 @@ int main() {
 	a->v_tuple = { 0,false,1.5f };
 	a->v_pair = { 0,false };
 
-	w.entityMngr.Create();
+	auto [e2] = w.entityMngr.Create();
+	auto [e3] = w.entityMngr.Create();
+
+	a->v_vector_entity = { e0,e3 };
+
 	auto json = Serializer::Instance().ToJSON(&w);
 	cout << json << endl;
 	auto new_w = Serializer::Instance().ToWorld(json);

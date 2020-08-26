@@ -18,7 +18,8 @@ namespace Ubpa::DustEngine {
 		using JSONWriter = rapidjson::Writer<rapidjson::StringBuffer>;
 		using CmptSerializeFunc = std::function<void(const void*, JSONWriter&)>;
 		using JSONCmpt = rapidjson::GenericObject<true, rapidjson::Value>;
-		using CmptDeserializeFunc = std::function<void(UECS::World*, UECS::Entity, const JSONCmpt&)>;
+		using EntityIndexMap = std::unordered_map<size_t, size_t>;
+		using CmptDeserializeFunc = std::function<void(UECS::World*, UECS::Entity, const JSONCmpt&, const EntityIndexMap&)>;
 
 		void RegisterComponentSerializeFunction(UECS::CmptType, CmptSerializeFunc);
 		void RegisterComponentDeserializeFunction(UECS::CmptType, CmptDeserializeFunc);
