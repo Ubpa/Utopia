@@ -2,6 +2,10 @@
 
 引擎核心使用 [USRefl](https://github.com/Ubpa/USRefl) 来进行序列化，用户亦可自定义特定组件的序列化方法
 
+## TODO
+
+- [ ] 自定义指针操作
+
 ## 1. Serialize
 
 首先支持基本类型
