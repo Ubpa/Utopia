@@ -3,8 +3,6 @@
 #include <DustEngine/_deps/imgui/imgui_impl_dx12.h>
 
 #include "../common/d3dApp.h"
-#include "../common/MathHelper.h"
-#include "../common/GeometryGenerator.h"
 
 #include <DustEngine/Render/DX12/ShaderCBMngrDX12.h>
 #include <DustEngine/Render/DX12/MeshLayoutMngr.h>
@@ -504,7 +502,7 @@ void ImGUIApp::OnMouseMove(WPARAM btnState, int x, int y)
 		mPhi -= dx;
 
 		// Restrict the angle mPhi.
-		mTheta = MathHelper::Clamp(mTheta, 0.1f, MathHelper::Pi - 0.1f);
+		mTheta = std::clamp(mTheta, 0.1f, Ubpa::PI<float> -0.1f);
     }
     else if((btnState & MK_RBUTTON) != 0)
     {
@@ -516,7 +514,7 @@ void ImGUIApp::OnMouseMove(WPARAM btnState, int x, int y)
         mRadius += dx - dy;
 
         // Restrict the radius.
-        mRadius = MathHelper::Clamp(mRadius, 5.0f, 150.0f);
+        mRadius = std::clamp(mRadius, 5.0f, 150.0f);
     }
 
     mLastMousePos.x = x;

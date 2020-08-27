@@ -1,6 +1,4 @@
 #include "../common/d3dApp.h"
-#include "../common/MathHelper.h"
-#include "../common/GeometryGenerator.h"
 
 #include <DustEngine/Asset/AssetMngr.h>
 
@@ -268,7 +266,7 @@ void DeferApp::OnResize()
     D3DApp::OnResize();
 
     // The window resized, so update the aspect ratio and recompute the projection matrix
-	mProj = Ubpa::transformf::perspective(0.25f * MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f, 0.f);
+	mProj = Ubpa::transformf::perspective(0.25f * Ubpa::PI<float>, AspectRatio(), 1.0f, 1000.0f, 0.f);
 
 	auto clearFGRsrcMngr = [](std::shared_ptr<Ubpa::UDX12::FG::RsrcMngr> rsrcMngr) {
 		rsrcMngr->Clear();
@@ -424,7 +422,7 @@ void DeferApp::OnMouseMove(WPARAM btnState, int x, int y)
         mPhi += dx;
 
         // Restrict the angle mPhi.
-        mTheta = MathHelper::Clamp(mTheta, 0.1f, MathHelper::Pi - 0.1f);
+        mTheta = std::clamp(mTheta, 0.1f, Ubpa::PI<float> -0.1f);
     }
     else if((btnState & MK_RBUTTON) != 0)
     {
@@ -436,7 +434,7 @@ void DeferApp::OnMouseMove(WPARAM btnState, int x, int y)
         mRadius += dx - dy;
 
         // Restrict the radius.
-        mRadius = MathHelper::Clamp(mRadius, 1.0f, 150.0f);
+        mRadius = std::clamp(mRadius, 5.0f, 150.0f);
     }
 
     mLastMousePos.x = x;
