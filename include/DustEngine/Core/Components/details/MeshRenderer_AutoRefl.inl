@@ -11,7 +11,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::DustEngine::MeshRenderer>
     static constexpr AttrList attrs = {};
 
     static constexpr FieldList fields = {
-        Field{"material", &Ubpa::DustEngine::MeshRenderer::material},
+        Field{"materials", &Ubpa::DustEngine::MeshRenderer::materials},
     };
 };
 

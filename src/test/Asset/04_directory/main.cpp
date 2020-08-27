@@ -11,9 +11,14 @@ int main() {
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
 
-	AssetMngr::Instance().ImportAssetRecursively("../assets");
-	auto dir = AssetMngr::Instance().LoadAsset("../assets");
+	AssetMngr::Instance().ImportAssetRecursively(L"..\\assets");
+	auto dir = AssetMngr::Instance().LoadAsset(L"..\\assets\\shaders");
 	std::cout << AssetMngr::Instance().GetAssetPath(dir) << std::endl;
+
+	auto guids = AssetMngr::Instance().FindAssets(std::wregex{ LR"(.*\.shader)" });
+	for (const auto& guid : guids) {
+		std::cout << guid.str() << " : " << AssetMngr::Instance().GUIDToAssetPath(guid) << std::endl;
+	}
 
 	return 0;
 }

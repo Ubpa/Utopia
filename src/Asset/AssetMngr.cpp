@@ -91,6 +91,15 @@ bool AssetMngr::Contains(const void* ptr) const {
 	return pImpl->asset2path.find(ptr) != pImpl->asset2path.end();
 }
 
+std::vector<xg::Guid> AssetMngr::FindAssets(const std::wregex& matchRegex) const {
+	std::vector<xg::Guid> rst;
+	for (const auto& [path, guid] : pImpl->path2guid) {
+		if (std::regex_match(path.c_str(), matchRegex))
+			rst.push_back(guid);
+	}
+	return rst;
+}
+
 const std::filesystem::path& AssetMngr::GetAssetPath(const void* ptr) const {
 	static const std::filesystem::path ERROR;
 	auto target = pImpl->asset2path.find(ptr);

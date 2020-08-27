@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <filesystem>
 #include <vector>
+#include <regex>
 
 namespace Ubpa::DustEngine {
 	// ref: https://docs.unity3d.com/ScriptReference/AssetDatabase.html
@@ -30,6 +31,8 @@ namespace Ubpa::DustEngine {
 		bool CreateAsset(void* ptr, const std::filesystem::path& path);
 
 		bool Contains(const void* ptr) const;
+
+		std::vector<xg::Guid> FindAssets(const std::wregex& matchRegex) const;
 
 		// if ptr is not an asset, return empty path
 		const std::filesystem::path& GetAssetPath(const void* ptr) const;

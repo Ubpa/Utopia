@@ -6,7 +6,7 @@
 
 namespace Ubpa::DustEngine {
 	struct MeshRenderer {
-		std::vector<const Material*> material;
+		std::vector<const Material*> materials;
 	};
 }
 

@@ -11,6 +11,7 @@
 #include <DustEngine/Core/Image.h>
 #include <DustEngine/Core/HLSLFile.h>
 #include <DustEngine/Core/Shader.h>
+#include <DustEngine/Core/ShaderMngr.h>
 #include <DustEngine/Core/Mesh.h>
 #include <DustEngine/Core/Components/Camera.h>
 #include <DustEngine/Core/Components/MeshFilter.h>
@@ -71,6 +72,7 @@ private:
 
 	void BuildWorld();
 	void LoadTextures();
+	void BuildShaders();
     void BuildMaterials();
 
 private:
@@ -291,14 +293,6 @@ bool MyDX12App::Initialize() {
 	if (!InitDirect3D())
 		return false;
 
-	Ubpa::DustEngine::IPipeline::InitDesc initDesc;
-	initDesc.device = uDevice.Get();
-	initDesc.backBufferFormat = GetBackBufferFormat();
-	initDesc.depthStencilFormat = GetDepthStencilBufferFormat();
-	initDesc.cmdQueue = uCmdQueue.Get();
-	initDesc.numFrame = NumFrameResources;
-	pipeline = std::make_unique<Ubpa::DustEngine::StdPipeline>(initDesc);
-
 	Ubpa::DustEngine::MeshLayoutMngr::Instance().Init();
 
 	// Setup Dear ImGui context
@@ -320,15 +314,26 @@ bool MyDX12App::Initialize() {
 		imguiAlloc.GetCpuHandle(),
 		imguiAlloc.GetGpuHandle());
 
-	// Do the initial resize code.
-	OnResize();
-
 	BuildWorld();
+
+	Ubpa::DustEngine::AssetMngr::Instance().ImportAssetRecursively(LR"(..\\assets)");
 
 	Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload().Begin();
 	LoadTextures();
+	BuildShaders();
 	BuildMaterials();
 	Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload().End(uCmdQueue.Get());
+
+	Ubpa::DustEngine::IPipeline::InitDesc initDesc;
+	initDesc.device = uDevice.Get();
+	initDesc.backBufferFormat = GetBackBufferFormat();
+	initDesc.depthStencilFormat = GetDepthStencilBufferFormat();
+	initDesc.cmdQueue = uCmdQueue.Get();
+	initDesc.numFrame = NumFrameResources;
+	pipeline = std::make_unique<Ubpa::DustEngine::StdPipeline>(initDesc);
+
+	// Do the initial resize code.
+	OnResize();
 
     // Wait until initialization is complete.
     FlushCommandQueue();
@@ -339,9 +344,9 @@ bool MyDX12App::Initialize() {
 void MyDX12App::OnResize()
 {
     DX12App::OnResize();
-
-	if (pipeline)
-		pipeline->Resize(mClientWidth, mClientHeight, GetScreenViewport(), GetScissorRect(), GetDepthStencilBuffer());
+	
+	assert(pipeline);
+	pipeline->Resize(mClientWidth, mClientHeight, GetScreenViewport(), GetScissorRect(), GetDepthStencilBuffer());
 }
 
 void MyDX12App::Update() {
@@ -585,21 +590,23 @@ void MyDX12App::LoadTextures() {
 	);
 }
 
-void MyDX12App::BuildMaterials() {
-	std::filesystem::path matPath = "../assets/materials/iron.mat";
-	auto material = new Ubpa::DustEngine::Material;
-	material->shader = Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Shader>("../assets/shaders/geometry.shader");
-	material->texture2Ds.emplace("gAlbedoMap", albedoTex2D);
-	material->texture2Ds.emplace("gRoughnessMap", roughnessTex2D);
-	material->texture2Ds.emplace("gMetalnessMap", metalnessTex2D);
-
-	if (!Ubpa::DustEngine::AssetMngr::Instance().CreateAsset(material, matPath)) {
-		delete material;
-		material = Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Material>(matPath);
+void MyDX12App::BuildShaders() {
+	auto& assetMngr = Ubpa::DustEngine::AssetMngr::Instance();
+	auto shaderGUIDs = assetMngr.FindAssets(std::wregex{ LR"(.*\.shader)" });
+	for (const auto& guid : shaderGUIDs) {
+		const auto& path = assetMngr.GUIDToAssetPath(guid);
+		auto shader = assetMngr.LoadAsset<Ubpa::DustEngine::Shader>(path);
+		Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterShader(shader);
+		Ubpa::DustEngine::ShaderMngr::Instance().Register(shader);
 	}
+}
+
+void MyDX12App::BuildMaterials() {
+	auto material = Ubpa::DustEngine::AssetMngr::Instance()
+		.LoadAsset<Ubpa::DustEngine::Material>(L"..\\assets\\materials\\iron.mat");
 	Ubpa::UECS::ArchetypeFilter filter;
 	filter.all = { Ubpa::UECS::CmptAccessType::Of<Ubpa::DustEngine::MeshRenderer> };
 	auto meshRenderers = world.entityMngr.GetCmptArray<Ubpa::DustEngine::MeshRenderer>(filter);
 	for (auto meshRenderer : meshRenderers)
-		meshRenderer->material.push_back(material);
+		meshRenderer->materials.push_back(material);
 }

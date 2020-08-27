@@ -655,5 +655,5 @@ void ImGUIApp::BuildMaterials()
 	filter.all = { Ubpa::UECS::CmptAccessType::Of<Ubpa::DustEngine::MeshRenderer> };
 	auto meshRenderers = world.entityMngr.GetCmptArray<Ubpa::DustEngine::MeshRenderer>(filter);
 	for (auto meshRenderer : meshRenderers)
-		meshRenderer->material.push_back(material);
+		meshRenderer->materials.push_back(material);
 }
