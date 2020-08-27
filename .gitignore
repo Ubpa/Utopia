@@ -39,9 +39,8 @@ _deps/
 *.ilk
 *.pdb
 
-*.meta
-*.shader
-*.tex2d
-*.mat
+assets/materials/
+assets/models/
+assets/textures/
 
 imgui.ini
