@@ -1,8 +1,4 @@
-#include <DustEngine/App/D3DApp/D3DApp.h>
-
-#include <DustEngine/_deps/imgui/imgui.h>
-#include <DustEngine/_deps/imgui/imgui_impl_win32.h>
-#include <DustEngine/_deps/imgui/imgui_impl_dx12.h>
+#include <DustEngine/App/DX12App/DX12App.h>
 
 #include <DustEngine/Render/DX12/RsrcMngrDX12.h>
 #include <DustEngine/Render/DX12/ShaderCBMngrDX12.h>
@@ -10,8 +6,6 @@
 #include <DustEngine/Render/DX12/StdPipeline.h>
 
 #include <DustEngine/Asset/AssetMngr.h>
-
-#include <DustEngine/Transform/Transform.h>
 
 #include <DustEngine/Core/Texture2D.h>
 #include <DustEngine/Core/Image.h>
@@ -24,17 +18,13 @@
 #include <DustEngine/Core/Systems/CameraSystem.h>
 #include <DustEngine/Core/GameTimer.h>
 
-#include <UDX12/UploadBuffer.h>
+#include <DustEngine/Transform/Transform.h>
 
-#include <UGM/UGM.h>
-
-#include <windowsx.h>
+#include <DustEngine/_deps/imgui/imgui.h>
+#include <DustEngine/_deps/imgui/imgui_impl_win32.h>
+#include <DustEngine/_deps/imgui/imgui_impl_dx12.h>
 
 using Microsoft::WRL::ComPtr;
-using namespace DirectX;
-using namespace DirectX::PackedVector;
-
-const int gNumFrameResources = 3;
 
 struct AnimateMeshSystem : Ubpa::UECS::System {
 	using Ubpa::UECS::System::System;
@@ -59,11 +49,10 @@ struct AnimateMeshSystem : Ubpa::UECS::System {
 	}
 };
 
-class MyD3DApp : public Ubpa::DustEngine::D3DApp
-{
+class MyDX12App : public Ubpa::DustEngine::DX12App {
 public:
-    MyD3DApp(HINSTANCE hInstance);
-    ~MyD3DApp();
+    MyDX12App(HINSTANCE hInstance);
+    ~MyDX12App();
 
     bool Initialize();
 
@@ -78,7 +67,6 @@ private:
 
 	virtual LRESULT MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) override;
 
-    void OnKeyboardInput();
 	void UpdateCamera();
 
 	void BuildWorld();
@@ -86,8 +74,8 @@ private:
     void BuildMaterials();
 
 private:
-	float mTheta = 0.4f * XM_PI;
-	float mPhi = 1.3f * XM_PI;
+	float mTheta = 0.4f * Ubpa::PI<float>;
+	float mPhi = 1.3f * Ubpa::PI<float>;
 	float mRadius = 5.0f;
 
     POINT mLastMousePos;
@@ -102,8 +90,7 @@ private:
 	std::unique_ptr<Ubpa::DustEngine::IPipeline> pipeline;
 	std::unique_ptr<Ubpa::DustEngine::Mesh> dynamicMesh;
 
-	std::unique_ptr<Ubpa::UDX12::FrameResourceMngr> frameRsrcMngr;
-
+	// size : 1
 	Ubpa::UDX12::DescriptorHeapAllocation imguiAlloc;
 
 	bool show_demo_window = true;
@@ -113,7 +100,7 @@ private:
 // Forward declare message handler from imgui_impl_win32.cpp
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-LRESULT MyD3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+LRESULT MyDX12App::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wParam, lParam))
 		return true;
 	// - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application.
@@ -260,40 +247,32 @@ LRESULT MyD3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	return DefWindowProc(hwnd, msg, wParam, lParam);
 }
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
-    PSTR cmdLine, int showCmd)
-{
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd) {
     // Enable run-time memory check for debug builds.
 #if defined(DEBUG) | defined(_DEBUG)
     _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
 
-    try
-    {
-        MyD3DApp theApp(hInstance);
+    try {
+        MyDX12App theApp(hInstance);
         if(!theApp.Initialize())
-            return 0;
+            return 1;
 
         int rst = theApp.Run();
-		Ubpa::DustEngine::RsrcMngrDX12::Instance().Clear();
 		return rst;
     }
-    catch(Ubpa::UDX12::Util::Exception& e)
-    {
+    catch(Ubpa::UDX12::Util::Exception& e) {
 		MessageBox(nullptr, e.ToString().c_str(), L"HR Failed", MB_OK);
-		Ubpa::DustEngine::RsrcMngrDX12::Instance().Clear();
-        return 0;
+        return 1;
     }
-
 }
 
-MyD3DApp::MyD3DApp(HINSTANCE hInstance)
-	: D3DApp(hInstance)
+MyDX12App::MyDX12App(HINSTANCE hInstance)
+	: DX12App(hInstance)
 {
 }
 
-MyD3DApp::~MyD3DApp()
-{
+MyDX12App::~MyDX12App() {
     if(!uDevice.IsNull())
         FlushCommandQueue();
 
@@ -301,37 +280,24 @@ MyD3DApp::~MyD3DApp()
 	ImGui_ImplWin32_Shutdown();
 	ImGui::DestroyContext();
 
-	Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(imguiAlloc));
+	if(!imguiAlloc.IsNull())
+		Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(imguiAlloc));
 }
 
-bool MyD3DApp::Initialize()
-{
+bool MyDX12App::Initialize() {
 	if (!InitMainWindow())
 		return false;
 
 	if (!InitDirect3D())
 		return false;
 
-	Ubpa::DustEngine::RsrcMngrDX12::Instance().Init(uDevice.raw.Get());
-
-	Ubpa::UDX12::DescriptorHeapMngr::Instance().Init(uDevice.raw.Get(), 1024, 1024, 1024, 1024, 1024);
-
 	Ubpa::DustEngine::IPipeline::InitDesc initDesc;
-	initDesc.device = uDevice.raw.Get();
+	initDesc.device = uDevice.Get();
 	initDesc.backBufferFormat = GetBackBufferFormat();
 	initDesc.depthStencilFormat = GetDepthStencilBufferFormat();
-	initDesc.cmdQueue = uCmdQueue.raw.Get();
-	initDesc.numFrame = gNumFrameResources;
+	initDesc.cmdQueue = uCmdQueue.Get();
+	initDesc.numFrame = NumFrameResources;
 	pipeline = std::make_unique<Ubpa::DustEngine::StdPipeline>(initDesc);
-
-	frameRsrcMngr = std::make_unique<Ubpa::UDX12::FrameResourceMngr>(gNumFrameResources, uDevice.raw.Get());
-	for (const auto& fr : frameRsrcMngr->GetFrameResources()) {
-		Microsoft::WRL::ComPtr<ID3D12CommandAllocator> allocator;
-		ThrowIfFailed(initDesc.device->CreateCommandAllocator(
-			D3D12_COMMAND_LIST_TYPE_DIRECT,
-			IID_PPV_ARGS(&allocator)));
-		fr->RegisterResource("CommandAllocator", allocator);
-	}
 
 	Ubpa::DustEngine::MeshLayoutMngr::Instance().Init();
 
@@ -349,7 +315,7 @@ bool MyD3DApp::Initialize()
 	// Setup Platform/Renderer bindings
 	ImGui_ImplWin32_Init(MainWnd());
 	imguiAlloc = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(1);
-	ImGui_ImplDX12_Init(uDevice.raw.Get(), gNumFrameResources,
+	ImGui_ImplDX12_Init(uDevice.Get(), NumFrameResources,
 		DXGI_FORMAT_R8G8B8A8_UNORM, Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap(),
 		imguiAlloc.GetCpuHandle(),
 		imguiAlloc.GetGpuHandle());
@@ -362,7 +328,7 @@ bool MyD3DApp::Initialize()
 	Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload().Begin();
 	LoadTextures();
 	BuildMaterials();
-	Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload().End(uCmdQueue.raw.Get());
+	Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload().End(uCmdQueue.Get());
 
     // Wait until initialization is complete.
     FlushCommandQueue();
@@ -370,28 +336,26 @@ bool MyD3DApp::Initialize()
     return true;
 }
  
-void MyD3DApp::OnResize()
+void MyDX12App::OnResize()
 {
-    D3DApp::OnResize();
+    DX12App::OnResize();
 
 	if (pipeline)
 		pipeline->Resize(mClientWidth, mClientHeight, GetScreenViewport(), GetScissorRect(), GetDepthStencilBuffer());
 }
 
-void MyD3DApp::Update()
-{
-    OnKeyboardInput();
+void MyDX12App::Update() {
 	UpdateCamera();
 
 	world.Update();
 
 	// update mesh, texture ...
-	frameRsrcMngr->BeginFrame();
+	GetFrameResourceMngr()->BeginFrame();
 
-	auto cmdAlloc = frameRsrcMngr->GetCurrentFrameResource()->GetResource<Microsoft::WRL::ComPtr<ID3D12CommandAllocator>>("CommandAllocator");
+	auto cmdAlloc = GetCurFrameCommandAllocator();
 	cmdAlloc->Reset();
 
-	ThrowIfFailed(uGCmdList->Reset(cmdAlloc.Get(), nullptr));
+	ThrowIfFailed(uGCmdList->Reset(cmdAlloc, nullptr));
 	auto& upload = Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload();
 	auto& deleteBatch = Ubpa::DustEngine::RsrcMngrDX12::Instance().GetDeleteBatch();
 
@@ -404,22 +368,22 @@ void MyD3DApp::Update()
 		Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterMesh(
 			upload,
 			deleteBatch,
-			uGCmdList.raw.Get(),
+			uGCmdList.Get(),
 			meshFilter->mesh
 		);
 	}
 
 	// commit upload, delete ...
-	upload.End(uCmdQueue.raw.Get());
-	deleteBatch.Commit(uDevice.raw.Get(), uCmdQueue.raw.Get());
+	upload.End(uCmdQueue.Get());
+	deleteBatch.Commit(uDevice.Get(), uCmdQueue.Get());
 	uGCmdList->Close();
-	uCmdQueue.Execute(uGCmdList.raw.Get());
-	frameRsrcMngr->EndFrame(uCmdQueue.raw.Get());
+	uCmdQueue.Execute(uGCmdList.Get());
+	GetFrameResourceMngr()->EndFrame(uCmdQueue.Get());
 
 	pipeline->UpdateRenderContext(world);
 }
 
-void MyD3DApp::Draw()
+void MyDX12App::Draw()
 {
 	// Start the Dear ImGui frame
 	ImGui_ImplDX12_NewFrame();
@@ -472,7 +436,7 @@ void MyD3DApp::Draw()
 	pipeline->EndFrame();
 }
 
-void MyD3DApp::OnMouseDown(WPARAM btnState, int x, int y)
+void MyDX12App::OnMouseDown(WPARAM btnState, int x, int y)
 {
     mLastMousePos.x = x;
     mLastMousePos.y = y;
@@ -480,18 +444,18 @@ void MyD3DApp::OnMouseDown(WPARAM btnState, int x, int y)
     SetCapture(MainWnd());
 }
 
-void MyD3DApp::OnMouseUp(WPARAM btnState, int x, int y)
+void MyDX12App::OnMouseUp(WPARAM btnState, int x, int y)
 {
     ReleaseCapture();
 }
 
-void MyD3DApp::OnMouseMove(WPARAM btnState, int x, int y)
+void MyDX12App::OnMouseMove(WPARAM btnState, int x, int y)
 {
     if((btnState & MK_LBUTTON) != 0)
     {
         // Make each pixel correspond to a quarter of a degree.
-        float dx = XMConvertToRadians(0.25f*static_cast<float>(x - mLastMousePos.x));
-        float dy = XMConvertToRadians(0.25f*static_cast<float>(y - mLastMousePos.y));
+        float dx = Ubpa::to_radian(0.25f*static_cast<float>(x - mLastMousePos.x));
+        float dy = Ubpa::to_radian(0.25f*static_cast<float>(y - mLastMousePos.y));
 
 		// Update angles based on input to orbit camera around box.
 		mTheta -= dy;
@@ -516,12 +480,8 @@ void MyD3DApp::OnMouseMove(WPARAM btnState, int x, int y)
     mLastMousePos.x = x;
     mLastMousePos.y = y;
 }
-
-void MyD3DApp::OnKeyboardInput()
-{
-}
  
-void MyD3DApp::UpdateCamera()
+void MyDX12App::UpdateCamera()
 {
 	Ubpa::vecf3 eye = {
 		mRadius * sinf(mTheta) * sinf(mPhi),
@@ -539,7 +499,7 @@ void MyD3DApp::UpdateCamera()
 	world.entityMngr.Get<Ubpa::DustEngine::Rotation>(cam)->value = c2w.decompose_quatenion();
 }
 
-void MyD3DApp::BuildWorld() {
+void MyDX12App::BuildWorld() {
 	world.systemMngr.Register<
 		Ubpa::DustEngine::CameraSystem,
 		Ubpa::DustEngine::LocalToParentSystem,
@@ -579,7 +539,7 @@ void MyD3DApp::BuildWorld() {
 	std::get<Ubpa::DustEngine::MeshFilter*>(dynamicCube)->mesh = dynamicMesh.get();
 }
 
-void MyD3DApp::LoadTextures() {
+void MyDX12App::LoadTextures() {
 	auto albedoImg = Ubpa::DustEngine::AssetMngr::Instance()
 		.LoadAsset<Ubpa::DustEngine::Image>("../assets/textures/iron/albedo.png");
 	auto roughnessImg = Ubpa::DustEngine::AssetMngr::Instance()
@@ -625,7 +585,7 @@ void MyD3DApp::LoadTextures() {
 	);
 }
 
-void MyD3DApp::BuildMaterials() {
+void MyDX12App::BuildMaterials() {
 	std::filesystem::path matPath = "../assets/materials/iron.mat";
 	auto material = new Ubpa::DustEngine::Material;
 	material->shader = Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Shader>("../assets/shaders/geometry.shader");
