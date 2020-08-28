@@ -15,8 +15,13 @@ int main() {
 	auto dir = AssetMngr::Instance().LoadAsset(L"..\\assets\\shaders");
 	std::cout << AssetMngr::Instance().GetAssetPath(dir) << std::endl;
 
-	auto guids = AssetMngr::Instance().FindAssets(std::wregex{ LR"(.*\.shader)" });
-	for (const auto& guid : guids) {
+	auto shaderGUIDs = AssetMngr::Instance().FindAssets(std::wregex{ LR"(.*\.shader)" });
+	for (const auto& guid : shaderGUIDs) {
+		std::cout << guid.str() << " : " << AssetMngr::Instance().GUIDToAssetPath(guid) << std::endl;
+	}
+
+	auto imgGUIDs = AssetMngr::Instance().FindAssets(std::wregex{ LR"(.*\.(png|jpg|bmp))" });
+	for (const auto& guid : imgGUIDs) {
 		std::cout << guid.str() << " : " << AssetMngr::Instance().GUIDToAssetPath(guid) << std::endl;
 	}
 

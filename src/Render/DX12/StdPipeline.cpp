@@ -315,22 +315,21 @@ void StdPipeline::Impl::UpdateRenderContext(const UECS::World& world) {
 		Ubpa::UECS::CmptAccessType::Of<MeshFilter>,
 		Ubpa::UECS::CmptAccessType::Of<MeshRenderer>
 	};
-	auto objectEntities = world.entityMngr.GetEntityArray(objectFilter);
-	for (auto e : objectEntities) {
-		auto meshFilter = world.entityMngr.Get<MeshFilter>(e);
-		auto meshRenderer = world.entityMngr.Get<MeshRenderer>(e);
-		auto l2w = world.entityMngr.Get<LocalToWorld>(e);
 
-		Impl::RenderContext::Object object;
-		object.mesh = meshFilter->mesh;
-		object.l2w = l2w ? l2w->value.as<valf<16>>() : transformf::eye().as<valf<16>>();
+	const_cast<UECS::World&>(world).RunEntityJob(
+		[&](const MeshFilter* meshFilter, const MeshRenderer* meshRenderer,const LocalToWorld* l2w) {
+			Impl::RenderContext::Object object;
+			object.mesh = meshFilter->mesh;
+			object.l2w = l2w ? l2w->value.as<valf<16>>() : transformf::eye().as<valf<16>>();
 
-		for (size_t i = 0; i < meshRenderer->materials.size(); i++) {
-			object.submeshIdx = i;
-			auto mat = meshRenderer->materials[i];
-			renderContext.objectMap[mat->shader][mat].push_back(object);
-		}
-	}
+			for (size_t i = 0; i < meshRenderer->materials.size(); i++) {
+				object.submeshIdx = i;
+				auto mat = meshRenderer->materials[i];
+				renderContext.objectMap[mat->shader][mat].push_back(object);
+			}
+		},
+		false
+	);
 
 	Ubpa::UECS::ArchetypeFilter cameraFilter;
 	cameraFilter.all = {

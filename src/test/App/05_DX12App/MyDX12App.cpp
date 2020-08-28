@@ -84,10 +84,6 @@ private:
 
     POINT mLastMousePos;
 
-	Ubpa::DustEngine::Texture2D* albedoTex2D;
-	Ubpa::DustEngine::Texture2D* roughnessTex2D;
-	Ubpa::DustEngine::Texture2D* metalnessTex2D;
-
 	Ubpa::UECS::World world;
 	Ubpa::UECS::Entity cam{ Ubpa::UECS::Entity::Invalid() };
 
@@ -340,20 +336,17 @@ void MyDX12App::Update() {
 	ThrowIfFailed(uGCmdList->Reset(cmdAlloc, nullptr));
 	auto& upload = Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload();
 	auto& deleteBatch = Ubpa::DustEngine::RsrcMngrDX12::Instance().GetDeleteBatch();
+	upload.Begin();
 
 	// update mesh
-	Ubpa::UECS::ArchetypeFilter filter;
-	filter.all = { Ubpa::UECS::CmptAccessType::Of<Ubpa::DustEngine::MeshFilter> };
-	auto meshFilters = world.entityMngr.GetCmptArray<Ubpa::DustEngine::MeshFilter>(filter);
-	upload.Begin();
-	for (auto meshFilter : meshFilters) {
+	world.RunEntityJob([&](const Ubpa::DustEngine::MeshFilter* meshFilter) {
 		Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterMesh(
 			upload,
 			deleteBatch,
 			uGCmdList.Get(),
 			meshFilter->mesh
 		);
-	}
+	}, false);
 
 	// commit upload, delete ...
 	upload.End(uCmdQueue.Get());
@@ -520,49 +513,14 @@ void MyDX12App::BuildWorld() {
 }
 
 void MyDX12App::LoadTextures() {
-	auto albedoImg = Ubpa::DustEngine::AssetMngr::Instance()
-		.LoadAsset<Ubpa::DustEngine::Image>("../assets/textures/iron/albedo.png");
-	auto roughnessImg = Ubpa::DustEngine::AssetMngr::Instance()
-		.LoadAsset<Ubpa::DustEngine::Image>("../assets/textures/iron/roughness.png");
-	auto metalnessImg = Ubpa::DustEngine::AssetMngr::Instance()
-		.LoadAsset<Ubpa::DustEngine::Image>("../assets/textures/iron/metalness.png");
-
-	albedoTex2D = new Ubpa::DustEngine::Texture2D;
-	albedoTex2D->image = albedoImg;
-	if (!Ubpa::DustEngine::AssetMngr::Instance().CreateAsset(albedoTex2D, "../assets/textures/iron/albedo.tex2d")) {
-		delete albedoTex2D;
-		albedoTex2D = Ubpa::DustEngine::AssetMngr::Instance()
-			.LoadAsset<Ubpa::DustEngine::Texture2D>("../assets/textures/iron/albedo.tex2d");
+	auto tex2dGUIDs = Ubpa::DustEngine::AssetMngr::Instance().FindAssets(std::wregex{ LR"(.*\.tex2d)" });
+	for (const auto& guid : tex2dGUIDs) {
+		const auto& path = Ubpa::DustEngine::AssetMngr::Instance().GUIDToAssetPath(guid);
+		Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
+			Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+			Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Texture2D>(path)
+		);
 	}
-
-	roughnessTex2D = new Ubpa::DustEngine::Texture2D;
-	roughnessTex2D->image = roughnessImg;
-	if (!Ubpa::DustEngine::AssetMngr::Instance().CreateAsset(roughnessTex2D, "../assets/textures/iron/roughness.tex2d")) {
-		delete roughnessTex2D;
-		roughnessTex2D = Ubpa::DustEngine::AssetMngr::Instance()
-			.LoadAsset<Ubpa::DustEngine::Texture2D>("../assets/textures/iron/roughness.tex2d");
-	}
-
-	metalnessTex2D = new Ubpa::DustEngine::Texture2D;
-	metalnessTex2D->image = metalnessImg;
-	if (!Ubpa::DustEngine::AssetMngr::Instance().CreateAsset(metalnessTex2D, "../assets/textures/iron/metalness.tex2d")) {
-		delete metalnessTex2D;
-		metalnessTex2D = Ubpa::DustEngine::AssetMngr::Instance()
-			.LoadAsset<Ubpa::DustEngine::Texture2D>("../assets/textures/iron/metalness.tex2d");
-	}
-
-	Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
-		Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
-		albedoTex2D
-	);
-	Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
-		Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
-		roughnessTex2D
-	);
-	Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
-		Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
-		metalnessTex2D
-	);
 }
 
 void MyDX12App::BuildShaders() {
@@ -579,9 +537,7 @@ void MyDX12App::BuildShaders() {
 void MyDX12App::BuildMaterials() {
 	auto material = Ubpa::DustEngine::AssetMngr::Instance()
 		.LoadAsset<Ubpa::DustEngine::Material>(L"..\\assets\\materials\\iron.mat");
-	Ubpa::UECS::ArchetypeFilter filter;
-	filter.all = { Ubpa::UECS::CmptAccessType::Of<Ubpa::DustEngine::MeshRenderer> };
-	auto meshRenderers = world.entityMngr.GetCmptArray<Ubpa::DustEngine::MeshRenderer>(filter);
-	for (auto meshRenderer : meshRenderers)
+	world.RunEntityJob([=](Ubpa::DustEngine::MeshRenderer* meshRenderer) {
 		meshRenderer->materials.push_back(material);
+	});
 }

@@ -19,7 +19,8 @@ namespace Ubpa::DustEngine {
 			std::string name,
 			UECS::ArchetypeFilter,
 			UECS::CmptLocator,
-			UECS::SingletonLocator
+			UECS::SingletonLocator,
+			bool isParallel
 		);
 
 		// World, SingletonsView, ChunkView
@@ -28,7 +29,8 @@ namespace Ubpa::DustEngine {
 			sol::function systemFunc,
 			std::string name,
 			UECS::ArchetypeFilter,
-			UECS::SingletonLocator
+			UECS::SingletonLocator,
+			bool isParallel
 		);
 
 		// World, SingletonsView

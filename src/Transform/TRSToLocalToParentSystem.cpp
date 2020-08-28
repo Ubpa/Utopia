@@ -60,5 +60,5 @@ void TRSToLocalToParentSystem::OnUpdate(UECS::Schedule& schedule) {
 				chunkL2P[i].value = transformf{ chunkT[i].value, chunkR[i].value, scalef3{chunkS[i].value} };
 			}
 		}
-		}, SystemFuncName, filter);
+	}, SystemFuncName, filter);
 }

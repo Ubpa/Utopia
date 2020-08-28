@@ -40,6 +40,7 @@ void LocalToParentSystem::OnUpdate(UECS::Schedule& schedule) {
 				ChildLocalToWorld(l2w->value, child);
 		},
 		SystemFuncName,
+		true,
 		rootFilter
 	);
 	schedule.Order(TRSToLocalToParentSystem::SystemFuncName, SystemFuncName);

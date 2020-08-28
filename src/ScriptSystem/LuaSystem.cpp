@@ -15,7 +15,8 @@ const Ubpa::UECS::SystemFunc* LuaSystem::RegisterEntityJob(
 	std::string name,
 	UECS::ArchetypeFilter filter,
 	UECS::CmptLocator cmptLocator,
-	UECS::SingletonLocator singletonLocator
+	UECS::SingletonLocator singletonLocator,
+	bool isParallel
 ) {
 	assert(!cmptLocator.CmptAccessTypes().empty());
 	auto bytes = systemFunc.dump();
@@ -58,7 +59,7 @@ const Ubpa::UECS::SystemFunc* LuaSystem::RegisterEntityJob(
 			} while (++i < chunk.EntityNum());
 		}
 		luaCtx->Recycle(L);
-	}, std::move(name), std::move(filter), std::move(singletonLocator));
+	}, std::move(name), std::move(filter), isParallel, std::move(singletonLocator));
 	return sysfunc;
 }
 
@@ -67,7 +68,8 @@ const Ubpa::UECS::SystemFunc* LuaSystem::RegisterChunkJob(
 	sol::function systemFunc,
 	std::string name,
 	UECS::ArchetypeFilter filter,
-	UECS::SingletonLocator singletonLocator
+	UECS::SingletonLocator singletonLocator,
+	bool isParallel
 ) {
 	auto bytes = systemFunc.dump();
 	auto sysfunc = s->RegisterChunkJob(
@@ -81,7 +83,7 @@ const Ubpa::UECS::SystemFunc* LuaSystem::RegisterChunkJob(
 			}
 			luaCtx->Recycle(L);
 		},
-		std::move(name), std::move(filter), std::move(singletonLocator)
+		std::move(name), std::move(filter), isParallel, std::move(singletonLocator)
 	);
 	return sysfunc;
 }

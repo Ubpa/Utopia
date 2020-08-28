@@ -1,6 +1,7 @@
 # TODO
 
-- [ ] shader management (get by name)
+- [x] shader management (get by name)
 - [x] serialize
+- [ ] dynamic image/texture
 
 

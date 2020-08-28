@@ -107,6 +107,15 @@ f = function(schedule)
 	g,
 	"test",
 	filter,
+	SingletonLocator.new(),
+	true
+  )
+  world:RunJob(
+    function(w)
+	  local em = w:GetEntityMngr();
+	  local num = em:TotalEntityNum()
+	  print("world's entity num : " .. num)
+	end,
 	SingletonLocator.new()
   )
 end
