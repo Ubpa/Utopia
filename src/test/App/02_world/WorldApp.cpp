@@ -35,7 +35,7 @@ struct RotateSystem : Ubpa::UECS::System {
 		filter.all = { Ubpa::UECS::CmptAccessType::Of<Ubpa::DustEngine::MeshFilter> };
 		schedule.RegisterEntityJob([](Ubpa::DustEngine::Rotation* rot) {
 			rot->value = rot->value * Ubpa::quatf{ Ubpa::vecf3{0,1,0}, Ubpa::to_radian(2.f) };
-		}, "rotate", filter);
+		}, "rotate", true, filter);
 	}
 };
 
@@ -179,8 +179,7 @@ void WorldApp::Update()
 
 void WorldApp::Draw()
 {
-	pipeline->BeginFrame(CurrentBackBuffer());
-	pipeline->Render();
+	pipeline->Render(CurrentBackBuffer());
     // Swap the back and front buffers
     ThrowIfFailed(mSwapChain->Present(0, 0));
 	mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;

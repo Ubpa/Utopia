@@ -51,7 +51,7 @@ const Ubpa::UECS::SystemFunc* LuaSystem::RegisterEntityJob(
 			size_t i = 0;
 			do {
 				UECS::CmptsView view{ cmptPtrs.data(), cmptPtrs.size() };
-				f(w, singletonsView, arrayEntity[i], i, view);
+				f.call(w, singletonsView, arrayEntity[i], i, view);
 				for (size_t j = 0; j < cmpts.size(); j++) {
 					cmpts[j] = (reinterpret_cast<uint8_t*>(cmpts[j]) + sizes[j]);
 					cmptPtrs[j] = { types[j], cmpts[j] };

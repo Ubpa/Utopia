@@ -2,6 +2,8 @@
 
 #include "InitUECS.h"
 #include "InitUGraphviz.h"
+#include "InitCore.h"
+#include "InitTransform.h"
 #include "LuaArray.h"
 #include "LuaBuffer.h"
 #include "LuaMemory.h"
@@ -94,12 +96,26 @@ struct Ubpa::USRefl::TypeInfo<LuaArray_CmptType>
 	};
 };
 
+class LuaArray_CmptAccessType : public LuaArray<Ubpa::UECS::CmptAccessType> {};
+template<>
+struct Ubpa::USRefl::TypeInfo<LuaArray_CmptAccessType>
+	: Ubpa::USRefl::TypeInfoBase<LuaArray_CmptAccessType, Base<LuaArray<Ubpa::UECS::CmptAccessType>>>
+{
+	static constexpr AttrList attrs = {};
+
+	static constexpr FieldList fields = {
+	};
+};
+
 lua_State* LuaContext::Impl::Construct() {
 	lua_State* L = luaL_newstate(); /* opens Lua */
 	luaL_openlibs(L); /* opens the standard libraries */
 	detail::InitUECS(L);
 	detail::InitUGraphviz(L);
+	detail::InitCore(L);
+	detail::InitTransform(L);
 	ULuaPP::Register<LuaArray_CmptType>(L);
+	ULuaPP::Register<LuaArray_CmptAccessType>(L);
 	ULuaPP::Register<LuaBuffer>(L);
 	ULuaPP::Register<LuaMemory>(L);
 	ULuaPP::Register<LuaSystem>(L);
