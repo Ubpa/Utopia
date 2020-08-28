@@ -21,6 +21,8 @@
 
 #include <DustEngine/Transform/Transform.h>
 
+#include <DustEngine/Core/ImGUIMngr.h>
+
 #include <DustEngine/_deps/imgui/imgui.h>
 #include <DustEngine/_deps/imgui/imgui_impl_win32.h>
 #include <DustEngine/_deps/imgui/imgui_impl_dx12.h>
@@ -91,9 +93,6 @@ private:
 
 	std::unique_ptr<Ubpa::DustEngine::IPipeline> pipeline;
 	std::unique_ptr<Ubpa::DustEngine::Mesh> dynamicMesh;
-
-	// size : 1
-	Ubpa::UDX12::DescriptorHeapAllocation imguiAlloc;
 
 	bool show_demo_window = true;
 	bool show_another_window = false;
@@ -278,12 +277,7 @@ MyDX12App::~MyDX12App() {
     if(!uDevice.IsNull())
         FlushCommandQueue();
 
-	ImGui_ImplDX12_Shutdown();
-	ImGui_ImplWin32_Shutdown();
-	ImGui::DestroyContext();
-
-	if(!imguiAlloc.IsNull())
-		Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(imguiAlloc));
+	Ubpa::DustEngine::ImGUIMngr::Instance().Clear();
 }
 
 bool MyDX12App::Initialize() {
@@ -295,24 +289,7 @@ bool MyDX12App::Initialize() {
 
 	Ubpa::DustEngine::MeshLayoutMngr::Instance().Init();
 
-	// Setup Dear ImGui context
-	IMGUI_CHECKVERSION();
-	ImGui::CreateContext();
-	ImGuiIO& io = ImGui::GetIO(); (void)io;
-	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-
-	// Setup Dear ImGui style
-	ImGui::StyleColorsDark();
-	//ImGui::StyleColorsClassic();
-
-	// Setup Platform/Renderer bindings
-	ImGui_ImplWin32_Init(MainWnd());
-	imguiAlloc = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(1);
-	ImGui_ImplDX12_Init(uDevice.Get(), NumFrameResources,
-		DXGI_FORMAT_R8G8B8A8_UNORM, Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap(),
-		imguiAlloc.GetCpuHandle(),
-		imguiAlloc.GetGpuHandle());
+	Ubpa::DustEngine::ImGUIMngr::Instance().Init(MainWnd(), uDevice.Get(), NumFrameResources);
 
 	BuildWorld();
 
@@ -432,9 +409,7 @@ void MyDX12App::Draw()
 		ImGui::End();
 	}
 
-	pipeline->BeginFrame(CurrentBackBuffer());
-
-	pipeline->Render();
+	pipeline->Render(CurrentBackBuffer());
 
 	SwapBackBuffer();
 

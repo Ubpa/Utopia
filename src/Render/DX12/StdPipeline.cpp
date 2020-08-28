@@ -131,7 +131,7 @@ struct StdPipeline::Impl {
 
 	void UpdateRenderContext(const UECS::World& world);
 	void UpdateShaderCBs(const ResizeData& resizeData);
-	void Render(const ResizeData& resizeData, const FrameData& frameData);
+	void Render(const ResizeData& resizeData, ID3D12Resource* curBackBuffer);
 	void DrawObjects(ID3D12GraphicsCommandList*);
 };
 
@@ -402,7 +402,7 @@ void StdPipeline::Impl::UpdateShaderCBs(const ResizeData& resizeData) {
 	}
 }
 
-void StdPipeline::Impl::Render(const ResizeData& resizeData, const FrameData& frameData) {
+void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* curBackBuffer) {
 	size_t width = resizeData.width;
 	size_t height = resizeData.height;
 
@@ -444,7 +444,7 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, const FrameData& fr
 			{gbuffer2,Ubpa::UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT)}
 		})
 
-		.RegisterImportedRsrc(backbuffer, { frameData.backBuffer, D3D12_RESOURCE_STATE_PRESENT })
+		.RegisterImportedRsrc(backbuffer, { curBackBuffer, D3D12_RESOURCE_STATE_PRESENT })
 		.RegisterImportedRsrc(depthstencil, { resizeData.depthStencilBuffer, D3D12_RESOURCE_STATE_DEPTH_WRITE })
 
 		.RegisterPassRsrcs(gbPass, gbuffer0, D3D12_RESOURCE_STATE_RENDER_TARGET,
@@ -632,8 +632,8 @@ void StdPipeline::UpdateRenderContext(const UECS::World& world) {
 	pImpl->UpdateShaderCBs(GetResizeData());
 }
 
-void StdPipeline::Render() {
-	pImpl->Render(GetResizeData(), GetFrameData());
+void StdPipeline::Render(ID3D12Resource* curBackBuffer) {
+	pImpl->Render(GetResizeData(), curBackBuffer);
 }
 
 void StdPipeline::EndFrame() {

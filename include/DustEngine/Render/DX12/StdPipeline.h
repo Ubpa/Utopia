@@ -10,7 +10,7 @@ namespace Ubpa::DustEngine {
 
 		virtual void UpdateRenderContext(const UECS::World&) override;
 
-		virtual void Render() override;
+		virtual void Render(ID3D12Resource* curBackBuffer) override;
 		virtual void EndFrame() override;
 
 	protected:

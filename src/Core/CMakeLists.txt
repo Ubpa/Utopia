@@ -40,4 +40,6 @@ Ubpa_AddTarget(
     Ubpa::UDP_core
     Ubpa::DustEngine_Transform
     Ubpa::DustEngine__deps_imgui
+  DEFINE
+    NOMINMAX
 )

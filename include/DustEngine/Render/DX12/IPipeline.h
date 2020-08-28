@@ -23,8 +23,7 @@ namespace Ubpa::DustEngine {
 
 		virtual void UpdateRenderContext(const UECS::World& world) = 0;
 
-		void BeginFrame(ID3D12Resource* backBuffer) { frameData.backBuffer = backBuffer; }
-		virtual void Render() = 0;
+		virtual void Render(ID3D12Resource* curBackBuffer) = 0;
 		virtual void EndFrame() = 0;
 
 		void Resize(
@@ -52,15 +51,10 @@ namespace Ubpa::DustEngine {
 			D3D12_RECT scissorRect;
 			ID3D12Resource* depthStencilBuffer{ nullptr };
 		};
-		struct FrameData {
-			ID3D12Resource* backBuffer{ nullptr };
-		};
 		const InitDesc initDesc;
 		const ResizeData& GetResizeData() const { return resizeData; }
-		const FrameData& GetFrameData() const { return frameData; }
 
 	private:
 		ResizeData resizeData;
-		FrameData frameData;
 	};
 }
