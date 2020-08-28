@@ -9,7 +9,7 @@ void CameraSystem::OnUpdate(Schedule& schedule) {
 	schedule.RegisterEntityJob(
 		[](Camera* camera) {
 			camera->prjectionMatrix = transformf::perspective(
-				camera->fov,
+				to_radian(camera->fov),
 				camera->aspect,
 				camera->clippingPlaneMin,
 				camera->clippingPlaneMax,

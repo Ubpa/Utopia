@@ -243,7 +243,7 @@ void WorldApp::UpdateCamera()
 		mRadius * sinf(mTheta) * cosf(mPhi)
 	};
 	auto camera = world.entityMngr.Get<Ubpa::DustEngine::Camera>(cam);
-	camera->fov = 0.33f * Ubpa::PI<float>;
+	camera->fov = 60.f;
 	camera->aspect = AspectRatio();
 	camera->clippingPlaneMin = 1.0f;
 	camera->clippingPlaneMax = 1000.0f;

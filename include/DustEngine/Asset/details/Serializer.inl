@@ -501,13 +501,19 @@ namespace Ubpa::DustEngine {
 		);
 	}
 
-	template<typename Cmpt>
+	template<typename... Cmpts>
 	void Serializer::RegisterComponentSerializeFunction() {
-		RegisterComponentSerializeFunction(&detail::WriteUserType<Cmpt>);
+		(RegisterComponentSerializeFunction(&detail::WriteUserType<Cmpts>), ...);
 	}
 
-	template<typename Cmpt>
+	template<typename... Cmpts>
 	void Serializer::RegisterComponentDeserializeFunction() {
-		RegisterComponentDeserializeFunction(&detail::ReadUserType<Cmpt>);
+		(RegisterComponentDeserializeFunction(&detail::ReadUserType<Cmpts>), ...);
+	}
+
+	template<typename... Cmpts>
+	void Serializer::Register() {
+		RegisterComponentSerializeFunction<Cmpts...>();
+		RegisterComponentDeserializeFunction<Cmpts...>();
 	}
 }

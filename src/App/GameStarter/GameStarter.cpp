@@ -6,6 +6,7 @@
 #include <DustEngine/Render/DX12/StdPipeline.h>
 
 #include <DustEngine/Asset/AssetMngr.h>
+#include <DustEngine/Asset/Serializer.h>
 
 #include <DustEngine/Core/Texture2D.h>
 #include <DustEngine/Core/Image.h>
@@ -13,6 +14,7 @@
 #include <DustEngine/Core/Shader.h>
 #include <DustEngine/Core/ShaderMngr.h>
 #include <DustEngine/Core/Mesh.h>
+#include <DustEngine/Core/Scene.h>
 #include <DustEngine/Core/Components/Camera.h>
 #include <DustEngine/Core/Components/MeshFilter.h>
 #include <DustEngine/Core/Components/MeshRenderer.h>
@@ -281,6 +283,8 @@ bool GameStarter::Initialize() {
 	BuildMaterials();
 	Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload().End(uCmdQueue.Get());
 
+	//OutputDebugStringA(Ubpa::DustEngine::Serializer::Instance().ToJSON(&world).c_str());
+
 	Ubpa::DustEngine::IPipeline::InitDesc initDesc;
 	initDesc.device = uDevice.Get();
 	initDesc.backBufferFormat = GetBackBufferFormat();
@@ -446,10 +450,7 @@ void GameStarter::UpdateCamera()
 		mRadius * sinf(mTheta) * cosf(mPhi)
 	};
 	auto camera = world.entityMngr.Get<Ubpa::DustEngine::Camera>(cam);
-	camera->fov = 0.33f * Ubpa::PI<float>;
 	camera->aspect = AspectRatio();
-	camera->clippingPlaneMin = 1.0f;
-	camera->clippingPlaneMax = 1000.0f;
 	auto view = Ubpa::transformf::look_at(eye.as<Ubpa::pointf3>(), { 0.f }); // world to camera
 	auto c2w = view.inverse();
 	world.entityMngr.Get<Ubpa::DustEngine::Translation>(cam)->value = eye;
@@ -467,10 +468,13 @@ void GameStarter::BuildWorld() {
 		Ubpa::DustEngine::WorldTimeSystem
 	>();
 	world.entityMngr.cmptTraits.Register<
+		// core
 		Ubpa::DustEngine::Camera,
 		Ubpa::DustEngine::MeshFilter,
 		Ubpa::DustEngine::MeshRenderer,
 		Ubpa::DustEngine::WorldTime,
+
+		// transform
 		Ubpa::DustEngine::Children,
 		Ubpa::DustEngine::LocalToParent,
 		Ubpa::DustEngine::LocalToWorld,
@@ -482,7 +486,7 @@ void GameStarter::BuildWorld() {
 		Ubpa::DustEngine::WorldToLocal
 	>();
 
-	world.entityMngr.Create<Ubpa::DustEngine::WorldTime>();
+	/*world.entityMngr.Create<Ubpa::DustEngine::WorldTime>();
 
 	auto e0 = world.entityMngr.Create<
 		Ubpa::DustEngine::LocalToWorld,
@@ -502,7 +506,31 @@ void GameStarter::BuildWorld() {
 		Ubpa::DustEngine::Rotation,
 		Ubpa::DustEngine::Scale
 	>();
-	std::get<Ubpa::DustEngine::MeshFilter*>(dynamicCube)->mesh = quadMesh;
+	std::get<Ubpa::DustEngine::MeshFilter*>(dynamicCube)->mesh = quadMesh;*/
+
+	Ubpa::DustEngine::Serializer::Instance().Register<
+		// core
+		Ubpa::DustEngine::Camera,
+		Ubpa::DustEngine::MeshFilter,
+		Ubpa::DustEngine::MeshRenderer,
+		Ubpa::DustEngine::WorldTime,
+
+		// transform
+		Ubpa::DustEngine::Children,
+		Ubpa::DustEngine::LocalToParent,
+		Ubpa::DustEngine::LocalToWorld,
+		Ubpa::DustEngine::Parent,
+		Ubpa::DustEngine::Rotation,
+		Ubpa::DustEngine::RotationEuler,
+		Ubpa::DustEngine::Scale,
+		Ubpa::DustEngine::Translation,
+		Ubpa::DustEngine::WorldToLocal
+	>();
+	//OutputDebugStringA(Ubpa::DustEngine::Serializer::Instance().ToJSON(&world).c_str());
+	auto scene = Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Scene>(L"..\\assets\\scenes\\Game.scene");
+	Ubpa::DustEngine::Serializer::Instance().ToWorld(&world, scene->GetText());
+	cam = world.entityMngr.GetEntityArray({ {Ubpa::UECS::CmptAccessType::Of<Ubpa::DustEngine::Camera>} }).front();
+	OutputDebugStringA(Ubpa::DustEngine::Serializer::Instance().ToJSON(&world).c_str());
 
 	auto mainLua = Ubpa::DustEngine::LuaCtxMngr::Instance().Register(&world)->Main();
 	sol::state_view solLua(mainLua);
@@ -535,9 +563,9 @@ void GameStarter::BuildShaders() {
 }
 
 void GameStarter::BuildMaterials() {
-	auto material = Ubpa::DustEngine::AssetMngr::Instance()
+	/*auto material = Ubpa::DustEngine::AssetMngr::Instance()
 		.LoadAsset<Ubpa::DustEngine::Material>(L"..\\assets\\materials\\iron.mat");
 	world.RunEntityJob([=](Ubpa::DustEngine::MeshRenderer* meshRenderer) {
 		meshRenderer->materials.push_back(material);
-	});
+	});*/
 }

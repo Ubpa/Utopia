@@ -8,6 +8,7 @@
 #include <DustEngine/Core/Texture2D.h>
 #include <DustEngine/Core/Material.h>
 #include <DustEngine/Core/TextAsset.h>
+#include <DustEngine/Core/Scene.h>
 #include <DustEngine/Core/DefaultAsset.h>
 
 #include <DustEngine/_deps/tinyobjloader/tiny_obj_loader.h>
@@ -123,22 +124,6 @@ void AssetMngr::ImportAsset(const std::filesystem::path& path) {
 	bool existMeta = std::filesystem::exists(metapath);
 	assert(!existMeta || !std::filesystem::is_directory(metapath));
 
-	/*if (path.extension() == ".lua"
-		|| path.extension() == ".obj"
-		|| path.extension() == ".hlsl"
-		|| path.extension() == ".shader"
-		|| path.extension() == ".png"
-		|| path.extension() == ".jpg"
-		|| path.extension() == ".bmp"
-		|| path.extension() == ".hdr"
-		|| path.extension() == ".tga"
-		|| path.extension() == ".tex2d"
-		|| path.extension() == ".mat"
-		|| path.extension() == ".txt"
-		|| std::filesystem::is_directory(path)
-	) {
-	}*/
-
 	xg::Guid guid;
 	if (!existMeta) {
 		// generate meta file
@@ -213,7 +198,21 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path) {
 		pImpl->asset2path.emplace(hlsl, path);
 		return hlsl;
 	}
-	else if (path.extension() == ".txt") {
+	else if (path.extension() == ".scene") {
+		auto target = pImpl->path2assert.find(path);
+		if (target != pImpl->path2assert.end())
+			return target->second.ptr.get();
+
+		auto str = Impl::LoadText(path);
+		auto scene = new Scene(std::move(str));
+		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ scene });
+		pImpl->asset2path.emplace(scene, path);
+		return scene;
+	}
+	else if (
+		path.extension() == ".txt"
+		|| path.extension() == ".json"
+	) {
 		auto target = pImpl->path2assert.find(path);
 		if (target != pImpl->path2assert.end())
 			return target->second.ptr.get();
@@ -323,6 +322,19 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path, const std::type_in
 	}
 	else if (path.extension() == ".hlsl") {
 		if (typeinfo != typeid(HLSLFile))
+			return nullptr;
+		return LoadAsset(path);
+	}
+	else if (path.extension() == ".scene") {
+		if (typeinfo != typeid(Scene))
+			return nullptr;
+		return LoadAsset(path);
+	}
+	else if (
+		path.extension() == ".txt"
+		|| path.extension() == ".json"
+	) {
+		if (typeinfo != typeid(TextAsset))
 			return nullptr;
 		return LoadAsset(path);
 	}
