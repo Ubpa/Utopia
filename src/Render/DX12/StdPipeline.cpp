@@ -248,7 +248,7 @@ void StdPipeline::Impl::BuildPSOs() {
 		nullptr, 0,
 		RsrcMngrDX12::Instance().GetShaderByteCode_vs(screenShader),
 		RsrcMngrDX12::Instance().GetShaderByteCode_ps(screenShader),
-		initDesc.backBufferFormat,
+		initDesc.rtFormat,
 		DXGI_FORMAT_UNKNOWN
 	);
 	screenPsoDesc.RasterizerState.FrontCounterClockwise = TRUE;
@@ -273,7 +273,7 @@ void StdPipeline::Impl::BuildPSOs() {
 		nullptr, 0,
 		RsrcMngrDX12::Instance().GetShaderByteCode_vs(deferShader),
 		RsrcMngrDX12::Instance().GetShaderByteCode_ps(deferShader),
-		initDesc.backBufferFormat,
+		initDesc.rtFormat,
 		DXGI_FORMAT_UNKNOWN
 	);
 	deferLightingPsoDesc.RasterizerState.FrontCounterClockwise = TRUE;
@@ -531,13 +531,6 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* cur
 			cmdList->IASetIndexBuffer(nullptr);
 			cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 			cmdList->DrawInstanced(6, 1, 0, 0);
-
-			//==
-			
-			if (ImGui::GetCurrentContext()) {
-				ImGui::Render();
-				ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmdList);
-			}
 		}
 	);
 

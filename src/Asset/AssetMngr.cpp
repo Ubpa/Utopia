@@ -406,7 +406,6 @@ bool AssetMngr::CreateAsset(void* ptr, const std::filesystem::path& path) {
 
 		pImpl->path2assert.emplace(path, Impl::Asset{ shader });
 		pImpl->asset2path.emplace(shader, path);
-
 	}
 	else if (path.extension() == ".tex2d") {
 		auto tex2d = reinterpret_cast<Texture2D*>(ptr);
