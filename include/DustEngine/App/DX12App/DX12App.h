@@ -56,11 +56,8 @@ namespace Ubpa::DustEngine {
 		void SwapBackBuffer();
 
 		ID3D12Resource* CurrentBackBuffer() const noexcept { return mSwapChainBuffer[curBackBuffer].Get(); }
-		ID3D12Resource* GetDepthStencilBuffer() const noexcept { return mDepthStencilBuffer.Get(); }
 		D3D12_CPU_DESCRIPTOR_HANDLE CurrentBackBufferView() const noexcept { return swapchainRTVCpuDH.GetCpuHandle(curBackBuffer); }
-		D3D12_CPU_DESCRIPTOR_HANDLE DepthStencilView() const noexcept { return swapchainDSVCpuDH.GetCpuHandle(); }
 		DXGI_FORMAT GetBackBufferFormat() const noexcept { return mBackBufferFormat; }
-		DXGI_FORMAT GetDepthStencilBufferFormat() const noexcept { return mDepthStencilFormat; }
 
 		static constexpr char FR_CommandAllocator[] = "__CommandAllocator";
 		UDX12::FrameResourceMngr* GetFrameResourceMngr() const noexcept { return frameRsrcMngr.get(); }
@@ -105,16 +102,13 @@ namespace Ubpa::DustEngine {
 
 		int curBackBuffer = 0;
 		Microsoft::WRL::ComPtr<ID3D12Resource> mSwapChainBuffer[NumSwapChainBuffer];
-		Microsoft::WRL::ComPtr<ID3D12Resource> mDepthStencilBuffer;
 
 		UDX12::DescriptorHeapAllocation swapchainRTVCpuDH;
-		UDX12::DescriptorHeapAllocation swapchainDSVCpuDH;
 
 		Microsoft::WRL::ComPtr<ID3D12Fence> mFence;
 		UINT64 mCurrentFence = 0;
 
 		DXGI_FORMAT mBackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-		DXGI_FORMAT mDepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
 		std::unique_ptr<UDX12::FrameResourceMngr> frameRsrcMngr;
 

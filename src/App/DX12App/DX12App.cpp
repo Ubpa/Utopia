@@ -22,8 +22,6 @@ DX12App::~DX12App() {
 		FlushCommandQueue();
 	if(!swapchainRTVCpuDH.IsNull())
 		Ubpa::UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Free(std::move(swapchainRTVCpuDH));
-	if (!swapchainDSVCpuDH.IsNull())
-		Ubpa::UDX12::DescriptorHeapMngr::Instance().GetDSVCpuDH()->Free(std::move(swapchainDSVCpuDH));
 
 	Ubpa::DustEngine::RsrcMngrDX12::Instance().Clear();
 }
@@ -75,7 +73,6 @@ void DX12App::OnResize() {
 	// Release the previous resources we will be recreating.
 	for (int i = 0; i < NumSwapChainBuffer; ++i)
 		mSwapChainBuffer[i].Reset();
-	mDepthStencilBuffer.Reset();
 
 	// Resize the swap chain.
 	ThrowIfFailed(mSwapChain->ResizeBuffers(
@@ -90,51 +87,6 @@ void DX12App::OnResize() {
 		ThrowIfFailed(mSwapChain->GetBuffer(i, IID_PPV_ARGS(&mSwapChainBuffer[i])));
 		uDevice->CreateRenderTargetView(mSwapChainBuffer[i].Get(), nullptr, swapchainRTVCpuDH.GetCpuHandle(i));
 	}
-
-	// Create the depth/stencil buffer and view.
-	D3D12_RESOURCE_DESC depthStencilDesc;
-	depthStencilDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-	depthStencilDesc.Alignment = 0;
-	depthStencilDesc.Width = mClientWidth;
-	depthStencilDesc.Height = mClientHeight;
-	depthStencilDesc.DepthOrArraySize = 1;
-	depthStencilDesc.MipLevels = 1;
-
-	// Correction 11/12/2016: SSAO chapter requires an SRV to the depth buffer to read from 
-	// the depth buffer.  Therefore, because we need to create two views to the same resource:
-	//   1. SRV format: DXGI_FORMAT_R24_UNORM_X8_TYPELESS
-	//   2. DSV Format: DXGI_FORMAT_D24_UNORM_S8_UINT
-	// we need to create the depth buffer resource with a typeless format.  
-	depthStencilDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
-
-	depthStencilDesc.SampleDesc.Count = 1;
-	depthStencilDesc.SampleDesc.Quality = 0;
-	depthStencilDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-	depthStencilDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
-
-	D3D12_CLEAR_VALUE optClear;
-	optClear.Format = mDepthStencilFormat;
-	optClear.DepthStencil.Depth = 1.0f;
-	optClear.DepthStencil.Stencil = 0;
-	ThrowIfFailed(uDevice->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-		D3D12_HEAP_FLAG_NONE,
-		&depthStencilDesc,
-		D3D12_RESOURCE_STATE_COMMON,
-		&optClear,
-		IID_PPV_ARGS(mDepthStencilBuffer.GetAddressOf())));
-
-	// Create descriptor to mip level 0 of entire resource using the format of the resource.
-	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
-	dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
-	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-	dsvDesc.Format = mDepthStencilFormat;
-	dsvDesc.Texture2D.MipSlice = 0;
-	uDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), &dsvDesc, DepthStencilView());
-
-	// Transition the resource from its initial state to be used as a depth buffer.
-	uGCmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mDepthStencilBuffer.Get(),
-		D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_DEPTH_WRITE));
 
 	// Execute the resize commands.
 	ThrowIfFailed(uGCmdList->Close());
@@ -303,7 +255,6 @@ void DX12App::CreateSwapChain() {
 
 void DX12App::CreateSwapChainDH() {
 	swapchainRTVCpuDH = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Allocate(NumSwapChainBuffer);
-	swapchainDSVCpuDH = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetDSVCpuDH()->Allocate(1);
 }
 
 D3D12_VIEWPORT DX12App::GetScreenViewport() const noexcept {

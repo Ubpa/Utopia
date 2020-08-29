@@ -80,10 +80,7 @@ private:
 	size_t gameWidth, gameHeight;
 	ComPtr<ID3D12Resource> gameRT;
 	const DXGI_FORMAT gameRTFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-	const DXGI_FORMAT gameDSFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
-	ComPtr<ID3D12Resource> gameDS;
 	Ubpa::UDX12::DescriptorHeapAllocation gameRT_SRV;
-	Ubpa::UDX12::DescriptorHeapAllocation gameDS_DSV;
 
 	bool show_demo_window = true;
 	bool show_another_window = false;
@@ -271,8 +268,6 @@ Editor::~Editor() {
 	Ubpa::DustEngine::ImGUIMngr::Instance().Clear();
 	if (!gameRT_SRV.IsNull())
 		Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(gameRT_SRV));
-	if (!gameDS_DSV.IsNull())
-		Ubpa::UDX12::DescriptorHeapMngr::Instance().GetDSVCpuDH()->Free(std::move(gameDS_DSV));
 }
 
 bool Editor::Initialize() {
@@ -283,7 +278,6 @@ bool Editor::Initialize() {
 		return false;
 
 	gameRT_SRV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(1);
-	gameDS_DSV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetDSVCpuDH()->Allocate(1);
 
 	Ubpa::DustEngine::MeshLayoutMngr::Instance().Init();
 
@@ -304,7 +298,6 @@ bool Editor::Initialize() {
 	Ubpa::DustEngine::IPipeline::InitDesc initDesc;
 	initDesc.device = uDevice.Get();
 	initDesc.rtFormat = gameRTFormat;
-	initDesc.depthStencilFormat = gameDSFormat;
 	initDesc.cmdQueue = uCmdQueue.Get();
 	initDesc.numFrame = NumFrameResources;
 	pipeline = std::make_unique<Ubpa::DustEngine::StdPipeline>(initDesc);
@@ -340,42 +333,6 @@ void Editor::OnGameResize() {
 	//auto rtvDesc = Ubpa::UDX12::Desc::SRV::Tex2D(gameRTFormat);
 	uDevice->CreateShaderResourceView(gameRT.Get(), nullptr, gameRT_SRV.GetCpuHandle());
 
-	// Create the depth/stencil buffer and view.
-	D3D12_RESOURCE_DESC depthStencilDesc;
-	depthStencilDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-	depthStencilDesc.Alignment = 0;
-	depthStencilDesc.Width = mClientWidth;
-	depthStencilDesc.Height = mClientHeight;
-	depthStencilDesc.DepthOrArraySize = 1;
-	depthStencilDesc.MipLevels = 1;
-
-	// Correction 11/12/2016: SSAO chapter requires an SRV to the depth buffer to read from 
-	// the depth buffer.  Therefore, because we need to create two views to the same resource:
-	//   1. SRV format: DXGI_FORMAT_R24_UNORM_X8_TYPELESS
-	//   2. DSV Format: DXGI_FORMAT_D24_UNORM_S8_UINT
-	// we need to create the depth buffer resource with a typeless format.  
-	depthStencilDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
-
-	depthStencilDesc.SampleDesc.Count = 1;
-	depthStencilDesc.SampleDesc.Quality = 0;
-	depthStencilDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-	depthStencilDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
-
-	D3D12_CLEAR_VALUE optClear;
-	optClear.Format = gameDSFormat;
-	optClear.DepthStencil.Depth = 1.0f;
-	optClear.DepthStencil.Stencil = 0;
-	ThrowIfFailed(uDevice->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-		D3D12_HEAP_FLAG_NONE,
-		&depthStencilDesc,
-		D3D12_RESOURCE_STATE_PRESENT,
-		&optClear,
-		IID_PPV_ARGS(gameDS.ReleaseAndGetAddressOf())
-	));
-	auto dsvDesc = Ubpa::UDX12::Desc::DSV::Basic(gameDSFormat);
-	uDevice->CreateDepthStencilView(gameDS.Get(), &dsvDesc, gameDS_DSV.GetCpuHandle());
-
 	assert(pipeline);
 	D3D12_VIEWPORT viewport;
 	viewport.TopLeftX = 0;
@@ -384,7 +341,7 @@ void Editor::OnGameResize() {
 	viewport.Height = static_cast<float>(gameHeight);
 	viewport.MinDepth = 0.0f;
 	viewport.MaxDepth = 1.0f;
-	pipeline->Resize(gameWidth, gameHeight, viewport, { 0, 0, (LONG)gameWidth, (LONG)gameHeight }, gameDS.Get());
+	pipeline->Resize(gameWidth, gameHeight, viewport, { 0, 0, (LONG)gameWidth, (LONG)gameHeight });
 
 	// Flush before changing any resources.
 	FlushCommandQueue();
@@ -418,10 +375,9 @@ void Editor::Update() {
 
 	// commit upload, delete ...
 	upload.End(uCmdQueue.Get());
-	deleteBatch.Commit(uDevice.Get(), uCmdQueue.Get());
 	uGCmdList->Close();
 	uCmdQueue.Execute(uGCmdList.Get());
-	GetFrameResourceMngr()->EndFrame(uCmdQueue.Get());
+	deleteBatch.Commit(uDevice.Get(), uCmdQueue.Get());
 
 	pipeline->UpdateRenderContext(world);
 }
@@ -495,31 +451,20 @@ void Editor::Draw()
 
 	auto cmdAlloc = GetCurFrameCommandAllocator();
 	ThrowIfFailed(uGCmdList->Reset(cmdAlloc, nullptr));
-
-	D3D12_RESOURCE_BARRIER barrier = {};
-	barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-	barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-	barrier.Transition.pResource = CurrentBackBuffer();
-	barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-
-	uGCmdList->ResourceBarrier(1, &barrier);
-	uGCmdList->ClearRenderTargetView(CurrentBackBufferView(), DirectX::Colors::LightSteelBlue, 0, NULL);
+	uGCmdList.ResourceBarrierTransition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	uGCmdList->ClearRenderTargetView(CurrentBackBufferView(), DirectX::Colors::Black, 0, NULL);
 	uGCmdList->OMSetRenderTargets(1, &CurrentBackBufferView(), FALSE, NULL);
-	auto heap = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
-	uGCmdList->SetDescriptorHeaps(1, &heap);
+	uGCmdList.SetDescriptorHeaps(Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap());
 	ImGui::Render();
 	ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), uGCmdList.Get());
-	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-	uGCmdList->ResourceBarrier(1, &barrier);
+	uGCmdList.ResourceBarrierTransition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 	uGCmdList->Close();
 	uCmdQueue.Execute(uGCmdList.Get());
 
 	SwapBackBuffer();
 
 	pipeline->EndFrame();
+	GetFrameResourceMngr()->EndFrame(uCmdQueue.Get());
 }
 
 void Editor::OnMouseDown(WPARAM btnState, int x, int y)

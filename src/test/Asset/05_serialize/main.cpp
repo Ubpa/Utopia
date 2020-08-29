@@ -116,6 +116,11 @@ struct Ubpa::USRefl::TypeInfo<UserType1>
 };
 
 int main() {
+	// Enable run-time memory check for debug builds.
+#if defined(DEBUG) | defined(_DEBUG)
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+#endif
+
 	Serializer::Instance().RegisterComponentSerializeFunction<A>();
 	Serializer::Instance().RegisterComponentDeserializeFunction<A>();
 	Serializer::Instance().RegisterUserTypeSerializeFunction([](const UserType0* t, Serializer::SerializeContext ctx) {

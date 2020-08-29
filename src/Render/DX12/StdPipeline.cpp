@@ -121,6 +121,8 @@ struct StdPipeline::Impl {
 
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
 
+	const DXGI_FORMAT dsFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+
 	void BuildFrameResources();
 	void BuildShadersAndInputLayout();
 	void BuildRootSignature();
@@ -298,7 +300,7 @@ size_t StdPipeline::Impl::GetGeometryPSO_ID(const Mesh* mesh) {
 			RsrcMngrDX12::Instance().GetShaderByteCode_ps(geomrtryShader),
 			3,
 			DXGI_FORMAT_R32G32B32A32_FLOAT,
-			initDesc.depthStencilFormat
+			DXGI_FORMAT_D24_UNORM_S8_UINT
 		);
 		geometryPsoDesc.RasterizerState.FrontCounterClockwise = TRUE;
 		size_t ID_PSO_geometry = RsrcMngrDX12::Instance().RegisterPSO(&geometryPsoDesc);
@@ -416,7 +418,7 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* cur
 	auto gbuffer0 = fg.RegisterResourceNode("GBuffer0");
 	auto gbuffer1 = fg.RegisterResourceNode("GBuffer1");
 	auto gbuffer2 = fg.RegisterResourceNode("GBuffer2");
-	auto backbuffer = fg.RegisterResourceNode("Back Buffer");
+	auto rt = fg.RegisterResourceNode("Render Target");
 	auto depthstencil = fg.RegisterResourceNode("Depth Stencil");
 	auto gbPass = fg.RegisterPassNode(
 		"GBuffer Pass",
@@ -426,8 +428,26 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* cur
 	auto deferLightingPass = fg.RegisterPassNode(
 		"Defer Lighting",
 		{ gbuffer0,gbuffer1,gbuffer2 },
-		{ backbuffer }
+		{ rt }
 	);
+
+	D3D12_RESOURCE_DESC dsDesc = UDX12::Desc::RSRC::Basic(
+		D3D12_RESOURCE_DIMENSION_TEXTURE2D,
+		width,
+		(UINT)height,
+		DXGI_FORMAT_R24G8_TYPELESS,
+		// Correction 11/12/2016: SSAO chapter requires an SRV to the depth buffer to read from 
+		// the depth buffer.  Therefore, because we need to create two views to the same resource:
+		//   1. SRV format: DXGI_FORMAT_R24_UNORM_X8_TYPELESS
+		//   2. DSV Format: DXGI_FORMAT_D24_UNORM_S8_UINT
+		// we need to create the depth buffer resource with a typeless format.  
+		D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL
+	);
+
+	D3D12_CLEAR_VALUE dsClear;
+	dsClear.Format = dsFormat;
+	dsClear.DepthStencil.Depth = 1.0f;
+	dsClear.DepthStencil.Stencil = 0;
 
 	(*fgRsrcMngr)
 		.RegisterTemporalRsrc(gbuffer0,
@@ -436,6 +456,7 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* cur
 			Ubpa::UDX12::FG::RsrcType::RT2D(DXGI_FORMAT_R32G32B32A32_FLOAT, width, height, DirectX::Colors::Black))
 		.RegisterTemporalRsrc(gbuffer2,
 			Ubpa::UDX12::FG::RsrcType::RT2D(DXGI_FORMAT_R32G32B32A32_FLOAT, width, height, DirectX::Colors::Black))
+		.RegisterTemporalRsrc(depthstencil, { dsClear, dsDesc })
 
 		.RegisterRsrcTable({
 			{gbuffer0,Ubpa::UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT)},
@@ -443,8 +464,7 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* cur
 			{gbuffer2,Ubpa::UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT)}
 		})
 
-		.RegisterImportedRsrc(backbuffer, { curBackBuffer, D3D12_RESOURCE_STATE_PRESENT })
-		.RegisterImportedRsrc(depthstencil, { resizeData.depthStencilBuffer, D3D12_RESOURCE_STATE_DEPTH_WRITE })
+		.RegisterImportedRsrc(rt, { curBackBuffer, D3D12_RESOURCE_STATE_PRESENT })
 
 		.RegisterPassRsrcs(gbPass, gbuffer0, D3D12_RESOURCE_STATE_RENDER_TARGET,
 			Ubpa::UDX12::FG::RsrcImplDesc_RTV_Null{})
@@ -453,7 +473,7 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* cur
 		.RegisterPassRsrcs(gbPass, gbuffer2, D3D12_RESOURCE_STATE_RENDER_TARGET,
 			Ubpa::UDX12::FG::RsrcImplDesc_RTV_Null{})
 		.RegisterPassRsrcs(gbPass, depthstencil,
-			D3D12_RESOURCE_STATE_DEPTH_WRITE, Ubpa::UDX12::Desc::DSV::Basic(initDesc.depthStencilFormat))
+			D3D12_RESOURCE_STATE_DEPTH_WRITE, Ubpa::UDX12::Desc::DSV::Basic(dsFormat))
 
 		.RegisterPassRsrcs(deferLightingPass, gbuffer0, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 			Ubpa::UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT))
@@ -462,7 +482,7 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* cur
 		.RegisterPassRsrcs(deferLightingPass, gbuffer2, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 			Ubpa::UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT))
 
-		.RegisterPassRsrcs(deferLightingPass, backbuffer, D3D12_RESOURCE_STATE_RENDER_TARGET,
+		.RegisterPassRsrcs(deferLightingPass, rt, D3D12_RESOURCE_STATE_RENDER_TARGET,
 			Ubpa::UDX12::FG::RsrcImplDesc_RTV_Null{})
 		;
 
@@ -513,12 +533,12 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* cur
 			auto gb1 = rsrcs.find(gbuffer1)->second;
 			auto gb2 = rsrcs.find(gbuffer2)->second;
 
-			auto bb = rsrcs.find(backbuffer)->second;
+			auto bb = rsrcs.find(rt)->second;
 
 			//cmdList->CopyResource(bb.resource, rt.resource);
 
 			// Clear the render texture and depth buffer.
-			cmdList->ClearRenderTargetView(bb.cpuHandle, DirectX::Colors::LightSteelBlue, 0, nullptr);
+			cmdList->ClearRenderTargetView(bb.cpuHandle, DirectX::Colors::Black, 0, nullptr);
 
 			// Specify the buffers we are going to render to.
 			cmdList->OMSetRenderTargets(1, &bb.cpuHandle, false, nullptr);

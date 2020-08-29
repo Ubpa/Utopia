@@ -14,7 +14,6 @@ namespace Ubpa::DustEngine {
 			ID3D12Device* device;
 			ID3D12CommandQueue* cmdQueue;
 			DXGI_FORMAT rtFormat;
-			DXGI_FORMAT depthStencilFormat;
 		};
 
 		IPipeline(InitDesc initDesc) : initDesc{ initDesc } {}
@@ -30,14 +29,12 @@ namespace Ubpa::DustEngine {
 			size_t width,
 			size_t height,
 			D3D12_VIEWPORT screenViewport,
-			D3D12_RECT scissorRect,
-			ID3D12Resource* depthStencilBuffer
+			D3D12_RECT scissorRect
 		) {
 			resizeData.width = width;
 			resizeData.height = height;
 			resizeData.screenViewport = screenViewport;
 			resizeData.scissorRect = scissorRect;
-			resizeData.depthStencilBuffer = depthStencilBuffer;
 			Impl_Resize();
 		}
 
@@ -49,7 +46,6 @@ namespace Ubpa::DustEngine {
 			size_t height{ 0 };
 			D3D12_VIEWPORT screenViewport;
 			D3D12_RECT scissorRect;
-			ID3D12Resource* depthStencilBuffer{ nullptr };
 		};
 		const InitDesc initDesc;
 		const ResizeData& GetResizeData() const { return resizeData; }

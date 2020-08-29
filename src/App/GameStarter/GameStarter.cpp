@@ -287,8 +287,7 @@ bool GameStarter::Initialize() {
 
 	Ubpa::DustEngine::IPipeline::InitDesc initDesc;
 	initDesc.device = uDevice.Get();
-	initDesc.backBufferFormat = GetBackBufferFormat();
-	initDesc.depthStencilFormat = GetDepthStencilBufferFormat();
+	initDesc.rtFormat = GetBackBufferFormat();
 	initDesc.cmdQueue = uCmdQueue.Get();
 	initDesc.numFrame = NumFrameResources;
 	pipeline = std::make_unique<Ubpa::DustEngine::StdPipeline>(initDesc);
@@ -307,7 +306,7 @@ void GameStarter::OnResize()
     DX12App::OnResize();
 	
 	assert(pipeline);
-	pipeline->Resize(mClientWidth, mClientHeight, GetScreenViewport(), GetScissorRect(), GetDepthStencilBuffer());
+	pipeline->Resize(mClientWidth, mClientHeight, GetScreenViewport(), GetScissorRect());
 }
 
 void GameStarter::Update() {
@@ -338,10 +337,9 @@ void GameStarter::Update() {
 
 	// commit upload, delete ...
 	upload.End(uCmdQueue.Get());
-	deleteBatch.Commit(uDevice.Get(), uCmdQueue.Get());
 	uGCmdList->Close();
 	uCmdQueue.Execute(uGCmdList.Get());
-	GetFrameResourceMngr()->EndFrame(uCmdQueue.Get());
+	deleteBatch.Commit(uDevice.Get(), uCmdQueue.Get());
 
 	pipeline->UpdateRenderContext(world);
 }
@@ -392,9 +390,22 @@ void GameStarter::Draw()
 
 	pipeline->Render(CurrentBackBuffer());
 
+	auto cmdAlloc = GetCurFrameCommandAllocator();
+	ThrowIfFailed(uGCmdList->Reset(cmdAlloc, nullptr));
+	uGCmdList.ResourceBarrierTransition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	uGCmdList->ClearRenderTargetView(CurrentBackBufferView(), DirectX::Colors::Black, 0, NULL);
+	uGCmdList->OMSetRenderTargets(1, &CurrentBackBufferView(), FALSE, NULL);
+	uGCmdList.SetDescriptorHeaps(Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap());
+	ImGui::Render();
+	ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), uGCmdList.Get());
+	uGCmdList.ResourceBarrierTransition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+	uGCmdList->Close();
+	uCmdQueue.Execute(uGCmdList.Get());
+
 	SwapBackBuffer();
 
 	pipeline->EndFrame();
+	GetFrameResourceMngr()->EndFrame(uCmdQueue.Get());
 }
 
 void GameStarter::OnMouseDown(WPARAM btnState, int x, int y)
