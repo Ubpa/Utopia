@@ -35,6 +35,7 @@ LuaContext::LuaContext()
 }
 
 LuaContext::~LuaContext() {
+	Clear();
 	delete pImpl;
 }
 
@@ -82,7 +83,6 @@ void LuaContext::Clear() {
 	assert(pImpl->busyLuas.empty());
 	for (auto L : pImpl->freeLuas)
 		Impl::Destruct(L);
-	delete pImpl;
 }
 
 class LuaArray_CmptType : public LuaArray<Ubpa::UECS::CmptType> {};

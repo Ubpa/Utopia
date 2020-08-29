@@ -393,7 +393,6 @@ void GameStarter::Draw()
 	auto cmdAlloc = GetCurFrameCommandAllocator();
 	ThrowIfFailed(uGCmdList->Reset(cmdAlloc, nullptr));
 	uGCmdList.ResourceBarrierTransition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-	uGCmdList->ClearRenderTargetView(CurrentBackBufferView(), DirectX::Colors::Black, 0, NULL);
 	uGCmdList->OMSetRenderTargets(1, &CurrentBackBufferView(), FALSE, NULL);
 	uGCmdList.SetDescriptorHeaps(Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap());
 	ImGui::Render();

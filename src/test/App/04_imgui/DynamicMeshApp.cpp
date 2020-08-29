@@ -21,6 +21,8 @@
 #include <DustEngine/Core/Components/MeshFilter.h>
 #include <DustEngine/Core/Components/MeshRenderer.h>
 #include <DustEngine/Core/Systems/CameraSystem.h>
+#include <DustEngine/Core/ShaderMngr.h>
+#include <DustEngine/Core/ImGUIMngr.h>
 
 #include <UDX12/UploadBuffer.h>
 
@@ -83,7 +85,7 @@ private:
 
 	void BuildWorld();
 	void LoadTextures();
-    void BuildShapeGeometry();
+    void BuildShaders();
     void BuildMaterials();
 
 private:
@@ -93,10 +95,6 @@ private:
 
     POINT mLastMousePos;
 
-	Ubpa::DustEngine::Texture2D* albedoTex2D;
-	Ubpa::DustEngine::Texture2D* roughnessTex2D;
-	Ubpa::DustEngine::Texture2D* metalnessTex2D;
-
 	Ubpa::UECS::World world;
 	Ubpa::UECS::Entity cam{ Ubpa::UECS::Entity::Invalid() };
 
@@ -104,8 +102,6 @@ private:
 	std::unique_ptr<Ubpa::DustEngine::Mesh> dynamicMesh;
 
 	std::unique_ptr<Ubpa::UDX12::FrameResourceMngr> frameRsrcMngr;
-
-	Ubpa::UDX12::DescriptorHeapAllocation imguiAlloc;
 
 	bool show_demo_window = true;
 	bool show_another_window = false;
@@ -298,13 +294,9 @@ ImGUIApp::ImGUIApp(HINSTANCE hInstance)
 ImGUIApp::~ImGUIApp()
 {
     if(!uDevice.IsNull())
-        FlushCommandQueue();
+		FlushCommandQueue();
 
-	ImGui_ImplDX12_Shutdown();
-	ImGui_ImplWin32_Shutdown();
-	ImGui::DestroyContext();
-
-	Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(imguiAlloc));
+	Ubpa::DustEngine::ImGUIMngr::Instance().Clear();
 }
 
 bool ImGUIApp::Initialize()
@@ -319,18 +311,10 @@ bool ImGUIApp::Initialize()
 
 	Ubpa::UDX12::DescriptorHeapMngr::Instance().Init(uDevice.raw.Get(), 1024, 1024, 1024, 1024, 1024);
 
-	Ubpa::DustEngine::IPipeline::InitDesc initDesc;
-	initDesc.device = uDevice.raw.Get();
-	initDesc.backBufferFormat = mBackBufferFormat;
-	initDesc.depthStencilFormat = mDepthStencilFormat;
-	initDesc.cmdQueue = uCmdQueue.raw.Get();
-	initDesc.numFrame = gNumFrameResources;
-	pipeline = std::make_unique<Ubpa::DustEngine::StdPipeline>(initDesc);
-
 	frameRsrcMngr = std::make_unique<Ubpa::UDX12::FrameResourceMngr>(gNumFrameResources, uDevice.raw.Get());
 	for (const auto& fr : frameRsrcMngr->GetFrameResources()) {
 		Microsoft::WRL::ComPtr<ID3D12CommandAllocator> allocator;
-		ThrowIfFailed(initDesc.device->CreateCommandAllocator(
+		ThrowIfFailed(uDevice->CreateCommandAllocator(
 			D3D12_COMMAND_LIST_TYPE_DIRECT,
 			IID_PPV_ARGS(&allocator)));
 		fr->RegisterResource("CommandAllocator", allocator);
@@ -338,35 +322,27 @@ bool ImGUIApp::Initialize()
 
 	Ubpa::DustEngine::MeshLayoutMngr::Instance().Init();
 
-	// Setup Dear ImGui context
-	IMGUI_CHECKVERSION();
-	ImGui::CreateContext();
-	ImGuiIO& io = ImGui::GetIO(); (void)io;
-	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+	Ubpa::DustEngine::ImGUIMngr::Instance().Init(MainWnd(), uDevice.Get(), gNumFrameResources);
 
-	// Setup Dear ImGui style
-	ImGui::StyleColorsDark();
-	//ImGui::StyleColorsClassic();
-
-	// Setup Platform/Renderer bindings
-	ImGui_ImplWin32_Init(mhMainWnd);
-	imguiAlloc = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(1);
-	ImGui_ImplDX12_Init(uDevice.raw.Get(), gNumFrameResources,
-		DXGI_FORMAT_R8G8B8A8_UNORM, Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap(),
-		imguiAlloc.GetCpuHandle(),
-		imguiAlloc.GetGpuHandle());
-
-	// Do the initial resize code.
-	OnResize();
+	Ubpa::DustEngine::AssetMngr::Instance().ImportAssetRecursively(LR"(..\\assets)");
 
 	BuildWorld();
 
 	Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload().Begin();
 	LoadTextures();
-    BuildShapeGeometry();
+	BuildShaders();
 	BuildMaterials();
 	Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload().End(uCmdQueue.raw.Get());
+
+	Ubpa::DustEngine::IPipeline::InitDesc initDesc;
+	initDesc.device = uDevice.raw.Get();
+	initDesc.rtFormat = mBackBufferFormat;
+	initDesc.cmdQueue = uCmdQueue.raw.Get();
+	initDesc.numFrame = gNumFrameResources;
+	pipeline = std::make_unique<Ubpa::DustEngine::StdPipeline>(initDesc);
+
+	// Do the initial resize code.
+	OnResize();
 
     // Wait until initialization is complete.
     FlushCommandQueue();
@@ -379,7 +355,7 @@ void ImGUIApp::OnResize()
     D3DApp::OnResize();
 
 	if (pipeline)
-		pipeline->Resize(mClientWidth, mClientHeight, mScreenViewport, mScissorRect, mDepthStencilBuffer.Get());
+		pipeline->Resize(mClientWidth, mClientHeight, mScreenViewport, mScissorRect);
 }
 
 void ImGUIApp::Update()
@@ -392,33 +368,31 @@ void ImGUIApp::Update()
 	// update mesh, texture ...
 	frameRsrcMngr->BeginFrame();
 
-	auto cmdAlloc = frameRsrcMngr->GetCurrentFrameResource()->GetResource<Microsoft::WRL::ComPtr<ID3D12CommandAllocator>>("CommandAllocator");
+	auto cmdAlloc = frameRsrcMngr->GetCurrentFrameResource()
+		->GetResource<Microsoft::WRL::ComPtr<ID3D12CommandAllocator>>("CommandAllocator");
 	cmdAlloc->Reset();
 
 	ThrowIfFailed(uGCmdList->Reset(cmdAlloc.Get(), nullptr));
 	auto& upload = Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload();
 	auto& deleteBatch = Ubpa::DustEngine::RsrcMngrDX12::Instance().GetDeleteBatch();
 
-	// update mesh
-	Ubpa::UECS::ArchetypeFilter filter;
-	filter.all = { Ubpa::UECS::CmptAccessType::Of<Ubpa::DustEngine::MeshFilter> };
-	auto meshFilters = world.entityMngr.GetCmptArray<Ubpa::DustEngine::MeshFilter>(filter);
 	upload.Begin();
-	for (auto meshFilter : meshFilters) {
+
+	// update mesh
+	world.RunEntityJob([&](const Ubpa::DustEngine::MeshFilter* meshFilter) {
 		Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterMesh(
 			upload,
 			deleteBatch,
-			uGCmdList.raw.Get(),
+			uGCmdList.Get(),
 			meshFilter->mesh
 		);
-	}
+	}, false);
 
 	// commit upload, delete ...
 	upload.End(uCmdQueue.raw.Get());
-	deleteBatch.Commit(uDevice.raw.Get(), uCmdQueue.raw.Get());
 	uGCmdList->Close();
 	uCmdQueue.Execute(uGCmdList.raw.Get());
-	frameRsrcMngr->EndFrame(uCmdQueue.raw.Get());
+	deleteBatch.Commit(uDevice.raw.Get(), uCmdQueue.raw.Get());
 
 	pipeline->UpdateRenderContext(world);
 }
@@ -467,13 +441,26 @@ void ImGUIApp::Draw()
 		ImGui::End();
 	}
 
-	pipeline->UpdateBackBuffer(CurrentBackBuffer());
-	pipeline->Render();
+	pipeline->Render(CurrentBackBuffer());
+
+	auto cmdAlloc = frameRsrcMngr->GetCurrentFrameResource()
+		->GetResource<Microsoft::WRL::ComPtr<ID3D12CommandAllocator>>("CommandAllocator");
+	ThrowIfFailed(uGCmdList->Reset(cmdAlloc.Get(), nullptr));
+	uGCmdList.ResourceBarrierTransition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	uGCmdList->OMSetRenderTargets(1, &CurrentBackBufferView(), FALSE, NULL);
+	uGCmdList.SetDescriptorHeaps(Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap());
+	ImGui::Render();
+	ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), uGCmdList.Get());
+	uGCmdList.ResourceBarrierTransition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+	uGCmdList->Close();
+	uCmdQueue.Execute(uGCmdList.Get());
 
     // Swap the back and front buffers
     ThrowIfFailed(mSwapChain->Present(0, 0));
 	mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;
+
 	pipeline->EndFrame();
+	frameRsrcMngr->EndFrame(uCmdQueue.raw.Get());
 }
 
 void ImGUIApp::OnMouseDown(WPARAM btnState, int x, int y)
@@ -584,76 +571,31 @@ void ImGUIApp::BuildWorld() {
 }
 
 void ImGUIApp::LoadTextures() {
-	auto albedoImg = Ubpa::DustEngine::AssetMngr::Instance()
-		.LoadAsset<Ubpa::DustEngine::Image>("../assets/textures/iron/albedo.png");
-	auto roughnessImg = Ubpa::DustEngine::AssetMngr::Instance()
-		.LoadAsset<Ubpa::DustEngine::Image>("../assets/textures/iron/roughness.png");
-	auto metalnessImg = Ubpa::DustEngine::AssetMngr::Instance()
-		.LoadAsset<Ubpa::DustEngine::Image>("../assets/textures/iron/metalness.png");
-
-	albedoTex2D = new Ubpa::DustEngine::Texture2D;
-	albedoTex2D->image = albedoImg;
-	if (!Ubpa::DustEngine::AssetMngr::Instance().CreateAsset(albedoTex2D, "../assets/textures/iron/albedo.tex2d")) {
-		delete albedoTex2D;
-		albedoTex2D = Ubpa::DustEngine::AssetMngr::Instance()
-			.LoadAsset<Ubpa::DustEngine::Texture2D>("../assets/textures/iron/albedo.tex2d");
+	auto tex2dGUIDs = Ubpa::DustEngine::AssetMngr::Instance().FindAssets(std::wregex{ LR"(.*\.tex2d)" });
+	for (const auto& guid : tex2dGUIDs) {
+		const auto& path = Ubpa::DustEngine::AssetMngr::Instance().GUIDToAssetPath(guid);
+		Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
+			Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+			Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Texture2D>(path)
+		);
 	}
-
-	roughnessTex2D = new Ubpa::DustEngine::Texture2D;
-	roughnessTex2D->image = roughnessImg;
-	if (!Ubpa::DustEngine::AssetMngr::Instance().CreateAsset(roughnessTex2D, "../assets/textures/iron/roughness.tex2d")) {
-		delete roughnessTex2D;
-		roughnessTex2D = Ubpa::DustEngine::AssetMngr::Instance()
-			.LoadAsset<Ubpa::DustEngine::Texture2D>("../assets/textures/iron/roughness.tex2d");
-	}
-
-	metalnessTex2D = new Ubpa::DustEngine::Texture2D;
-	metalnessTex2D->image = metalnessImg;
-	if (!Ubpa::DustEngine::AssetMngr::Instance().CreateAsset(metalnessTex2D, "../assets/textures/iron/metalness.tex2d")) {
-		delete metalnessTex2D;
-		metalnessTex2D = Ubpa::DustEngine::AssetMngr::Instance()
-			.LoadAsset<Ubpa::DustEngine::Texture2D>("../assets/textures/iron/metalness.tex2d");
-	}
-
-	Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
-		Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
-		albedoTex2D
-	);
-	Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
-		Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
-		roughnessTex2D
-	);
-	Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
-		Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
-		metalnessTex2D
-	);
 }
 
-void ImGUIApp::BuildShapeGeometry() {
-	//auto mesh = Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Mesh>("../assets/models/cube.obj");
-	//Ubpa::UECS::ArchetypeFilter filter;
-	//filter.all = { Ubpa::UECS::CmptType::Of<Ubpa::DustEngine::MeshFilter> };
-	//auto meshFilters = world.entityMngr.GetCmptArray<Ubpa::DustEngine::MeshFilter>(filter);
-	//for (auto meshFilter : meshFilters)
-	//	meshFilter->mesh = mesh;
+void ImGUIApp::BuildShaders() {
+	auto& assetMngr = Ubpa::DustEngine::AssetMngr::Instance();
+	auto shaderGUIDs = assetMngr.FindAssets(std::wregex{ LR"(.*\.shader)" });
+	for (const auto& guid : shaderGUIDs) {
+		const auto& path = assetMngr.GUIDToAssetPath(guid);
+		auto shader = assetMngr.LoadAsset<Ubpa::DustEngine::Shader>(path);
+		Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterShader(shader);
+		Ubpa::DustEngine::ShaderMngr::Instance().Register(shader);
+	}
 }
 
-void ImGUIApp::BuildMaterials()
-{
-	std::filesystem::path matPath = "../assets/materials/iron.mat";
-	auto material = new Ubpa::DustEngine::Material;
-	material->shader = Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Shader>("../assets/shaders/geometry.shader");
-	material->texture2Ds.emplace("gAlbedoMap", albedoTex2D);
-	material->texture2Ds.emplace("gRoughnessMap", roughnessTex2D);
-	material->texture2Ds.emplace("gMetalnessMap", metalnessTex2D);
-
-	if (!Ubpa::DustEngine::AssetMngr::Instance().CreateAsset(material, matPath)) {
-		delete material;
-		material = Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Material>(matPath);
-	}
-	Ubpa::UECS::ArchetypeFilter filter;
-	filter.all = { Ubpa::UECS::CmptAccessType::Of<Ubpa::DustEngine::MeshRenderer> };
-	auto meshRenderers = world.entityMngr.GetCmptArray<Ubpa::DustEngine::MeshRenderer>(filter);
-	for (auto meshRenderer : meshRenderers)
+void ImGUIApp::BuildMaterials() {
+	auto material = Ubpa::DustEngine::AssetMngr::Instance()
+		.LoadAsset<Ubpa::DustEngine::Material>(L"..\\assets\\materials\\iron.mat");
+	world.RunEntityJob([=](Ubpa::DustEngine::MeshRenderer* meshRenderer) {
 		meshRenderer->materials.push_back(material);
+	});
 }
