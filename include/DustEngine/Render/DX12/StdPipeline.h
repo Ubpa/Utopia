@@ -8,9 +8,14 @@ namespace Ubpa::DustEngine {
 		StdPipeline(InitDesc desc);
 		virtual ~StdPipeline();
 
-		virtual void UpdateRenderContext(const UECS::World&) override;
+		// data : cpu -> gpu
+		// run in update
+		virtual void BeginFrame(const UECS::World&) override;
 
+		// run in draw
 		virtual void Render(ID3D12Resource* rt) override;
+
+		// run at the end of draw
 		virtual void EndFrame() override;
 
 	protected:

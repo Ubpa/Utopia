@@ -17,7 +17,8 @@ move = function(schedule)
     local worldtime = WorldTime.voidp(singletonPtr:Ptr())
 	
 	-- 1 x, 2 y, 3 z
-	translate.value[2] = math.sin(worldtime.elapsedTime)
+	translate.value[1] = math.sin(worldtime.elapsedTime)
+	translate.value[2] = math.cos(worldtime.elapsedTime)
   end
   
   local filter = ArchetypeFilter.new();

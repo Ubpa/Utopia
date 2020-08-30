@@ -196,7 +196,7 @@ void WorldApp::Update()
 
 	world.Update();
 
-	pipeline->UpdateRenderContext(world);
+	pipeline->BeginFrame(world);
 }
 
 void WorldApp::Draw()

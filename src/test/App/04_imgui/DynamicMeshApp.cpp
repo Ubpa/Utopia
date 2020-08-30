@@ -394,7 +394,7 @@ void ImGUIApp::Update()
 	uCmdQueue.Execute(uGCmdList.raw.Get());
 	deleteBatch.Commit(uDevice.raw.Get(), uCmdQueue.raw.Get());
 
-	pipeline->UpdateRenderContext(world);
+	pipeline->BeginFrame(world);
 }
 
 void ImGUIApp::Draw()

@@ -313,8 +313,11 @@ namespace Ubpa::DustEngine::detail {
 			USRefl::TypeInfo<UserType>::ForEachVarOf(
 				*obj,
 				[&](auto field, auto& var) {
-					const auto& jsonValueField = jsonObject[field.name.data()];
-					var = ReadVar<std::remove_reference_t<decltype(var)>>(jsonValueField, ctx);
+					auto target = jsonObject.FindMember(field.name.data());
+					if (target == jsonObject.MemberEnd())
+						return;
+
+					var = ReadVar<std::remove_reference_t<decltype(var)>>(target->value, ctx);
 				}
 			);
 		}

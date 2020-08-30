@@ -62,7 +62,6 @@ private:
 	void BuildWorld();
 	void LoadTextures();
 	void BuildShaders();
-    void BuildMaterials();
 
 private:
 	float mTheta = 0.4f * Ubpa::PI<float>;
@@ -290,7 +289,6 @@ bool Editor::Initialize() {
 	Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload().Begin();
 	LoadTextures();
 	BuildShaders();
-	BuildMaterials();
 	Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload().End(uCmdQueue.Get());
 
 	//OutputDebugStringA(Ubpa::DustEngine::Serializer::Instance().ToJSON(&world).c_str());
@@ -379,7 +377,7 @@ void Editor::Update() {
 	uCmdQueue.Execute(uGCmdList.Get());
 	deleteBatch.Commit(uDevice.Get(), uCmdQueue.Get());
 
-	pipeline->UpdateRenderContext(world);
+	pipeline->BeginFrame(world);
 }
 
 void Editor::Draw()
@@ -427,13 +425,13 @@ void Editor::Draw()
 	}
 
 	// 4. game window
-	if (ImGui::Begin("output", nullptr, ImGuiWindowFlags_NoScrollbar))
+	if (ImGui::Begin("Game", nullptr, ImGuiWindowFlags_NoScrollbar))
 	{
 		auto tex = Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Texture2D>(L"..\\assets\\textures\\chessboard.tex2d");
 		auto gameSize = ImGui::GetContentRegionAvail();
 		auto w = (size_t)gameSize.x;
 		auto h = (size_t)gameSize.y;
-		if (w != gameWidth || h != gameHeight) {
+		if (gameSize.x > 0 && gameSize.y > 0 && w > 0 && h > 0 && (w != gameWidth || h != gameHeight)) {
 			gameWidth = w;
 			gameHeight = h;
 			OnGameResize();
@@ -447,7 +445,8 @@ void Editor::Draw()
 	}
 	ImGui::End();
 
-	pipeline->Render(gameRT.Get());
+	if(gameRT)
+		pipeline->Render(gameRT.Get());
 
 	auto cmdAlloc = GetCurFrameCommandAllocator();
 	ThrowIfFailed(uGCmdList->Reset(cmdAlloc, nullptr));
@@ -630,12 +629,4 @@ void Editor::BuildShaders() {
 		Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterShader(shader);
 		Ubpa::DustEngine::ShaderMngr::Instance().Register(shader);
 	}
-}
-
-void Editor::BuildMaterials() {
-	/*auto material = Ubpa::DustEngine::AssetMngr::Instance()
-		.LoadAsset<Ubpa::DustEngine::Material>(L"..\\assets\\materials\\iron.mat");
-	world.RunEntityJob([=](Ubpa::DustEngine::MeshRenderer* meshRenderer) {
-		meshRenderer->materials.push_back(material);
-	});*/
 }
