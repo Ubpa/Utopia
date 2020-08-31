@@ -8,6 +8,7 @@
 //  [X] Platform: Gamepad support. Enabled with 'io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad'.
 
 #include "imgui.h"
+#include "imgui_internal.h"
 #include "imgui_impl_win32.h"
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -56,61 +57,74 @@
 static HWND                 g_hWnd = NULL;
 static INT64                g_Time = 0;
 static INT64                g_TicksPerSecond = 0;
-static ImGuiMouseCursor     g_LastMouseCursor = ImGuiMouseCursor_COUNT;
+static ImGuiMouseCursor     g_LastFrameMouseCursor = ImGuiMouseCursor_COUNT;
+static ImGuiMouseCursor     g_CurrentMouseCursor = ImGuiMouseCursor_COUNT;
 static bool                 g_HasGamepad = false;
 static bool                 g_WantUpdateHasGamepad = true;
 
 // Functions
-bool    ImGui_ImplWin32_Init(void* hwnd)
+bool ImGui_ImplWin32_Init_Shared(void* hwnd)
 {
     if (!::QueryPerformanceFrequency((LARGE_INTEGER*)&g_TicksPerSecond))
         return false;
     if (!::QueryPerformanceCounter((LARGE_INTEGER*)&g_Time))
         return false;
 
-    // Setup back-end capabilities flags
     g_hWnd = (HWND)hwnd;
-    ImGuiIO& io = ImGui::GetIO();
-    io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;         // We can honor GetMouseCursor() values (optional)
-    io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;          // We can honor io.WantSetMousePos requests (optional, rarely used)
-    io.BackendPlatformName = "imgui_impl_win32";
-    io.ImeWindowHandle = hwnd;
+    
+    return true;
+}
 
-    // Keyboard mapping. ImGui will use those indices to peek into the io.KeysDown[] array that we will update during the application lifetime.
-    io.KeyMap[ImGuiKey_Tab] = VK_TAB;
-    io.KeyMap[ImGuiKey_LeftArrow] = VK_LEFT;
-    io.KeyMap[ImGuiKey_RightArrow] = VK_RIGHT;
-    io.KeyMap[ImGuiKey_UpArrow] = VK_UP;
-    io.KeyMap[ImGuiKey_DownArrow] = VK_DOWN;
-    io.KeyMap[ImGuiKey_PageUp] = VK_PRIOR;
-    io.KeyMap[ImGuiKey_PageDown] = VK_NEXT;
-    io.KeyMap[ImGuiKey_Home] = VK_HOME;
-    io.KeyMap[ImGuiKey_End] = VK_END;
-    io.KeyMap[ImGuiKey_Insert] = VK_INSERT;
-    io.KeyMap[ImGuiKey_Delete] = VK_DELETE;
-    io.KeyMap[ImGuiKey_Backspace] = VK_BACK;
-    io.KeyMap[ImGuiKey_Space] = VK_SPACE;
-    io.KeyMap[ImGuiKey_Enter] = VK_RETURN;
-    io.KeyMap[ImGuiKey_Escape] = VK_ESCAPE;
-    io.KeyMap[ImGuiKey_KeyPadEnter] = VK_RETURN;
-    io.KeyMap[ImGuiKey_A] = 'A';
-    io.KeyMap[ImGuiKey_C] = 'C';
-    io.KeyMap[ImGuiKey_V] = 'V';
-    io.KeyMap[ImGuiKey_X] = 'X';
-    io.KeyMap[ImGuiKey_Y] = 'Y';
-    io.KeyMap[ImGuiKey_Z] = 'Z';
+bool ImGui_ImplWin32_Init_Context(ImGuiContext* ctx) {
+    if (!g_hWnd)
+        return false;
+
+	// Setup back-end capabilities flags
+    ImGuiIO& io = ctx->IO;// ImGui::GetIO();
+	io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;         // We can honor GetMouseCursor() values (optional)
+	io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;          // We can honor io.WantSetMousePos requests (optional, rarely used)
+	io.BackendPlatformName = "imgui_impl_win32";
+	io.ImeWindowHandle = g_hWnd;
+
+	// Keyboard mapping. ImGui will use those indices to peek into the io.KeysDown[] array that we will update during the application lifetime.
+	io.KeyMap[ImGuiKey_Tab] = VK_TAB;
+	io.KeyMap[ImGuiKey_LeftArrow] = VK_LEFT;
+	io.KeyMap[ImGuiKey_RightArrow] = VK_RIGHT;
+	io.KeyMap[ImGuiKey_UpArrow] = VK_UP;
+	io.KeyMap[ImGuiKey_DownArrow] = VK_DOWN;
+	io.KeyMap[ImGuiKey_PageUp] = VK_PRIOR;
+	io.KeyMap[ImGuiKey_PageDown] = VK_NEXT;
+	io.KeyMap[ImGuiKey_Home] = VK_HOME;
+	io.KeyMap[ImGuiKey_End] = VK_END;
+	io.KeyMap[ImGuiKey_Insert] = VK_INSERT;
+	io.KeyMap[ImGuiKey_Delete] = VK_DELETE;
+	io.KeyMap[ImGuiKey_Backspace] = VK_BACK;
+	io.KeyMap[ImGuiKey_Space] = VK_SPACE;
+	io.KeyMap[ImGuiKey_Enter] = VK_RETURN;
+	io.KeyMap[ImGuiKey_Escape] = VK_ESCAPE;
+	io.KeyMap[ImGuiKey_KeyPadEnter] = VK_RETURN;
+	io.KeyMap[ImGuiKey_A] = 'A';
+	io.KeyMap[ImGuiKey_C] = 'C';
+	io.KeyMap[ImGuiKey_V] = 'V';
+	io.KeyMap[ImGuiKey_X] = 'X';
+	io.KeyMap[ImGuiKey_Y] = 'Y';
+	io.KeyMap[ImGuiKey_Z] = 'Z';
 
     return true;
 }
 
-void    ImGui_ImplWin32_Shutdown()
+void ImGui_ImplWin32_Shutdown_Shared()
 {
     g_hWnd = (HWND)0;
 }
 
-static bool ImGui_ImplWin32_UpdateMouseCursor()
+void ImGui_ImplWin32_Shutdown_Context(ImGuiContext* ctx) {
+    ctx->IO.ImeWindowHandle = (HWND)0;
+}
+
+static bool ImGui_ImplWin32_UpdateMouseCursor(ImGuiContext* ctx)
 {
-    ImGuiIO& io = ImGui::GetIO();
+    ImGuiIO& io = ctx->IO;// ImGui::GetIO();
     if (io.ConfigFlags & ImGuiConfigFlags_NoMouseCursorChange)
         return false;
 
@@ -141,9 +155,9 @@ static bool ImGui_ImplWin32_UpdateMouseCursor()
     return true;
 }
 
-static void ImGui_ImplWin32_UpdateMousePos()
+static void ImGui_ImplWin32_UpdateMousePos(ImGuiContext* ctx)
 {
-    ImGuiIO& io = ImGui::GetIO();
+    ImGuiIO& io = ctx->IO;// ImGui::GetIO();
 
     // Set OS mouse position if requested (rarely used, only when ImGuiConfigFlags_NavEnableSetMousePos is enabled by user)
     if (io.WantSetMousePos)
@@ -163,10 +177,10 @@ static void ImGui_ImplWin32_UpdateMousePos()
 }
 
 // Gamepad navigation mapping
-static void ImGui_ImplWin32_UpdateGamepads()
+static void ImGui_ImplWin32_UpdateGamepads(ImGuiContext* ctx)
 {
 #ifndef IMGUI_IMPL_WIN32_DISABLE_GAMEPAD
-    ImGuiIO& io = ImGui::GetIO();
+    ImGuiIO& io = ctx->IO;// ImGui::GetIO();
     memset(io.NavInputs, 0, sizeof(io.NavInputs));
     if ((io.ConfigFlags & ImGuiConfigFlags_NavEnableGamepad) == 0)
         return;
@@ -211,15 +225,16 @@ static void ImGui_ImplWin32_UpdateGamepads()
 #endif // #ifndef IMGUI_IMPL_WIN32_DISABLE_GAMEPAD
 }
 
-void    ImGui_ImplWin32_NewFrame()
+void ImGui_ImplWin32_NewFrame(ImGuiContext* ctx, float width, float height)
 {
-    ImGuiIO& io = ImGui::GetIO();
+    ImGuiIO& io = ctx->IO; // ImGui::GetIO();
     IM_ASSERT(io.Fonts->IsBuilt() && "Font atlas not built! It is generally built by the renderer back-end. Missing call to renderer _NewFrame() function? e.g. ImGui_ImplOpenGL3_NewFrame().");
 
     // Setup display size (every frame to accommodate for window resizing)
-    RECT rect;
-    ::GetClientRect(g_hWnd, &rect);
-    io.DisplaySize = ImVec2((float)(rect.right - rect.left), (float)(rect.bottom - rect.top));
+	/*RECT rect;
+	::GetClientRect(g_hWnd, &rect);
+	io.DisplaySize = ImVec2((float)(rect.right - rect.left), (float)(rect.bottom - rect.top));*/
+    io.DisplaySize = ImVec2(width, height);
 
     // Setup time step
     INT64 current_time;
@@ -235,18 +250,24 @@ void    ImGui_ImplWin32_NewFrame()
     // io.KeysDown[], io.MousePos, io.MouseDown[], io.MouseWheel: filled by the WndProc handler below.
 
     // Update OS mouse position
-    ImGui_ImplWin32_UpdateMousePos();
+    ImGui_ImplWin32_UpdateMousePos(ctx);
 
     // Update OS mouse cursor with the cursor requested by imgui
     ImGuiMouseCursor mouse_cursor = io.MouseDrawCursor ? ImGuiMouseCursor_None : ImGui::GetMouseCursor();
-    if (g_LastMouseCursor != mouse_cursor)
+    if (g_CurrentMouseCursor == ImGuiMouseCursor_COUNT && mouse_cursor != g_LastFrameMouseCursor
+        || g_CurrentMouseCursor != ImGuiMouseCursor_COUNT && mouse_cursor != g_CurrentMouseCursor)
     {
-        g_LastMouseCursor = mouse_cursor;
-        ImGui_ImplWin32_UpdateMouseCursor();
+        g_CurrentMouseCursor = mouse_cursor;
+        ImGui_ImplWin32_UpdateMouseCursor(ctx);
     }
 
     // Update game controllers (if enabled and available)
-    ImGui_ImplWin32_UpdateGamepads();
+    ImGui_ImplWin32_UpdateGamepads(ctx);
+}
+
+void ImGui_ImplWin32_EndFrame() {
+	g_LastFrameMouseCursor = g_CurrentMouseCursor;
+    g_CurrentMouseCursor = ImGuiMouseCursor_COUNT;
 }
 
 // Allow compilation with old Windows SDK. MinGW doesn't have default _WIN32_WINNT/WINVER versions.
@@ -267,14 +288,34 @@ void    ImGui_ImplWin32_NewFrame()
 // PS: We treat DBLCLK messages as regular mouse down messages, so this code will work on windows classes that have the CS_DBLCLKS flag set. Our own example app code doesn't set this flag.
 #if 0
 // Copy this line into your .cpp file to forward declare the function.
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler_Shared(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler_Context(ImGuiContext* ctx, HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 #endif
-IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
-{
-    if (ImGui::GetCurrentContext() == NULL)
-        return 0;
 
-    ImGuiIO& io = ImGui::GetIO();
+IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler_Shared(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    switch (msg)
+    {
+    case WM_DEVICECHANGE:
+        if ((UINT)wParam == DBT_DEVNODES_CHANGED)
+            g_WantUpdateHasGamepad = true;
+        return 0;
+    }
+    return 0;
+}
+
+IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler_Context(ImGuiContext* ctx, HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    ImGuiIO& io = ctx->IO;// ImGui::GetIO();
+
+    constexpr auto IsAnyMouseDown = [](ImGuiContext* ctx) {
+        for (size_t n = 0; n < IM_ARRAYSIZE(ctx->IO.MouseDown); n++) {
+            if (ctx->IO.MouseDown[n])
+                return true;
+        }
+        return false;
+    };
+
     switch (msg)
     {
     case WM_LBUTTONDOWN: case WM_LBUTTONDBLCLK:
@@ -287,7 +328,7 @@ IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARA
         if (msg == WM_RBUTTONDOWN || msg == WM_RBUTTONDBLCLK) { button = 1; }
         if (msg == WM_MBUTTONDOWN || msg == WM_MBUTTONDBLCLK) { button = 2; }
         if (msg == WM_XBUTTONDOWN || msg == WM_XBUTTONDBLCLK) { button = (GET_XBUTTON_WPARAM(wParam) == XBUTTON1) ? 3 : 4; }
-        if (!ImGui::IsAnyMouseDown() && ::GetCapture() == NULL)
+        if (!IsAnyMouseDown(ctx) && ::GetCapture() == NULL)
             ::SetCapture(hwnd);
         io.MouseDown[button] = true;
         return 0;
@@ -303,7 +344,7 @@ IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARA
         if (msg == WM_MBUTTONUP) { button = 2; }
         if (msg == WM_XBUTTONUP) { button = (GET_XBUTTON_WPARAM(wParam) == XBUTTON1) ? 3 : 4; }
         io.MouseDown[button] = false;
-        if (!ImGui::IsAnyMouseDown() && ::GetCapture() == hwnd)
+        if (!IsAnyMouseDown(ctx) && ::GetCapture() == hwnd)
             ::ReleaseCapture();
         return 0;
     }
@@ -329,17 +370,12 @@ IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARA
             io.AddInputCharacterUTF16((unsigned short)wParam);
         return 0;
     case WM_SETCURSOR:
-        if (LOWORD(lParam) == HTCLIENT && ImGui_ImplWin32_UpdateMouseCursor())
+        if (LOWORD(lParam) == HTCLIENT && ImGui_ImplWin32_UpdateMouseCursor(ctx))
             return 1;
         return 0;
-    case WM_DEVICECHANGE:
-        if ((UINT)wParam == DBT_DEVNODES_CHANGED)
-            g_WantUpdateHasGamepad = true;
         return 0;
     }
-    return 0;
 }
-
 
 //--------------------------------------------------------------------------------------------------------
 // DPI-related helpers (optional)

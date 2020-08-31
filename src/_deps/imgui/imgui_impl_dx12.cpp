@@ -25,6 +25,7 @@
 //  2018-02-22: Merged into master with all Win32 code synchronized to other examples.
 
 #include "imgui.h"
+#include "imgui_internal.h"
 #include "imgui_impl_dx12.h"
 
 // DirectX
@@ -34,6 +35,8 @@
 #ifdef _MSC_VER
 #pragma comment(lib, "d3dcompiler") // Automatically link with d3dcompiler.lib as we are using D3DCompile() below.
 #endif
+
+static ImFontAtlas* g_sharedFontAtlas = NULL;
 
 // DirectX data
 static ID3D12Device*                g_pd3dDevice = NULL;
@@ -67,6 +70,10 @@ struct VERTEX_CONSTANT_BUFFER
 {
     float   mvp[4][4];
 };
+
+void ImGui_ImplDX12_SetSharedFontAtlas(ImFontAtlas* sharedFontAtlas) {
+    g_sharedFontAtlas = sharedFontAtlas;
+}
 
 static void ImGui_ImplDX12_SetupRenderState(ImDrawData* draw_data, ID3D12GraphicsCommandList* ctx, FrameResources* fr)
 {
@@ -242,13 +249,15 @@ void ImGui_ImplDX12_RenderDrawData(ImDrawData* draw_data, ID3D12GraphicsCommandL
     }
 }
 
-static void ImGui_ImplDX12_CreateFontsTexture()
+static bool ImGui_ImplDX12_CreateFontsTexture()
 {
-    // Build texture atlas
-    ImGuiIO& io = ImGui::GetIO();
-    unsigned char* pixels;
-    int width, height;
-    io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+    if (!g_sharedFontAtlas)
+        return false;
+
+	// Build texture atlas
+	unsigned char* pixels;
+	int width, height;
+    g_sharedFontAtlas->GetTexDataAsRGBA32(&pixels, &width, &height);
 
     // Upload texture to graphics system
     {
@@ -388,15 +397,17 @@ static void ImGui_ImplDX12_CreateFontsTexture()
 
     // Store our identifier
     static_assert(sizeof(ImTextureID) >= sizeof(g_hFontSrvGpuDescHandle.ptr), "Can't pack descriptor handle into TexID, 32-bit not supported yet.");
-    io.Fonts->TexID = (ImTextureID)g_hFontSrvGpuDescHandle.ptr;
+    g_sharedFontAtlas->TexID = (ImTextureID)g_hFontSrvGpuDescHandle.ptr;
+
+    return true;
 }
 
-bool    ImGui_ImplDX12_CreateDeviceObjects()
+bool ImGui_ImplDX12_CreateDeviceObjects()
 {
     if (!g_pd3dDevice)
         return false;
     if (g_pPipelineState)
-        ImGui_ImplDX12_InvalidateDeviceObjects();
+        ImGui_ImplDX12_InvalidateDeviceObjects_Shared();
 
     // Create the root signature
     {
@@ -592,12 +603,10 @@ bool    ImGui_ImplDX12_CreateDeviceObjects()
     if (result_pipeline_state != S_OK)
         return false;
 
-    ImGui_ImplDX12_CreateFontsTexture();
-
-    return true;
+    return ImGui_ImplDX12_CreateFontsTexture();
 }
 
-void    ImGui_ImplDX12_InvalidateDeviceObjects()
+void ImGui_ImplDX12_InvalidateDeviceObjects_Shared()
 {
     if (!g_pd3dDevice)
         return;
@@ -605,9 +614,6 @@ void    ImGui_ImplDX12_InvalidateDeviceObjects()
     SafeRelease(g_pRootSignature);
     SafeRelease(g_pPipelineState);
     SafeRelease(g_pFontTextureResource);
-
-    ImGuiIO& io = ImGui::GetIO();
-    io.Fonts->TexID = NULL; // We copied g_pFontTextureView to io.Fonts->TexID so let's clear that as well.
 
     for (UINT i = 0; i < g_numFramesInFlight; i++)
     {
@@ -617,14 +623,14 @@ void    ImGui_ImplDX12_InvalidateDeviceObjects()
     }
 }
 
-bool ImGui_ImplDX12_Init(ID3D12Device* device, int num_frames_in_flight, DXGI_FORMAT rtv_format, ID3D12DescriptorHeap* cbv_srv_heap,
+void ImGui_ImplDX12_InvalidateDeviceObjects_Context(ImGuiContext* ctx) {
+    ImGuiIO& io = ctx->IO;// ImGui::GetIO();
+	io.Fonts->TexID = NULL; // We copied g_pFontTextureView to io.Fonts->TexID so let's clear that as well.
+}
+
+bool ImGui_ImplDX12_Init_Shared(ID3D12Device* device, int num_frames_in_flight, DXGI_FORMAT rtv_format, ID3D12DescriptorHeap* cbv_srv_heap,
                          D3D12_CPU_DESCRIPTOR_HANDLE font_srv_cpu_desc_handle, D3D12_GPU_DESCRIPTOR_HANDLE font_srv_gpu_desc_handle)
 {
-    // Setup back-end capabilities flags
-    ImGuiIO& io = ImGui::GetIO();
-    io.BackendRendererName = "imgui_impl_dx12";
-    io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;  // We can honor the ImDrawCmd::VtxOffset field, allowing for large meshes.
-
     g_pd3dDevice = device;
     g_RTVFormat = rtv_format;
     g_hFontSrvCpuDescHandle = font_srv_cpu_desc_handle;
@@ -647,9 +653,16 @@ bool ImGui_ImplDX12_Init(ID3D12Device* device, int num_frames_in_flight, DXGI_FO
     return true;
 }
 
-void ImGui_ImplDX12_Shutdown()
+bool ImGui_ImplDX12_Init_Context(ImGuiContext* ctx) {
+	// Setup back-end capabilities flags
+	ImGuiIO& io = ctx->IO;// ImGui::GetIO();
+	io.BackendRendererName = "imgui_impl_dx12";
+	io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;  // We can honor the ImDrawCmd::VtxOffset field, allowing for large meshes.
+}
+
+void ImGui_ImplDX12_Shutdown_Shared()
 {
-    ImGui_ImplDX12_InvalidateDeviceObjects();
+    ImGui_ImplDX12_InvalidateDeviceObjects_Shared();
     delete[] g_pFrameResources;
     g_pFrameResources = NULL;
     g_pd3dDevice = NULL;
@@ -657,6 +670,10 @@ void ImGui_ImplDX12_Shutdown()
     g_hFontSrvGpuDescHandle.ptr = 0;
     g_numFramesInFlight = 0;
     g_frameIndex = UINT_MAX;
+}
+
+void ImGui_ImplDX12_Shutdown_Context(ImGuiContext* ctx) {
+	ImGui_ImplDX12_InvalidateDeviceObjects_Context(ctx);
 }
 
 void ImGui_ImplDX12_NewFrame()

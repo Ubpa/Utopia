@@ -7,12 +7,17 @@
 //  [X] Platform: Keyboard arrays indexed using VK_* Virtual Key Codes, e.g. ImGui::IsKeyPressed(VK_SPACE).
 //  [X] Platform: Gamepad support. Enabled with 'io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad'.
 
+// Ubpa: edit for multi-context support
+
 #pragma once
 #include "imgui.h"      // IMGUI_IMPL_API
 
-IMGUI_IMPL_API bool     ImGui_ImplWin32_Init(void* hwnd);
-IMGUI_IMPL_API void     ImGui_ImplWin32_Shutdown();
-IMGUI_IMPL_API void     ImGui_ImplWin32_NewFrame();
+IMGUI_IMPL_API bool     ImGui_ImplWin32_Init_Shared(void* hwnd);
+IMGUI_IMPL_API bool     ImGui_ImplWin32_Init_Context(ImGuiContext* ctx);
+IMGUI_IMPL_API void     ImGui_ImplWin32_Shutdown_Shared();
+IMGUI_IMPL_API void     ImGui_ImplWin32_Shutdown_Context(ImGuiContext* ctx);
+IMGUI_IMPL_API void     ImGui_ImplWin32_NewFrame(ImGuiContext* ctx, float width, float height);
+IMGUI_IMPL_API void     ImGui_ImplWin32_EndFrame();
 
 // Configuration
 // - Disable gamepad support or linking with xinput.lib
@@ -23,7 +28,8 @@ IMGUI_IMPL_API void     ImGui_ImplWin32_NewFrame();
 // - Intentionally commented out in a '#if 0' block to avoid dragging dependencies on <windows.h> from this helper.
 // - You should COPY the line below into your .cpp code to forward declare the function and then you can call it.
 #if 0
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler_Shared(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler_Context(ImGuiContext* ctx, HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 #endif
 
 // DPI-related helpers (optional)
