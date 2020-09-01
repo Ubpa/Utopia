@@ -18,7 +18,6 @@ IMGUI_IMPL_API void     ImGui_ImplWin32_Shutdown_Shared();
 IMGUI_IMPL_API void     ImGui_ImplWin32_Shutdown_Context(ImGuiContext* ctx);
 IMGUI_IMPL_API void     ImGui_ImplWin32_NewFrame_Context(ImGuiContext* ctx, ImVec2 offset, float width, float height);
 IMGUI_IMPL_API void     ImGui_ImplWin32_NewFrame_Shared();
-IMGUI_IMPL_API void     ImGui_ImplWin32_EndFrame();
 
 // Configuration
 // - Disable gamepad support or linking with xinput.lib

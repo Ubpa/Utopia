@@ -122,6 +122,32 @@ void ImGui_ImplWin32_Shutdown_Context(ImGuiContext* ctx) {
     ctx->IO.ImeWindowHandle = (HWND)0;
 }
 
+static bool ImGui_ImplWin32_UpdateMouseCursor(ImGuiMouseCursor imgui_cursor)
+{
+	if (imgui_cursor == ImGuiMouseCursor_None) {
+		// Hide OS mouse cursor if imgui is drawing it or if it wants no cursor
+		::SetCursor(NULL);
+	}
+	else
+	{
+		// Show OS mouse cursor
+		LPTSTR win32_cursor = IDC_ARROW;
+		switch (imgui_cursor)
+		{
+		case ImGuiMouseCursor_Arrow:        win32_cursor = IDC_ARROW; break;
+		case ImGuiMouseCursor_TextInput:    win32_cursor = IDC_IBEAM; break;
+		case ImGuiMouseCursor_ResizeAll:    win32_cursor = IDC_SIZEALL; break;
+		case ImGuiMouseCursor_ResizeEW:     win32_cursor = IDC_SIZEWE; break;
+		case ImGuiMouseCursor_ResizeNS:     win32_cursor = IDC_SIZENS; break;
+		case ImGuiMouseCursor_ResizeNESW:   win32_cursor = IDC_SIZENESW; break;
+		case ImGuiMouseCursor_ResizeNWSE:   win32_cursor = IDC_SIZENWSE; break;
+		case ImGuiMouseCursor_Hand:         win32_cursor = IDC_HAND; break;
+		case ImGuiMouseCursor_NotAllowed:   win32_cursor = IDC_NO; break;
+		}
+		::SetCursor(::LoadCursor(NULL, win32_cursor));
+	}
+	return true;
+}
 static bool ImGui_ImplWin32_UpdateMouseCursor(ImGuiContext* ctx)
 {
     ImGuiIO& io = ctx->IO;// ImGui::GetIO();
@@ -129,29 +155,12 @@ static bool ImGui_ImplWin32_UpdateMouseCursor(ImGuiContext* ctx)
         return false;
 
     ImGuiMouseCursor imgui_cursor = ctx->MouseCursor;// ImGui::GetMouseCursor();
-    if (imgui_cursor == ImGuiMouseCursor_None || io.MouseDrawCursor)
-    {
+    if (io.MouseDrawCursor) {
         // Hide OS mouse cursor if imgui is drawing it or if it wants no cursor
         ::SetCursor(NULL);
     }
     else
-    {
-        // Show OS mouse cursor
-        LPTSTR win32_cursor = IDC_ARROW;
-        switch (imgui_cursor)
-        {
-        case ImGuiMouseCursor_Arrow:        win32_cursor = IDC_ARROW; break;
-        case ImGuiMouseCursor_TextInput:    win32_cursor = IDC_IBEAM; break;
-        case ImGuiMouseCursor_ResizeAll:    win32_cursor = IDC_SIZEALL; break;
-        case ImGuiMouseCursor_ResizeEW:     win32_cursor = IDC_SIZEWE; break;
-        case ImGuiMouseCursor_ResizeNS:     win32_cursor = IDC_SIZENS; break;
-        case ImGuiMouseCursor_ResizeNESW:   win32_cursor = IDC_SIZENESW; break;
-        case ImGuiMouseCursor_ResizeNWSE:   win32_cursor = IDC_SIZENWSE; break;
-        case ImGuiMouseCursor_Hand:         win32_cursor = IDC_HAND; break;
-        case ImGuiMouseCursor_NotAllowed:   win32_cursor = IDC_NO; break;
-        }
-        ::SetCursor(::LoadCursor(NULL, win32_cursor));
-    }
+        return ImGui_ImplWin32_UpdateMouseCursor(imgui_cursor);
     return true;
 }
 
@@ -250,13 +259,14 @@ void ImGui_ImplWin32_NewFrame_Context(ImGuiContext* ctx, ImVec2 offset, float wi
     // Update OS mouse position
     ImGui_ImplWin32_UpdateMousePos(ctx, offset);
 
-    // Update OS mouse cursor with the cursor requested by imgui
-    ImGuiMouseCursor mouse_cursor = io.MouseDrawCursor ? ImGuiMouseCursor_None : ImGui::GetMouseCursor();
-    if (g_CurrentMouseCursor == ImGuiMouseCursor_COUNT && mouse_cursor != g_LastFrameMouseCursor
-        || g_CurrentMouseCursor != ImGuiMouseCursor_COUNT && mouse_cursor != g_CurrentMouseCursor && mouse_cursor != ImGuiMouseCursor_Arrow)
-    {
-        g_CurrentMouseCursor = mouse_cursor;
-        ImGui_ImplWin32_UpdateMouseCursor(ctx);
+	if ((io.ConfigFlags & ImGuiConfigFlags_NoMouseCursorChange) == 0 && !io.MouseDrawCursor) {
+		// Update OS mouse cursor with the cursor requested by imgui
+		ImGuiMouseCursor mouse_cursor = io.MouseDrawCursor ? ImGuiMouseCursor_None : ctx->MouseCursor; // ImGui::GetMouseCursor();
+		if (g_CurrentMouseCursor == ImGuiMouseCursor_COUNT
+			|| g_CurrentMouseCursor != ImGuiMouseCursor_COUNT && mouse_cursor != g_CurrentMouseCursor && mouse_cursor != ImGuiMouseCursor_Arrow)
+		{
+			g_CurrentMouseCursor = mouse_cursor;
+		}
     }
 
     // Update game controllers (if enabled and available)
@@ -264,12 +274,12 @@ void ImGui_ImplWin32_NewFrame_Context(ImGuiContext* ctx, ImVec2 offset, float wi
 }
 
 void ImGui_ImplWin32_NewFrame_Shared() {
+    if (g_CurrentMouseCursor != ImGuiMouseCursor_COUNT) {
+		g_LastFrameMouseCursor = g_CurrentMouseCursor;
+		g_CurrentMouseCursor = ImGuiMouseCursor_COUNT;
+		ImGui_ImplWin32_UpdateMouseCursor(g_LastFrameMouseCursor);
+    }
 	::QueryPerformanceCounter((LARGE_INTEGER*)&g_Time);
-}
-
-void ImGui_ImplWin32_EndFrame() {
-	g_LastFrameMouseCursor = g_CurrentMouseCursor;
-    g_CurrentMouseCursor = ImGuiMouseCursor_COUNT;
 }
 
 // Allow compilation with old Windows SDK. MinGW doesn't have default _WIN32_WINNT/WINVER versions.
