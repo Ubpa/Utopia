@@ -2,6 +2,13 @@
 
 #include <UDX12/UDX12.h>
 
+#include <vector>
+
+struct ID3D12Device;
+struct ImFontAtlas;
+struct ImGuiContext;
+struct ImGuiIO;
+
 namespace Ubpa::DustEngine {
 	class ImGUIMngr {
 	public:
@@ -10,15 +17,22 @@ namespace Ubpa::DustEngine {
 			return instance;
 		}
 
-		enum class Style {
+		enum class StyleColors {
+			Classic,
 			Dark,
-			Classic
+			Light,
 		};
 
-		void Init(HWND, ID3D12Device*, size_t numFrame, Style = Style::Dark);
+		void Init(void* hwnd, ID3D12Device*, size_t numFrames, size_t numContexts, StyleColors = StyleColors::Dark);
+		const std::vector<ImGuiContext*>& GetContexts() const;
+
 		void Clear();
 
 	private:
-		Ubpa::UDX12::DescriptorHeapAllocation fontDH;
+		struct Impl;
+		Impl* pImpl;
+
+		ImGUIMngr();
+		~ImGUIMngr();
 	};
 }

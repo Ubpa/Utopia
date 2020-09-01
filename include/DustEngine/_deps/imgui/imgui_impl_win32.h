@@ -16,7 +16,8 @@ IMGUI_IMPL_API bool     ImGui_ImplWin32_Init_Shared(void* hwnd);
 IMGUI_IMPL_API bool     ImGui_ImplWin32_Init_Context(ImGuiContext* ctx);
 IMGUI_IMPL_API void     ImGui_ImplWin32_Shutdown_Shared();
 IMGUI_IMPL_API void     ImGui_ImplWin32_Shutdown_Context(ImGuiContext* ctx);
-IMGUI_IMPL_API void     ImGui_ImplWin32_NewFrame(ImGuiContext* ctx, float width, float height);
+IMGUI_IMPL_API void     ImGui_ImplWin32_NewFrame_Context(ImGuiContext* ctx, ImVec2 offset, float width, float height);
+IMGUI_IMPL_API void     ImGui_ImplWin32_NewFrame_Shared();
 IMGUI_IMPL_API void     ImGui_ImplWin32_EndFrame();
 
 // Configuration
@@ -29,7 +30,7 @@ IMGUI_IMPL_API void     ImGui_ImplWin32_EndFrame();
 // - You should COPY the line below into your .cpp code to forward declare the function and then you can call it.
 #if 0
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler_Shared(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler_Context(ImGuiContext* ctx, HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler_Context(ImGuiContext* ctx, bool ingore_mouse, bool ingore_keyboard, HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 #endif
 
 // DPI-related helpers (optional)

@@ -6,42 +6,83 @@
 
 using namespace Ubpa::DustEngine;
 
-void ImGUIMngr::Init(HWND hwnd, ID3D12Device* device, size_t numFrame, Style style) {
-	// Setup Dear ImGui context
-	IMGUI_CHECKVERSION();
-	ImGui::CreateContext();
-	ImGuiIO& io = ImGui::GetIO(); (void)io;
-	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+struct ImGUIMngr::Impl {
+	Ubpa::UDX12::DescriptorHeapAllocation fontDH;
+	std::vector<ImGuiContext*> contexts;
+	ImFontAtlas sharedFontAtlas;
+	StyleColors style;
+};
 
-	// Setup Dear ImGui style
-	switch (style)
-	{
-	case Ubpa::DustEngine::ImGUIMngr::Style::Dark:
-		ImGui::StyleColorsDark();
-		break;
-	case Ubpa::DustEngine::ImGUIMngr::Style::Classic:
-		ImGui::StyleColorsClassic();
-		break;
-	default:
-		break;
-	}
+ImGUIMngr::ImGUIMngr()
+	: pImpl{ new Impl }
+{}
+
+ImGUIMngr::~ImGUIMngr() {
+	delete pImpl;
+}
+
+void ImGUIMngr::Init(void* hwnd, ID3D12Device* device, size_t numFrames, size_t numContexts, StyleColors style) {
+	IMGUI_CHECKVERSION();
+
+	pImpl->style = style;
 
 	// Setup Platform/Renderer bindings
-	ImGui_ImplWin32_Init(hwnd);
-	fontDH = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(1);
-	ImGui_ImplDX12_Init(device, static_cast<int>(numFrame),
-		DXGI_FORMAT_R8G8B8A8_UNORM, Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap(),
-		fontDH.GetCpuHandle(),
-		fontDH.GetGpuHandle()
+	ImGui_ImplWin32_Init_Shared(hwnd);
+
+	pImpl->fontDH = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(1);
+	ImGui_ImplDX12_Init_Shared(
+		device,
+		static_cast<int>(numFrames),
+		static_cast<int>(numContexts),
+		DXGI_FORMAT_R8G8B8A8_UNORM,
+		Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap(),
+		pImpl->fontDH.GetCpuHandle(),
+		pImpl->fontDH.GetGpuHandle()
 	);
+
+	for (size_t i = 0; i < numContexts; i++) {
+		auto ctx = ImGui::CreateContext(&pImpl->sharedFontAtlas);
+		ImGui_ImplWin32_Init_Context(ctx);
+		ImGui_ImplDX12_Init_Context(ctx);
+		switch (pImpl->style)
+		{
+		case StyleColors::Classic:
+			ImGui::StyleColorsClassic();
+			break;
+		case StyleColors::Dark:
+			ImGui::StyleColorsDark();
+			break;
+		case StyleColors::Light:
+			ImGui::StyleColorsLight();
+			break;
+		default:
+			break;
+		}
+		pImpl->contexts.push_back(ctx);
+	}
+	ImGui::SetCurrentContext(nullptr);
+
+	ImGui_ImplDX12_SetSharedFontAtlas(&pImpl->sharedFontAtlas);
+}
+
+const std::vector<ImGuiContext*>& ImGUIMngr::GetContexts() const {
+	return pImpl->contexts;
 }
 
 void ImGUIMngr::Clear() {
-	ImGui_ImplDX12_Shutdown();
-	ImGui_ImplWin32_Shutdown();
-	ImGui::DestroyContext();
+	ImGui_ImplDX12_Shutdown_Shared();
+	for(const auto& ctx : pImpl->contexts)
+		ImGui_ImplDX12_Shutdown_Context(ctx);
+
+	ImGui_ImplWin32_Shutdown_Shared();
+	for (const auto& ctx : pImpl->contexts)
+		ImGui_ImplWin32_Shutdown_Context(ctx);
+
+	for (const auto& ctx : pImpl->contexts)
+		ImGui::DestroyContext(ctx);
+
+	pImpl->contexts.clear();
 	
-	if (!fontDH.IsNull())
-		Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(fontDH));
+	if (!pImpl->fontDH.IsNull())
+		Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(pImpl->fontDH));
 }

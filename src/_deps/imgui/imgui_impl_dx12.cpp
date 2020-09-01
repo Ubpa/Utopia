@@ -57,6 +57,7 @@ struct FrameResources
 static FrameResources*  g_pFrameResources = NULL;
 static UINT             g_numFramesInFlight = 0;
 static UINT             g_frameIndex = UINT_MAX;
+static UINT             g_numContexts = 0;
 
 template<typename T>
 static void SafeRelease(T*& res)
@@ -132,7 +133,7 @@ static void ImGui_ImplDX12_SetupRenderState(ImDrawData* draw_data, ID3D12Graphic
 
 // Render function
 // (this used to be set in io.RenderDrawListsFn and called by ImGui::Render(), but you can now call this directly from your main loop)
-void ImGui_ImplDX12_RenderDrawData(ImDrawData* draw_data, ID3D12GraphicsCommandList* ctx)
+void ImGui_ImplDX12_RenderDrawData(int context_index, ImDrawData* draw_data, ID3D12GraphicsCommandList* ctx)
 {
     // Avoid rendering when minimized
     if (draw_data->DisplaySize.x <= 0.0f || draw_data->DisplaySize.y <= 0.0f)
@@ -140,8 +141,7 @@ void ImGui_ImplDX12_RenderDrawData(ImDrawData* draw_data, ID3D12GraphicsCommandL
 
     // FIXME: I'm assuming that this only gets called once per frame!
     // If not, we can't just re-allocate the IB or VB, we'll have to do a proper allocator.
-    g_frameIndex = g_frameIndex + 1;
-    FrameResources* fr = &g_pFrameResources[g_frameIndex % g_numFramesInFlight];
+    FrameResources* fr = &g_pFrameResources[context_index * g_numContexts + g_frameIndex % g_numFramesInFlight];
 
     // Create and grow vertex/index buffers if needed
     if (fr->VertexBuffer == NULL || fr->VertexBufferSize < draw_data->TotalVtxCount)
@@ -563,8 +563,8 @@ bool ImGui_ImplDX12_CreateDeviceObjects()
         desc.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
         desc.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
         desc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-        desc.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
-        desc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
+        desc.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
+        desc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
         desc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
         desc.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
     }
@@ -615,7 +615,7 @@ void ImGui_ImplDX12_InvalidateDeviceObjects_Shared()
     SafeRelease(g_pPipelineState);
     SafeRelease(g_pFontTextureResource);
 
-    for (UINT i = 0; i < g_numFramesInFlight; i++)
+    for (UINT i = 0; i < g_numContexts * g_numFramesInFlight; i++)
     {
         FrameResources* fr = &g_pFrameResources[i];
         SafeRelease(fr->IndexBuffer);
@@ -628,20 +628,23 @@ void ImGui_ImplDX12_InvalidateDeviceObjects_Context(ImGuiContext* ctx) {
 	io.Fonts->TexID = NULL; // We copied g_pFontTextureView to io.Fonts->TexID so let's clear that as well.
 }
 
-bool ImGui_ImplDX12_Init_Shared(ID3D12Device* device, int num_frames_in_flight, DXGI_FORMAT rtv_format, ID3D12DescriptorHeap* cbv_srv_heap,
+bool ImGui_ImplDX12_Init_Shared(ID3D12Device* device, int num_frames_in_flight, int num_contexts, DXGI_FORMAT rtv_format, ID3D12DescriptorHeap* cbv_srv_heap,
                          D3D12_CPU_DESCRIPTOR_HANDLE font_srv_cpu_desc_handle, D3D12_GPU_DESCRIPTOR_HANDLE font_srv_gpu_desc_handle)
 {
+    IM_ASSERT(!g_pFrameResources);
+
     g_pd3dDevice = device;
     g_RTVFormat = rtv_format;
     g_hFontSrvCpuDescHandle = font_srv_cpu_desc_handle;
     g_hFontSrvGpuDescHandle = font_srv_gpu_desc_handle;
-    g_pFrameResources = new FrameResources[num_frames_in_flight];
+    g_pFrameResources = new FrameResources[num_contexts * num_frames_in_flight];
     g_numFramesInFlight = num_frames_in_flight;
+    g_numContexts = num_contexts;
     g_frameIndex = UINT_MAX;
     IM_UNUSED(cbv_srv_heap); // Unused in master branch (will be used by multi-viewports)
 
     // Create buffers with a default size (they will later be grown as needed)
-    for (int i = 0; i < num_frames_in_flight; i++)
+    for (int i = 0; i < num_contexts * num_frames_in_flight; i++)
     {
         FrameResources* fr = &g_pFrameResources[i];
         fr->IndexBuffer = NULL;
@@ -658,6 +661,7 @@ bool ImGui_ImplDX12_Init_Context(ImGuiContext* ctx) {
 	ImGuiIO& io = ctx->IO;// ImGui::GetIO();
 	io.BackendRendererName = "imgui_impl_dx12";
 	io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;  // We can honor the ImDrawCmd::VtxOffset field, allowing for large meshes.
+    return true;
 }
 
 void ImGui_ImplDX12_Shutdown_Shared()
@@ -680,4 +684,8 @@ void ImGui_ImplDX12_NewFrame()
 {
     if (!g_pPipelineState)
         ImGui_ImplDX12_CreateDeviceObjects();
+}
+
+void ImGui_ImplDX12_EndFrame() {
+    g_frameIndex++;
 }

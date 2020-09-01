@@ -77,23 +77,52 @@ private:
 
 	void OnGameResize();
 	size_t gameWidth, gameHeight;
+	ImVec2 gamePos;
 	ComPtr<ID3D12Resource> gameRT;
 	const DXGI_FORMAT gameRTFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 	Ubpa::UDX12::DescriptorHeapAllocation gameRT_SRV;
+	Ubpa::UDX12::DescriptorHeapAllocation gameRT_RTV;
 
 	bool show_demo_window = true;
 	bool show_another_window = false;
+
+	ImGuiContext* mainImGuiCtx = nullptr;
+	ImGuiContext* gameImGuiCtx = nullptr;
 };
 
 // Forward declare message handler from imgui_impl_win32.cpp
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler_Shared(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler_Context(ImGuiContext* ctx, bool ingore_mouse, bool ingore_keyboard, HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 LRESULT Editor::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-	if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wParam, lParam))
-		return true;
+	if (ImGui_ImplWin32_WndProcHandler_Shared(hwnd, msg, wParam, lParam))
+		return 1;
+
+	bool imguiWantCaptureMouse = false;
+	bool imguiWantCaptureKeyboard = false;
+
+	if (gameImGuiCtx && mainImGuiCtx) {
+		ImGui::SetCurrentContext(gameImGuiCtx);
+		auto& gameIO = ImGui::GetIO();
+		bool gameWantCaptureMouse = gameIO.WantCaptureMouse;
+		bool gameWantCaptureKeyboard = gameIO.WantCaptureKeyboard;
+		ImGui::SetCurrentContext(mainImGuiCtx);
+		auto& mainIO = ImGui::GetIO();
+		bool mainWantCaptureMouse = mainIO.WantCaptureMouse;
+		bool mainWantCaptureKeyboard = mainIO.WantCaptureKeyboard;
+
+		if (ImGui_ImplWin32_WndProcHandler_Context(gameImGuiCtx, false, false, hwnd, msg, wParam, lParam))
+			return 1;
+
+		if (ImGui_ImplWin32_WndProcHandler_Context(mainImGuiCtx, gameWantCaptureMouse, gameWantCaptureKeyboard, hwnd, msg, wParam, lParam))
+			return 1;
+
+		imguiWantCaptureMouse = gameWantCaptureMouse || mainWantCaptureMouse;
+		imguiWantCaptureKeyboard = gameWantCaptureKeyboard || mainWantCaptureKeyboard;
+	}
+
 	// - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application.
 	// - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application.
-	auto imgui_ctx = ImGui::GetCurrentContext();
 	switch (msg)
 	{
 		// WM_ACTIVATE is sent when the window is activated or deactivated.  
@@ -205,24 +234,24 @@ LRESULT Editor::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	case WM_LBUTTONDOWN:
 	case WM_MBUTTONDOWN:
 	case WM_RBUTTONDOWN:
-		if (imgui_ctx && ImGui::GetIO().WantCaptureMouse)
+		if (imguiWantCaptureMouse)
 			return 0;
 		OnMouseDown(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
 		return 0;
 	case WM_LBUTTONUP:
 	case WM_MBUTTONUP:
 	case WM_RBUTTONUP:
-		if (imgui_ctx && ImGui::GetIO().WantCaptureMouse)
+		if (imguiWantCaptureMouse)
 			return 0;
 		OnMouseUp(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
 		return 0;
 	case WM_MOUSEMOVE:
-		if (imgui_ctx && ImGui::GetIO().WantCaptureMouse)
+		if (imguiWantCaptureMouse)
 			return 0;
 		OnMouseMove(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
 		return 0;
 	case WM_KEYUP:
-		if (imgui_ctx && ImGui::GetIO().WantCaptureKeyboard)
+		if (imguiWantCaptureKeyboard)
 			return 0;
 		if (wParam == VK_ESCAPE)
 		{
@@ -267,6 +296,8 @@ Editor::~Editor() {
 	Ubpa::DustEngine::ImGUIMngr::Instance().Clear();
 	if (!gameRT_SRV.IsNull())
 		Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(gameRT_SRV));
+	if (!gameRT_RTV.IsNull())
+		Ubpa::UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Free(std::move(gameRT_RTV));
 }
 
 bool Editor::Initialize() {
@@ -277,10 +308,15 @@ bool Editor::Initialize() {
 		return false;
 
 	gameRT_SRV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(1);
+	gameRT_RTV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Allocate(1);
 
 	Ubpa::DustEngine::MeshLayoutMngr::Instance().Init();
 
-	Ubpa::DustEngine::ImGUIMngr::Instance().Init(MainWnd(), uDevice.Get(), NumFrameResources);
+	Ubpa::DustEngine::ImGUIMngr::Instance().Init(MainWnd(), uDevice.Get(), NumFrameResources, 2);
+	mainImGuiCtx = Ubpa::DustEngine::ImGUIMngr::Instance().GetContexts().at(0);
+	gameImGuiCtx = Ubpa::DustEngine::ImGUIMngr::Instance().GetContexts().at(1);
+	ImGui::SetCurrentContext(gameImGuiCtx);
+	ImGui::GetIO().IniFilename = nullptr;
 
 	Ubpa::DustEngine::AssetMngr::Instance().ImportAssetRecursively(LR"(..\\assets)");
 
@@ -328,8 +364,8 @@ void Editor::OnGameResize() {
 		&rtType.clearValue,
 		IID_PPV_ARGS(gameRT.ReleaseAndGetAddressOf())
 	));
-	//auto rtvDesc = Ubpa::UDX12::Desc::SRV::Tex2D(gameRTFormat);
 	uDevice->CreateShaderResourceView(gameRT.Get(), nullptr, gameRT_SRV.GetCpuHandle());
+	uDevice->CreateRenderTargetView(gameRT.Get(), nullptr, gameRT_RTV.GetCpuHandle());
 
 	assert(pipeline);
 	D3D12_VIEWPORT viewport;
@@ -346,9 +382,90 @@ void Editor::OnGameResize() {
 }
 
 void Editor::Update() {
-	UpdateCamera();
+	// Start the Dear ImGui frame
+	ImGui_ImplDX12_NewFrame();
+	ImGui_ImplWin32_NewFrame_Context(mainImGuiCtx, { 0.f, 0.f }, mClientWidth, mClientHeight);
+	ImGui_ImplWin32_NewFrame_Context(gameImGuiCtx, gamePos, gameWidth, gameHeight);
+	ImGui_ImplWin32_NewFrame_Shared();
 
-	world.Update();
+	ImGui::SetCurrentContext(mainImGuiCtx);
+	ImGui::NewFrame(); // main ctx
+
+	// 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
+	if (show_demo_window)
+		ImGui::ShowDemoWindow(&show_demo_window);
+
+	// 2. Show a simple window that we create ourselves. We use a Begin/End pair to created a named window.
+	{
+		static float f = 0.0f;
+		static int counter = 0;
+
+		ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
+
+		ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
+		ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
+		ImGui::Checkbox("Another Window", &show_another_window);
+
+		ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
+		//ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
+
+		if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
+			counter++;
+		ImGui::SameLine();
+		ImGui::Text("counter = %d", counter);
+
+		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+		ImGui::End();
+	}
+
+	// 3. Show another simple window.
+	if (show_another_window) {
+		ImGui::Begin("Another Window", &show_another_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
+		ImGui::Text("Hello from another window!");
+		if (ImGui::Button("Close Me"))
+			show_another_window = false;
+		ImGui::End();
+	}
+
+	// 4. game window
+	if (ImGui::Begin("Game", nullptr, ImGuiWindowFlags_NoScrollbar)) {
+		auto content_max_minus_local_pos = ImGui::GetContentRegionAvail();
+		auto content_max = ImGui::GetWindowContentRegionMax();
+		auto game_window_pos = ImGui::GetWindowPos();
+		gamePos.x = game_window_pos.x + content_max.x - content_max_minus_local_pos.x;
+		gamePos.y = game_window_pos.y + content_max.y - content_max_minus_local_pos.y;
+
+		auto tex = Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Texture2D>(L"..\\assets\\textures\\chessboard.tex2d");
+		auto gameSize = ImGui::GetContentRegionAvail();
+		auto w = (size_t)gameSize.x;
+		auto h = (size_t)gameSize.y;
+		if (gameSize.x > 0 && gameSize.y > 0 && w > 0 && h > 0 && (w != gameWidth || h != gameHeight)) {
+			gameWidth = w;
+			gameHeight = h;
+			OnGameResize();
+		}
+		ImGui::Image(
+			ImTextureID(gameRT_SRV.GetGpuHandle().ptr),
+			//{ float(tex->image->width.get()), float(tex->image->height.get()) }
+			ImGui::GetContentRegionAvail()
+		);
+	}
+	ImGui::End(); // game window
+
+	{ // game update
+		ImGui::SetCurrentContext(gameImGuiCtx);
+		ImGui::NewFrame(); // game ctx
+
+		UpdateCamera();
+
+		world.Update();
+
+		ImGui::Begin("in game");
+		ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
+		ImGui::End();
+	}
+
+	ImGui::SetCurrentContext(nullptr);
 
 	// update mesh, texture ...
 	GetFrameResourceMngr()->BeginFrame();
@@ -380,83 +497,32 @@ void Editor::Update() {
 	pipeline->BeginFrame(world);
 }
 
-void Editor::Draw()
-{
-	// Start the Dear ImGui frame
-	ImGui_ImplDX12_NewFrame();
-	ImGui_ImplWin32_NewFrame();
-	ImGui::NewFrame();
-
-	// 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
-	if (show_demo_window)
-		ImGui::ShowDemoWindow(&show_demo_window);
-
-	// 2. Show a simple window that we create ourselves. We use a Begin/End pair to created a named window.
-	{
-		static float f = 0.0f;
-		static int counter = 0;
-
-		ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
-
-		ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-		ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-		ImGui::Checkbox("Another Window", &show_another_window);
-
-		ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-		//ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
-
-		if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-			counter++;
-		ImGui::SameLine();
-		ImGui::Text("counter = %d", counter);
-
-		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-		ImGui::End();
-	}
-
-	// 3. Show another simple window.
-	if (show_another_window)
-	{
-		ImGui::Begin("Another Window", &show_another_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-		ImGui::Text("Hello from another window!");
-		if (ImGui::Button("Close Me"))
-			show_another_window = false;
-		ImGui::End();
-	}
-
-	// 4. game window
-	if (ImGui::Begin("Game", nullptr, ImGuiWindowFlags_NoScrollbar))
-	{
-		auto tex = Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Texture2D>(L"..\\assets\\textures\\chessboard.tex2d");
-		auto gameSize = ImGui::GetContentRegionAvail();
-		auto w = (size_t)gameSize.x;
-		auto h = (size_t)gameSize.y;
-		if (gameSize.x > 0 && gameSize.y > 0 && w > 0 && h > 0 && (w != gameWidth || h != gameHeight)) {
-			gameWidth = w;
-			gameHeight = h;
-			OnGameResize();
-		}
-
-		ImGui::Image(
-			ImTextureID(gameRT_SRV.GetGpuHandle().ptr),
-			//{ float(tex->image->width.get()), float(tex->image->height.get()) }
-			ImGui::GetContentRegionAvail()
-		);
-	}
-	ImGui::End();
-
-	if(gameRT)
-		pipeline->Render(gameRT.Get());
-
+void Editor::Draw() {
 	auto cmdAlloc = GetCurFrameCommandAllocator();
 	ThrowIfFailed(uGCmdList->Reset(cmdAlloc, nullptr));
+
+	ImGui::SetCurrentContext(gameImGuiCtx);
+	if (gameRT) {
+		pipeline->Render(gameRT.Get());
+		uGCmdList.ResourceBarrierTransition(gameRT.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+		uGCmdList->OMSetRenderTargets(1, &gameRT_RTV.GetCpuHandle(), FALSE, NULL);
+		uGCmdList.SetDescriptorHeaps(Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap());
+		ImGui::Render();
+		ImGui_ImplDX12_RenderDrawData(1, ImGui::GetDrawData(), uGCmdList.Get());
+		uGCmdList.ResourceBarrierTransition(gameRT.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+	}
+	else
+		ImGui::EndFrame();
+
+	ImGui::SetCurrentContext(mainImGuiCtx);
 	uGCmdList.ResourceBarrierTransition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 	uGCmdList->ClearRenderTargetView(CurrentBackBufferView(), DirectX::Colors::Black, 0, NULL);
 	uGCmdList->OMSetRenderTargets(1, &CurrentBackBufferView(), FALSE, NULL);
 	uGCmdList.SetDescriptorHeaps(Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap());
 	ImGui::Render();
-	ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), uGCmdList.Get());
+	ImGui_ImplDX12_RenderDrawData(0, ImGui::GetDrawData(), uGCmdList.Get());
 	uGCmdList.ResourceBarrierTransition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+
 	uGCmdList->Close();
 	uCmdQueue.Execute(uGCmdList.Get());
 
@@ -464,6 +530,8 @@ void Editor::Draw()
 
 	pipeline->EndFrame();
 	GetFrameResourceMngr()->EndFrame(uCmdQueue.Get());
+	ImGui_ImplWin32_EndFrame();
+	ImGui_ImplDX12_EndFrame();
 }
 
 void Editor::OnMouseDown(WPARAM btnState, int x, int y)
