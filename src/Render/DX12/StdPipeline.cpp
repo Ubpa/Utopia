@@ -318,7 +318,7 @@ void StdPipeline::Impl::UpdateRenderContext(const UECS::World& world) {
 				RenderContext::Object obj;
 				obj.mesh = meshFilterArr[i].mesh;
 				obj.l2w = l2wArr ? l2wArr[i].value.as<valf<16>>() : transformf::eye().as<valf<16>>();
-				for (size_t j = 0; j < std::min(meshRendererArr[i].materials.size(), obj.mesh->GetSubMeshes().size()); i++) {
+				for (size_t j = 0; j < std::min(meshRendererArr[i].materials.size(), obj.mesh->GetSubMeshes().size()); j++) {
 					auto material = meshRendererArr[i].materials[j];
 					obj.submeshIdx = j;
 					renderContext.objectMap[material->shader][material].push_back(obj);

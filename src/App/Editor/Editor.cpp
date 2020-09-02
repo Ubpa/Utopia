@@ -1,3 +1,6 @@
+#include "Components/Hierarchy.h"
+#include "Systems/HierarchySystem.h"
+
 #include <DustEngine/App/DX12App/DX12App.h>
 
 #include <DustEngine/Render/DX12/RsrcMngrDX12.h>
@@ -740,7 +743,9 @@ void Editor::BuildWorld() {
 		Ubpa::DustEngine::TRSToLocalToParentSystem,
 		Ubpa::DustEngine::TRSToLocalToWorldSystem,
 		Ubpa::DustEngine::WorldToLocalSystem,
-		Ubpa::DustEngine::WorldTimeSystem
+		Ubpa::DustEngine::WorldTimeSystem,
+
+		Ubpa::DustEngine::HierarchySystem
 	>();
 	editorWorld.cmptTraits.Register<
 		// core
@@ -758,9 +763,13 @@ void Editor::BuildWorld() {
 		Ubpa::DustEngine::RotationEuler,
 		Ubpa::DustEngine::Scale,
 		Ubpa::DustEngine::Translation,
-		Ubpa::DustEngine::WorldToLocal
+		Ubpa::DustEngine::WorldToLocal,
+
+		// editor
+		Ubpa::DustEngine::Hierarchy
 	>();
-	{
+
+	{ // editor camera
 		auto [e, l2w, w2l, cam, t, rot] = editorWorld.entityMngr.Create<
 			Ubpa::DustEngine::LocalToWorld,
 			Ubpa::DustEngine::WorldToLocal,
@@ -769,6 +778,10 @@ void Editor::BuildWorld() {
 			Ubpa::DustEngine::Rotation
 		>();
 		editorSceneCamera = e;
+	}
+	{ // hierarchy
+		auto [e, hierarchy] = editorWorld.entityMngr.Create<Ubpa::DustEngine::Hierarchy>();
+		hierarchy->world = &world;
 	}
 
 	world.systemMngr.Register<
