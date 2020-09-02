@@ -170,7 +170,7 @@ bool DX12App::InitDirect3D() {
 
 
 	Ubpa::DustEngine::RsrcMngrDX12::Instance().Init(uDevice.raw.Get());
-	Ubpa::UDX12::DescriptorHeapMngr::Instance().Init(uDevice.Get(), 1024, 1024, 1024, 1024, 1024);
+	Ubpa::UDX12::DescriptorHeapMngr::Instance().Init(uDevice.Get(), 16384, 16384, 16384, 16384, 16384);
 
 	frameRsrcMngr = std::make_unique<Ubpa::UDX12::FrameResourceMngr>(NumFrameResources, uDevice.Get());
 	for (const auto& fr : frameRsrcMngr->GetFrameResources()) {

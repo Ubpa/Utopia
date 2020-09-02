@@ -90,10 +90,8 @@ struct StdPipeline::Impl {
 		float roughnessFactor;
 	};
 
-	struct CPUContext {
-		Camera* camera;
-		valf<16> view;
-		pointf3 camPos;
+	struct RenderContext {
+		size_t numCameras;
 
 		struct Object {
 			const Mesh* mesh{ nullptr };
@@ -108,7 +106,7 @@ struct StdPipeline::Impl {
 
 	const InitDesc initDesc;
 
-	CPUContext renderContext;
+	RenderContext renderContext;
 
 	UDX12::FrameResourceMngr frameRsrcMngr;
 
@@ -132,8 +130,8 @@ struct StdPipeline::Impl {
 	size_t GetGeometryPSO_ID(const Mesh* mesh);
 	std::unordered_map<size_t, size_t> PSOIDMap;
 
-	void UpdateCPUContext(const UECS::World& world);
-	void UpdateShaderCBs(const ResizeData& resizeData);
+	void UpdateRenderContext(const UECS::World& world);
+	void UpdateShaderCBs(const ResizeData& resizeData, const UECS::World& world, const std::vector<CameraData>& camera);
 	void Render(const ResizeData& resizeData, ID3D12Resource* rtb);
 	void DrawObjects(ID3D12GraphicsCommandList*);
 };
@@ -298,7 +296,7 @@ size_t StdPipeline::Impl::GetGeometryPSO_ID(const Mesh* mesh) {
 	return target->second;
 }
 
-void StdPipeline::Impl::UpdateCPUContext(const UECS::World& world) {
+void StdPipeline::Impl::UpdateRenderContext(const UECS::World& world) {
 	renderContext.objectMap.clear();
 
 	Ubpa::UECS::ArchetypeFilter objectFilter;
@@ -307,58 +305,40 @@ void StdPipeline::Impl::UpdateCPUContext(const UECS::World& world) {
 		Ubpa::UECS::CmptAccessType::Of<MeshRenderer>
 	};
 
-	const_cast<UECS::World&>(world).RunEntityJob(
-		[&](const MeshFilter* meshFilter, const MeshRenderer* meshRenderer,const LocalToWorld* l2w) {
-			Impl::CPUContext::Object object;
-			object.mesh = meshFilter->mesh;
-			object.l2w = l2w ? l2w->value.as<valf<16>>() : transformf::eye().as<valf<16>>();
+	UECS::ArchetypeFilter filter;
+	filter.all = { UECS::CmptAccessType::Of<UECS::Latest<MeshFilter>>, UECS::CmptAccessType::Of<UECS::Latest<MeshRenderer>> };
 
-			for (size_t i = 0; i < meshRenderer->materials.size(); i++) {
-				object.submeshIdx = i;
-				auto mat = meshRenderer->materials[i];
-				renderContext.objectMap[mat->shader][mat].push_back(object);
+	const_cast<UECS::World&>(world).RunChunkJob(
+		[&](UECS::ChunkView chunk) {
+			auto meshFilterArr = chunk.GetCmptArray<MeshFilter>();
+			auto meshRendererArr = chunk.GetCmptArray<MeshRenderer>();
+			auto l2wArr = chunk.GetCmptArray<LocalToWorld>();
+			size_t num = chunk.EntityNum();
+			for (size_t i = 0; i < num; i++) {
+				RenderContext::Object obj;
+				obj.mesh = meshFilterArr[i].mesh;
+				obj.l2w = l2wArr ? l2wArr[i].value.as<valf<16>>() : transformf::eye().as<valf<16>>();
+				for (size_t j = 0; j < std::min(meshRendererArr[i].materials.size(), obj.mesh->GetSubMeshes().size()); i++) {
+					auto material = meshRendererArr[i].materials[j];
+					obj.submeshIdx = j;
+					renderContext.objectMap[material->shader][material].push_back(obj);
+				}
 			}
 		},
+		filter,
 		false
 	);
-	
-	Ubpa::UECS::ArchetypeFilter cameraFilter;
-	cameraFilter.all = {
-		Ubpa::UECS::CmptAccessType::Of<Camera>
-	};
-	auto cameras = world.entityMngr.GetEntityArray(cameraFilter);
-	assert(cameras.size() == 1);
-	renderContext.camera = world.entityMngr.Get<Camera>(cameras.front());
-	renderContext.view = world.entityMngr.Get<WorldToLocal>(cameras.front())->value.as<valf<16>>();
-	renderContext.camPos = world.entityMngr.Get<Translation>(cameras.front())->value.as<pointf3>();
 }
 
-void StdPipeline::Impl::UpdateShaderCBs(const ResizeData& resizeData) {
-	PassConstants passCB;
-	passCB.View = renderContext.view;
-	passCB.InvView = passCB.View.inverse();
-	passCB.Proj = renderContext.camera->prjectionMatrix;
-	passCB.InvProj = passCB.Proj.inverse();
-	passCB.ViewProj = passCB.Proj * passCB.View;
-	passCB.InvViewProj = passCB.InvView * passCB.InvProj;
-	passCB.EyePosW = renderContext.camPos;
-	passCB.RenderTargetSize = { resizeData.width, resizeData.height };
-	passCB.InvRenderTargetSize = { 1.0f / resizeData.width, 1.0f / resizeData.height };
-
-	passCB.NearZ = renderContext.camera->clippingPlaneMin;
-	passCB.FarZ = renderContext.camera->clippingPlaneMax;
-	passCB.TotalTime = Ubpa::DustEngine::GameTimer::Instance().TotalTime();
-	passCB.DeltaTime = Ubpa::DustEngine::GameTimer::Instance().DeltaTime();
-	passCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
-	passCB.Lights[0].Direction = { 0.57735f, -0.57735f, 0.57735f };
-	passCB.Lights[0].Strength = { 0.6f, 0.6f, 0.6f };
-	passCB.Lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
-	passCB.Lights[1].Strength = { 0.3f, 0.3f, 0.3f };
-	passCB.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
-	passCB.Lights[2].Strength = { 0.15f, 0.15f, 0.15f };
-
+void StdPipeline::Impl::UpdateShaderCBs(
+	const ResizeData& resizeData,
+	const UECS::World& world,
+	const std::vector<CameraData>& cameras
+) {
 	auto& shaderCBMngr = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<Ubpa::DustEngine::ShaderCBMngrDX12>("ShaderCBMngrDX12");
+
+	renderContext.numCameras = cameras.size();
 
 	for (const auto& [shader, mat2objects] : renderContext.objectMap) {
 		size_t objectNum = 0;
@@ -367,13 +347,41 @@ void StdPipeline::Impl::UpdateShaderCBs(const ResizeData& resizeData) {
 		if (shader->shaderName == "StdPipeline/Geometry") {
 			auto buffer = shaderCBMngr.GetBuffer(shader);
 			buffer->Reserve(
-				Ubpa::UDX12::Util::CalcConstantBufferByteSize(sizeof(PassConstants))
+				cameras.size() * Ubpa::UDX12::Util::CalcConstantBufferByteSize(sizeof(PassConstants))
 				+ mat2objects.size() * Ubpa::UDX12::Util::CalcConstantBufferByteSize(sizeof(MatConstants))
 				+ objectNum * Ubpa::UDX12::Util::CalcConstantBufferByteSize(sizeof(ObjectConstants))
 			);
 			size_t offset = 0;
-			buffer->Set(0, &passCB, sizeof(PassConstants));
-			offset += Ubpa::UDX12::Util::CalcConstantBufferByteSize(sizeof(PassConstants));
+			for (size_t i = 0; i < cameras.size(); i++) {
+				const auto& camData = cameras[i];
+				auto cmptCamera = camData.world.entityMngr.Get<Camera>(camData.entity);
+				auto cmptW2L = camData.world.entityMngr.Get<WorldToLocal>(camData.entity);
+				auto cmptTranslation = camData.world.entityMngr.Get<Translation>(camData.entity);
+				PassConstants passCB;
+				passCB.View = cmptW2L->value;
+				passCB.InvView = passCB.View.inverse();
+				passCB.Proj = cmptCamera->prjectionMatrix;
+				passCB.InvProj = passCB.Proj.inverse();
+				passCB.ViewProj = passCB.Proj * passCB.View;
+				passCB.InvViewProj = passCB.InvView * passCB.InvProj;
+				passCB.EyePosW = cmptTranslation->value.as<pointf3>();
+				passCB.RenderTargetSize = { resizeData.width, resizeData.height };
+				passCB.InvRenderTargetSize = { 1.0f / resizeData.width, 1.0f / resizeData.height };
+
+				passCB.NearZ = cmptCamera->clippingPlaneMin;
+				passCB.FarZ = cmptCamera->clippingPlaneMax;
+				passCB.TotalTime = Ubpa::DustEngine::GameTimer::Instance().TotalTime();
+				passCB.DeltaTime = Ubpa::DustEngine::GameTimer::Instance().DeltaTime();
+				passCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
+				passCB.Lights[0].Direction = { 0.57735f, -0.57735f, 0.57735f };
+				passCB.Lights[0].Strength = { 0.6f, 0.6f, 0.6f };
+				passCB.Lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
+				passCB.Lights[1].Strength = { 0.3f, 0.3f, 0.3f };
+				passCB.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
+				passCB.Lights[2].Strength = { 0.15f, 0.15f, 0.15f };
+				buffer->Set(0, &passCB, sizeof(PassConstants));
+				offset += Ubpa::UDX12::Util::CalcConstantBufferByteSize(sizeof(PassConstants));
+			}
 			for (const auto& [mat, objects] : mat2objects) {
 				MatConstants matC;
 				matC.albedoFactor = { 1.f };
@@ -503,7 +511,11 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 			auto passCB = frameRsrcMngr.GetCurrentFrameResource()
 				->GetResource<ShaderCBMngrDX12>("ShaderCBMngrDX12")
 				.GetBuffer(geomrtryShader)->GetResource();
-			cmdList->SetGraphicsRootConstantBufferView(4, passCB->GetGPUVirtualAddress());
+
+			constexpr UINT passCBByteSize = Ubpa::UDX12::Util::CalcConstantBufferByteSize(sizeof(PassConstants));
+			size_t offset = passCBByteSize * 0; // not support multi camera now
+
+			cmdList->SetGraphicsRootConstantBufferView(4, passCB->GetGPUVirtualAddress() + offset);
 
 			DrawObjects(cmdList);
 		}
@@ -571,7 +583,7 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList) {
 
 	const auto& mat2objects = renderContext.objectMap.find(geomrtryShader)->second;
 
-	size_t offset = passCBByteSize;
+	size_t offset = passCBByteSize * renderContext.numCameras;
 	for (const auto& [mat, objects] : mat2objects) {
 		// For each render item...
 		size_t objIdx = 0;
@@ -622,9 +634,9 @@ StdPipeline::~StdPipeline() {
 	delete pImpl;
 }
 
-void StdPipeline::BeginFrame(const UECS::World& world) {
-	// collect cpu data
-	pImpl->UpdateCPUContext(world);
+void StdPipeline::BeginFrame(const UECS::World& world, const std::vector<CameraData>& cameras) {
+	// collect some cpu data
+	pImpl->UpdateRenderContext(world);
 
 	// Cycle through the circular frame resource array.
 	// Has the GPU finished processing the commands of the current frame resource?
@@ -632,7 +644,7 @@ void StdPipeline::BeginFrame(const UECS::World& world) {
 	pImpl->frameRsrcMngr.BeginFrame();
 
 	// cpu -> gpu
-	pImpl->UpdateShaderCBs(GetResizeData());
+	pImpl->UpdateShaderCBs(GetResizeData(), world, cameras);
 }
 
 void StdPipeline::Render(ID3D12Resource* rt) {

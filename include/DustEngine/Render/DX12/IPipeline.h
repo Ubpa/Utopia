@@ -2,6 +2,8 @@
 
 #include <UDX12/UDX12.h>
 
+#include <UECS/Entity.h>
+
 namespace Ubpa::UECS {
 	class World;
 }
@@ -15,6 +17,12 @@ namespace Ubpa::DustEngine {
 			ID3D12CommandQueue* cmdQueue;
 			DXGI_FORMAT rtFormat;
 		};
+		struct CameraData {
+			CameraData(UECS::Entity entity, const UECS::World& world)
+				: entity{ entity }, world{ world } {}
+			UECS::Entity entity;
+			const UECS::World& world;
+		};
 
 		IPipeline(InitDesc initDesc) : initDesc{ initDesc } {}
 
@@ -22,7 +30,7 @@ namespace Ubpa::DustEngine {
 
 		// data : cpu -> gpu
 		// run in update
-		virtual void BeginFrame(const UECS::World& world) = 0;
+		virtual void BeginFrame(const UECS::World& world, const std::vector<CameraData>& cameras) = 0;
 		// run in draw
 		virtual void Render(ID3D12Resource* rt) = 0;
 		// run at the end of draw

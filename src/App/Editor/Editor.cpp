@@ -71,9 +71,9 @@ private:
     POINT mLastMousePos;
 
 	Ubpa::UECS::World world;
-	Ubpa::UECS::Entity cam{ Ubpa::UECS::Entity::Invalid() };
-
-	std::unique_ptr<Ubpa::DustEngine::IPipeline> pipeline;
+	std::unique_ptr<Ubpa::UECS::EntityMngr> runningContext;
+	Ubpa::UECS::World editorWorld;
+	Ubpa::UECS::Entity editorSceneCamera{ Ubpa::UECS::Entity::Invalid() };
 
 	void OnGameResize();
 	size_t gameWidth, gameHeight;
@@ -82,12 +82,30 @@ private:
 	const DXGI_FORMAT gameRTFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 	Ubpa::UDX12::DescriptorHeapAllocation gameRT_SRV;
 	Ubpa::UDX12::DescriptorHeapAllocation gameRT_RTV;
+	std::unique_ptr<Ubpa::DustEngine::IPipeline> gamePipeline;
+
+	void OnEditorSceneResize();
+	size_t editorSceneWidth, editorSceneHeight;
+	ImVec2 editorScenePos;
+	ComPtr<ID3D12Resource> editorSceneRT;
+	const DXGI_FORMAT editorSceneRTFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+	Ubpa::UDX12::DescriptorHeapAllocation editorSceneRT_SRV;
+	Ubpa::UDX12::DescriptorHeapAllocation editorSceneRT_RTV;
+	std::unique_ptr<Ubpa::DustEngine::IPipeline> editorScenePipeline;
 
 	bool show_demo_window = true;
 	bool show_another_window = false;
 
 	ImGuiContext* mainImGuiCtx = nullptr;
 	ImGuiContext* gameImGuiCtx = nullptr;
+
+	enum GameState {
+		NotStart,
+		Starting,
+		Running,
+		Stopping,
+	};
+	GameState gameState = GameState::NotStart;
 };
 
 // Forward declare message handler from imgui_impl_win32.cpp
@@ -298,6 +316,10 @@ Editor::~Editor() {
 		Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(gameRT_SRV));
 	if (!gameRT_RTV.IsNull())
 		Ubpa::UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Free(std::move(gameRT_RTV));
+	if (!editorSceneRT_SRV.IsNull())
+		Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(editorSceneRT_SRV));
+	if (!editorSceneRT_RTV.IsNull())
+		Ubpa::UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Free(std::move(editorSceneRT_RTV));
 }
 
 bool Editor::Initialize() {
@@ -309,6 +331,8 @@ bool Editor::Initialize() {
 
 	gameRT_SRV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(1);
 	gameRT_RTV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Allocate(1);
+	editorSceneRT_SRV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(1);
+	editorSceneRT_RTV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Allocate(1);
 
 	Ubpa::DustEngine::MeshLayoutMngr::Instance().Init();
 
@@ -334,7 +358,8 @@ bool Editor::Initialize() {
 	initDesc.rtFormat = gameRTFormat;
 	initDesc.cmdQueue = uCmdQueue.Get();
 	initDesc.numFrame = NumFrameResources;
-	pipeline = std::make_unique<Ubpa::DustEngine::StdPipeline>(initDesc);
+	gamePipeline = std::make_unique<Ubpa::DustEngine::StdPipeline>(initDesc);
+	editorScenePipeline = std::make_unique<Ubpa::DustEngine::StdPipeline>(initDesc);
 
 	// Do the initial resize code.
 	OnResize();
@@ -351,9 +376,6 @@ void Editor::OnResize()
 }
 
 void Editor::OnGameResize() {
-	// Flush before changing any resources.
-	FlushCommandQueue();
-
 	Ubpa::rgbaf background = { 0.f,0.f,0.f,1.f };
 	auto rtType = Ubpa::UDX12::FG::RsrcType::RT2D(gameRTFormat, gameWidth, gameHeight, background.data());
 	ThrowIfFailed(uDevice->CreateCommittedResource(
@@ -367,7 +389,7 @@ void Editor::OnGameResize() {
 	uDevice->CreateShaderResourceView(gameRT.Get(), nullptr, gameRT_SRV.GetCpuHandle());
 	uDevice->CreateRenderTargetView(gameRT.Get(), nullptr, gameRT_RTV.GetCpuHandle());
 
-	assert(pipeline);
+	assert(gamePipeline);
 	D3D12_VIEWPORT viewport;
 	viewport.TopLeftX = 0;
 	viewport.TopLeftY = 0;
@@ -375,10 +397,32 @@ void Editor::OnGameResize() {
 	viewport.Height = static_cast<float>(gameHeight);
 	viewport.MinDepth = 0.0f;
 	viewport.MaxDepth = 1.0f;
-	pipeline->Resize(gameWidth, gameHeight, viewport, { 0, 0, (LONG)gameWidth, (LONG)gameHeight });
+	gamePipeline->Resize(gameWidth, gameHeight, viewport, { 0, 0, (LONG)gameWidth, (LONG)gameHeight });
+}
 
-	// Flush before changing any resources.
-	FlushCommandQueue();
+void Editor::OnEditorSceneResize() {
+	Ubpa::rgbaf background = { 0.f,0.f,0.f,1.f };
+	auto rtType = Ubpa::UDX12::FG::RsrcType::RT2D(editorSceneRTFormat, editorSceneWidth, editorSceneHeight, background.data());
+	ThrowIfFailed(uDevice->CreateCommittedResource(
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+		D3D12_HEAP_FLAG_NONE,
+		&rtType.desc,
+		D3D12_RESOURCE_STATE_PRESENT,
+		&rtType.clearValue,
+		IID_PPV_ARGS(editorSceneRT.ReleaseAndGetAddressOf())
+	));
+	uDevice->CreateShaderResourceView(editorSceneRT.Get(), nullptr, editorSceneRT_SRV.GetCpuHandle());
+	uDevice->CreateRenderTargetView(editorSceneRT.Get(), nullptr, editorSceneRT_RTV.GetCpuHandle());
+
+	assert(editorScenePipeline);
+	D3D12_VIEWPORT viewport;
+	viewport.TopLeftX = 0;
+	viewport.TopLeftY = 0;
+	viewport.Width = static_cast<float>(editorSceneWidth);
+	viewport.Height = static_cast<float>(editorSceneHeight);
+	viewport.MinDepth = 0.0f;
+	viewport.MaxDepth = 1.0f;
+	editorScenePipeline->Resize(editorSceneWidth, editorSceneHeight, viewport, { 0, 0, (LONG)editorSceneWidth, (LONG)editorSceneHeight });
 }
 
 void Editor::Update() {
@@ -390,6 +434,10 @@ void Editor::Update() {
 
 	ImGui::SetCurrentContext(mainImGuiCtx);
 	ImGui::NewFrame(); // main ctx
+	auto& mainIO = ImGui::GetIO();
+
+	UpdateCamera();
+	editorWorld.Update();
 
 	// 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
 	if (show_demo_window)
@@ -427,6 +475,7 @@ void Editor::Update() {
 		ImGui::End();
 	}
 
+	bool isFlush = false;
 	// 4. game window
 	if (ImGui::Begin("Game", nullptr, ImGuiWindowFlags_NoScrollbar)) {
 		auto content_max_minus_local_pos = ImGui::GetContentRegionAvail();
@@ -435,34 +484,111 @@ void Editor::Update() {
 		gamePos.x = game_window_pos.x + content_max.x - content_max_minus_local_pos.x;
 		gamePos.y = game_window_pos.y + content_max.y - content_max_minus_local_pos.y;
 
-		auto tex = Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Texture2D>(L"..\\assets\\textures\\chessboard.tex2d");
 		auto gameSize = ImGui::GetContentRegionAvail();
 		auto w = (size_t)gameSize.x;
 		auto h = (size_t)gameSize.y;
 		if (gameSize.x > 0 && gameSize.y > 0 && w > 0 && h > 0 && (w != gameWidth || h != gameHeight)) {
 			gameWidth = w;
 			gameHeight = h;
+
+			if (!isFlush) {
+				// Flush before changing any resources.
+				FlushCommandQueue();
+				isFlush = true;
+			}
+
 			OnGameResize();
 		}
 		ImGui::Image(
 			ImTextureID(gameRT_SRV.GetGpuHandle().ptr),
-			//{ float(tex->image->width.get()), float(tex->image->height.get()) }
 			ImGui::GetContentRegionAvail()
 		);
 	}
 	ImGui::End(); // game window
 
+	// 5. editorScene window
+	if (ImGui::Begin("Editor Scene", nullptr, ImGuiWindowFlags_NoScrollbar)) {
+		auto content_max_minus_local_pos = ImGui::GetContentRegionAvail();
+		auto content_max = ImGui::GetWindowContentRegionMax();
+		auto editorScene_window_pos = ImGui::GetWindowPos();
+		editorScenePos.x = editorScene_window_pos.x + content_max.x - content_max_minus_local_pos.x;
+		editorScenePos.y = editorScene_window_pos.y + content_max.y - content_max_minus_local_pos.y;
+
+		auto editorSceneSize = ImGui::GetContentRegionAvail();
+		auto w = (size_t)editorSceneSize.x;
+		auto h = (size_t)editorSceneSize.y;
+		if (editorSceneSize.x > 0 && editorSceneSize.y > 0 && w > 0 && h > 0 && (w != editorSceneWidth || h != editorSceneHeight)) {
+			editorSceneWidth = w;
+			editorSceneHeight = h;
+
+			if (!isFlush) {
+				// Flush before changing any resources.
+				FlushCommandQueue();
+				isFlush = true;
+			}
+
+			OnEditorSceneResize();
+		}
+		ImGui::Image(
+			ImTextureID(editorSceneRT_SRV.GetGpuHandle().ptr),
+			ImGui::GetContentRegionAvail()
+		);
+	}
+	ImGui::End(); // editorScene window
+
+	// 6.game control
+	if (ImGui::Begin("Game Control", nullptr, ImGuiWindowFlags_NoScrollbar)) {
+		static std::string startStr = "start";
+		if (ImGui::Button(startStr.c_str())) {
+			if (mainIO.MouseReleased[0]) {
+				switch (gameState)
+				{
+				case Editor::NotStart:
+					startStr = "stop";
+					gameState = Editor::Starting;
+					break;
+				case Editor::Running:
+					startStr = "start";
+					gameState = Editor::Stopping;
+					break;
+				case Editor::Starting:
+				case Editor::Stopping:
+				default:
+					assert("error" && false);
+					break;
+				}
+			}
+		}
+	}
+	ImGui::End(); // Game Control window
+
 	{ // game update
 		ImGui::SetCurrentContext(gameImGuiCtx);
 		ImGui::NewFrame(); // game ctx
 
-		UpdateCamera();
-
-		world.Update();
-
-		ImGui::Begin("in game");
-		ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-		ImGui::End();
+		switch (gameState)
+		{
+		case Editor::NotStart:
+			break;
+		case Editor::Starting:
+			runningContext = std::make_unique<Ubpa::UECS::EntityMngr>(world.entityMngr);
+			world.entityMngr.Swap(*runningContext);
+			gameState = Editor::Running;
+			// break;
+		case Editor::Running:
+			world.Update();
+			ImGui::Begin("in game");
+			ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
+			ImGui::End();
+			break;
+		case Editor::Stopping:
+			world.entityMngr.Swap(*runningContext);
+			runningContext.reset();
+			gameState = Editor::NotStart;
+			break;
+		default:
+			break;
+		}
 	}
 
 	ImGui::SetCurrentContext(nullptr);
@@ -494,7 +620,16 @@ void Editor::Update() {
 	uCmdQueue.Execute(uGCmdList.Get());
 	deleteBatch.Commit(uDevice.Get(), uCmdQueue.Get());
 
-	pipeline->BeginFrame(world);
+	std::vector<Ubpa::DustEngine::IPipeline::CameraData> gameCameras;
+	Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::CmptAccessType::Of<Ubpa::DustEngine::Camera>} };
+	world.RunEntityJob([&](Ubpa::UECS::Entity e) {
+		gameCameras.emplace_back(e, world);
+	}, false, camFilter);
+	gamePipeline->BeginFrame(world, gameCameras);
+
+	std::vector<Ubpa::DustEngine::IPipeline::CameraData> editorSceneCameras;
+	editorSceneCameras.emplace_back(editorSceneCamera, editorWorld);
+	editorScenePipeline->BeginFrame(world, editorSceneCameras);
 }
 
 void Editor::Draw() {
@@ -503,7 +638,7 @@ void Editor::Draw() {
 
 	ImGui::SetCurrentContext(gameImGuiCtx);
 	if (gameRT) {
-		pipeline->Render(gameRT.Get());
+		gamePipeline->Render(gameRT.Get());
 		uGCmdList.ResourceBarrierTransition(gameRT.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 		uGCmdList->OMSetRenderTargets(1, &gameRT_RTV.GetCpuHandle(), FALSE, NULL);
 		uGCmdList.SetDescriptorHeaps(Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap());
@@ -515,6 +650,9 @@ void Editor::Draw() {
 		ImGui::EndFrame();
 
 	ImGui::SetCurrentContext(mainImGuiCtx);
+	if (editorSceneRT)
+		editorScenePipeline->Render(editorSceneRT.Get());
+
 	uGCmdList.ResourceBarrierTransition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 	uGCmdList->ClearRenderTargetView(CurrentBackBufferView(), DirectX::Colors::Black, 0, NULL);
 	uGCmdList->OMSetRenderTargets(1, &CurrentBackBufferView(), FALSE, NULL);
@@ -528,7 +666,8 @@ void Editor::Draw() {
 
 	SwapBackBuffer();
 
-	pipeline->EndFrame();
+	gamePipeline->EndFrame();
+	editorScenePipeline->EndFrame();
 	GetFrameResourceMngr()->EndFrame(uCmdQueue.Get());
 	ImGui_ImplDX12_EndFrame();
 }
@@ -585,15 +724,53 @@ void Editor::UpdateCamera()
 		mRadius * cosf(mTheta),
 		mRadius * sinf(mTheta) * cosf(mPhi)
 	};
-	auto camera = world.entityMngr.Get<Ubpa::DustEngine::Camera>(cam);
+	auto camera = editorWorld.entityMngr.Get<Ubpa::DustEngine::Camera>(editorSceneCamera);
 	camera->aspect = gameWidth / (float)gameHeight;
 	auto view = Ubpa::transformf::look_at(eye.as<Ubpa::pointf3>(), { 0.f }); // world to camera
 	auto c2w = view.inverse();
-	world.entityMngr.Get<Ubpa::DustEngine::Translation>(cam)->value = eye;
-	world.entityMngr.Get<Ubpa::DustEngine::Rotation>(cam)->value = c2w.decompose_quatenion();
+	editorWorld.entityMngr.Get<Ubpa::DustEngine::Translation>(editorSceneCamera)->value = eye;
+	editorWorld.entityMngr.Get<Ubpa::DustEngine::Rotation>(editorSceneCamera)->value = c2w.decompose_quatenion();
 }
 
 void Editor::BuildWorld() {
+	editorWorld.systemMngr.Register<
+		Ubpa::DustEngine::CameraSystem,
+		Ubpa::DustEngine::LocalToParentSystem,
+		Ubpa::DustEngine::RotationEulerSystem,
+		Ubpa::DustEngine::TRSToLocalToParentSystem,
+		Ubpa::DustEngine::TRSToLocalToWorldSystem,
+		Ubpa::DustEngine::WorldToLocalSystem,
+		Ubpa::DustEngine::WorldTimeSystem
+	>();
+	editorWorld.cmptTraits.Register<
+		// core
+		Ubpa::DustEngine::Camera,
+		Ubpa::DustEngine::MeshFilter,
+		Ubpa::DustEngine::MeshRenderer,
+		Ubpa::DustEngine::WorldTime,
+
+		// transform
+		Ubpa::DustEngine::Children,
+		Ubpa::DustEngine::LocalToParent,
+		Ubpa::DustEngine::LocalToWorld,
+		Ubpa::DustEngine::Parent,
+		Ubpa::DustEngine::Rotation,
+		Ubpa::DustEngine::RotationEuler,
+		Ubpa::DustEngine::Scale,
+		Ubpa::DustEngine::Translation,
+		Ubpa::DustEngine::WorldToLocal
+	>();
+	{
+		auto [e, l2w, w2l, cam, t, rot] = editorWorld.entityMngr.Create<
+			Ubpa::DustEngine::LocalToWorld,
+			Ubpa::DustEngine::WorldToLocal,
+			Ubpa::DustEngine::Camera,
+			Ubpa::DustEngine::Translation,
+			Ubpa::DustEngine::Rotation
+		>();
+		editorSceneCamera = e;
+	}
+
 	world.systemMngr.Register<
 		Ubpa::DustEngine::CameraSystem,
 		Ubpa::DustEngine::LocalToParentSystem,
@@ -603,7 +780,7 @@ void Editor::BuildWorld() {
 		Ubpa::DustEngine::WorldToLocalSystem,
 		Ubpa::DustEngine::WorldTimeSystem
 	>();
-	world.entityMngr.cmptTraits.Register<
+	world.cmptTraits.Register<
 		// core
 		Ubpa::DustEngine::Camera,
 		Ubpa::DustEngine::MeshFilter,
@@ -665,7 +842,6 @@ void Editor::BuildWorld() {
 	//OutputDebugStringA(Ubpa::DustEngine::Serializer::Instance().ToJSON(&world).c_str());
 	auto scene = Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Scene>(L"..\\assets\\scenes\\Game.scene");
 	Ubpa::DustEngine::Serializer::Instance().ToWorld(&world, scene->GetText());
-	cam = world.entityMngr.GetEntityArray({ {Ubpa::UECS::CmptAccessType::Of<Ubpa::DustEngine::Camera>} }).front();
 	OutputDebugStringA(Ubpa::DustEngine::Serializer::Instance().ToJSON(&world).c_str());
 
 	auto mainLua = Ubpa::DustEngine::LuaCtxMngr::Instance().Register(&world)->Main();

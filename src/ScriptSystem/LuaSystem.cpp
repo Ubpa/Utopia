@@ -45,7 +45,7 @@ const Ubpa::UECS::SystemFunc* LuaSystem::RegisterEntityJob(
 				cmpts.push_back(chunk.GetCmptArray(t));
 				types.push_back(t);
 				cmptPtrs.emplace_back(t, cmpts.back());
-				sizes.push_back(w->entityMngr.cmptTraits.Sizeof(t));
+				sizes.push_back(w->cmptTraits.Sizeof(t));
 			}
 
 			size_t i = 0;

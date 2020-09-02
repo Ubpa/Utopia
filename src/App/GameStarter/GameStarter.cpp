@@ -477,7 +477,7 @@ void GameStarter::BuildWorld() {
 		Ubpa::DustEngine::WorldToLocalSystem,
 		Ubpa::DustEngine::WorldTimeSystem
 	>();
-	world.entityMngr.cmptTraits.Register<
+	world.cmptTraits.Register<
 		// core
 		Ubpa::DustEngine::Camera,
 		Ubpa::DustEngine::MeshFilter,

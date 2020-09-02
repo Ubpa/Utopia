@@ -33,6 +33,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::World>
 				return &w.entityMngr;
 			})
 		},
+		Field{"cmptTraits", &Ubpa::UECS::World::cmptTraits},
 		Field{"Update", &Ubpa::UECS::World::Update},
 		Field{"DumpUpdateJobGraph", &Ubpa::UECS::World::DumpUpdateJobGraph},
 		Field{"GenUpdateFrameGraph", &Ubpa::UECS::World::GenUpdateFrameGraph},

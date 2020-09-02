@@ -23,6 +23,8 @@ struct Serializer::Impl : IListener {
 	Visitor<void(void*, const rapidjson::Value&, DeserializeContext)> deserializer;
 	Serializer::SerializeContext ctx{ &writer, &serializer };
 
+	const World* curWorld{ nullptr };
+
 	Impl() {
 		writer.Reset(sb);
 	}
@@ -35,9 +37,11 @@ struct Serializer::Impl : IListener {
 	virtual void EnterWorld(const World* world) override {
 		writer.StartObject();
 		writer.Key(Serializer::Key::ENTITY_MNGR);
+		curWorld = world;
 	}
 	virtual void ExistWorld(const World* world) override {
 		writer.EndObject();
+		curWorld = nullptr;
 	}
 
 	virtual void EnterSystemMngr(const SystemMngr*) override {}
@@ -72,6 +76,11 @@ struct Serializer::Impl : IListener {
 		writer.StartObject();
 		writer.Key(Key::TYPE);
 		writer.Uint64(p->Type().HashCode());
+		auto name = curWorld->cmptTraits.Nameof(p->Type());
+		if (!name.empty()) {
+			writer.Key(Key::NAME);
+			writer.String(name.data());
+		}
 		writer.Key(Key::CONTENT);
 		if (serializer.IsRegistered(p->Type().HashCode()))
 			serializer.Visit(p->Type().HashCode(), p->Ptr(), ctx);

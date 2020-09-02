@@ -24,6 +24,7 @@ namespace Ubpa::DustEngine {
 			static constexpr const char INDEX[] = "__INDEX";
 			static constexpr const char COMPONENTS[] = "__COMPONENTS";
 			static constexpr const char TYPE[] = "__TYPE";
+			static constexpr const char NAME[] = "__NAME";
 			static constexpr const char CONTENT[] = "__CONTENT";
 			static constexpr const char NOT_SUPPORT[] = "__NOT_SUPPORT";
 			static constexpr const char KEY[] = "__KEY";

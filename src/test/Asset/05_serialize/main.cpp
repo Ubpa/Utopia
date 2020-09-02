@@ -182,7 +182,7 @@ int main() {
 	auto [new_e0] = new_w->entityMngr.Create();
 	auto [new_e1] = new_w->entityMngr.Create();
 	new_w->entityMngr.Destroy(new_e0);
-	new_w->entityMngr.cmptTraits.Register<A>();
+	new_w->cmptTraits.Register<A>();
 	Serializer::Instance().ToWorld(new_w.get(), json);
 	new_w->entityMngr.Destroy(new_e1);
 	auto new_json = Serializer::Instance().ToJSON(new_w.get());

@@ -24,7 +24,7 @@ public:
 int main() {
 	World w;
 
-	w.entityMngr.cmptTraits.Register<
+	w.cmptTraits.Register<
 		Children,
 		LocalToParent,
 		LocalToWorld,

@@ -10,7 +10,7 @@ namespace Ubpa::DustEngine {
 
 		// data : cpu -> gpu
 		// run in update
-		virtual void BeginFrame(const UECS::World&) override;
+		virtual void BeginFrame(const UECS::World&, const std::vector<CameraData>& cameras) override;
 
 		// run in draw
 		virtual void Render(ID3D12Resource* rt) override;
