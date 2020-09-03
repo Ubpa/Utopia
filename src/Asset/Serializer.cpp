@@ -143,25 +143,24 @@ void Serializer::ToWorld(UECS::World* world, string_view json) {
 
 	for (const auto& val_e : entities) {
 		const auto& jsonEntity = val_e.GetObject();
-		const auto& components = jsonEntity[Key::COMPONENTS].GetArray();
+		const auto& jsonCmpts = jsonEntity[Key::COMPONENTS].GetArray();
 
 		std::vector<CmptType> cmptTypes;
-		cmptTypes.resize(components.Size());
-		for (SizeType i = 0; i < components.Size(); i++) {
-			const auto& cmpt = components[i].GetObject();
+		cmptTypes.resize(jsonCmpts.Size());
+		for (SizeType i = 0; i < jsonCmpts.Size(); i++) {
+			const auto& cmpt = jsonCmpts[i].GetObject();
 			size_t cmptID = cmpt[Key::TYPE].GetUint64();
 			cmptTypes[i] = CmptType{ cmptID };
 		}
 
 		auto entity = world->entityMngr.Create(cmptTypes.data(), cmptTypes.size());
-		auto cmpts = world->entityMngr.Components(entity);
 		DeserializeContext ctx{ &entityIdxMap,&(pImpl->deserializer) };
-		for (size_t i = 0; i < cmpts.size(); i++) {
-			if (pImpl->deserializer.IsRegistered(cmpts[i].Type().HashCode())) {
+		for (size_t i = 0; i < cmptTypes.size(); i++) {
+			if (pImpl->deserializer.IsRegistered(cmptTypes[i].HashCode())) {
 				pImpl->deserializer.Visit(
-					cmpts[i].Type().HashCode(),
-					cmpts[i].Ptr(),
-					components[static_cast<SizeType>(i)].GetObject()[Key::CONTENT],
+					cmptTypes[i].HashCode(),
+					world->entityMngr.Get(entity, cmptTypes[i]).Ptr(),
+					jsonCmpts[static_cast<SizeType>(i)].GetObject()[Key::CONTENT],
 					ctx
 				);
 			}

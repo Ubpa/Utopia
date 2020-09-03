@@ -3,6 +3,7 @@
 #include "../Components/Hierarchy.h"
 
 #include <DustEngine/Transform/Components/Components.h>
+#include <DustEngine/Core/Components/Name.h>
 
 #include <DustEngine/_deps/imgui/imgui.h>
 
@@ -19,10 +20,13 @@ namespace Ubpa::DustEngine::detail {
 		if (hierarchy->select == e)
 			nodeFlags |= ImGuiTreeNodeFlags_Selected;
 
+		auto name = hierarchy->world->entityMngr.Get<Name>(e);
 		auto children = hierarchy->world->entityMngr.Get<Children>(e);
 
 		if (children) {
-			bool nodeOpen = ImGui::TreeNodeEx((void*)(intptr_t)e.Idx(), nodeFlags, "Entity %d", e.Idx());
+			bool nodeOpen = name ? ImGui::TreeNodeEx((void*)(intptr_t)e.Idx(), nodeFlags, "%s (%d)", name->value.c_str(), e.Idx())
+				: ImGui::TreeNodeEx((void*)(intptr_t)e.Idx(), nodeFlags, "Entity (%d)", e.Idx());
+
 			if (ImGui::IsItemClicked())
 				hierarchy->select = e;
 			if (nodeOpen) {
@@ -33,7 +37,10 @@ namespace Ubpa::DustEngine::detail {
 		}
 		else {
 			nodeFlags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
-			ImGui::TreeNodeEx((void*)(intptr_t)e.Idx(), nodeFlags, "Entity %d", e.Idx());
+			if (name)
+				ImGui::TreeNodeEx((void*)(intptr_t)e.Idx(), nodeFlags, "%s (%d)", name->value.c_str(), e.Idx());
+			else
+				ImGui::TreeNodeEx((void*)(intptr_t)e.Idx(), nodeFlags, "Entity (%d)", e.Idx());
 			if (ImGui::IsItemClicked())
 				hierarchy->select = e;
 		}
@@ -41,20 +48,19 @@ namespace Ubpa::DustEngine::detail {
 }
 
 void HierarchySystem::OnUpdate(UECS::Schedule& schedule) {
-	GetWorld()->AddCommand([](UECS::World* w) {
-		auto hierarchy = w->entityMngr.GetSingleton<Hierarchy>();
-		if (!hierarchy)
-			return;
-		if (ImGui::Begin("Hierarchy")) {
+	schedule.RegisterJob([](UECS::World* w, UECS::Latest<UECS::Singleton<Hierarchy>> hierarchy) {
+		w->AddCommand([hierarchy](UECS::World* w) {
+			if (ImGui::Begin("Hierarchy")) {
 
-			UECS::ArchetypeFilter filter;
-			filter.none = { UECS::CmptType::Of<Parent> };
-			const_cast<UECS::World*>(hierarchy->world)->RunEntityJob(
-				[=](UECS::Entity e) { detail::HierarchyPrintEntity(hierarchy, e); },
-				false,
-				filter
-			);
-		}
-		ImGui::End();
-	});
+				UECS::ArchetypeFilter filter;
+				filter.none = { UECS::CmptType::Of<Parent> };
+				const_cast<UECS::World*>(hierarchy->world)->RunEntityJob(
+					[=](UECS::Entity e) { detail::HierarchyPrintEntity(const_cast<Hierarchy*>(hierarchy.Get()), e); },
+					false,
+					filter
+				);
+			}
+			ImGui::End();
+		});
+	}, "HierarchySystem");
 }

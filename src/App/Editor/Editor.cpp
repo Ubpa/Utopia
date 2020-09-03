@@ -1,5 +1,9 @@
 #include "Components/Hierarchy.h"
+#include "Components/Inspector.h"
+#include "Components/TestInspector.h"
 #include "Systems/HierarchySystem.h"
+#include "Systems/InspectorSystem.h"
+#include "CmptInsepctor.h"
 
 #include <DustEngine/App/DX12App/DX12App.h>
 
@@ -21,6 +25,7 @@
 #include <DustEngine/Core/Components/Camera.h>
 #include <DustEngine/Core/Components/MeshFilter.h>
 #include <DustEngine/Core/Components/MeshRenderer.h>
+#include <DustEngine/Core/Components/Name.h>
 #include <DustEngine/Core/Components/WorldTime.h>
 #include <DustEngine/Core/Systems/CameraSystem.h>
 #include <DustEngine/Core/Systems/WorldTimeSystem.h>
@@ -720,8 +725,7 @@ void Editor::OnMouseMove(WPARAM btnState, int x, int y)
     mLastMousePos.y = y;
 }
 
-void Editor::UpdateCamera()
-{
+void Editor::UpdateCamera() {
 	Ubpa::vecf3 eye = {
 		mRadius * sinf(mTheta) * sinf(mPhi),
 		mRadius * cosf(mTheta),
@@ -736,6 +740,28 @@ void Editor::UpdateCamera()
 }
 
 void Editor::BuildWorld() {
+	Ubpa::DustEngine::CmptInspector::Instance().RegisterCmpts<
+		// core
+		Ubpa::DustEngine::Camera,
+		Ubpa::DustEngine::MeshFilter,
+		Ubpa::DustEngine::MeshRenderer,
+		Ubpa::DustEngine::WorldTime,
+		Ubpa::DustEngine::Name,
+
+		// transform
+		Ubpa::DustEngine::Children,
+		Ubpa::DustEngine::LocalToParent,
+		Ubpa::DustEngine::LocalToWorld,
+		Ubpa::DustEngine::Parent,
+		Ubpa::DustEngine::Rotation,
+		Ubpa::DustEngine::RotationEuler,
+		Ubpa::DustEngine::Scale,
+		Ubpa::DustEngine::Translation,
+		Ubpa::DustEngine::WorldToLocal,
+
+		Ubpa::DustEngine::TestInspector
+	>();
+
 	editorWorld.systemMngr.Register<
 		Ubpa::DustEngine::CameraSystem,
 		Ubpa::DustEngine::LocalToParentSystem,
@@ -745,7 +771,8 @@ void Editor::BuildWorld() {
 		Ubpa::DustEngine::WorldToLocalSystem,
 		Ubpa::DustEngine::WorldTimeSystem,
 
-		Ubpa::DustEngine::HierarchySystem
+		Ubpa::DustEngine::HierarchySystem,
+		Ubpa::DustEngine::InspectorSystem
 	>();
 	editorWorld.cmptTraits.Register<
 		// core
@@ -753,6 +780,7 @@ void Editor::BuildWorld() {
 		Ubpa::DustEngine::MeshFilter,
 		Ubpa::DustEngine::MeshRenderer,
 		Ubpa::DustEngine::WorldTime,
+		Ubpa::DustEngine::Name,
 
 		// transform
 		Ubpa::DustEngine::Children,
@@ -766,7 +794,9 @@ void Editor::BuildWorld() {
 		Ubpa::DustEngine::WorldToLocal,
 
 		// editor
-		Ubpa::DustEngine::Hierarchy
+		Ubpa::DustEngine::Hierarchy,
+		Ubpa::DustEngine::Inspector,
+		Ubpa::DustEngine::TestInspector
 	>();
 
 	{ // editor camera
@@ -782,6 +812,9 @@ void Editor::BuildWorld() {
 	{ // hierarchy
 		auto [e, hierarchy] = editorWorld.entityMngr.Create<Ubpa::DustEngine::Hierarchy>();
 		hierarchy->world = &world;
+	}
+	{ // inspector
+		auto [e, inspector] = editorWorld.entityMngr.Create<Ubpa::DustEngine::Inspector>();
 	}
 
 	world.systemMngr.Register<
@@ -799,6 +832,7 @@ void Editor::BuildWorld() {
 		Ubpa::DustEngine::MeshFilter,
 		Ubpa::DustEngine::MeshRenderer,
 		Ubpa::DustEngine::WorldTime,
+		Ubpa::DustEngine::Name,
 
 		// transform
 		Ubpa::DustEngine::Children,
@@ -809,8 +843,16 @@ void Editor::BuildWorld() {
 		Ubpa::DustEngine::RotationEuler,
 		Ubpa::DustEngine::Scale,
 		Ubpa::DustEngine::Translation,
-		Ubpa::DustEngine::WorldToLocal
+		Ubpa::DustEngine::WorldToLocal,
+
+		Ubpa::DustEngine::TestInspector
 	>();
+
+	{ // test inspector
+
+		auto [e, test, name] = world.entityMngr.Create<Ubpa::DustEngine::TestInspector, Ubpa::DustEngine::Name>();
+		name->value = "TEst Inspector";
+	}
 
 	/*world.entityMngr.Create<Ubpa::DustEngine::WorldTime>();
 
@@ -840,6 +882,7 @@ void Editor::BuildWorld() {
 		Ubpa::DustEngine::MeshFilter,
 		Ubpa::DustEngine::MeshRenderer,
 		Ubpa::DustEngine::WorldTime,
+		Ubpa::DustEngine::Name,
 
 		// transform
 		Ubpa::DustEngine::Children,
@@ -850,7 +893,9 @@ void Editor::BuildWorld() {
 		Ubpa::DustEngine::RotationEuler,
 		Ubpa::DustEngine::Scale,
 		Ubpa::DustEngine::Translation,
-		Ubpa::DustEngine::WorldToLocal
+		Ubpa::DustEngine::WorldToLocal,
+
+		Ubpa::DustEngine::TestInspector
 	>();
 	//OutputDebugStringA(Ubpa::DustEngine::Serializer::Instance().ToJSON(&world).c_str());
 	auto scene = Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Scene>(L"..\\assets\\scenes\\Game.scene");

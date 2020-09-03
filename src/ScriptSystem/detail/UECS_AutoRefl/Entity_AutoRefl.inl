@@ -16,7 +16,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::Entity>
         Field{"Idx", &Ubpa::UECS::Entity::Idx},
         Field{"Version", &Ubpa::UECS::Entity::Version},
 		Field{"Invalid", &Ubpa::UECS::Entity::Invalid},
-		Field{"IsValid", &Ubpa::UECS::Entity::IsValid},
+		Field{"Valid", &Ubpa::UECS::Entity::Valid},
 		Field{"operator==", &Ubpa::UECS::Entity::operator==},
 		Field{"operator<", &Ubpa::UECS::Entity::operator<},
     };

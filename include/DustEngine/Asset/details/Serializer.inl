@@ -1,191 +1,9 @@
 #pragma once
 
-#include <UTemplate/Func.h>
-#include <USRefl/USRefl.h>
+#include "../../Core/Traits.h"
 #include "../AssetMngr.h"
 
-#include <UGM/UGM.h>
-
 namespace Ubpa::DustEngine::detail {
-	template<typename Void, typename T>
-	struct HasDefinitionHelper : std::false_type {};
-	template<typename T>
-	struct HasDefinitionHelper<std::void_t<decltype(sizeof(T))>, T> : std::true_type {};
-	template<typename T>
-	struct HasDefinition : HasDefinitionHelper<void, T> {};
-
-	template<typename T>
-	struct HasTypeInfo : HasDefinition<Ubpa::USRefl::TypeInfo<T>> {};
-
-	template<typename T>
-	constexpr size_t GetID() noexcept { return TypeID<T>; }
-
-	// =========================================================================================
-
-	template<typename T> struct ArrayTraits {
-		static constexpr bool isArray = false;
-	};
-	template<size_t N> struct ArrayTraitsBase {
-		static constexpr bool isArray = true;
-		static constexpr size_t size = N;
-	};
-	template<typename Arr>
-	const auto& ArrayTraits_Get(const Arr& arr, size_t idx) noexcept {
-		assert(idx < ArrayTraits<Arr>::size);
-		return arr[idx];
-	}
-	template<typename Arr>
-	using ArrayTraits_ValueType = std::decay_t<decltype(ArrayTraits_Get(std::declval<Arr>(), 0))>;
-	template<typename Arr>
-	void ArrayTraits_Set(Arr& arr, size_t idx, ArrayTraits_ValueType<Arr>&& value) {
-		assert(idx < ArrayTraits<Arr>::size);
-		arr[idx] = std::move(value);
-	}
-
-	template<typename T, size_t N> struct ArrayTraits<std::array<T, N>> : ArrayTraitsBase<N> {};
-	template<typename T, size_t N> struct ArrayTraits<bbox<T, N>>       : ArrayTraitsBase<2> {};
-	template<typename T, size_t N> struct ArrayTraits<hvec<T, N>>       : ArrayTraitsBase<N> {};
-	template<typename T, size_t N> struct ArrayTraits<mat<T, N>>        : ArrayTraitsBase<N> {};
-	template<typename T, size_t N> struct ArrayTraits<point<T, N>>      : ArrayTraitsBase<N> {};
-	template<typename T, size_t N> struct ArrayTraits<scale<T, N>>      : ArrayTraitsBase<N> {};
-	template<typename T, size_t N> struct ArrayTraits<triangle<T, N>>   : ArrayTraitsBase<3> {};
-	template<typename T, size_t N> struct ArrayTraits<val<T, N>>        : ArrayTraitsBase<N> {};
-	template<typename T, size_t N> struct ArrayTraits<vec<T, N>>        : ArrayTraitsBase<N> {};
-	template<typename T>           struct ArrayTraits<euler<T>>         : ArrayTraitsBase<3> {};
-	template<typename T>           struct ArrayTraits<normal<T>>        : ArrayTraitsBase<3> {};
-	template<typename T>           struct ArrayTraits<quat<T>>          : ArrayTraitsBase<4> {};
-	template<typename T>           struct ArrayTraits<rgb<T>>           : ArrayTraitsBase<3> {};
-	template<typename T>           struct ArrayTraits<rgba<T>>          : ArrayTraitsBase<4> {};
-	template<typename T>           struct ArrayTraits<svec<T>>          : ArrayTraitsBase<3> {};
-	template<typename T>           struct ArrayTraits<transform<T>>     : ArrayTraitsBase<4> {};
-
-	// =========================================================================================
-
-	template<typename T> struct VectorTraits {
-		static constexpr bool isVector = false;
-	};
-	struct VectorTraitsBase {
-		static constexpr bool isVector = true;
-	};
-	template<typename Vector>
-	auto VectorTraits_Begin(const Vector& vec) noexcept {
-		return vec.begin();
-	}
-	template<typename Vector>
-	auto VectorTraits_End(const Vector& vec) noexcept {
-		return vec.end();
-	}
-	template<typename Vector>
-	using VectorTraits_ValueType = std::decay_t<decltype(*VectorTraits_Begin(std::declval<Vector>()))>;
-	template<typename Vector>
-	void VectorTraits_Add(Vector& vec, VectorTraits_ValueType<Vector>&& value) {
-		vec.push_back(std::move(value));
-	}
-	template<typename Vector>
-	void VectorTraits_PostProcess(const Vector& vec) noexcept {}
-	template<typename T, typename Alloc>
-	struct VectorTraits<std::vector<T, Alloc>> : VectorTraitsBase {};
-	template<typename T, typename Alloc>
-	struct VectorTraits<std::deque<T, Alloc>> : VectorTraitsBase {};
-	template<typename T, typename Alloc>
-	struct VectorTraits<std::list<T, Alloc>> : VectorTraitsBase {};
-	template<typename T, typename Alloc>
-	struct VectorTraits<std::forward_list<T, Alloc>> : VectorTraitsBase {};
-	template<typename T, typename Pr, typename Alloc>
-	struct VectorTraits<std::set<T, Pr, Alloc>> : VectorTraitsBase {};
-	template<typename T, typename Pr, typename Alloc>
-	struct VectorTraits<std::multiset<T, Pr, Alloc>> : VectorTraitsBase {};
-	template<typename T, typename Hasher, typename KeyEq, typename Alloc>
-	struct VectorTraits<std::unordered_set<T, Hasher, KeyEq, Alloc>> : VectorTraitsBase {};
-	template<typename T, typename Hasher, typename KeyEq, typename Alloc>
-	struct VectorTraits<std::unordered_multiset<T, Hasher, KeyEq, Alloc>> : VectorTraitsBase {};
-
-	template<typename T, typename Alloc>
-	void VectorTraits_Add(std::forward_list<T, Alloc>& container, T&& value) {
-		container.push_front(std::move(value));
-	}
-
-	template<typename T, typename Alloc>
-	void VectorTraits_PostProcess(std::forward_list<T, Alloc>& container) {
-		container.reverse();
-	}
-
-	template<typename T, typename Pr, typename Alloc>
-	void VectorTraits_Add(std::set<T, Pr, Alloc>& container, T&& value) {
-		container.insert(std::move(value));
-	}
-
-	template<typename T, typename Pr, typename Alloc>
-	void VectorTraits_Add(std::multiset<T, Pr, Alloc>& container, T&& value) {
-		container.insert(std::move(value));
-	}
-
-	template<typename T, typename Hasher, typename KeyEq, typename Alloc>
-	void VectorTraits_Add(std::unordered_set<T, Hasher, KeyEq, Alloc>& container, T&& value) {
-		container.insert(std::move(value));
-	}
-
-	template<typename T, typename Hasher, typename KeyEq, typename Alloc>
-	void VectorTraits_Add(std::unordered_multiset<T, Hasher, KeyEq, Alloc>& container, T&& value) {
-		container.insert(std::move(value));
-	}
-
-	// =========================================================================================
-
-	template<typename T> struct MapTraits {
-		static constexpr bool isMap = false;
-	};
-	struct MapTraitsBase {
-		static constexpr bool isMap = true;
-	};
-	template<typename Map>
-	auto MapTraits_Begin(const Map& m) noexcept {
-		return m.begin();
-	}
-	template<typename Map>
-	auto MapTraits_End(const Map& m) noexcept {
-		return m.end();
-	}
-	template<typename Iter>
-	const auto& MapTraits_Iterator_Key(const Iter& iter) {
-		return iter->first;
-	}
-	template<typename Iter>
-	const auto& MapTraits_Iterator_Mapped(const Iter& iter) {
-		return iter->second;
-	}
-	template<typename Map>
-	using MapTraits_KeyType = std::decay_t<decltype(MapTraits_Iterator_Key(MapTraits_Begin(std::declval<Map>())))>;
-	template<typename Map>
-	using MapTraits_MappedType = std::decay_t<decltype(MapTraits_Iterator_Mapped(MapTraits_Begin(std::declval<Map>())))>;
-	template<typename Map>
-	auto MapTraits_Emplace(Map& m, MapTraits_KeyType<Map>&& key, MapTraits_MappedType<Map>&& mapped) {
-		return m.emplace(std::move(key), std::move(mapped));
-	}
-	template<typename Key, typename Mapped, typename Pr, typename Alloc>
-	struct MapTraits<std::map<Key, Mapped, Pr, Alloc>> : MapTraitsBase {};
-	template<typename Key, typename Mapped, typename Pr, typename Alloc>
-	struct MapTraits<std::multimap<Key, Mapped, Pr, Alloc>> : MapTraitsBase {};
-	template<typename Key, typename Mapped, typename Hasher, typename KeyEq, typename Alloc>
-	struct MapTraits<std::unordered_map<Key, Mapped, Hasher, KeyEq, Alloc>> : MapTraitsBase {};
-	template<typename Key, typename Mapped, typename Hasher, typename KeyEq, typename Alloc>
-	struct MapTraits<std::unordered_multimap<Key, Mapped, Hasher, KeyEq, Alloc>> : MapTraitsBase {};
-
-	// =========================================================================================
-
-	template<typename T> struct TupleTraits {
-		static constexpr bool isTuple = false;
-	};
-	struct TupleTraitsBase {
-		static constexpr bool isTuple = true;
-	};
-	template<typename... Ts>
-	struct TupleTraits<std::tuple<Ts...>> : TupleTraitsBase {};
-	template<typename T, typename U>
-	struct TupleTraits<std::pair<T, U>> : TupleTraitsBase {};
-
-	// =========================================================================================
-
 	template<typename Value>
 	void WriteVar(const Value& var, Serializer::SerializeContext ctx);
 
@@ -258,10 +76,10 @@ namespace Ubpa::DustEngine::detail {
 				WriteVar(ArrayTraits_Get(var, i), ctx);
 			ctx.writer->EndArray();
 		}
-		else if constexpr (VectorTraits<Value>::isVector) {
+		else if constexpr (OrderContainerTraits<Value>::isVector) {
 			ctx.writer->StartArray();
-			auto iter_end = VectorTraits_End(var);
-			for (auto iter = VectorTraits_Begin(var); iter != iter_end; iter++)
+			auto iter_end = OrderContainerTraits_End(var);
+			for (auto iter = OrderContainerTraits_Begin(var); iter != iter_end; iter++)
 				WriteVar(*iter, ctx);
 			ctx.writer->EndArray();
 		}
@@ -383,15 +201,15 @@ namespace Ubpa::DustEngine::detail {
 					);
 				}
 			}
-			else if constexpr (VectorTraits<Value>::isVector) {
+			else if constexpr (OrderContainerTraits<Value>::isVector) {
 				const auto& arr = jsonValueField.GetArray();
 				for (size_t i = 0; i < arr.Size(); i++) {
-					VectorTraits_Add(
+					OrderContainerTraits_Add(
 						rst,
-						ReadVar<VectorTraits_ValueType<Value>>(arr[static_cast<rapidjson::SizeType>(i)], ctx)
+						ReadVar<OrderContainerTraits_ValueType<Value>>(arr[static_cast<rapidjson::SizeType>(i)], ctx)
 					);
 				}
-				VectorTraits_PostProcess(rst);
+				OrderContainerTraits_PostProcess(rst);
 			}
 			else if constexpr (MapTraits<Value>::isMap) {
 				if constexpr (std::is_same_v<MapTraits_KeyType<Value>, std::string>) {
@@ -479,7 +297,7 @@ namespace Ubpa::DustEngine {
 		static_assert(std::is_const_v<ConstUserType>);
 		using UserType = std::remove_const_t<ConstUserType>;
 		RegisterUserTypeSerializeFunction(
-			detail::GetID<UserType>(),
+			GetID<UserType>(),
 			[f = std::forward<Func>(func)](const void* p, SerializeContext ctx) {
 				f(reinterpret_cast<const UserType*>(p), ctx);
 			}
@@ -497,7 +315,7 @@ namespace Ubpa::DustEngine {
 		using UserType = std::remove_pointer_t<UserTypePtr>;
 		static_assert(!std::is_const_v<UserType>);
 		RegisterUserTypeDeserializeFunction(
-			detail::GetID<UserType>(),
+			GetID<UserType>(),
 			[f = std::forward<Func>(func)](void* p, const rapidjson::Value& jsonValueCmpt, DeserializeContext ctx) {
 				f(reinterpret_cast<UserType*>(p), jsonValueCmpt, ctx);
 			}
