@@ -56,6 +56,8 @@ struct A {
 	std::vector<Entity> v_vector_entity;
 	UserType0 v_usertype0;
 	UserType1 v_usertype1;
+	std::variant<std::string, size_t> v_variant0;
+	std::variant<std::string, size_t> v_variant1;
 };
 
 template<>
@@ -101,6 +103,8 @@ struct Ubpa::USRefl::TypeInfo<A>
 		Field{"v_vector_entity", &A::v_vector_entity},
 		Field{"v_usertype0", &A::v_usertype0},
 		Field{"v_usertype1", &A::v_usertype1},
+		Field{"v_variant0", &A::v_variant0},
+		Field{"v_variant1", &A::v_variant1},
 	};
 };
 
@@ -170,6 +174,8 @@ int main() {
 	a->v_unordered_multimap = { { "a","a" },{ "a","b"}, {"b","a"} };
 	a->v_tuple = { 0,false,1.5f };
 	a->v_pair = { 0,false };
+	a->v_variant0 = "string";
+	a->v_variant1 = static_cast<size_t>(1);
 
 	auto [e2] = w.entityMngr.Create();
 	auto [e3] = w.entityMngr.Create();
