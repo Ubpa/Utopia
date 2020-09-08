@@ -4,7 +4,7 @@
 
 namespace Ubpa::DustEngine {
 	struct Hierarchy {
-		const UECS::World* world{ nullptr };
+		UECS::World* world{ nullptr };
 		UECS::Entity select;
 	};
 }

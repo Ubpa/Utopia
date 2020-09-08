@@ -13,6 +13,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::RTDCmptTraits>
     static constexpr FieldList fields = {
         //Field{"default_alignment", &Ubpa::UECS::RTDCmptTraits::default_alignment},
 		Field{"Clear", &Ubpa::UECS::RTDCmptTraits::Clear},
+
         Field{"RegisterSize", &Ubpa::UECS::RTDCmptTraits::RegisterSize},
         Field{"RegisterAlignment", &Ubpa::UECS::RTDCmptTraits::RegisterAlignment},
         Field{"RegisterDefaultConstructor", &Ubpa::UECS::RTDCmptTraits::RegisterDefaultConstructor},
@@ -20,7 +21,17 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::RTDCmptTraits>
         Field{"RegisterMoveConstructor", &Ubpa::UECS::RTDCmptTraits::RegisterMoveConstructor},
 		Field{"RegisterMoveAssignment", &Ubpa::UECS::RTDCmptTraits::RegisterMoveAssignment},
         Field{"RegisterDestructor", &Ubpa::UECS::RTDCmptTraits::RegisterDestructor},
-        Field{"RegisterName", &Ubpa::UECS::RTDCmptTraits::RegisterName},
+		Field{"RegisterName", &Ubpa::UECS::RTDCmptTraits::RegisterName},
+
+        Field{"GetSizeofs", &Ubpa::UECS::RTDCmptTraits::GetSizeofs},
+        Field{"GetAlignments", &Ubpa::UECS::RTDCmptTraits::GetAlignments},
+        Field{"GetDefaultConstructors", &Ubpa::UECS::RTDCmptTraits::GetDefaultConstructors},
+        Field{"GetCopyConstructors", &Ubpa::UECS::RTDCmptTraits::GetCopyConstructors},
+        Field{"GetMoveConstructors", &Ubpa::UECS::RTDCmptTraits::GetMoveConstructors},
+        Field{"GetMoveAssignments", &Ubpa::UECS::RTDCmptTraits::GetMoveAssignments},
+        Field{"GetDestructors", &Ubpa::UECS::RTDCmptTraits::GetDestructors},
+        Field{"GetNames", &Ubpa::UECS::RTDCmptTraits::GetNames},
+
         Field{"Sizeof", &Ubpa::UECS::RTDCmptTraits::Sizeof},
         Field{"Alignof", &Ubpa::UECS::RTDCmptTraits::Alignof},
         Field{"CopyConstruct", &Ubpa::UECS::RTDCmptTraits::CopyConstruct},
@@ -28,6 +39,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::RTDCmptTraits>
 		Field{"MoveAssign", &Ubpa::UECS::RTDCmptTraits::MoveAssign},
         Field{"Destruct", &Ubpa::UECS::RTDCmptTraits::Destruct},
         Field{"Nameof", &Ubpa::UECS::RTDCmptTraits::Nameof},
+
         Field{"Deregister",
             static_cast<Ubpa::UECS::RTDCmptTraits&(Ubpa::UECS::RTDCmptTraits::*)(Ubpa::UECS::CmptType)>(&Ubpa::UECS::RTDCmptTraits::Deregister),
         },

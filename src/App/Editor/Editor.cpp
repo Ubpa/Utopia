@@ -548,23 +548,21 @@ void Editor::Update() {
 	if (ImGui::Begin("Game Control", nullptr, ImGuiWindowFlags_NoScrollbar)) {
 		static std::string startStr = "start";
 		if (ImGui::Button(startStr.c_str())) {
-			if (mainIO.MouseReleased[0]) {
-				switch (gameState)
-				{
-				case Editor::NotStart:
-					startStr = "stop";
-					gameState = Editor::Starting;
-					break;
-				case Editor::Running:
-					startStr = "start";
-					gameState = Editor::Stopping;
-					break;
-				case Editor::Starting:
-				case Editor::Stopping:
-				default:
-					assert("error" && false);
-					break;
-				}
+			switch (gameState)
+			{
+			case Editor::NotStart:
+				startStr = "stop";
+				gameState = Editor::Starting;
+				break;
+			case Editor::Running:
+				startStr = "start";
+				gameState = Editor::Stopping;
+				break;
+			case Editor::Starting:
+			case Editor::Stopping:
+			default:
+				assert("error" && false);
+				break;
 			}
 		}
 	}
@@ -851,7 +849,7 @@ void Editor::BuildWorld() {
 	{ // test inspector
 
 		auto [e, test, name] = world.entityMngr.Create<Ubpa::DustEngine::TestInspector, Ubpa::DustEngine::Name>();
-		name->value = "TEst Inspector";
+		name->value = "Test Inspector";
 	}
 
 	/*world.entityMngr.Create<Ubpa::DustEngine::WorldTime>();

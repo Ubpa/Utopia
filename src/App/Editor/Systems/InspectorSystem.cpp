@@ -25,6 +25,70 @@ void InspectorSystem::OnUpdate(UECS::Schedule& schedule) {
 
 			w->AddCommand([inspector, world = hierarchy->world](UECS::World*) {
 				if (ImGui::Begin("Inspector") && inspector->target.Valid()) {
+					if (ImGui::CollapsingHeader("[*] Attach Component")) {
+						ImGui::PushID("[*] Attach Component");
+						// Helper class to easy setup a text filter.
+						// You may want to implement a more feature-full filtering scheme in your own application.
+						static ImGuiTextFilter filter;
+						filter.Draw();
+						size_t ID = 0;
+						size_t N = world->cmptTraits.GetNames().size();
+						for (const auto& [type, name] : world->cmptTraits.GetNames()) {
+							if (!world->entityMngr.Have(inspector->target, type) && filter.PassFilter(name.c_str())) {
+								ImGui::PushID(ID);
+								ImGui::PushStyleColor(ImGuiCol_Button, (ImVec4)ImColor::HSV(ID / float(N), 0.6f, 0.6f));
+								ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImVec4)ImColor::HSV(ID / float(N), 0.7f, 0.7f));
+								ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImVec4)ImColor::HSV(ID / float(N), 0.8f, 0.8f));
+								if (ImGui::Button(name.c_str()))
+									world->entityMngr.Attach(inspector->target, &type, 1);
+								ImGui::PopStyleColor(3);
+								ImGui::PopID();
+							}
+							ID++;
+						}
+						ImGui::PopID();
+					}
+					if (ImGui::CollapsingHeader("[*] Detach Component")) {
+						ImGui::PushID("[*] Detach Component");
+						// Helper class to easy setup a text filter.
+						// You may want to implement a more feature-full filtering scheme in your own application.
+						static ImGuiTextFilter filter;
+						filter.Draw();
+						size_t ID = 0;
+						auto cmpts = world->entityMngr.Components(inspector->target);
+						size_t N = cmpts.size();
+						for (const auto& cmpt : cmpts) {
+							auto name = world->cmptTraits.Nameof(cmpt.Type());
+							if (!name.empty()) {
+								if (filter.PassFilter(name.data())) {
+									ImGui::PushID(ID);
+									ImGui::PushStyleColor(ImGuiCol_Button, (ImVec4)ImColor::HSV(ID / float(N), 0.6f, 0.6f));
+									ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImVec4)ImColor::HSV(ID / float(N), 0.7f, 0.7f));
+									ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImVec4)ImColor::HSV(ID / float(N), 0.8f, 0.8f));
+									if (ImGui::Button(name.data()))
+										world->entityMngr.Detach(inspector->target, &cmpt.Type(), 1);
+									ImGui::PopStyleColor(3);
+									ImGui::PopID();
+								}
+							}
+							else {
+								auto name = std::to_string(cmpt.Type().HashCode());
+								if (filter.PassFilter(name.c_str())) {
+									ImGui::PushID(ID);
+									ImGui::PushStyleColor(ImGuiCol_Button, (ImVec4)ImColor::HSV(ID / float(N), 0.6f, 0.6f));
+									ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImVec4)ImColor::HSV(ID / float(N), 0.7f, 0.7f));
+									ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImVec4)ImColor::HSV(ID / float(N), 0.8f, 0.8f));
+									if (ImGui::Button(name.c_str()))
+										world->entityMngr.Detach(inspector->target, &cmpt.Type(), 1);
+									ImGui::PopStyleColor(3);
+									ImGui::PopID();
+								}
+							}
+							ID++;
+						}
+						ImGui::PopID();
+					}
+
 					auto cmpts = world->entityMngr.Components(inspector->target);
 					for (size_t i = 0; i < cmpts.size(); i++) {
 						auto type = cmpts[i].Type();
