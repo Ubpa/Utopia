@@ -29,6 +29,8 @@ namespace Ubpa::DustEngine::detail {
 
 			if (ImGui::IsItemClicked())
 				hierarchy->select = e;
+			if (ImGui::IsItemHovered())
+				hierarchy->hover = e;
 			if (nodeOpen) {
 				for (const auto& child : children->value)
 					HierarchyPrintEntity(hierarchy, child);
@@ -43,19 +45,72 @@ namespace Ubpa::DustEngine::detail {
 				ImGui::TreeNodeEx((void*)(intptr_t)e.Idx(), nodeFlags, "Entity (%d)", e.Idx());
 			if (ImGui::IsItemClicked())
 				hierarchy->select = e;
+			if (ImGui::IsItemHovered())
+				hierarchy->hover = e;
 		}
+	}
+	
+	// delete e and his children
+	void HierarchyDeleteEntityRecursively(UECS::World* w, UECS::Entity e) {
+		if (auto children = w->entityMngr.Get<Children>(e)) {
+			for (const auto& child : children->value)
+				HierarchyDeleteEntityRecursively(w, child);
+		}
+		w->entityMngr.Destroy(e);
+	}
+	
+	// delete e in it's parent
+	// then call HierarchyDeleteEntityRecursively
+	void HierarchyDeleteEntity(UECS::World* w, UECS::Entity e) {
+		if (auto p = w->entityMngr.Get<Parent>(e)) {
+			auto e_p = p->value;
+			auto children = w->entityMngr.Get<Children>(e_p);
+			children->value.erase(e_p);
+		}
+		detail::HierarchyDeleteEntityRecursively(w, e);
 	}
 }
 
 void HierarchySystem::OnUpdate(UECS::Schedule& schedule) {
 	schedule.RegisterJob([](UECS::World* w, UECS::Latest<UECS::Singleton<Hierarchy>> hierarchy) {
-		w->AddCommand([hierarchy](UECS::World* w) {
+		w->AddCommand([hierarchy = const_cast<Hierarchy*>(hierarchy.Get())](UECS::World* w) {
 			if (ImGui::Begin("Hierarchy")) {
+				if (ImGui::IsMouseReleased(ImGuiMouseButton_Right) && ImGui::IsWindowHovered())
+					ImGui::OpenPopup("Hierarchy_popup");
+
+				if (ImGui::BeginPopup("Hierarchy_popup")) {
+					if (hierarchy->hover.Valid()) {
+						if (ImGui::MenuItem("Create Empty")) {
+							auto [e, p] = hierarchy->world->entityMngr.Create<Parent>();
+							p->value = hierarchy->hover;
+							auto [children] = hierarchy->world->entityMngr.Attach<Children>(hierarchy->hover);
+							children->value.insert(e);
+						}
+
+						if (ImGui::MenuItem("Delete")) {
+							detail::HierarchyDeleteEntity(hierarchy->world, hierarchy->hover);
+
+							hierarchy->hover = UECS::Entity::Invalid();
+							if (!hierarchy->world->entityMngr.Exist(hierarchy->select))
+								hierarchy->select = UECS::Entity::Invalid();
+						}
+					}
+					else {
+						if (ImGui::MenuItem("Create Empty Entity"))
+							hierarchy->world->entityMngr.Create();
+					}
+
+					ImGui::EndPopup();
+				}
+				else
+					hierarchy->hover = UECS::Entity::Invalid();
 
 				UECS::ArchetypeFilter filter;
 				filter.none = { UECS::CmptType::Of<Parent> };
-				const_cast<UECS::World*>(hierarchy->world)->RunEntityJob(
-					[=](UECS::Entity e) { detail::HierarchyPrintEntity(const_cast<Hierarchy*>(hierarchy.Get()), e); },
+				hierarchy->world->RunEntityJob(
+					[=](UECS::Entity e) {
+						detail::HierarchyPrintEntity(hierarchy, e);
+					},
 					false,
 					filter
 				);

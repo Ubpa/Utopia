@@ -612,6 +612,9 @@ void Editor::Update() {
 
 	// update mesh
 	world.RunEntityJob([&](const Ubpa::DustEngine::MeshFilter* meshFilter) {
+		if (!meshFilter->mesh)
+			return;
+
 		Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterMesh(
 			upload,
 			deleteBatch,

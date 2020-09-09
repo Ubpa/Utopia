@@ -1,11 +1,11 @@
 #pragma once
 
 #include <UECS/Entity.h>
-#include <vector>
+#include <set>
 
 namespace Ubpa::DustEngine {
 	struct Children {
-		std::vector<UECS::Entity> value;
+		std::set<UECS::Entity> value;
 	};
 }
 
