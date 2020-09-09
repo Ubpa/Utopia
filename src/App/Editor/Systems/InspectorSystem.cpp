@@ -22,13 +22,15 @@ void InspectorSystem::OnUpdate(UECS::Schedule& schedule) {
 		{
 			if (!inspector->lock)
 				inspector->target = hierarchy->select;
-			if (!w->entityMngr.Exist(inspector->target)) {
-				inspector->target = UECS::Entity::Invalid();
-				inspector->lock = false;
-			}
 
 			if (inspector->target.Valid()) {
-				w->AddCommand([inspector, world = hierarchy->world](UECS::World*) {
+				w->AddCommand([inspector, world = hierarchy->world](UECS::World*) mutable {
+					if (!world->entityMngr.Exist(inspector->target)) {
+						inspector->target = UECS::Entity::Invalid();
+						inspector->lock = false;
+						return;
+					}
+
 					if (ImGui::Begin("Inspector")) {
 						if (ImGui::CollapsingHeader("[*] Attach Component")) {
 							ImGui::PushID("[*] Attach Component");

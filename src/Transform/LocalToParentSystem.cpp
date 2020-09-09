@@ -25,7 +25,7 @@ void LocalToParentSystem::ChildLocalToWorld(const transformf& parent_l2w, Entity
 	if (w->entityMngr.Have(e, CmptType::Of<Children>)) {
 		auto children = w->entityMngr.Get<Children>(e);
 		for (const auto& child : children->value)
-			ChildLocalToWorld(l2w, e);
+			ChildLocalToWorld(l2w, child);
 	}
 }
 
