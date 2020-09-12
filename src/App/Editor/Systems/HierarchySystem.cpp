@@ -1,5 +1,7 @@
 #include "HierarchySystem.h"
 
+#include "../PlayloadType.h"
+
 #include "../Components/Hierarchy.h"
 
 #include <DustEngine/Transform/Components/Components.h>
@@ -10,8 +12,6 @@
 using namespace Ubpa::DustEngine;
 
 namespace Ubpa::DustEngine::detail {
-	static constexpr char PAYLOAD_ENTITY[] = "UBPA_HIERARCHY_ENTITY";
-
 	bool HierarchyMovable(const UECS::World* w, UECS::Entity dst, UECS::Entity src) {
 		if (dst == src)
 			return false;
@@ -37,13 +37,12 @@ namespace Ubpa::DustEngine::detail {
 		if (isLeaf)
 			nodeFlags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
 
-
 		bool nodeOpen = name ?
 			ImGui::TreeNodeEx((void*)(intptr_t)e.Idx(), nodeFlags, "%s (%d)", name->value.c_str(), e.Idx())
 			: ImGui::TreeNodeEx((void*)(intptr_t)e.Idx(), nodeFlags, "Entity (%d)", e.Idx());
 
 		if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None)) {
-			ImGui::SetDragDropPayload(PAYLOAD_ENTITY, &e, sizeof(UECS::Entity));
+			ImGui::SetDragDropPayload(PlayloadType::ENTITY, &e, sizeof(UECS::Entity));
 			if (name)
 				ImGui::Text("%s (%d)", name->value.c_str(), e.Idx());
 			else
@@ -53,7 +52,7 @@ namespace Ubpa::DustEngine::detail {
 		}
 
 		if (ImGui::BeginDragDropTarget()) {
-			if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(PAYLOAD_ENTITY)) {
+			if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(PlayloadType::ENTITY)) {
 				IM_ASSERT(payload->DataSize == sizeof(UECS::Entity));
 				auto payload_e = *(const UECS::Entity*)payload->Data;
 				if (HierarchyMovable(hierarchy->world, e, payload_e)) {
@@ -138,7 +137,7 @@ void HierarchySystem::OnUpdate(UECS::Schedule& schedule) {
 					hierarchy->hover = UECS::Entity::Invalid();
 
 				if (ImGui::BeginDragDropTarget()) {
-					if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(detail::PAYLOAD_ENTITY)) {
+					if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(PlayloadType::ENTITY)) {
 						IM_ASSERT(payload->DataSize == sizeof(UECS::Entity));
 						auto payload_e = *(const UECS::Entity*)payload->Data;
 

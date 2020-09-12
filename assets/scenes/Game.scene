@@ -35,7 +35,7 @@
                         "__TYPE":5994904901941386192,
                         "__NAME":"struct Ubpa::DustEngine::Camera",
                         "__CONTENT":{
-                            "aspect":1.7777777910232545,
+                            "aspect":1.3,
                             "fov":60,
                             "clippingPlaneMin":0.30000001192092898,
                             "clippingPlaneMax":1000,

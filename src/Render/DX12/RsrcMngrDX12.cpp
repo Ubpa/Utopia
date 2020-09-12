@@ -201,6 +201,10 @@ RsrcMngrDX12& RsrcMngrDX12::RegisterTexture2D(
 	DirectX::ResourceUploadBatch& upload,
 	const Texture2D* tex2D)
 {
+	auto target = pImpl->texture2DMap.find(tex2D->GetInstanceID());
+	if (target != pImpl->texture2DMap.end())
+		return *this;
+
 	Impl::Texture2DGPUData tex;
 
 	tex.allocationSRV = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(static_cast<uint32_t>(1));
@@ -233,7 +237,11 @@ RsrcMngrDX12& RsrcMngrDX12::RegisterTexture2D(
 		tex.allocationSRV.GetCpuHandle(static_cast<uint32_t>(0))
 	);
 
-	pImpl->texture2DMap.emplace(tex2D->GetInstanceID(), move(tex));
+	pImpl->texture2DMap.emplace_hint(target, std::make_pair(tex2D->GetInstanceID(), move(tex)));
+
+	return *this;
+}
+
 
 	return *this;
 }

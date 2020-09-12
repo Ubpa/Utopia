@@ -1,8 +1,12 @@
 #include "Components/Hierarchy.h"
 #include "Components/Inspector.h"
+#include "Components/ProjectViewer.h"
 #include "Components/TestInspector.h"
+
 #include "Systems/HierarchySystem.h"
 #include "Systems/InspectorSystem.h"
+#include "Systems/ProjectViewerSystem.h"
+
 #include "CmptInsepctor.h"
 
 #include <DustEngine/App/DX12App/DX12App.h>
@@ -350,7 +354,7 @@ bool Editor::Initialize() {
 	ImGui::SetCurrentContext(gameImGuiCtx);
 	ImGui::GetIO().IniFilename = nullptr;
 
-	Ubpa::DustEngine::AssetMngr::Instance().ImportAssetRecursively(LR"(..\\assets)");
+	Ubpa::DustEngine::AssetMngr::Instance().ImportAssetRecursively(L"..\\assets");
 
 	BuildWorld();
 
@@ -773,7 +777,8 @@ void Editor::BuildWorld() {
 		Ubpa::DustEngine::WorldTimeSystem,
 
 		Ubpa::DustEngine::HierarchySystem,
-		Ubpa::DustEngine::InspectorSystem
+		Ubpa::DustEngine::InspectorSystem,
+		Ubpa::DustEngine::ProjectViewerSystem
 	>();
 	editorWorld.cmptTraits.Register<
 		// core
@@ -797,6 +802,7 @@ void Editor::BuildWorld() {
 		// editor
 		Ubpa::DustEngine::Hierarchy,
 		Ubpa::DustEngine::Inspector,
+		Ubpa::DustEngine::ProjectViewer,
 		Ubpa::DustEngine::TestInspector
 	>();
 
@@ -814,8 +820,9 @@ void Editor::BuildWorld() {
 		auto [e, hierarchy] = editorWorld.entityMngr.Create<Ubpa::DustEngine::Hierarchy>();
 		hierarchy->world = &world;
 	}
-	{ // inspector
-		auto [e, inspector] = editorWorld.entityMngr.Create<Ubpa::DustEngine::Inspector>();
+	{ // inspector, project viewer
+		editorWorld.entityMngr.Create<Ubpa::DustEngine::Inspector>();
+		editorWorld.entityMngr.Create<Ubpa::DustEngine::ProjectViewer>();
 	}
 
 	world.systemMngr.Register<
