@@ -156,7 +156,7 @@ bool DynamicMeshApp::Initialize()
 
 	Ubpa::DustEngine::MeshLayoutMngr::Instance().Init();
 
-	Ubpa::DustEngine::AssetMngr::Instance().ImportAssetRecursively(LR"(..\\assets)");
+	Ubpa::DustEngine::AssetMngr::Instance().ImportAssetRecursively(L"..\\assets");
 
 	BuildWorld();
 
@@ -224,7 +224,12 @@ void DynamicMeshApp::Update() {
 	deleteBatch.Commit(uDevice.raw.Get(), uCmdQueue.raw.Get());
 	frameRsrcMngr->EndFrame(uCmdQueue.raw.Get());
 
-	pipeline->BeginFrame(world);
+	std::vector<Ubpa::DustEngine::IPipeline::CameraData> gameCameras;
+	Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::CmptAccessType::Of<Ubpa::DustEngine::Camera>} };
+	world.RunEntityJob([&](Ubpa::UECS::Entity e) {
+		gameCameras.emplace_back(e, world);
+		}, false, camFilter);
+	pipeline->BeginFrame(world, gameCameras);
 
 }
 

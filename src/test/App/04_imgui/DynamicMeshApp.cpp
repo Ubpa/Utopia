@@ -105,17 +105,33 @@ private:
 
 	bool show_demo_window = true;
 	bool show_another_window = false;
+
+	ImGuiContext* gameImGuiCtx = nullptr;
 };
 
 // Forward declare message handler from imgui_impl_win32.cpp
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler_Shared(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler_Context(ImGuiContext* ctx, bool ingore_mouse, bool ingore_keyboard, HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 LRESULT ImGUIApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-	if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wParam, lParam))
-		return true;
+	if (ImGui_ImplWin32_WndProcHandler_Shared(hwnd, msg, wParam, lParam))
+		return 1;
+
+	bool imguiWantCaptureMouse = false;
+	bool imguiWantCaptureKeyboard = false;
+
+	if (ImGui::GetCurrentContext()) {
+		auto& gameIO = ImGui::GetIO();
+		bool gameWantCaptureMouse = gameIO.WantCaptureMouse;
+		bool gameWantCaptureKeyboard = gameIO.WantCaptureKeyboard;
+		if (ImGui_ImplWin32_WndProcHandler_Context(ImGui::GetCurrentContext(), false, false, hwnd, msg, wParam, lParam))
+			return 1;
+
+		imguiWantCaptureMouse = gameWantCaptureMouse;
+		imguiWantCaptureKeyboard = gameWantCaptureKeyboard;
+	}
 	// - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application.
 	// - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application.
-	auto imgui_ctx = ImGui::GetCurrentContext();
 	switch (msg)
 	{
 		// WM_ACTIVATE is sent when the window is activated or deactivated.  
@@ -227,24 +243,24 @@ LRESULT ImGUIApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	case WM_LBUTTONDOWN:
 	case WM_MBUTTONDOWN:
 	case WM_RBUTTONDOWN:
-		if (imgui_ctx && ImGui::GetIO().WantCaptureMouse)
+		if (imguiWantCaptureMouse)
 			return 0;
 		OnMouseDown(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
 		return 0;
 	case WM_LBUTTONUP:
 	case WM_MBUTTONUP:
 	case WM_RBUTTONUP:
-		if (imgui_ctx && ImGui::GetIO().WantCaptureMouse)
+		if (imguiWantCaptureMouse)
 			return 0;
 		OnMouseUp(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
 		return 0;
 	case WM_MOUSEMOVE:
-		if (imgui_ctx && ImGui::GetIO().WantCaptureMouse)
+		if (imguiWantCaptureMouse)
 			return 0;
 		OnMouseMove(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
 		return 0;
 	case WM_KEYUP:
-		if (imgui_ctx && ImGui::GetIO().WantCaptureKeyboard)
+		if (imguiWantCaptureKeyboard)
 			return 0;
 		if (wParam == VK_ESCAPE)
 		{
@@ -311,6 +327,9 @@ bool ImGUIApp::Initialize()
 
 	Ubpa::UDX12::DescriptorHeapMngr::Instance().Init(uDevice.raw.Get(), 1024, 1024, 1024, 1024, 1024);
 
+	Ubpa::DustEngine::ImGUIMngr::Instance().Init(MainWnd(), uDevice.Get(), gNumFrameResources, 1);
+	gameImGuiCtx = Ubpa::DustEngine::ImGUIMngr::Instance().GetContexts().at(0);
+
 	frameRsrcMngr = std::make_unique<Ubpa::UDX12::FrameResourceMngr>(gNumFrameResources, uDevice.raw.Get());
 	for (const auto& fr : frameRsrcMngr->GetFrameResources()) {
 		Microsoft::WRL::ComPtr<ID3D12CommandAllocator> allocator;
@@ -322,9 +341,7 @@ bool ImGUIApp::Initialize()
 
 	Ubpa::DustEngine::MeshLayoutMngr::Instance().Init();
 
-	Ubpa::DustEngine::ImGUIMngr::Instance().Init(MainWnd(), uDevice.Get(), gNumFrameResources);
-
-	Ubpa::DustEngine::AssetMngr::Instance().ImportAssetRecursively(LR"(..\\assets)");
+	Ubpa::DustEngine::AssetMngr::Instance().ImportAssetRecursively(L"..\\assets");
 
 	BuildWorld();
 
@@ -360,48 +377,12 @@ void ImGUIApp::OnResize()
 
 void ImGUIApp::Update()
 {
-    OnKeyboardInput();
-	UpdateCamera();
-
-	world.Update();
-
-	// update mesh, texture ...
-	frameRsrcMngr->BeginFrame();
-
-	auto cmdAlloc = frameRsrcMngr->GetCurrentFrameResource()
-		->GetResource<Microsoft::WRL::ComPtr<ID3D12CommandAllocator>>("CommandAllocator");
-	cmdAlloc->Reset();
-
-	ThrowIfFailed(uGCmdList->Reset(cmdAlloc.Get(), nullptr));
-	auto& upload = Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload();
-	auto& deleteBatch = Ubpa::DustEngine::RsrcMngrDX12::Instance().GetDeleteBatch();
-
-	upload.Begin();
-
-	// update mesh
-	world.RunEntityJob([&](const Ubpa::DustEngine::MeshFilter* meshFilter) {
-		Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterMesh(
-			upload,
-			deleteBatch,
-			uGCmdList.Get(),
-			meshFilter->mesh
-		);
-	}, false);
-
-	// commit upload, delete ...
-	upload.End(uCmdQueue.raw.Get());
-	uGCmdList->Close();
-	uCmdQueue.Execute(uGCmdList.raw.Get());
-	deleteBatch.Commit(uDevice.raw.Get(), uCmdQueue.raw.Get());
-
-	pipeline->BeginFrame(world);
-}
-
-void ImGUIApp::Draw()
-{
 	// Start the Dear ImGui frame
 	ImGui_ImplDX12_NewFrame();
-	ImGui_ImplWin32_NewFrame();
+	ImGui_ImplWin32_NewFrame_Context(gameImGuiCtx, { 0,0 }, mClientWidth, mClientHeight);
+	ImGui_ImplWin32_NewFrame_Shared();
+
+	ImGui::SetCurrentContext(gameImGuiCtx);
 	ImGui::NewFrame();
 
 	// 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
@@ -432,8 +413,7 @@ void ImGUIApp::Draw()
 	}
 
 	// 3. Show another simple window.
-	if (show_another_window)
-	{
+	if (show_another_window) {
 		ImGui::Begin("Another Window", &show_another_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
 		ImGui::Text("Hello from another window!");
 		if (ImGui::Button("Close Me"))
@@ -441,17 +421,68 @@ void ImGUIApp::Draw()
 		ImGui::End();
 	}
 
-	pipeline->Render(CurrentBackBuffer());
+    OnKeyboardInput();
+	UpdateCamera();
+
+	world.Update();
+
+	// update mesh, texture ...
+	frameRsrcMngr->BeginFrame();
 
 	auto cmdAlloc = frameRsrcMngr->GetCurrentFrameResource()
 		->GetResource<Microsoft::WRL::ComPtr<ID3D12CommandAllocator>>("CommandAllocator");
+	cmdAlloc->Reset();
+
 	ThrowIfFailed(uGCmdList->Reset(cmdAlloc.Get(), nullptr));
+	auto& upload = Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload();
+	auto& deleteBatch = Ubpa::DustEngine::RsrcMngrDX12::Instance().GetDeleteBatch();
+
+	upload.Begin();
+
+	// update mesh
+	world.RunEntityJob([&](const Ubpa::DustEngine::MeshFilter* meshFilter) {
+		if (!meshFilter->mesh)
+			return;
+
+		Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterMesh(
+			upload,
+			deleteBatch,
+			uGCmdList.Get(),
+			meshFilter->mesh
+		);
+	}, false);
+
+	// commit upload, delete ...
+	upload.End(uCmdQueue.raw.Get());
+	uGCmdList->Close();
+	uCmdQueue.Execute(uGCmdList.raw.Get());
+	deleteBatch.Commit(uDevice.raw.Get(), uCmdQueue.raw.Get());
+
+	std::vector<Ubpa::DustEngine::IPipeline::CameraData> gameCameras;
+	Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::CmptAccessType::Of<Ubpa::DustEngine::Camera>} };
+	world.RunEntityJob([&](Ubpa::UECS::Entity e) {
+		gameCameras.emplace_back(e, world);
+		}, false, camFilter);
+	pipeline->BeginFrame(world, gameCameras);
+}
+
+void ImGUIApp::Draw()
+{
+	auto cmdAlloc = frameRsrcMngr->GetCurrentFrameResource()
+		->GetResource<Microsoft::WRL::ComPtr<ID3D12CommandAllocator>>("CommandAllocator");
+	ThrowIfFailed(uGCmdList->Reset(cmdAlloc.Get(), nullptr));
+
+	ImGui::SetCurrentContext(gameImGuiCtx);
+
+	pipeline->Render(CurrentBackBuffer());
+
 	uGCmdList.ResourceBarrierTransition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 	uGCmdList->OMSetRenderTargets(1, &CurrentBackBufferView(), FALSE, NULL);
 	uGCmdList.SetDescriptorHeaps(Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap());
 	ImGui::Render();
-	ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), uGCmdList.Get());
+	ImGui_ImplDX12_RenderDrawData(0, ImGui::GetDrawData(), uGCmdList.Get());
 	uGCmdList.ResourceBarrierTransition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+
 	uGCmdList->Close();
 	uCmdQueue.Execute(uGCmdList.Get());
 
@@ -461,6 +492,7 @@ void ImGUIApp::Draw()
 
 	pipeline->EndFrame();
 	frameRsrcMngr->EndFrame(uCmdQueue.raw.Get());
+	ImGui_ImplDX12_EndFrame();
 }
 
 void ImGUIApp::OnMouseDown(WPARAM btnState, int x, int y)

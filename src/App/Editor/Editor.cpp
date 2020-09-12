@@ -446,7 +446,6 @@ void Editor::Update() {
 
 	ImGui::SetCurrentContext(mainImGuiCtx);
 	ImGui::NewFrame(); // main ctx
-	auto& mainIO = ImGui::GetIO();
 
 	UpdateCamera();
 	editorWorld.Update();
