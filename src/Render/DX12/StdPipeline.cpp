@@ -50,32 +50,31 @@ struct StdPipeline::Impl {
 	static constexpr size_t ID_RootSignature_defer_light = 2;
 
 	struct GeometryObjectConstants {
-		Ubpa::transformf World = Ubpa::transformf::eye();
-		Ubpa::transformf TexTransform = Ubpa::transformf::eye();
+		Ubpa::transformf World;
 	};
 	struct CameraConstants {
-		Ubpa::transformf View = Ubpa::transformf::eye();
+		Ubpa::transformf View;
 
-		Ubpa::transformf InvView = Ubpa::transformf::eye();
+		Ubpa::transformf InvView;
 
-		Ubpa::transformf Proj = Ubpa::transformf::eye();
+		Ubpa::transformf Proj;
 
-		Ubpa::transformf InvProj = Ubpa::transformf::eye();
+		Ubpa::transformf InvProj;
 
-		Ubpa::transformf ViewProj = Ubpa::transformf::eye();
+		Ubpa::transformf ViewProj;
 
-		Ubpa::transformf InvViewProj = Ubpa::transformf::eye();
+		Ubpa::transformf InvViewProj;
 
-		Ubpa::pointf3 EyePosW = { 0.0f, 0.0f, 0.0f };
+		Ubpa::pointf3 EyePosW;
 		float _pad0;
 
-		Ubpa::valf2 RenderTargetSize = { 0.0f, 0.0f };
-		Ubpa::valf2 InvRenderTargetSize = { 0.0f, 0.0f };
+		Ubpa::valf2 RenderTargetSize;
+		Ubpa::valf2 InvRenderTargetSize;
 
-		float NearZ = 0.0f;
-		float FarZ = 0.0f;
-		float TotalTime = 0.0f;
-		float DeltaTime = 0.0f;
+		float NearZ;
+		float FarZ;
+		float TotalTime;
+		float DeltaTime;
 
 	};
 	struct GeometryMaterialConstants {

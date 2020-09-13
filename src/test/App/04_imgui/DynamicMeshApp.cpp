@@ -462,8 +462,9 @@ void ImGUIApp::Update()
 	Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::CmptAccessType::Of<Ubpa::DustEngine::Camera>} };
 	world.RunEntityJob([&](Ubpa::UECS::Entity e) {
 		gameCameras.emplace_back(e, world);
-		}, false, camFilter);
-	pipeline->BeginFrame(world, gameCameras);
+	}, false, camFilter);
+	assert(gameCameras.size() == 1); // now only support 1 camera
+	pipeline->BeginFrame(world, gameCameras.front());
 }
 
 void ImGUIApp::Draw()

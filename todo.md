@@ -14,6 +14,7 @@
 - [ ] editor roamer
 - [ ] imporove inspector UI
 - [ ] improve pipeline
+- [ ] enum inspect
 
 ## Bugs
 
