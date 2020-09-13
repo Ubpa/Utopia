@@ -22,3 +22,18 @@ Ubpa::UDX12::DynamicUploadBuffer* ShaderCBMngrDX12::GetBuffer(const Shader* shad
 	);
 	return rst->second;
 }
+
+
+Ubpa::UDX12::DynamicUploadBuffer* ShaderCBMngrDX12::GetCommonBuffer() {
+	size_t ID = static_cast<size_t>(-1);
+	auto target = bufferMap.find(ID);
+	if (target != bufferMap.end())
+		return target->second;
+
+	auto rst = bufferMap.emplace_hint(
+		target,
+		ID,
+		new UDX12::DynamicUploadBuffer{ device }
+	);
+	return rst->second;
+}

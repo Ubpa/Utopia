@@ -46,6 +46,7 @@ namespace Ubpa::DustEngine {
 	private:
 		MeshLayoutMngr() = default;
 
+		// if not exist attribute, set it to offset 0
 		static std::vector<D3D12_INPUT_ELEMENT_DESC> GenerateDesc(
 			bool uv,
 			bool normal,

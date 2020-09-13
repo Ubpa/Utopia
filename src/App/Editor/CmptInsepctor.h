@@ -18,7 +18,7 @@ namespace Ubpa::DustEngine {
 			const Visitor<void(void*, InspectContext)>& inspector;
 		};
 
-		void RegisterCmpt(UECS::CmptType type, std::function<void(void*, InspectContext)> cmptInspectFunc);
+		void RegisterCmpt(UECS::CmptType, std::function<void(void*, InspectContext)> cmptInspectFunc);
 
 		template<typename Func>
 		void RegisterCmpt(Func&& func);
@@ -26,9 +26,9 @@ namespace Ubpa::DustEngine {
 		template<typename... Cmpts>
 		void RegisterCmpts();
 
-		bool IsCmptRegistered(UECS::CmptType type) const;
+		bool IsCmptRegistered(UECS::CmptType) const;
 
-		void Inspect(UECS::CmptPtr cmpt);
+		void Inspect(UECS::CmptPtr);
 
 	private:
 		CmptInspector();

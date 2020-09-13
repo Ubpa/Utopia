@@ -637,11 +637,13 @@ void Editor::Update() {
 	world.RunEntityJob([&](Ubpa::UECS::Entity e) {
 		gameCameras.emplace_back(e, world);
 	}, false, camFilter);
-	gamePipeline->BeginFrame(world, gameCameras);
+	assert(gameCameras.size() == 1); // now only support 1 camera
+	gamePipeline->BeginFrame(world, gameCameras.front());
 
 	std::vector<Ubpa::DustEngine::IPipeline::CameraData> editorSceneCameras;
 	editorSceneCameras.emplace_back(editorSceneCamera, editorWorld);
-	editorScenePipeline->BeginFrame(world, editorSceneCameras);
+	assert(editorSceneCameras.size() == 1); // now only support 1 camera
+	editorScenePipeline->BeginFrame(world, editorSceneCameras.front());
 }
 
 void Editor::Draw() {

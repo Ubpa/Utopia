@@ -1,24 +1,9 @@
-//***************************************************************************************
-// Default.hlsl by Frank Luna (C) 2015 All Rights Reserved.
-//
-// Default shader, currently supports lighting.
-//***************************************************************************************
-
-// Defaults for number of lights.
-#ifndef NUM_DIR_LIGHTS
-    #define NUM_DIR_LIGHTS 3
-#endif
-
-#ifndef NUM_POINT_LIGHTS
-    #define NUM_POINT_LIGHTS 0
-#endif
-
-#ifndef NUM_SPOT_LIGHTS
-    #define NUM_SPOT_LIGHTS 0
-#endif
-
-// Include structures and functions for lighting.
-#include "LightingUtil.hlsl"
+struct DirectionalLight {
+	float3 L;
+	float _pad0;
+	float3 dir;
+	float _pad1;
+};
 
 #define PI 3.1415926
 #define EPSILON 0.000001
@@ -29,46 +14,35 @@ Texture2D    gbuffer2 : register(t2);
 
 SamplerState gsamLinear  : register(s0);
 
-
 // Constant data that varies per frame.
-cbuffer cbPerObject : register(b0)
+cbuffer cbLights : register(b0)
 {
-    float4x4 gWorld;
-    float4x4 gTexTransform;
+	uint gDirectionalLightNum;
+	uint _g_cbLights_pad0;
+	uint _g_cbLights_pad1;
+	uint _g_cbLights_pad2;
+	DirectionalLight gDirectionalLights[4];
 };
 
-// Constant data that varies per material.
-cbuffer cbPass : register(b1)
+cbuffer cbPerCamera: register(b1)
 {
-    float4x4 gView;
-    float4x4 gInvView;
-    float4x4 gProj;
-    float4x4 gInvProj;
-    float4x4 gViewProj;
-    float4x4 gInvViewProj;
-    float3 gEyePosW;
-    float cbPerObjectPad1;
-    float2 gRenderTargetSize;
-    float2 gInvRenderTargetSize;
-    float gNearZ;
-    float gFarZ;
-    float gTotalTime;
-    float gDeltaTime;
-    float4 gAmbientLight;
+	float4x4 gView;
+	float4x4 gInvView;
+	float4x4 gProj;
+	float4x4 gInvProj;
+	float4x4 gViewProj;
+	float4x4 gInvViewProj;
 
-    // Indices [0, NUM_DIR_LIGHTS) are directional lights;
-    // indices [NUM_DIR_LIGHTS, NUM_DIR_LIGHTS+NUM_POINT_LIGHTS) are point lights;
-    // indices [NUM_DIR_LIGHTS+NUM_POINT_LIGHTS, NUM_DIR_LIGHTS+NUM_POINT_LIGHT+NUM_SPOT_LIGHTS)
-    // are spot lights for a maximum of MaxLights per object.
-    Light gLights[MaxLights];
-};
+	float3 gEyePosW;
+	float _g_cbPerFrame_pad0;
 
-cbuffer cbMaterial : register(b2)
-{
-	float4 gDiffuseAlbedo;
-    float3 gFresnelR0;
-    float  gRoughness;
-    float4x4 gMatTransform;
+	float2 gRenderTargetSize;
+	float2 gInvRenderTargetSize;
+
+	float gNearZ;
+	float gFarZ;
+	float gTotalTime;
+	float gDeltaTime;
 };
 
 struct VertexOut
@@ -154,8 +128,8 @@ float4 PS(VertexOut pin) : SV_Target
 	float3 F0 = MetalWorkflow_F0(albedo, metalness);
 	
 	// dir light
-	for(uint i = 0u; i < NUM_DIR_LIGHTS; i++) {
-		float3 L = -gLights[i].Direction;
+	for(uint i = 0u; i < gDirectionalLightNum; i++) {
+		float3 L = -gDirectionalLights[i].dir;
 		float3 H = normalize(L + V);
 				
 		float cos_theta = dot(N, L);
@@ -169,7 +143,7 @@ float4 PS(VertexOut pin) : SV_Target
 		float3 specular = fr * D * G / (4 * max(dot(L, N)*dot(V, N), EPSILON));
 		
 		float3 brdf = diffuse + specular;
-		Lo += brdf * 10 * gLights[i].Strength * max(cos_theta, 0);
+		Lo += brdf * gDirectionalLights[i].L * max(cos_theta, 0);
 	}
 	
     return float4(Lo, 1.0f);
