@@ -47,11 +47,13 @@ struct StdPipeline::Impl {
 	size_t ID_PSO_defer_light;
 	size_t ID_PSO_screen;
 	size_t ID_PSO_skybox;
+	size_t ID_PSO_postprocess;
 
 	static constexpr size_t ID_RootSignature_geometry = 0;
 	static constexpr size_t ID_RootSignature_screen = 1;
 	static constexpr size_t ID_RootSignature_defer_light = 2;
 	static constexpr size_t ID_RootSignature_skybox = 3;
+	static constexpr size_t ID_RootSignature_postprocess = 4;
 
 	struct GeometryObjectConstants {
 		Ubpa::transformf World;
@@ -129,6 +131,7 @@ struct StdPipeline::Impl {
 	Ubpa::DustEngine::Shader* geomrtryShader;
 	Ubpa::DustEngine::Shader* deferShader;
 	Ubpa::DustEngine::Shader* skyboxShader;
+	Ubpa::DustEngine::Shader* postprocessShader;
 
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
 
@@ -169,6 +172,7 @@ void StdPipeline::Impl::BuildShadersAndInputLayout() {
 	geomrtryShader = ShaderMngr::Instance().Get("StdPipeline/Geometry");
 	deferShader = ShaderMngr::Instance().Get("StdPipeline/Defer Lighting");
 	skyboxShader = ShaderMngr::Instance().Get("StdPipeline/Skybox");
+	postprocessShader = ShaderMngr::Instance().Get("StdPipeline/Post Process");
 }
 
 void StdPipeline::Impl::BuildRootSignature() {
@@ -263,6 +267,26 @@ void StdPipeline::Impl::BuildRootSignature() {
 
 		RsrcMngrDX12::Instance().RegisterRootSignature(ID_RootSignature_defer_light, &rootSigDesc);
 	}
+
+	{ // post process
+		CD3DX12_DESCRIPTOR_RANGE texTable;
+		texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 3, 0); // gbuffers
+
+		// Root parameter can be a table, root descriptor or root constants.
+		CD3DX12_ROOT_PARAMETER slotRootParameter[1];
+
+		// Perfomance TIP: Order from most frequent to least frequent.
+		slotRootParameter[0].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
+
+		auto staticSamplers = RsrcMngrDX12::Instance().GetStaticSamplers();
+
+		// A root signature is an array of root parameters.
+		CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(1, slotRootParameter,
+			(UINT)staticSamplers.size(), staticSamplers.data(),
+			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+
+		RsrcMngrDX12::Instance().RegisterRootSignature(ID_RootSignature_postprocess, &rootSigDesc);
+	}
 }
 
 void StdPipeline::Impl::BuildPSOs() {
@@ -284,7 +308,7 @@ void StdPipeline::Impl::BuildPSOs() {
 		nullptr, 0,
 		RsrcMngrDX12::Instance().GetShaderByteCode_vs(skyboxShader),
 		RsrcMngrDX12::Instance().GetShaderByteCode_ps(skyboxShader),
-		initDesc.rtFormat,
+		DXGI_FORMAT_R32G32B32A32_FLOAT,
 		DXGI_FORMAT_D24_UNORM_S8_UINT
 	);
 	skyboxPsoDesc.RasterizerState.FrontCounterClockwise = TRUE;
@@ -299,13 +323,26 @@ void StdPipeline::Impl::BuildPSOs() {
 		nullptr, 0,
 		RsrcMngrDX12::Instance().GetShaderByteCode_vs(deferShader),
 		RsrcMngrDX12::Instance().GetShaderByteCode_ps(deferShader),
-		initDesc.rtFormat,
+		DXGI_FORMAT_R32G32B32A32_FLOAT,
 		DXGI_FORMAT_UNKNOWN
 	);
 	deferLightingPsoDesc.RasterizerState.FrontCounterClockwise = TRUE;
 	deferLightingPsoDesc.DepthStencilState.DepthEnable = false;
 	deferLightingPsoDesc.DepthStencilState.StencilEnable = false;
 	ID_PSO_defer_light = RsrcMngrDX12::Instance().RegisterPSO(&deferLightingPsoDesc);
+
+	auto postprocessPsoDesc = Ubpa::UDX12::Desc::PSO::Basic(
+		RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_postprocess),
+		nullptr, 0,
+		RsrcMngrDX12::Instance().GetShaderByteCode_vs(postprocessShader),
+		RsrcMngrDX12::Instance().GetShaderByteCode_ps(postprocessShader),
+		initDesc.rtFormat,
+		DXGI_FORMAT_UNKNOWN
+	);
+	postprocessPsoDesc.RasterizerState.FrontCounterClockwise = TRUE;
+	postprocessPsoDesc.DepthStencilState.DepthEnable = false;
+	postprocessPsoDesc.DepthStencilState.StencilEnable = false;
+	ID_PSO_postprocess = RsrcMngrDX12::Instance().RegisterPSO(&postprocessPsoDesc);
 }
 
 size_t StdPipeline::Impl::GetGeometryPSO_ID(const Mesh* mesh) {
@@ -466,9 +503,10 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 	auto gbuffer0 = fg.RegisterResourceNode("GBuffer0");
 	auto gbuffer1 = fg.RegisterResourceNode("GBuffer1");
 	auto gbuffer2 = fg.RegisterResourceNode("GBuffer2");
-	auto rt0 = fg.RegisterResourceNode("Render Target 0");
-	auto rt1 = fg.RegisterResourceNode("Render Target 1");
-	fg.RegisterMoveNode(rt1, rt0);
+	auto lightedRT = fg.RegisterResourceNode("lighted RT");
+	auto fullRT = fg.RegisterResourceNode("full RT");
+	auto presentedRT = fg.RegisterResourceNode("Present RT");
+	fg.RegisterMoveNode(fullRT, lightedRT);
 	auto depthstencil = fg.RegisterResourceNode("Depth Stencil");
 	auto gbPass = fg.RegisterPassNode(
 		"GBuffer Pass",
@@ -478,12 +516,17 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 	auto deferLightingPass = fg.RegisterPassNode(
 		"Defer Lighting",
 		{ gbuffer0,gbuffer1,gbuffer2 },
-		{ rt0 }
+		{ lightedRT }
 	);
 	auto skyboxPass = fg.RegisterPassNode(
 		"Skybox",
 		{ depthstencil },
-		{ rt1 }
+		{ fullRT }
+	);
+	auto postprocessPass = fg.RegisterPassNode(
+		"Post Process",
+		{ fullRT },
+		{ presentedRT }
 	);
 
 	D3D12_RESOURCE_DESC dsDesc = UDX12::Desc::RSRC::Basic(
@@ -512,6 +555,10 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 		.RegisterTemporalRsrc(gbuffer2,
 			Ubpa::UDX12::FG::RsrcType::RT2D(DXGI_FORMAT_R32G32B32A32_FLOAT, width, height, DirectX::Colors::Black))
 		.RegisterTemporalRsrc(depthstencil, { dsClear, dsDesc })
+		.RegisterTemporalRsrc(lightedRT,
+			Ubpa::UDX12::FG::RsrcType::RT2D(DXGI_FORMAT_R32G32B32A32_FLOAT, width, height, DirectX::Colors::Black))
+		.RegisterTemporalRsrc(fullRT,
+			Ubpa::UDX12::FG::RsrcType::RT2D(DXGI_FORMAT_R32G32B32A32_FLOAT, width, height, DirectX::Colors::Black))
 
 		.RegisterRsrcTable({
 			{gbuffer0,Ubpa::UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT)},
@@ -519,8 +566,7 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 			{gbuffer2,Ubpa::UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT)}
 		})
 
-		.RegisterImportedRsrc(rt0, { rtb, D3D12_RESOURCE_STATE_PRESENT })
-		//.RegisterImportedRsrc(rt1, { rtb, D3D12_RESOURCE_STATE_PRESENT })
+		.RegisterImportedRsrc(presentedRT, { rtb, D3D12_RESOURCE_STATE_PRESENT })
 
 		.RegisterPassRsrcs(gbPass, gbuffer0, D3D12_RESOURCE_STATE_RENDER_TARGET,
 			Ubpa::UDX12::FG::RsrcImplDesc_RTV_Null{})
@@ -537,12 +583,17 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 			Ubpa::UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT))
 		.RegisterPassRsrcs(deferLightingPass, gbuffer2, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 			Ubpa::UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT))
-		.RegisterPassRsrcs(deferLightingPass, rt0, D3D12_RESOURCE_STATE_RENDER_TARGET,
+		.RegisterPassRsrcs(deferLightingPass, lightedRT, D3D12_RESOURCE_STATE_RENDER_TARGET,
 			Ubpa::UDX12::FG::RsrcImplDesc_RTV_Null{})
 
 		.RegisterPassRsrcs(skyboxPass, depthstencil,
 			D3D12_RESOURCE_STATE_DEPTH_READ, Ubpa::UDX12::Desc::DSV::Basic(dsFormat))
-		.RegisterPassRsrcs(skyboxPass, rt1, D3D12_RESOURCE_STATE_RENDER_TARGET,
+		.RegisterPassRsrcs(skyboxPass, fullRT, D3D12_RESOURCE_STATE_RENDER_TARGET,
+			Ubpa::UDX12::FG::RsrcImplDesc_RTV_Null{})
+
+		.RegisterPassRsrcs(postprocessPass, fullRT, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+			Ubpa::UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT))
+		.RegisterPassRsrcs(postprocessPass, presentedRT, D3D12_RESOURCE_STATE_RENDER_TARGET,
 			Ubpa::UDX12::FG::RsrcImplDesc_RTV_Null{})
 		;
 
@@ -593,7 +644,7 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 			auto gb1 = rsrcs.find(gbuffer1)->second;
 			auto gb2 = rsrcs.find(gbuffer2)->second;
 
-			auto rt = rsrcs.find(rt0)->second;
+			auto rt = rsrcs.find(lightedRT)->second;
 
 			//cmdList->CopyResource(bb.resource, rt.resource);
 
@@ -638,7 +689,7 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 			cmdList->RSSetViewports(1, &resizeData.screenViewport);
 			cmdList->RSSetScissorRects(1, &resizeData.scissorRect);
 
-			auto rt = rsrcs.find(rt1)->second;
+			auto rt = rsrcs.find(fullRT)->second;
 			auto ds = rsrcs.find(depthstencil)->second;
 
 			//cmdList->CopyResource(bb.resource, rt.resource);
@@ -660,6 +711,37 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 			cmdList->IASetIndexBuffer(nullptr);
 			cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 			cmdList->DrawInstanced(36, 1, 0, 0);
+		}
+	);
+
+	fgExecutor.RegisterPassFunc(
+		postprocessPass,
+		[&](ID3D12GraphicsCommandList* cmdList, const Ubpa::UDX12::FG::PassRsrcs& rsrcs) {
+			cmdList->SetGraphicsRootSignature(RsrcMngrDX12::Instance().GetRootSignature(Impl::ID_RootSignature_postprocess));
+			cmdList->SetPipelineState(RsrcMngrDX12::Instance().GetPSO(ID_PSO_postprocess));
+
+			auto heap = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
+			cmdList->SetDescriptorHeaps(1, &heap);
+			cmdList->RSSetViewports(1, &resizeData.screenViewport);
+			cmdList->RSSetScissorRects(1, &resizeData.scissorRect);
+
+			auto rt = rsrcs.find(presentedRT)->second;
+			auto img = rsrcs.find(fullRT)->second;
+
+			//cmdList->CopyResource(bb.resource, rt.resource);
+
+			// Clear the render texture and depth buffer.
+			cmdList->ClearRenderTargetView(rt.cpuHandle, DirectX::Colors::Black, 0, nullptr);
+
+			// Specify the buffers we are going to render to.
+			cmdList->OMSetRenderTargets(1, &rt.cpuHandle, false, nullptr);
+
+			cmdList->SetGraphicsRootDescriptorTable(0, img.gpuHandle);
+
+			cmdList->IASetVertexBuffers(0, 0, nullptr);
+			cmdList->IASetIndexBuffer(nullptr);
+			cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+			cmdList->DrawInstanced(6, 1, 0, 0);
 		}
 	);
 
