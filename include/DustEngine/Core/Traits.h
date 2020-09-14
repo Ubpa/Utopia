@@ -81,9 +81,12 @@ namespace Ubpa::DustEngine {
 
 	template<typename T> struct OrderContainerTraits {
 		static constexpr bool isOrderContainer = false;
+		static constexpr bool isResizable = false;
 	};
+	template<bool IsResizable>
 	struct OrderContainerTraitsBase {
 		static constexpr bool isOrderContainer = true;
+		static constexpr bool isResizable = IsResizable;
 	};
 	template<typename OrderContainer>
 	auto OrderContainerTraits_Begin(const OrderContainer& container) noexcept {
@@ -108,23 +111,31 @@ namespace Ubpa::DustEngine {
 		container.push_back(std::move(value));
 	}
 	template<typename OrderContainer>
+	void OrderContainerTraits_Resize(OrderContainer& container, size_t size) {
+		container.resize(size);
+	}
+	template<typename OrderContainer>
+	size_t OrderContainerTraits_Size(OrderContainer& container) {
+		return container.size();
+	}
+	template<typename OrderContainer>
 	void OrderContainerTraits_PostProcess(const OrderContainer& container) noexcept {}
 	template<typename T, typename Alloc>
-	struct OrderContainerTraits<std::vector<T, Alloc>> : OrderContainerTraitsBase {};
+	struct OrderContainerTraits<std::vector<T, Alloc>> : OrderContainerTraitsBase<true> {};
 	template<typename T, typename Alloc>
-	struct OrderContainerTraits<std::deque<T, Alloc>> : OrderContainerTraitsBase {};
+	struct OrderContainerTraits<std::deque<T, Alloc>> : OrderContainerTraitsBase<true> {};
 	template<typename T, typename Alloc>
-	struct OrderContainerTraits<std::list<T, Alloc>> : OrderContainerTraitsBase {};
+	struct OrderContainerTraits<std::list<T, Alloc>> : OrderContainerTraitsBase<true> {};
 	template<typename T, typename Alloc>
-	struct OrderContainerTraits<std::forward_list<T, Alloc>> : OrderContainerTraitsBase {};
+	struct OrderContainerTraits<std::forward_list<T, Alloc>> : OrderContainerTraitsBase<true> {};
 	template<typename T, typename Pr, typename Alloc>
-	struct OrderContainerTraits<std::set<T, Pr, Alloc>> : OrderContainerTraitsBase {};
+	struct OrderContainerTraits<std::set<T, Pr, Alloc>> : OrderContainerTraitsBase<false> {};
 	template<typename T, typename Pr, typename Alloc>
-	struct OrderContainerTraits<std::multiset<T, Pr, Alloc>> : OrderContainerTraitsBase {};
+	struct OrderContainerTraits<std::multiset<T, Pr, Alloc>> : OrderContainerTraitsBase<false> {};
 	template<typename T, typename Hasher, typename KeyEq, typename Alloc>
-	struct OrderContainerTraits<std::unordered_set<T, Hasher, KeyEq, Alloc>> : OrderContainerTraitsBase {};
+	struct OrderContainerTraits<std::unordered_set<T, Hasher, KeyEq, Alloc>> : OrderContainerTraitsBase<false> {};
 	template<typename T, typename Hasher, typename KeyEq, typename Alloc>
-	struct OrderContainerTraits<std::unordered_multiset<T, Hasher, KeyEq, Alloc>> : OrderContainerTraitsBase {};
+	struct OrderContainerTraits<std::unordered_multiset<T, Hasher, KeyEq, Alloc>> : OrderContainerTraitsBase<false> {};
 
 	template<typename T, typename Alloc>
 	void OrderContainerTraits_Add(std::forward_list<T, Alloc>& container, T&& value) {
@@ -134,6 +145,14 @@ namespace Ubpa::DustEngine {
 	template<typename T, typename Alloc>
 	void OrderContainerTraits_PostProcess(std::forward_list<T, Alloc>& container) {
 		container.reverse();
+	}
+
+	template<typename T, typename Alloc>
+	size_t OrderContainerTraits_Size(std::forward_list<T, Alloc>& container) {
+		return std::distance(
+			OrderContainerTraits_Begin(container),
+			OrderContainerTraits_End(container)
+		);
 	}
 
 	template<typename T, typename Pr, typename Alloc>

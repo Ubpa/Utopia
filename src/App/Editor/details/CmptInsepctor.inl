@@ -392,6 +392,16 @@ namespace Ubpa::DustEngine::detail {
 		else if constexpr (OrderContainerTraits<Value>::isOrderContainer) {
 			if (ImGui::TreeNode(field.name.data())) {
 				ImGui::PushID(field.name.data());
+
+				if constexpr (OrderContainerTraits<Value>::isResizable) {
+					size_t origSize = OrderContainerTraits_Size(var);
+					size_t size = origSize;
+					static constexpr ImU64 u64_one = 1;
+					ImGui::InputScalar("size", ImGuiDataType_U64, &size, &u64_one);
+					if (size != origSize)
+						OrderContainerTraits_Resize(var, size);
+				}
+
 				auto iter_begin = OrderContainerTraits_Begin(var);
 				auto iter_end = OrderContainerTraits_End(var);
 				size_t idx = 0;

@@ -33,9 +33,9 @@ namespace Ubpa::DustEngine {
 		rgbf v_rgb;
 		rgbaf v_rgba;
 		std::vector<std::string> v_vector{ "abc","edf" };
-		//std::deque<size_t> v_deque;
-		//std::forward_list<size_t> v_forward_list;
-		//std::list<size_t> v_list;
+		std::deque<size_t> v_deque;
+		std::forward_list<size_t> v_forward_list;
+		std::list<size_t> v_list;
 		//std::set<size_t> v_set;
 		//std::multiset<size_t> v_multiset;
 		//std::unordered_set<size_t> v_unordered_set;
@@ -91,10 +91,13 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::DustEngine::TestInspector>
 		Field{"v_rgb", &Ubpa::DustEngine::TestInspector::v_rgb},
 		Field{"v_rgba", &Ubpa::DustEngine::TestInspector::v_rgba},
 		Field{"v_vector", &Ubpa::DustEngine::TestInspector::v_vector},
+		Field{"v_deque", &Ubpa::DustEngine::TestInspector::v_deque},
+		Field{"v_list", &Ubpa::DustEngine::TestInspector::v_list},
+		Field{"v_forward_list", &Ubpa::DustEngine::TestInspector::v_forward_list},
 		Field{"v_map", &Ubpa::DustEngine::TestInspector::v_map},
 		Field{"v_tuple", &Ubpa::DustEngine::TestInspector::v_tuple},
 		Field{"v_pair", &Ubpa::DustEngine::TestInspector::v_pair},
-		Field{"v_enum", &Ubpa::DustEngine::TestInspector::v_enum},
+		Field{"v_enum", &Ubpa::DustEngine::TestInspector::v_enum}
 	};
 };
 
