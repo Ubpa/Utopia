@@ -403,10 +403,12 @@ void StdPipeline::Impl::UpdateRenderContext(const UECS::World& world) {
 		false
 	);
 
-	if (auto ptr = world.entityMngr.GetSingleton<Skybox>(); ptr && ptr->texcube)
-		renderContext.skybox = RsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(ptr->texcube);
-	else
-		renderContext.skybox.ptr = 0;
+	renderContext.skybox.ptr = 0;
+	if (auto ptr = world.entityMngr.GetSingleton<Skybox>(); ptr && ptr->material && ptr->material->shader == skyboxShader) {
+		auto target = ptr->material->textureCubes.find("gSkybox");
+		if(target != ptr->material->textureCubes.end())
+			renderContext.skybox = RsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(target->second);
+	}
 }
 
 void StdPipeline::Impl::UpdateShaderCBs(

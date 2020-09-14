@@ -57,6 +57,8 @@ namespace Ubpa::DustEngine::detail {
 	void WriteVar(const Value& var, Serializer::SerializeContext ctx) {
 		if constexpr (std::is_floating_point_v<Value>)
 			ctx.writer->Double(static_cast<double>(var));
+		else if constexpr (std::is_enum_v<Value>)
+			WriteVar(static_cast<std::underlying_type_t<Value>>(var), ctx);
 		else if constexpr (std::is_integral_v<Value>) {
 			if constexpr (std::is_same_v<Value, bool>)
 				ctx.writer->Bool(var);
@@ -197,6 +199,8 @@ namespace Ubpa::DustEngine::detail {
 	Value ReadVar(const rapidjson::Value& jsonValueField, Serializer::DeserializeContext ctx) {
 		if constexpr (std::is_floating_point_v<Value>)
 			return static_cast<Value>(jsonValueField.GetDouble());
+		if constexpr (std::is_enum_v<Value>)
+			return static_cast<Value>(ReadVar<std::underlying_type_t<Value>>(jsonValueField, ctx));
 		else if constexpr (std::is_integral_v<Value>) {
 			if constexpr (std::is_same_v<Value, bool>)
 				return jsonValueField.GetBool();

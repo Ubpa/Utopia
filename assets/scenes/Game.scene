@@ -465,7 +465,7 @@
 						"__TYPE":16361411277482795269,
 						"__NAME":"struct Ubpa::DustEngine::Skybox",
 						"__CONTENT":{
-							"texcube":"175d0e89-36ff-472e-ab50-0f5b04fbbf5b"
+							"material":"728c5b9d-5025-42b4-ae1e-795b44eb9c46"
 						}
 					}
 				]

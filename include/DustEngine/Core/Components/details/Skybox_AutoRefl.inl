@@ -11,7 +11,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::DustEngine::Skybox>
     static constexpr AttrList attrs = {};
 
     static constexpr FieldList fields = {
-        Field{"texcube", &Ubpa::DustEngine::Skybox::texcube},
+        Field{"material", &Ubpa::DustEngine::Skybox::material},
     };
 };
 

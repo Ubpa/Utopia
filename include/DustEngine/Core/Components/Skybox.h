@@ -1,11 +1,11 @@
 #pragma once
 
-#include "../TextureCube.h"
+#include "../Material.h"
 
 namespace Ubpa::DustEngine {
 	// singleton
 	struct Skybox {
-		const TextureCube* texcube;
+		const Material* material;
 	};
 }
 

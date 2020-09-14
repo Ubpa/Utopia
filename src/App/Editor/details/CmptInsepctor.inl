@@ -248,6 +248,34 @@ namespace Ubpa::DustEngine::detail {
 			ImGui::DragScalar(field.name.data(), ImGuiDataType_Double, &var, 0.001f);
 		else if constexpr (std::is_same_v<Value, std::string>)
 			ImGui::InputText(field.name.data(), &var);
+		else if constexpr (std::is_enum_v<Value>) {
+			if constexpr (HasDefinition<USRefl::TypeInfo<Value>>::value) {
+				std::string_view cur;
+				USRefl::TypeInfo<Value>::fields.FindIf([&](auto field) {
+					if (field.value == var) {
+						cur = field.name;
+						return true;
+					}
+					return false;
+				});
+
+				if (ImGui::BeginCombo(field.name.data(), cur.data())) {
+					USRefl::TypeInfo<Value>::fields.ForEach([&](auto field) {
+						bool isSelected = field.value == var;
+						if (ImGui::Selectable(field.name.data(), isSelected))
+							var = field.value;
+
+						if (isSelected)
+							ImGui::SetItemDefaultFocus();
+
+					});
+					ImGui::EndCombo();
+				}
+			}
+			else {
+				InspectVar(field, static_cast<std::underlying_type_t<Value>&>(var), ctx);
+			}
+		}
 		else if constexpr (std::is_pointer_v<Value>) {
 			using Type = std::remove_pointer_t<Value>;
 			ImGui::Text("(*)");
