@@ -15,6 +15,7 @@ set(components
   MeshFilter
   MeshRenderer
   WorldTime
+  Skybox
 )
 
 set(refls "")

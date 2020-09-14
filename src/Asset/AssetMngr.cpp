@@ -6,6 +6,7 @@
 #include <DustEngine/Core/Shader.h>
 #include <DustEngine/Core/Image.h>
 #include <DustEngine/Core/Texture2D.h>
+#include <DustEngine/Core/TextureCube.h>
 #include <DustEngine/Core/Material.h>
 #include <DustEngine/Core/TextAsset.h>
 #include <DustEngine/Core/Scene.h>
@@ -337,6 +338,24 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path) {
 		pImpl->asset2path.emplace(tex2d, path);
 		return tex2d;
 	}
+	else if (ext == ".texcube") {
+		auto target = pImpl->path2assert.find(path);
+		if (target != pImpl->path2assert.end())
+			return target->second.ptr.get();
+
+		auto tex2dJSON = Impl::LoadJSON(path);
+		auto imageArr = tex2dJSON["images"].GetArray();
+		auto texcube = new TextureCube;
+		for (size_t i = 0; i < 6; i++) {
+			auto guidstr = imageArr[rapidjson::SizeType(i)].GetString();
+			xg::Guid guid{ guidstr };
+			auto imgTarget = pImpl->guid2path.find(guid);
+			texcube->images[i] = imgTarget != pImpl->guid2path.end() ? LoadAsset<Image>(imgTarget->second) : nullptr;
+		}
+		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ texcube });
+		pImpl->asset2path.emplace(texcube, path);
+		return texcube;
+	}
 	else if (ext == ".mat") {
 		auto target = pImpl->path2assert.find(path);
 		if (target != pImpl->path2assert.end())
@@ -352,6 +371,11 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path) {
 		for (const auto& [name, value] : texture2DsJSON) {
 			xg::Guid guid{ value.GetString() };
 			material->texture2Ds.emplace(name.GetString(), LoadAsset<Texture2D>(GUIDToAssetPath(guid)));
+		}
+		const auto& textureCubesJSON = materialJSON["textureCubes"].GetObject();
+		for (const auto& [name, value] : textureCubesJSON) {
+			xg::Guid guid{ value.GetString() };
+			material->textureCubes.emplace(name.GetString(), LoadAsset<TextureCube>(GUIDToAssetPath(guid)));
 		}
 		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ material });
 		pImpl->asset2path.emplace(material, path);
@@ -420,6 +444,11 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path, const std::type_in
 	}
 	else if (ext == ".tex2d") {
 		if (typeinfo != typeid(Texture2D))
+			return nullptr;
+		return LoadAsset(path);
+	}
+	else if (ext == ".texcube") {
+		if (typeinfo != typeid(TextureCube))
 			return nullptr;
 		return LoadAsset(path);
 	}
@@ -514,6 +543,14 @@ bool AssetMngr::CreateAsset(void* ptr, const std::filesystem::path& path) {
 			writer.String(AssetPathToGUID(GetAssetPath(tex2D)));
 		}
 		writer.EndObject(); // texture2Ds
+		writer.Key("textureCubes");
+		writer.StartObject();
+		for (const auto& [name, texcube] : material->textureCubes) {
+			writer.Key(name);
+			writer.String(AssetPathToGUID(GetAssetPath(texcube)));
+		}
+		writer.EndObject(); // textureCubes
+
 		writer.EndObject();
 
 		auto dirPath = path.parent_path();

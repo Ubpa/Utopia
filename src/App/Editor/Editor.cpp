@@ -20,6 +20,7 @@
 #include <DustEngine/Asset/Serializer.h>
 
 #include <DustEngine/Core/Texture2D.h>
+#include <DustEngine/Core/TextureCube.h>
 #include <DustEngine/Core/Image.h>
 #include <DustEngine/Core/HLSLFile.h>
 #include <DustEngine/Core/Shader.h>
@@ -31,6 +32,7 @@
 #include <DustEngine/Core/Components/MeshRenderer.h>
 #include <DustEngine/Core/Components/Name.h>
 #include <DustEngine/Core/Components/WorldTime.h>
+#include <DustEngine/Core/Components/Skybox.h>
 #include <DustEngine/Core/Systems/CameraSystem.h>
 #include <DustEngine/Core/Systems/WorldTimeSystem.h>
 #include <DustEngine/Core/GameTimer.h>
@@ -753,6 +755,7 @@ void Editor::BuildWorld() {
 		Ubpa::DustEngine::MeshRenderer,
 		Ubpa::DustEngine::WorldTime,
 		Ubpa::DustEngine::Name,
+		Ubpa::DustEngine::Skybox,
 
 		// transform
 		Ubpa::DustEngine::Children,
@@ -788,6 +791,7 @@ void Editor::BuildWorld() {
 		Ubpa::DustEngine::MeshRenderer,
 		Ubpa::DustEngine::WorldTime,
 		Ubpa::DustEngine::Name,
+		Ubpa::DustEngine::Skybox,
 
 		// transform
 		Ubpa::DustEngine::Children,
@@ -842,6 +846,7 @@ void Editor::BuildWorld() {
 		Ubpa::DustEngine::MeshRenderer,
 		Ubpa::DustEngine::WorldTime,
 		Ubpa::DustEngine::Name,
+		Ubpa::DustEngine::Skybox,
 
 		// transform
 		Ubpa::DustEngine::Children,
@@ -892,6 +897,7 @@ void Editor::BuildWorld() {
 		Ubpa::DustEngine::MeshRenderer,
 		Ubpa::DustEngine::WorldTime,
 		Ubpa::DustEngine::Name,
+		Ubpa::DustEngine::Skybox,
 
 		// transform
 		Ubpa::DustEngine::Children,
@@ -926,6 +932,15 @@ void Editor::LoadTextures() {
 		Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
 			Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
 			Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Texture2D>(path)
+		);
+	}
+
+	auto texcubeGUIDs = Ubpa::DustEngine::AssetMngr::Instance().FindAssets(std::wregex{ LR"(.*\.texcube)" });
+	for (const auto& guid : texcubeGUIDs) {
+		const auto& path = Ubpa::DustEngine::AssetMngr::Instance().GUIDToAssetPath(guid);
+		Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTextureCube(
+			Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+			Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::TextureCube>(path)
 		);
 	}
 }

@@ -1,0 +1,1 @@
+{"hlslFile":"bdd78e15-6ec2-40fe-b7ce-93ce142d19a7","shaderName":"StdPipeline/Skybox","vertexName":"VS","fragmentName":"PS","targetName":"5_0"}

@@ -1,6 +1,7 @@
 #include <DustEngine/Render/DX12/RsrcMngrDX12.h>
 
 #include <DustEngine/Core/Texture2D.h>
+#include <DustEngine/Core/TextureCube.h>
 #include <DustEngine/Core/Image.h>
 #include <DustEngine/Core/HLSLFile.h>
 #include <DustEngine/Core/Shader.h>
@@ -15,6 +16,10 @@ using namespace std;
 
 struct RsrcMngrDX12::Impl {
 	struct Texture2DGPUData {
+		ID3D12Resource* resource;
+		UDX12::DescriptorHeapAllocation allocationSRV;
+	};
+	struct TextureCubeGPUData {
 		ID3D12Resource* resource;
 		UDX12::DescriptorHeapAllocation allocationSRV;
 	};
@@ -34,6 +39,7 @@ struct RsrcMngrDX12::Impl {
 	UDX12::ResourceDeleteBatch deleteBatch;
 
 	unordered_map<size_t, Texture2DGPUData> texture2DMap;
+	unordered_map<size_t, TextureCubeGPUData> textureCubeMap;
 	unordered_map<size_t, RenderTargetGPUData> renderTargetMap;
 	unordered_map<size_t, ShaderCompileData> shaderMap;
 
@@ -122,6 +128,11 @@ void RsrcMngrDX12::Clear() {
 		tex.resource->Release();
 	}
 
+	for (auto& [name, tex] : pImpl->textureCubeMap) {
+		UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(move(tex.allocationSRV));
+		tex.resource->Release();
+	}
+
 	for (auto& [name, tex] : pImpl->renderTargetMap) {
 		UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(move(tex.allocationSRV));
 		UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Free(move(tex.allocationRTV));
@@ -139,6 +150,7 @@ void RsrcMngrDX12::Clear() {
 	delete pImpl->upload;
 
 	pImpl->texture2DMap.clear();
+	pImpl->textureCubeMap.clear();
 	pImpl->renderTargetMap.clear();
 	pImpl->meshMap.clear();
 	pImpl->rootSignatureMap.clear();
@@ -219,7 +231,7 @@ RsrcMngrDX12& RsrcMngrDX12::RegisterTexture2D(
 	D3D12_SUBRESOURCE_DATA data;
 	data.pData = tex2D->image->data;
 	data.RowPitch = tex2D->image->width * tex2D->image->channel * sizeof(float);
-	data.SlicePitch = tex2D->image->height * data.RowPitch;
+	data.SlicePitch = tex2D->image->height* data.RowPitch; // this field is useless for texture 2d
 
 	DirectX::CreateTextureFromMemory(
 		pImpl->device,
@@ -242,6 +254,55 @@ RsrcMngrDX12& RsrcMngrDX12::RegisterTexture2D(
 	return *this;
 }
 
+RsrcMngrDX12& RsrcMngrDX12::RegisterTextureCube(
+	DirectX::ResourceUploadBatch& upload,
+	const TextureCube* texcube
+) {
+	auto target = pImpl->textureCubeMap.find(texcube->GetInstanceID());
+	if (target != pImpl->textureCubeMap.end())
+		return *this;
+
+	Impl::TextureCubeGPUData tex;
+
+	tex.allocationSRV = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(static_cast<uint32_t>(1));
+
+	constexpr DXGI_FORMAT channelMap[] = {
+		DXGI_FORMAT::DXGI_FORMAT_R32_FLOAT,
+		DXGI_FORMAT::DXGI_FORMAT_R32G32_FLOAT,
+		DXGI_FORMAT::DXGI_FORMAT_R32G32B32_FLOAT,
+		DXGI_FORMAT::DXGI_FORMAT_R32G32B32A32_FLOAT,
+	};
+
+	size_t w = texcube->images.front()->width;
+	size_t h = texcube->images.front()->height;
+	size_t c = texcube->images.front()->channel;
+
+	std::array<D3D12_SUBRESOURCE_DATA, 6> datas;
+	for (size_t i = 0; i < datas.size(); i++) {
+		datas[i].pData = texcube->images[i]->data;
+		datas[i].RowPitch = texcube->images[i]->width * texcube->images[i]->channel * sizeof(float);
+		datas[i].SlicePitch = texcube->images[i]->height * datas[i].RowPitch; // this field is useless for texture 2d
+	}
+
+	UDX12::Util::CreateTexture2DArrayFromMemory(
+		pImpl->device,
+		upload,
+		w, h, 6,
+		channelMap[c-1],
+		datas.data(),
+		&tex.resource
+	);
+
+	pImpl->device->CreateShaderResourceView(
+		tex.resource,
+		&UDX12::Desc::SRV::TexCube(tex.resource->GetDesc().Format),
+		tex.allocationSRV.GetCpuHandle(static_cast<uint32_t>(0))
+	);
+
+	pImpl->textureCubeMap.emplace_hint(target, std::make_pair(texcube->GetInstanceID(), move(tex)));
+
+	return *this;
+}
 
 	return *this;
 }
@@ -298,6 +359,15 @@ D3D12_GPU_DESCRIPTOR_HANDLE RsrcMngrDX12::GetTexture2DSrvGpuHandle(const Texture
 }
 ID3D12Resource* RsrcMngrDX12::GetTexture2DResource(const Texture2D* tex2D) const {
 	return pImpl->texture2DMap.find(tex2D->GetInstanceID())->second.resource;
+}
+D3D12_CPU_DESCRIPTOR_HANDLE RsrcMngrDX12::GetTextureCubeSrvCpuHandle(const TextureCube* texCube) const {
+	return pImpl->textureCubeMap.find(texCube->GetInstanceID())->second.allocationSRV.GetCpuHandle(0);
+}
+D3D12_GPU_DESCRIPTOR_HANDLE RsrcMngrDX12::GetTextureCubeSrvGpuHandle(const TextureCube* texCube) const {
+	return pImpl->textureCubeMap.find(texCube->GetInstanceID())->second.allocationSRV.GetGpuHandle(0);
+}
+ID3D12Resource* RsrcMngrDX12::GetTextureCubeResource(const TextureCube* texCube) const {
+	return pImpl->textureCubeMap.find(texCube->GetInstanceID())->second.resource;
 }
 
 //UDX12::DescriptorHeapAllocation& RsrcMngrDX12::GetTextureRtvs(const Texture2D* tex2D) const {
@@ -394,18 +464,6 @@ UDX12::MeshGPUBuffer& RsrcMngrDX12::RegisterMesh(
 	}
 	return pImpl->meshMap.find(mesh->GetInstanceID())->second;
 }
-
-//UDX12::MeshGPUBuffer& RsrcMngrDX12::RegisterDynamicMesh(
-//	size_t id,
-//	const void* vb_data, UINT vb_count, UINT vb_stride,
-//	const void* ib_data, UINT ib_count, DXGI_FORMAT ib_format)
-//{
-//	auto& meshGeo = pImpl->meshMap[id];
-//	meshGeo.InitBuffer(pImpl->device,
-//		vb_data, vb_count, vb_stride,
-//		ib_data, ib_count, ib_format);
-//	return meshGeo;
-//}
 
 UDX12::MeshGPUBuffer& RsrcMngrDX12::GetMeshGPUBuffer(const Mesh* mesh) const {
 	return pImpl->meshMap.find(mesh->GetInstanceID())->second;

@@ -101,6 +101,7 @@ namespace Ubpa::DustEngine::detail {
 		auto hlsl = AssetMngr::Instance().LoadAsset<Texture2D>(L"..\\assets\\_internal\\FolderViewer\\textures\\hlsl.tex2d");
 		auto scene = AssetMngr::Instance().LoadAsset<Texture2D>(L"..\\assets\\_internal\\FolderViewer\\textures\\scene.tex2d");
 		auto model = AssetMngr::Instance().LoadAsset<Texture2D>(L"..\\assets\\_internal\\FolderViewer\\textures\\model.tex2d");
+		auto texcube = AssetMngr::Instance().LoadAsset<Texture2D>(L"..\\assets\\_internal\\FolderViewer\\textures\\texcube.tex2d");
 		auto fileID = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(file);
 		auto folderID = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(folder);
 		auto codeID = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(code);
@@ -110,6 +111,7 @@ namespace Ubpa::DustEngine::detail {
 		auto hlslID = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(hlsl);
 		auto sceneID = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(scene);
 		auto modelID = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(model);
+		auto texcubeID = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(texcube);
 
 		ImGuiStyle& style = ImGui::GetStyle();
 		ImVec2 button_sz(60, 60);
@@ -135,7 +137,7 @@ namespace Ubpa::DustEngine::detail {
 				auto nameStr = name.string();
 				if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None)) {
 					ImGui::SetDragDropPayload(PlayloadType::GUID, &child, sizeof(xg::Guid));
-					ImGui::ImageButton(ImTextureID(folderID.ptr), { 30,30 });
+					ImGui::ImageButton(ImTextureID(folderID.ptr), { 32,32 });
 					ImGui::Text(nameStr.c_str());
 					ImGui::EndDragDropSource();
 				}
@@ -190,13 +192,15 @@ namespace Ubpa::DustEngine::detail {
 					id = sceneID.ptr;
 				else if (ext == ".obj")
 					id = modelID.ptr;
+				else if (ext == ".texcube")
+					id = texcubeID.ptr;
 				else
 					id = fileID.ptr;
 				ImGui::ImageButton(ImTextureID(id), button_sz, { 0,0 }, { 1,1 }, 0, style.Colors[ImGuiCol_WindowBg], tint);
 				auto nameStr = name.string();
 				if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None)) {
 					ImGui::SetDragDropPayload(PlayloadType::GUID, &child, sizeof(xg::Guid));
-					ImGui::ImageButton(ImTextureID(id), { 30,30 });
+					ImGui::ImageButton(ImTextureID(id), { 32,32 });
 					ImGui::Text(nameStr.c_str());
 					ImGui::EndDragDropSource();
 				}

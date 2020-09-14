@@ -2,8 +2,6 @@
 
 #include "Texture.h"
 
-#include <string>
-
 namespace Ubpa::DustEngine {
 	class Image;
 

@@ -450,7 +450,26 @@
                         }
                     }
                 ]
-            }
+            },
+			{
+				"__INDEX":5,
+				"__COMPONENTS":[
+					{
+					    "__TYPE":14206628913154525084,
+						"__NAME":"struct Ubpa::DustEngine::Name",
+                        "__CONTENT":{
+                            "value":"skybox"
+                        }
+					},
+					{
+						"__TYPE":16361411277482795269,
+						"__NAME":"struct Ubpa::DustEngine::Skybox",
+						"__CONTENT":{
+							"texcube":"175d0e89-36ff-472e-ab50-0f5b04fbbf5b"
+						}
+					}
+				]
+			}
         ]
     }
 }

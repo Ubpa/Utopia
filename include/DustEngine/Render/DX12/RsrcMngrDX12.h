@@ -7,6 +7,7 @@
 
 namespace Ubpa::DustEngine {
 	struct Texture2D;
+	struct TextureCube;
 	struct Shader;
 	class Mesh;
 
@@ -28,6 +29,10 @@ namespace Ubpa::DustEngine {
 			const Texture2D* tex2D
 		);
 
+		RsrcMngrDX12& RegisterTextureCube(
+			DirectX::ResourceUploadBatch& upload,
+			const TextureCube* texcube
+		);
 		// [sync]
 		// - (maybe) construct resized upload buffer
 		// - (maybe) construct resized default buffer
@@ -52,7 +57,10 @@ namespace Ubpa::DustEngine {
 
 		D3D12_CPU_DESCRIPTOR_HANDLE GetTexture2DSrvCpuHandle(const Texture2D* tex2D) const;
 		D3D12_GPU_DESCRIPTOR_HANDLE GetTexture2DSrvGpuHandle(const Texture2D* tex2D) const;
+		D3D12_CPU_DESCRIPTOR_HANDLE GetTextureCubeSrvCpuHandle(const TextureCube* texcube) const;
+		D3D12_GPU_DESCRIPTOR_HANDLE GetTextureCubeSrvGpuHandle(const TextureCube* texcube) const;
 		ID3D12Resource* GetTexture2DResource(const Texture2D* tex2D) const;
+		ID3D12Resource* GetTextureCubeResource(const TextureCube* texcube) const;
 
 		UDX12::MeshGPUBuffer& GetMeshGPUBuffer(const Mesh* mesh) const;
 		 
