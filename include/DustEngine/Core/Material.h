@@ -6,7 +6,7 @@
 namespace Ubpa::DustEngine {
 	struct Shader;
 	struct Texture2D;
-	struct TextureCube;
+	class TextureCube;
 
 	struct Material {
 		const Shader* shader;

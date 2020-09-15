@@ -7,7 +7,7 @@
 
 namespace Ubpa::DustEngine {
 	struct Texture2D;
-	struct TextureCube;
+	class TextureCube;
 	struct Shader;
 	class Mesh;
 

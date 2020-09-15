@@ -343,14 +343,35 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path) {
 		if (target != pImpl->path2assert.end())
 			return target->second.ptr.get();
 
-		auto tex2dJSON = Impl::LoadJSON(path);
-		auto imageArr = tex2dJSON["images"].GetArray();
-		auto texcube = new TextureCube;
-		for (size_t i = 0; i < 6; i++) {
-			auto guidstr = imageArr[rapidjson::SizeType(i)].GetString();
+		auto texcubeJSON = Impl::LoadJSON(path);
+		auto mode = static_cast<TextureCube::SourceMode>(texcubeJSON["mode"].GetInt());
+		TextureCube* texcube;
+		switch (mode)
+		{
+		case TextureCube::SourceMode::SixSidedImages: {
+			auto imageArr = texcubeJSON["images"].GetArray();
+			std::array<const Image*, 6> images;
+			for (size_t i = 0; i < 6; i++) {
+				auto guidstr = imageArr[rapidjson::SizeType(i)].GetString();
+				xg::Guid guid{ guidstr };
+				auto imgTarget = pImpl->guid2path.find(guid);
+				images[i] = imgTarget != pImpl->guid2path.end() ? LoadAsset<Image>(imgTarget->second) : nullptr;
+			}
+			texcube = new TextureCube{ images };
+			break;
+		}
+		case TextureCube::SourceMode::EquirectangularMap: {
+			const Image* equirectangularMap;
+			auto guidstr = texcubeJSON["equirectangularMap"].GetString();
 			xg::Guid guid{ guidstr };
 			auto imgTarget = pImpl->guid2path.find(guid);
-			texcube->images[i] = imgTarget != pImpl->guid2path.end() ? LoadAsset<Image>(imgTarget->second) : nullptr;
+			equirectangularMap = imgTarget != pImpl->guid2path.end() ? LoadAsset<Image>(imgTarget->second) : nullptr;
+			texcube = new TextureCube{ equirectangularMap };
+			break;
+		}
+		default:
+			assert(false);
+			break;
 		}
 		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ texcube });
 		pImpl->asset2path.emplace(texcube, path);

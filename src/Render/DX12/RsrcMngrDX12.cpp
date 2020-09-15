@@ -273,9 +273,9 @@ RsrcMngrDX12& RsrcMngrDX12::RegisterTextureCube(
 		DXGI_FORMAT::DXGI_FORMAT_R32G32B32A32_FLOAT,
 	};
 
-	size_t w = texcube->images.front()->width;
-	size_t h = texcube->images.front()->height;
-	size_t c = texcube->images.front()->channel;
+	size_t w = texcube->images->front()->width;
+	size_t h = texcube->images->front()->height;
+	size_t c = texcube->images->front()->channel;
 
 	std::array<D3D12_SUBRESOURCE_DATA, 6> datas;
 	for (size_t i = 0; i < datas.size(); i++) {
