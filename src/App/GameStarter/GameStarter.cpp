@@ -9,6 +9,7 @@
 #include <DustEngine/Asset/Serializer.h>
 
 #include <DustEngine/Core/Texture2D.h>
+#include <DustEngine/Core/TextureCube.h>
 #include <DustEngine/Core/Image.h>
 #include <DustEngine/Core/HLSLFile.h>
 #include <DustEngine/Core/Shader.h>
@@ -20,6 +21,7 @@
 #include <DustEngine/Core/Components/MeshRenderer.h>
 #include <DustEngine/Core/Components/Name.h>
 #include <DustEngine/Core/Components/WorldTime.h>
+#include <DustEngine/Core/Components/Skybox.h>
 #include <DustEngine/Core/Systems/CameraSystem.h>
 #include <DustEngine/Core/Systems/WorldTimeSystem.h>
 #include <DustEngine/Core/GameTimer.h>
@@ -301,8 +303,6 @@ bool GameStarter::Initialize() {
 	BuildShaders();
 	Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload().End(uCmdQueue.Get());
 
-	//OutputDebugStringA(Ubpa::DustEngine::Serializer::Instance().ToJSON(&world).c_str());
-
 	Ubpa::DustEngine::IPipeline::InitDesc initDesc;
 	initDesc.device = uDevice.Get();
 	initDesc.rtFormat = GetBackBufferFormat();
@@ -332,6 +332,9 @@ void GameStarter::Update() {
 	ImGui_ImplDX12_NewFrame();
 	ImGui_ImplWin32_NewFrame_Context(gameImGuiCtx, { 0,0 }, mClientWidth, mClientHeight);
 	ImGui_ImplWin32_NewFrame_Shared();
+
+	auto& upload = Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload();
+	upload.Begin();
 
 	ImGui::SetCurrentContext(gameImGuiCtx);
 	ImGui::NewFrame();
@@ -385,13 +388,10 @@ void GameStarter::Update() {
 	cmdAlloc->Reset();
 
 	ThrowIfFailed(uGCmdList->Reset(cmdAlloc, nullptr));
-	auto& upload = Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload();
 	auto& deleteBatch = Ubpa::DustEngine::RsrcMngrDX12::Instance().GetDeleteBatch();
-	upload.Begin();
 
-	// update mesh
-	world.RunEntityJob([&](const Ubpa::DustEngine::MeshFilter* meshFilter) {
-		if (!meshFilter->mesh)
+	world.RunEntityJob([&](const Ubpa::DustEngine::MeshFilter* meshFilter, const Ubpa::DustEngine::MeshRenderer* meshRenderer) {
+		if (!meshFilter->mesh || meshRenderer->materials.empty())
 			return;
 
 		Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterMesh(
@@ -400,7 +400,37 @@ void GameStarter::Update() {
 			uGCmdList.Get(),
 			meshFilter->mesh
 		);
+
+		for (const auto& mat : meshRenderer->materials) {
+			for (const auto& [name, tex] : mat->texture2Ds) {
+				Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
+					Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+					tex
+				);
+			}
+			for (const auto& [name, tex] : mat->textureCubes) {
+				Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTextureCube(
+					Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+					tex
+				);
+			}
+		}
 	}, false);
+
+	if (auto skybox = world.entityMngr.GetSingleton<Ubpa::DustEngine::Skybox>()) {
+		for (const auto& [name, tex] : skybox->material->texture2Ds) {
+			Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
+				Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+				tex
+			);
+		}
+		for (const auto& [name, tex] : skybox->material->textureCubes) {
+			Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTextureCube(
+				Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+				tex
+			);
+		}
+	}
 
 	// commit upload, delete ...
 	upload.End(uCmdQueue.Get());
@@ -519,6 +549,7 @@ void GameStarter::BuildWorld() {
 		Ubpa::DustEngine::MeshRenderer,
 		Ubpa::DustEngine::WorldTime,
 		Ubpa::DustEngine::Name,
+		Ubpa::DustEngine::Skybox,
 
 		// transform
 		Ubpa::DustEngine::Children,
@@ -560,6 +591,8 @@ void GameStarter::BuildWorld() {
 		Ubpa::DustEngine::MeshFilter,
 		Ubpa::DustEngine::MeshRenderer,
 		Ubpa::DustEngine::WorldTime,
+		Ubpa::DustEngine::Name,
+		Ubpa::DustEngine::Skybox,
 
 		// transform
 		Ubpa::DustEngine::Children,
@@ -587,14 +620,6 @@ void GameStarter::BuildWorld() {
 }
 
 void GameStarter::LoadTextures() {
-	auto tex2dGUIDs = Ubpa::DustEngine::AssetMngr::Instance().FindAssets(std::wregex{ LR"(.*\.tex2d)" });
-	for (const auto& guid : tex2dGUIDs) {
-		const auto& path = Ubpa::DustEngine::AssetMngr::Instance().GUIDToAssetPath(guid);
-		Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
-			Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
-			Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Texture2D>(path)
-		);
-	}
 }
 
 void GameStarter::BuildShaders() {

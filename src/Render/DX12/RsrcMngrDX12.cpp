@@ -470,6 +470,10 @@ UDX12::MeshGPUBuffer& RsrcMngrDX12::GetMeshGPUBuffer(const Mesh* mesh) const {
 }
 
 RsrcMngrDX12& RsrcMngrDX12::RegisterShader(const Shader* shader) {
+	auto target = pImpl->shaderMap.find(shader->GetInstanceID());
+	if (target != pImpl->shaderMap.end())
+		return *this;
+
 	D3D_SHADER_MACRO macros[] = {
 		{nullptr, nullptr}
 	};
@@ -604,8 +608,11 @@ const ID3DBlob* RsrcMngrDX12::GetShaderByteCode_ps(const Shader* shader) const {
 RsrcMngrDX12& RsrcMngrDX12::RegisterRootSignature(
 	size_t id,
 	const D3D12_ROOT_SIGNATURE_DESC* desc
-)
-{
+) {
+	auto target = pImpl->rootSignatureMap.find(id);
+	if (target != pImpl->rootSignatureMap.end())
+		return *this;
+
 	// create a root signature with a single slot which points to a descriptor range consisting of a single constant buffer
 	ID3DBlob* serializedRootSig = nullptr;
 	ID3DBlob* errorBlob = nullptr;
