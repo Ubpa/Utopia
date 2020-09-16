@@ -43,7 +43,11 @@ void TextureCube::Init(std::array<const Image*, 6> images) {
 void TextureCube::Init(const Image* equirectangularMap) {
 	Clear();
 	mode = SourceMode::EquirectangularMap;
+#ifdef _DEBUG
+	size_t s = equirectangularMap->height / 2;
+#else
 	size_t s = equirectangularMap->height;
+#endif
 	size_t c = equirectangularMap->channel;
 
 	vecf3 origin[6] = {

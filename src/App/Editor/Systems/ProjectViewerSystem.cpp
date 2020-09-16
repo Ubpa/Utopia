@@ -102,6 +102,7 @@ namespace Ubpa::DustEngine::detail {
 		auto scene = AssetMngr::Instance().LoadAsset<Texture2D>(L"..\\assets\\_internal\\FolderViewer\\textures\\scene.tex2d");
 		auto model = AssetMngr::Instance().LoadAsset<Texture2D>(L"..\\assets\\_internal\\FolderViewer\\textures\\model.tex2d");
 		auto texcube = AssetMngr::Instance().LoadAsset<Texture2D>(L"..\\assets\\_internal\\FolderViewer\\textures\\texcube.tex2d");
+
 		auto fileID = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(file);
 		auto folderID = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(folder);
 		auto codeID = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(code);
@@ -114,7 +115,7 @@ namespace Ubpa::DustEngine::detail {
 		auto texcubeID = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(texcube);
 
 		ImGuiStyle& style = ImGui::GetStyle();
-		ImVec2 button_sz(60, 60);
+		ImVec2 button_sz(64, 64);
 		float window_visible_x2 = ImGui::GetWindowPos().x + ImGui::GetWindowContentRegionMax().x;
 		size_t idx = 0;
 		// pass 1 : folder
@@ -180,6 +181,10 @@ namespace Ubpa::DustEngine::detail {
 				}
 				else if (ext == ".tex2d") {
 					auto tex2d = AssetMngr::Instance().LoadAsset<Texture2D>(path);
+					Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
+						Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+						tex2d
+					);
 					id = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(tex2d).ptr;
 				}
 				else if (ext == ".mat")
