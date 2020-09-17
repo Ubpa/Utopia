@@ -9,6 +9,8 @@
 
 #include <DustEngine/Core/Traits.h>
 
+#include <UECS/Entity.h>
+
 #include <USTL/tuple.h>
 
 namespace Ubpa::DustEngine::detail {
@@ -98,6 +100,10 @@ namespace Ubpa::DustEngine::detail {
 			ImGui::Button(var.c_str());
 			ImGui::SameLine();
 			ImGui::Text(field.name.data());
+		}
+		else if constexpr (std::is_same_v<Value, UECS::Entity>) {
+			// TODO : drag, name
+			ImGui::BulletText("Entity %d", var.Idx());
 		}
 		else if constexpr (std::is_pointer_v<Value>) {
 			ImGui::Text("(*)");
@@ -248,6 +254,10 @@ namespace Ubpa::DustEngine::detail {
 			ImGui::DragScalar(field.name.data(), ImGuiDataType_Double, &var, 0.001f);
 		else if constexpr (std::is_same_v<Value, std::string>)
 			ImGui::InputText(field.name.data(), &var);
+		else if constexpr (std::is_same_v<Value, UECS::Entity>) {
+			// TODO : drag, name
+			ImGui::BulletText("Entity %d", var.Idx());
+		}
 		else if constexpr (std::is_enum_v<Value>) {
 			if constexpr (HasDefinition<USRefl::TypeInfo<Value>>::value) {
 				std::string_view cur;
