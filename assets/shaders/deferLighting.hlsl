@@ -8,11 +8,12 @@ struct DirectionalLight {
 #define PI 3.1415926
 #define EPSILON 0.000001
 
-Texture2D    gbuffer0 : register(t0);
-Texture2D    gbuffer1 : register(t1);
-Texture2D    gbuffer2 : register(t2);
+Texture2D    gbuffer0       : register(t0);
+Texture2D    gbuffer1       : register(t1);
+Texture2D    gbuffer2       : register(t2);
+TextureCube  gIrradianceMap : register(t3);
 
-SamplerState gsamLinear  : register(s0);
+SamplerState gSamLinear  : register(s0);
 
 // Constant data that varies per frame.
 cbuffer cbLights : register(b0)
@@ -78,11 +79,22 @@ float3 MetalWorkflow_F0(float3 albedo, float metalness) {
 	return lerp(float3(reflectance, reflectance, reflectance), albedo, metalness);
 }
 
-float3 fresnel(float3 F0, float cos_theta) {
+float3 Fresnel(float3 F0, float cos_theta) {
 	float x = 1 - cos_theta;
 	float x2 = x * x;
 	float x5 = x2 * x2 * x;
 	return F0 + (1-F0)*x5;
+}
+
+float Pow5(float x) {
+	float x2 = x * x;
+	return x2 * x2 * x;
+}
+
+float3 SchlickFrR(float3 V, float3 N, float3 F0, float roughness) {
+	float cosTheta = max(dot(V, N), 0);
+	float x = 1.0 - roughness;
+    return F0 + (max(float3(x,x,x), F0) - F0) * Pow5(1.0 - cosTheta);
 }
 
 float GGX_G(float alpha, float3 L, float3 V, float3 N) {
@@ -107,9 +119,9 @@ float GGX_D(float alpha, float3 N, float3 H) {
 
 float4 PS(VertexOut pin) : SV_Target
 {
-    float4 data0 = gbuffer0.Sample(gsamLinear, pin.TexC);
-    float4 data1 = gbuffer1.Sample(gsamLinear, pin.TexC);
-    float4 data2 = gbuffer2.Sample(gsamLinear, pin.TexC);
+    float4 data0 = gbuffer0.Sample(gSamLinear, pin.TexC);
+    float4 data1 = gbuffer1.Sample(gSamLinear, pin.TexC);
+    float4 data2 = gbuffer2.Sample(gSamLinear, pin.TexC);
 	
 	float3 albedo = data0.xyz;
 	float roughness = data0.w;
@@ -134,7 +146,7 @@ float4 PS(VertexOut pin) : SV_Target
 				
 		float cos_theta = dot(N, L);
 		
-		float3 fr = fresnel(F0, cos_theta);
+		float3 fr = Fresnel(F0, cos_theta);
 		float D = GGX_D(alpha, N, H);
 		float G = GGX_G(alpha, L, V, N);
 				
@@ -143,8 +155,17 @@ float4 PS(VertexOut pin) : SV_Target
 		float3 specular = fr * D * G / (4 * max(dot(L, N)*dot(V, N), EPSILON));
 		
 		float3 brdf = diffuse + specular;
-		Lo += brdf * gDirectionalLights[i].L * max(cos_theta, 0);
+		//Lo += brdf * gDirectionalLights[i].L * max(cos_theta, 0);
 	}
+	
+	// ambient
+	float3 FrR = SchlickFrR(V, N, F0, roughness);
+	float3 kS = FrR;
+	float3 kD = (1 - metalness) * (float3(1, 1, 1) - kS);
+	
+	float3 irradiance = gIrradianceMap.Sample(gSamLinear, N).rgb;
+	float3 diffuse = irradiance * albedo;
+	Lo += diffuse;
 	
     return float4(Lo, 1.0f);
 }

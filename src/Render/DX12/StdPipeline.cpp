@@ -38,6 +38,7 @@ struct StdPipeline::Impl {
 		frameRsrcMngr{ initDesc.numFrame, initDesc.device },
 		fg { "Standard Pipeline" }
 	{
+		BuildTextures();
 		BuildFrameResources();
 		BuildShaders();
 		BuildRootSignature();
@@ -60,26 +61,26 @@ struct StdPipeline::Impl {
 	static constexpr size_t ID_RootSignature_irradiance = 5;
 
 	struct GeometryObjectConstants {
-		Ubpa::transformf World;
+		transformf World;
 	};
 	struct CameraConstants {
-		Ubpa::transformf View;
+		transformf View;
 
-		Ubpa::transformf InvView;
+		transformf InvView;
 
-		Ubpa::transformf Proj;
+		transformf Proj;
 
-		Ubpa::transformf InvProj;
+		transformf InvProj;
 
-		Ubpa::transformf ViewProj;
+		transformf ViewProj;
 
-		Ubpa::transformf InvViewProj;
+		transformf InvViewProj;
 
-		Ubpa::pointf3 EyePosW;
+		pointf3 EyePosW;
 		float _pad0;
 
-		Ubpa::valf2 RenderTargetSize;
-		Ubpa::valf2 InvRenderTargetSize;
+		valf2 RenderTargetSize;
+		valf2 InvRenderTargetSize;
 
 		float NearZ;
 		float FarZ;
@@ -88,7 +89,7 @@ struct StdPipeline::Impl {
 
 	};
 	struct GeometryMaterialConstants {
-		Ubpa::rgbf albedoFactor;
+		rgbf albedoFactor;
 		float roughnessFactor;
 		float metalnessFactor;
 	};
@@ -138,19 +139,20 @@ struct StdPipeline::Impl {
 	const InitDesc initDesc;
 
 	RenderContext renderContext;
+	D3D12_GPU_DESCRIPTOR_HANDLE defaultSkybox;
 
 	UDX12::FrameResourceMngr frameRsrcMngr;
 
-	Ubpa::UDX12::FG::Executor fgExecutor;
-	Ubpa::UFG::Compiler fgCompiler;
-	Ubpa::UFG::FrameGraph fg;
+	UDX12::FG::Executor fgExecutor;
+	UFG::Compiler fgCompiler;
+	UFG::FrameGraph fg;
 
-	Ubpa::DustEngine::Shader* screenShader;
-	Ubpa::DustEngine::Shader* geomrtryShader;
-	Ubpa::DustEngine::Shader* deferShader;
-	Ubpa::DustEngine::Shader* skyboxShader;
-	Ubpa::DustEngine::Shader* postprocessShader;
-	Ubpa::DustEngine::Shader* irradianceShader;
+	DustEngine::Shader* screenShader;
+	DustEngine::Shader* geomrtryShader;
+	DustEngine::Shader* deferShader;
+	DustEngine::Shader* skyboxShader;
+	DustEngine::Shader* postprocessShader;
+	DustEngine::Shader* irradianceShader;
 
 	static constexpr size_t IrradianceSize = 512;
 
@@ -158,6 +160,7 @@ struct StdPipeline::Impl {
 
 	const DXGI_FORMAT dsFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
+	void BuildTextures();
 	void BuildFrameResources();
 	void BuildShaders();
 	void BuildRootSignature();
@@ -180,6 +183,11 @@ StdPipeline::Impl::~Impl() {
 	}
 }
 
+void StdPipeline::Impl::BuildTextures() {
+	auto skyboxBlack = AssetMngr::Instance().LoadAsset<Material>(LR"(..\assets\_internal\materials\skyBlack.mat)");
+	defaultSkybox = RsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(skyboxBlack->textureCubes.at("gSkybox"));
+}
+
 void StdPipeline::Impl::BuildFrameResources() {
 	for (const auto& fr : frameRsrcMngr.GetFrameResources()) {
 		Microsoft::WRL::ComPtr<ID3D12CommandAllocator> allocator;
@@ -191,7 +199,7 @@ void StdPipeline::Impl::BuildFrameResources() {
 
 		fr->RegisterResource("ShaderCBMngrDX12", ShaderCBMngrDX12{ initDesc.device });
 
-		auto fgRsrcMngr = std::make_shared<Ubpa::UDX12::FG::RsrcMngr>();
+		auto fgRsrcMngr = std::make_shared<UDX12::FG::RsrcMngr>();
 		fr->RegisterResource("FrameGraphRsrcMngr", fgRsrcMngr);
 
 		D3D12_CLEAR_VALUE clearColor;
@@ -206,7 +214,7 @@ void StdPipeline::Impl::BuildFrameResources() {
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
 			D3D12_HEAP_FLAG_NONE,
 			&rsrcDesc,
-			D3D12_RESOURCE_STATE_GENERIC_READ,
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 			&clearColor,
 			IID_PPV_ARGS(&irradianceData->resource)
 		);
@@ -257,7 +265,7 @@ void StdPipeline::Impl::BuildShaders() {
 		{ 0, 2, 0}, // -z
 	};
 	for (const auto& fr : frameRsrcMngr.GetFrameResources()) {
-		auto& shaderCBMngr = fr->GetResource<Ubpa::DustEngine::ShaderCBMngrDX12>("ShaderCBMngrDX12");
+		auto& shaderCBMngr = fr->GetResource<DustEngine::ShaderCBMngrDX12>("ShaderCBMngrDX12");
 		auto buffer = shaderCBMngr.GetBuffer(irradianceShader);
 		const auto size = UDX12::Util::CalcConstantBufferByteSize(sizeof(IrradiancePositionLs));
 		buffer->FastReserve(6 * size);
@@ -346,22 +354,46 @@ void StdPipeline::Impl::BuildRootSignature() {
 		RsrcMngrDX12::Instance().RegisterRootSignature(ID_RootSignature_skybox, &rootSigDesc);
 	}
 
-	{ // defer lighting
+	{ // irradiance
 		CD3DX12_DESCRIPTOR_RANGE texTable;
-		texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 3, 0); // gbuffers
+		texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
 
 		// Root parameter can be a table, root descriptor or root constants.
-		CD3DX12_ROOT_PARAMETER slotRootParameter[3];
+		CD3DX12_ROOT_PARAMETER slotRootParameter[2];
 
 		// Perfomance TIP: Order from most frequent to least frequent.
 		slotRootParameter[0].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
-		slotRootParameter[1].InitAsConstantBufferView(0); // lights
-		slotRootParameter[2].InitAsConstantBufferView(1); // camera
+		slotRootParameter[1].InitAsConstantBufferView(0); // positionLs
 
 		auto staticSamplers = RsrcMngrDX12::Instance().GetStaticSamplers();
 
 		// A root signature is an array of root parameters.
-		CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(3, slotRootParameter,
+		CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(2, slotRootParameter,
+			(UINT)staticSamplers.size(), staticSamplers.data(),
+			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+
+		RsrcMngrDX12::Instance().RegisterRootSignature(ID_RootSignature_irradiance, &rootSigDesc);
+	}
+
+	{ // defer lighting
+		CD3DX12_DESCRIPTOR_RANGE gbufferRange;
+		gbufferRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 3, 0); // gbuffers
+		CD3DX12_DESCRIPTOR_RANGE irradianceMap;
+		irradianceMap.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3); // gbuffers
+
+		// Root parameter can be a table, root descriptor or root constants.
+		CD3DX12_ROOT_PARAMETER slotRootParameter[4];
+
+		// Perfomance TIP: Order from most frequent to least frequent.
+		slotRootParameter[0].InitAsDescriptorTable(1, &gbufferRange, D3D12_SHADER_VISIBILITY_PIXEL);
+		slotRootParameter[1].InitAsDescriptorTable(1, &irradianceMap, D3D12_SHADER_VISIBILITY_PIXEL);
+		slotRootParameter[2].InitAsConstantBufferView(0); // lights
+		slotRootParameter[3].InitAsConstantBufferView(1); // camera
+
+		auto staticSamplers = RsrcMngrDX12::Instance().GetStaticSamplers();
+
+		// A root signature is an array of root parameters.
+		CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(4, slotRootParameter,
 			(UINT)staticSamplers.size(), staticSamplers.data(),
 			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
@@ -387,31 +419,10 @@ void StdPipeline::Impl::BuildRootSignature() {
 
 		RsrcMngrDX12::Instance().RegisterRootSignature(ID_RootSignature_postprocess, &rootSigDesc);
 	}
-
-	{ // irradiance
-		CD3DX12_DESCRIPTOR_RANGE texTable;
-		texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
-
-		// Root parameter can be a table, root descriptor or root constants.
-		CD3DX12_ROOT_PARAMETER slotRootParameter[2];
-
-		// Perfomance TIP: Order from most frequent to least frequent.
-		slotRootParameter[0].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
-		slotRootParameter[1].InitAsConstantBufferView(0); // positionLs
-
-		auto staticSamplers = RsrcMngrDX12::Instance().GetStaticSamplers();
-
-		// A root signature is an array of root parameters.
-		CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(2, slotRootParameter,
-			(UINT)staticSamplers.size(), staticSamplers.data(),
-			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
-
-		RsrcMngrDX12::Instance().RegisterRootSignature(ID_RootSignature_irradiance, &rootSigDesc);
-	}
 }
 
 void StdPipeline::Impl::BuildPSOs() {
-	auto screenPsoDesc = Ubpa::UDX12::Desc::PSO::Basic(
+	auto screenPsoDesc = UDX12::Desc::PSO::Basic(
 		RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_screen),
 		nullptr, 0,
 		RsrcMngrDX12::Instance().GetShaderByteCode_vs(screenShader),
@@ -424,7 +435,7 @@ void StdPipeline::Impl::BuildPSOs() {
 	screenPsoDesc.DepthStencilState.StencilEnable = false;
 	ID_PSO_screen = RsrcMngrDX12::Instance().RegisterPSO(&screenPsoDesc);
 
-	auto skyboxPsoDesc = Ubpa::UDX12::Desc::PSO::Basic(
+	auto skyboxPsoDesc = UDX12::Desc::PSO::Basic(
 		RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_skybox),
 		nullptr, 0,
 		RsrcMngrDX12::Instance().GetShaderByteCode_vs(skyboxShader),
@@ -439,7 +450,7 @@ void StdPipeline::Impl::BuildPSOs() {
 	skyboxPsoDesc.DepthStencilState.StencilEnable = false;
 	ID_PSO_skybox = RsrcMngrDX12::Instance().RegisterPSO(&skyboxPsoDesc);
 
-	auto deferLightingPsoDesc = Ubpa::UDX12::Desc::PSO::Basic(
+	auto deferLightingPsoDesc = UDX12::Desc::PSO::Basic(
 		RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_defer_light),
 		nullptr, 0,
 		RsrcMngrDX12::Instance().GetShaderByteCode_vs(deferShader),
@@ -452,7 +463,7 @@ void StdPipeline::Impl::BuildPSOs() {
 	deferLightingPsoDesc.DepthStencilState.StencilEnable = false;
 	ID_PSO_defer_light = RsrcMngrDX12::Instance().RegisterPSO(&deferLightingPsoDesc);
 
-	auto postprocessPsoDesc = Ubpa::UDX12::Desc::PSO::Basic(
+	auto postprocessPsoDesc = UDX12::Desc::PSO::Basic(
 		RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_postprocess),
 		nullptr, 0,
 		RsrcMngrDX12::Instance().GetShaderByteCode_vs(postprocessShader),
@@ -466,7 +477,7 @@ void StdPipeline::Impl::BuildPSOs() {
 	ID_PSO_postprocess = RsrcMngrDX12::Instance().RegisterPSO(&postprocessPsoDesc);
 
 	{
-		auto desc = Ubpa::UDX12::Desc::PSO::Basic(
+		auto desc = UDX12::Desc::PSO::Basic(
 			RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_irradiance),
 			nullptr, 0,
 			RsrcMngrDX12::Instance().GetShaderByteCode_vs(irradianceShader),
@@ -490,7 +501,7 @@ size_t StdPipeline::Impl::GetGeometryPSO_ID(const Mesh* mesh) {
 		//	return static_cast<size_t>(-1); // not support
 
 		const auto& layout = MeshLayoutMngr::Instance().GetMeshLayoutValue(layoutID);
-		auto geometryPsoDesc = Ubpa::UDX12::Desc::PSO::MRT(
+		auto geometryPsoDesc = UDX12::Desc::PSO::MRT(
 			RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_geometry),
 			layout.data(), (UINT)layout.size(),
 			RsrcMngrDX12::Instance().GetShaderByteCode_vs(geomrtryShader),
@@ -509,10 +520,10 @@ size_t StdPipeline::Impl::GetGeometryPSO_ID(const Mesh* mesh) {
 void StdPipeline::Impl::UpdateRenderContext(const UECS::World& world) {
 	renderContext.objectMap.clear();
 
-	Ubpa::UECS::ArchetypeFilter objectFilter;
+	UECS::ArchetypeFilter objectFilter;
 	objectFilter.all = {
-		Ubpa::UECS::CmptAccessType::Of<MeshFilter>,
-		Ubpa::UECS::CmptAccessType::Of<MeshRenderer>
+		UECS::CmptAccessType::Of<MeshFilter>,
+		UECS::CmptAccessType::Of<MeshRenderer>
 	};
 
 	UECS::ArchetypeFilter filter;
@@ -539,7 +550,7 @@ void StdPipeline::Impl::UpdateRenderContext(const UECS::World& world) {
 		false
 	);
 
-	renderContext.skybox.ptr = 0;
+	renderContext.skybox = defaultSkybox;
 	if (auto ptr = world.entityMngr.GetSingleton<Skybox>(); ptr && ptr->material && ptr->material->shader == skyboxShader) {
 		auto target = ptr->material->textureCubes.find("gSkybox");
 		if(target != ptr->material->textureCubes.end())
@@ -553,7 +564,7 @@ void StdPipeline::Impl::UpdateShaderCBs(
 	const CameraData& cameraData
 ) {
 	auto& shaderCBMngr = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<Ubpa::DustEngine::ShaderCBMngrDX12>("ShaderCBMngrDX12");
+		->GetResource<DustEngine::ShaderCBMngrDX12>("ShaderCBMngrDX12");
 
 	{ // defer lighting
 		LightingLights lights;
@@ -566,13 +577,13 @@ void StdPipeline::Impl::UpdateShaderCBs(
 		lights.directionalLights[2].dir = { 0.0f, -0.707f, -0.707f };
 
 		auto buffer = shaderCBMngr.GetBuffer(deferShader);
-		buffer->FastReserve(Ubpa::UDX12::Util::CalcConstantBufferByteSize(sizeof(LightingLights)));
+		buffer->FastReserve(UDX12::Util::CalcConstantBufferByteSize(sizeof(LightingLights)));
 		buffer->Set(0, &lights, sizeof(LightingLights));
 	}
 
 	{ // camera
 		auto buffer = shaderCBMngr.GetCommonBuffer();
-		buffer->FastReserve(Ubpa::UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants)));
+		buffer->FastReserve(UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants)));
 
 		auto cmptCamera = cameraData.world.entityMngr.Get<Camera>(cameraData.entity);
 		auto cmptW2L = cameraData.world.entityMngr.Get<WorldToLocal>(cameraData.entity);
@@ -590,8 +601,8 @@ void StdPipeline::Impl::UpdateShaderCBs(
 
 		cbPerCamera.NearZ = cmptCamera->clippingPlaneMin;
 		cbPerCamera.FarZ = cmptCamera->clippingPlaneMax;
-		cbPerCamera.TotalTime = Ubpa::DustEngine::GameTimer::Instance().TotalTime();
-		cbPerCamera.DeltaTime = Ubpa::DustEngine::GameTimer::Instance().DeltaTime();
+		cbPerCamera.TotalTime = DustEngine::GameTimer::Instance().TotalTime();
+		cbPerCamera.DeltaTime = DustEngine::GameTimer::Instance().DeltaTime();
 
 		buffer->Set(0, &cbPerCamera, sizeof(CameraConstants));
 	}
@@ -604,8 +615,8 @@ void StdPipeline::Impl::UpdateShaderCBs(
 		if (shader->shaderName == "StdPipeline/Geometry") {
 			auto buffer = shaderCBMngr.GetBuffer(shader);
 			buffer->FastReserve(
-				mat2objects.size() * Ubpa::UDX12::Util::CalcConstantBufferByteSize(sizeof(GeometryMaterialConstants))
-				+ objectNum * Ubpa::UDX12::Util::CalcConstantBufferByteSize(sizeof(GeometryObjectConstants))
+				mat2objects.size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(GeometryMaterialConstants))
+				+ objectNum * UDX12::Util::CalcConstantBufferByteSize(sizeof(GeometryObjectConstants))
 			);
 			size_t offset = 0;
 			for (const auto& [mat, objects] : mat2objects) {
@@ -614,12 +625,12 @@ void StdPipeline::Impl::UpdateShaderCBs(
 				matC.roughnessFactor = 1.f;
 				matC.metalnessFactor = 1.f;
 				buffer->Set(offset, &matC, sizeof(GeometryMaterialConstants));
-				offset += Ubpa::UDX12::Util::CalcConstantBufferByteSize(sizeof(GeometryMaterialConstants));
+				offset += UDX12::Util::CalcConstantBufferByteSize(sizeof(GeometryMaterialConstants));
 				for (const auto& object : objects) {
 					GeometryObjectConstants objectConstants;
 					objectConstants.World = object.l2w;
 					buffer->Set(offset, &objectConstants, sizeof(GeometryObjectConstants));
-					offset += Ubpa::UDX12::Util::CalcConstantBufferByteSize(sizeof(GeometryObjectConstants));
+					offset += UDX12::Util::CalcConstantBufferByteSize(sizeof(GeometryObjectConstants));
 				}
 			}
 		}
@@ -634,7 +645,7 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 	cmdAlloc->Reset();
 
 	fg.Clear();
-	auto fgRsrcMngr = frameRsrcMngr.GetCurrentFrameResource()->GetResource<std::shared_ptr<Ubpa::UDX12::FG::RsrcMngr>>("FrameGraphRsrcMngr");
+	auto fgRsrcMngr = frameRsrcMngr.GetCurrentFrameResource()->GetResource<std::shared_ptr<UDX12::FG::RsrcMngr>>("FrameGraphRsrcMngr");
 	fgRsrcMngr->NewFrame();
 	fgExecutor.NewFrame();;
 
@@ -646,14 +657,20 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 	auto presentedRT = fg.RegisterResourceNode("Present RT");
 	fg.RegisterMoveNode(fullRT, lightedRT);
 	auto depthstencil = fg.RegisterResourceNode("Depth Stencil");
+	auto irradianceMap = fg.RegisterResourceNode("Irradiance Map");
 	auto gbPass = fg.RegisterPassNode(
 		"GBuffer Pass",
 		{},
 		{ gbuffer0,gbuffer1,gbuffer2,depthstencil }
 	);
+	auto irradiancePass = fg.RegisterPassNode(
+		"Irradiance Integration",
+		{ },
+		{ irradianceMap }
+	);
 	auto deferLightingPass = fg.RegisterPassNode(
 		"Defer Lighting",
-		{ gbuffer0,gbuffer1,gbuffer2 },
+		{ gbuffer0,gbuffer1,gbuffer2,irradianceMap },
 		{ lightedRT }
 	);
 	auto skyboxPass = fg.RegisterPassNode(
@@ -685,60 +702,55 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 	dsClear.DepthStencil.Depth = 1.0f;
 	dsClear.DepthStencil.Stencil = 0;
 
+	auto srvDesc = UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT);
+	auto dsvDesc = UDX12::Desc::DSV::Basic(dsFormat);
+	auto rsrcType = UDX12::FG::RsrcType::RT2D(DXGI_FORMAT_R32G32B32A32_FLOAT, width, height, DirectX::Colors::Black);
+	const UDX12::FG::RsrcImplDesc_RTV_Null rtvNull;
+	// irradiance
+	auto irradianceData = frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<std::shared_ptr<IrradianceData>>("irradiance data");
+
 	(*fgRsrcMngr)
-		.RegisterTemporalRsrc(gbuffer0,
-			Ubpa::UDX12::FG::RsrcType::RT2D(DXGI_FORMAT_R32G32B32A32_FLOAT, width, height, DirectX::Colors::Black))
-		.RegisterTemporalRsrc(gbuffer1,
-			Ubpa::UDX12::FG::RsrcType::RT2D(DXGI_FORMAT_R32G32B32A32_FLOAT, width, height, DirectX::Colors::Black))
-		.RegisterTemporalRsrc(gbuffer2,
-			Ubpa::UDX12::FG::RsrcType::RT2D(DXGI_FORMAT_R32G32B32A32_FLOAT, width, height, DirectX::Colors::Black))
+		.RegisterTemporalRsrc(gbuffer0, rsrcType)
+		.RegisterTemporalRsrc(gbuffer1, rsrcType)
+		.RegisterTemporalRsrc(gbuffer2, rsrcType)
 		.RegisterTemporalRsrc(depthstencil, { dsClear, dsDesc })
-		.RegisterTemporalRsrc(lightedRT,
-			Ubpa::UDX12::FG::RsrcType::RT2D(DXGI_FORMAT_R32G32B32A32_FLOAT, width, height, DirectX::Colors::Black))
-		.RegisterTemporalRsrc(fullRT,
-			Ubpa::UDX12::FG::RsrcType::RT2D(DXGI_FORMAT_R32G32B32A32_FLOAT, width, height, DirectX::Colors::Black))
+		.RegisterTemporalRsrc(lightedRT, rsrcType)
+		.RegisterTemporalRsrc(fullRT, rsrcType)
 
 		.RegisterRsrcTable({
-			{gbuffer0,Ubpa::UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT)},
-			{gbuffer1,Ubpa::UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT)},
-			{gbuffer2,Ubpa::UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT)}
+			{gbuffer0,srvDesc},
+			{gbuffer1,srvDesc},
+			{gbuffer2,srvDesc}
 		})
 
 		.RegisterImportedRsrc(presentedRT, { rtb, D3D12_RESOURCE_STATE_PRESENT })
+		.RegisterImportedRsrc(irradianceMap, { irradianceData->resource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
 
-		.RegisterPassRsrcs(gbPass, gbuffer0, D3D12_RESOURCE_STATE_RENDER_TARGET,
-			Ubpa::UDX12::FG::RsrcImplDesc_RTV_Null{})
-		.RegisterPassRsrcs(gbPass, gbuffer1, D3D12_RESOURCE_STATE_RENDER_TARGET,
-			Ubpa::UDX12::FG::RsrcImplDesc_RTV_Null{})
-		.RegisterPassRsrcs(gbPass, gbuffer2, D3D12_RESOURCE_STATE_RENDER_TARGET,
-			Ubpa::UDX12::FG::RsrcImplDesc_RTV_Null{})
-		.RegisterPassRsrcs(gbPass, depthstencil,
-			D3D12_RESOURCE_STATE_DEPTH_WRITE, Ubpa::UDX12::Desc::DSV::Basic(dsFormat))
+		.RegisterPassRsrc(gbPass, gbuffer0, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
+		.RegisterPassRsrc(gbPass, gbuffer1, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
+		.RegisterPassRsrc(gbPass, gbuffer2, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
+		.RegisterPassRsrc(gbPass, depthstencil, D3D12_RESOURCE_STATE_DEPTH_WRITE, dsvDesc)
 
-		.RegisterPassRsrcs(deferLightingPass, gbuffer0, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-			Ubpa::UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT))
-		.RegisterPassRsrcs(deferLightingPass, gbuffer1, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-			Ubpa::UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT))
-		.RegisterPassRsrcs(deferLightingPass, gbuffer2, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-			Ubpa::UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT))
-		.RegisterPassRsrcs(deferLightingPass, lightedRT, D3D12_RESOURCE_STATE_RENDER_TARGET,
-			Ubpa::UDX12::FG::RsrcImplDesc_RTV_Null{})
+		.RegisterPassRsrcState(irradiancePass, irradianceMap, D3D12_RESOURCE_STATE_RENDER_TARGET)
 
-		.RegisterPassRsrcs(skyboxPass, depthstencil,
-			D3D12_RESOURCE_STATE_DEPTH_READ, Ubpa::UDX12::Desc::DSV::Basic(dsFormat))
-		.RegisterPassRsrcs(skyboxPass, fullRT, D3D12_RESOURCE_STATE_RENDER_TARGET,
-			Ubpa::UDX12::FG::RsrcImplDesc_RTV_Null{})
+		.RegisterPassRsrc(deferLightingPass, gbuffer0, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
+		.RegisterPassRsrc(deferLightingPass, gbuffer1, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
+		.RegisterPassRsrc(deferLightingPass, gbuffer2, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
+		.RegisterPassRsrcState(deferLightingPass, irradianceMap, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+		.RegisterPassRsrc(deferLightingPass, lightedRT, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
 
-		.RegisterPassRsrcs(postprocessPass, fullRT, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-			Ubpa::UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT))
-		.RegisterPassRsrcs(postprocessPass, presentedRT, D3D12_RESOURCE_STATE_RENDER_TARGET,
-			Ubpa::UDX12::FG::RsrcImplDesc_RTV_Null{})
+		.RegisterPassRsrc(skyboxPass, depthstencil, D3D12_RESOURCE_STATE_DEPTH_READ, dsvDesc)
+		.RegisterPassRsrc(skyboxPass, fullRT, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
+
+		.RegisterPassRsrc(postprocessPass, fullRT, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
+		.RegisterPassRsrc(postprocessPass, presentedRT, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
 		;
 
 	fgExecutor.RegisterPassFunc(
 		gbPass,
-		[&](ID3D12GraphicsCommandList* cmdList, const Ubpa::UDX12::FG::PassRsrcs& rsrcs) {
-			auto heap = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
+		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
+			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
 			cmdList->SetDescriptorHeaps(1, &heap);
 			cmdList->RSSetViewports(1, &resizeData.screenViewport);
 			cmdList->RSSetScissorRects(1, &resizeData.scissorRect);
@@ -748,15 +760,20 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 			auto gb2 = rsrcs.find(gbuffer2)->second;
 			auto ds = rsrcs.find(depthstencil)->second;
 
+			std::array rtHandles{
+				gb0.info.null_info_rtv.cpuHandle,
+				gb1.info.null_info_rtv.cpuHandle,
+				gb2.info.null_info_rtv.cpuHandle
+			};
+			auto dsHandle = ds.info.desc2info_dsv.at(dsvDesc).cpuHandle;
 			// Clear the render texture and depth buffer.
-			cmdList->ClearRenderTargetView(gb0.cpuHandle, DirectX::Colors::Black, 0, nullptr);
-			cmdList->ClearRenderTargetView(gb1.cpuHandle, DirectX::Colors::Black, 0, nullptr);
-			cmdList->ClearRenderTargetView(gb2.cpuHandle, DirectX::Colors::Black, 0, nullptr);
-			cmdList->ClearDepthStencilView(ds.cpuHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.f, 0, 0, nullptr);
+			cmdList->ClearRenderTargetView(rtHandles[0], DirectX::Colors::Black, 0, nullptr);
+			cmdList->ClearRenderTargetView(rtHandles[1], DirectX::Colors::Black, 0, nullptr);
+			cmdList->ClearRenderTargetView(rtHandles[2], DirectX::Colors::Black, 0, nullptr);
+			cmdList->ClearDepthStencilView(dsHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.f, 0, 0, nullptr);
 
 			// Specify the buffers we are going to render to.
-			std::array rts{ gb0.cpuHandle,gb1.cpuHandle,gb2.cpuHandle };
-			cmdList->OMSetRenderTargets(rts.size(), rts.data(), false, &ds.cpuHandle);
+			cmdList->OMSetRenderTargets(rtHandles.size(), rtHandles.data(), false, &dsHandle);
 
 			cmdList->SetGraphicsRootSignature(RsrcMngrDX12::Instance().GetRootSignature(Impl::ID_RootSignature_geometry));
 
@@ -771,41 +788,98 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 	);
 
 	fgExecutor.RegisterPassFunc(
+		irradiancePass,
+		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& /*rsrcs*/) {
+			auto data = frameRsrcMngr.GetCurrentFrameResource()
+				->GetResource<std::shared_ptr<IrradianceData>>("irradiance data");
+
+			if (data->lastSkybox.ptr == renderContext.skybox.ptr)
+				return;
+			
+			if (renderContext.skybox.ptr == defaultSkybox.ptr) {
+				data->lastSkybox.ptr = defaultSkybox.ptr;
+				return;
+			}
+
+			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
+			cmdList->SetDescriptorHeaps(1, &heap);
+			
+			data->lastSkybox = renderContext.skybox;
+			cmdList->SetGraphicsRootSignature(RsrcMngrDX12::Instance().GetRootSignature(Impl::ID_RootSignature_irradiance));
+			cmdList->SetPipelineState(RsrcMngrDX12::Instance().GetPSO(ID_PSO_irradiance));
+
+			D3D12_VIEWPORT viewport;
+			viewport.MinDepth = 0.f;
+			viewport.MaxDepth = 1.f;
+			viewport.TopLeftX = 0.f;
+			viewport.TopLeftY = 0.f;
+			viewport.Width = Impl::IrradianceSize;
+			viewport.Height = Impl::IrradianceSize;
+			D3D12_RECT rect = { 0,0,Impl::IrradianceSize,Impl::IrradianceSize };
+			cmdList->RSSetViewports(1, &viewport);
+			cmdList->RSSetScissorRects(1, &rect);
+
+			auto buffer = frameRsrcMngr.GetCurrentFrameResource()
+				->GetResource<ShaderCBMngrDX12>("ShaderCBMngrDX12")
+				.GetBuffer(irradianceShader);
+
+			cmdList->SetGraphicsRootDescriptorTable(0, renderContext.skybox);
+			for (size_t i = 0; i < 6; i++) {
+				// Specify the buffers we are going to render to.
+				cmdList->OMSetRenderTargets(1, &data->RTVsDH.GetCpuHandle(i), false, nullptr);
+				auto address = buffer->GetResource()->GetGPUVirtualAddress()
+					+ i * UDX12::Util::CalcConstantBufferByteSize(sizeof(IrradiancePositionLs));
+				cmdList->SetGraphicsRootConstantBufferView(1, address);
+
+				cmdList->IASetVertexBuffers(0, 0, nullptr);
+				cmdList->IASetIndexBuffer(nullptr);
+				cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+				cmdList->DrawInstanced(6, 1, 0, 0);
+			}
+		}
+	);
+
+	fgExecutor.RegisterPassFunc(
 		deferLightingPass,
-		[&](ID3D12GraphicsCommandList* cmdList, const Ubpa::UDX12::FG::PassRsrcs& rsrcs) {
-			auto heap = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
+		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
+			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
 			cmdList->SetDescriptorHeaps(1, &heap);
 			cmdList->RSSetViewports(1, &resizeData.screenViewport);
 			cmdList->RSSetScissorRects(1, &resizeData.scissorRect);
 
-			auto gb0 = rsrcs.find(gbuffer0)->second;
-			auto gb1 = rsrcs.find(gbuffer1)->second;
-			auto gb2 = rsrcs.find(gbuffer2)->second;
+			auto gb0 = rsrcs.at(gbuffer0);
+			auto gb1 = rsrcs.at(gbuffer1);
+			auto gb2 = rsrcs.at(gbuffer2);
 
-			auto rt = rsrcs.find(lightedRT)->second;
+			auto rt = rsrcs.at(lightedRT);
 
 			//cmdList->CopyResource(bb.resource, rt.resource);
 
 			// Clear the render texture and depth buffer.
-			cmdList->ClearRenderTargetView(rt.cpuHandle, DirectX::Colors::Black, 0, nullptr);
+			cmdList->ClearRenderTargetView(rt.info.null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
 
 			// Specify the buffers we are going to render to.
-			cmdList->OMSetRenderTargets(1, &rt.cpuHandle, false, nullptr);
+			cmdList->OMSetRenderTargets(1, &rt.info.null_info_rtv.cpuHandle, false, nullptr);
 
 			cmdList->SetGraphicsRootSignature(RsrcMngrDX12::Instance().GetRootSignature(Impl::ID_RootSignature_defer_light));
 			cmdList->SetPipelineState(RsrcMngrDX12::Instance().GetPSO(ID_PSO_defer_light));
 
-			cmdList->SetGraphicsRootDescriptorTable(0, gb0.gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(0, gb0.info.desc2info_srv.at(srvDesc).gpuHandle);
+
+			if (renderContext.skybox.ptr == defaultSkybox.ptr)
+				cmdList->SetGraphicsRootDescriptorTable(1, defaultSkybox);
+			else
+				cmdList->SetGraphicsRootDescriptorTable(1, irradianceData->SRVDH.GetGpuHandle());
 
 			auto cbLights = frameRsrcMngr.GetCurrentFrameResource()
 				->GetResource<ShaderCBMngrDX12>("ShaderCBMngrDX12")
 				.GetBuffer(deferShader)->GetResource();
-			cmdList->SetGraphicsRootConstantBufferView(1, cbLights->GetGPUVirtualAddress());
+			cmdList->SetGraphicsRootConstantBufferView(2, cbLights->GetGPUVirtualAddress());
 
 			auto cbPerCamera = frameRsrcMngr.GetCurrentFrameResource()
 				->GetResource<ShaderCBMngrDX12>("ShaderCBMngrDX12")
 				.GetCommonBuffer()->GetResource();
-			cmdList->SetGraphicsRootConstantBufferView(2, cbPerCamera->GetGPUVirtualAddress());
+			cmdList->SetGraphicsRootConstantBufferView(3, cbPerCamera->GetGPUVirtualAddress());
 
 			cmdList->IASetVertexBuffers(0, 0, nullptr);
 			cmdList->IASetIndexBuffer(nullptr);
@@ -816,63 +890,12 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 
 	fgExecutor.RegisterPassFunc(
 		skyboxPass,
-		[&](ID3D12GraphicsCommandList* cmdList, const Ubpa::UDX12::FG::PassRsrcs& rsrcs) {
-			if (!renderContext.skybox.ptr)
+		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
+			if (renderContext.skybox.ptr == defaultSkybox.ptr)
 				return;
 
-			auto heap = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
+			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
 			cmdList->SetDescriptorHeaps(1, &heap);
-
-			// irradiance
-			auto data = frameRsrcMngr.GetCurrentFrameResource()
-				->GetResource<std::shared_ptr<IrradianceData>>("irradiance data");
-			if (data->lastSkybox.ptr != renderContext.skybox.ptr) {
-				data->lastSkybox = renderContext.skybox;
-				cmdList->SetGraphicsRootSignature(RsrcMngrDX12::Instance().GetRootSignature(Impl::ID_RootSignature_irradiance));
-				cmdList->SetPipelineState(RsrcMngrDX12::Instance().GetPSO(ID_PSO_irradiance));
-
-				D3D12_VIEWPORT viewport;
-				viewport.MinDepth = 0.f;
-				viewport.MaxDepth = 1.f;
-				viewport.TopLeftX = 0.f;
-				viewport.TopLeftY = 0.f;
-				viewport.Width = Impl::IrradianceSize;
-				viewport.Height = Impl::IrradianceSize;
-				D3D12_RECT rect = { 0,0,Impl::IrradianceSize,Impl::IrradianceSize };
-				cmdList->RSSetViewports(1, &viewport);
-				cmdList->RSSetScissorRects(1, &rect);
-
-				auto buffer = frameRsrcMngr.GetCurrentFrameResource()
-					->GetResource<ShaderCBMngrDX12>("ShaderCBMngrDX12")
-					.GetBuffer(irradianceShader);
-
-				DirectX::TransitionResource(cmdList, data->resource.Get(),
-					D3D12_RESOURCE_STATE_GENERIC_READ,
-					D3D12_RESOURCE_STATE_RENDER_TARGET
-				);
-				cmdList->SetGraphicsRootDescriptorTable(0, renderContext.skybox);
-				for (size_t i = 0; i < 6; i++) {
-					// Specify the buffers we are going to render to.
-					cmdList->OMSetRenderTargets(1, &data->RTVsDH.GetCpuHandle(i), false, nullptr);
-					auto address = buffer->GetResource()->GetGPUVirtualAddress()
-						+ i * UDX12::Util::CalcConstantBufferByteSize(sizeof(IrradiancePositionLs));
-					cmdList->SetGraphicsRootConstantBufferView(1, address);
-
-					cmdList->IASetVertexBuffers(0, 0, nullptr);
-					cmdList->IASetIndexBuffer(nullptr);
-					cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-					cmdList->DrawInstanced(6, 1, 0, 0);
-				}
-				DirectX::TransitionResource(cmdList, data->resource.Get(),
-					D3D12_RESOURCE_STATE_RENDER_TARGET,
-					D3D12_RESOURCE_STATE_GENERIC_READ
-				);
-			}
-
-			// skybox
-
-			//auto heap = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
-			//cmdList->SetDescriptorHeaps(1, &heap);
 
 			cmdList->SetGraphicsRootSignature(RsrcMngrDX12::Instance().GetRootSignature(Impl::ID_RootSignature_skybox));
 			cmdList->SetPipelineState(RsrcMngrDX12::Instance().GetPSO(ID_PSO_skybox));
@@ -883,16 +906,10 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 			auto rt = rsrcs.find(fullRT)->second;
 			auto ds = rsrcs.find(depthstencil)->second;
 
-			//cmdList->CopyResource(bb.resource, rt.resource);
-
-			// Clear the render texture and depth buffer.
-			//cmdList->ClearRenderTargetView(rt.cpuHandle, DirectX::Colors::Black, 0, nullptr);
-
 			// Specify the buffers we are going to render to.
-			cmdList->OMSetRenderTargets(1, &rt.cpuHandle, false, &ds.cpuHandle);
+			cmdList->OMSetRenderTargets(1, &rt.info.null_info_rtv.cpuHandle, false, &ds.info.desc2info_dsv.at(dsvDesc).cpuHandle);
 
-			//cmdList->SetGraphicsRootDescriptorTable(0, renderContext.skybox);
-			cmdList->SetGraphicsRootDescriptorTable(0, data->SRVDH.GetGpuHandle());
+			cmdList->SetGraphicsRootDescriptorTable(0, renderContext.skybox);
 
 			auto cbPerCamera = frameRsrcMngr.GetCurrentFrameResource()
 				->GetResource<ShaderCBMngrDX12>("ShaderCBMngrDX12")
@@ -908,11 +925,11 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 
 	fgExecutor.RegisterPassFunc(
 		postprocessPass,
-		[&](ID3D12GraphicsCommandList* cmdList, const Ubpa::UDX12::FG::PassRsrcs& rsrcs) {
+		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 			cmdList->SetGraphicsRootSignature(RsrcMngrDX12::Instance().GetRootSignature(Impl::ID_RootSignature_postprocess));
 			cmdList->SetPipelineState(RsrcMngrDX12::Instance().GetPSO(ID_PSO_postprocess));
 
-			auto heap = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
+			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
 			cmdList->SetDescriptorHeaps(1, &heap);
 			cmdList->RSSetViewports(1, &resizeData.screenViewport);
 			cmdList->RSSetScissorRects(1, &resizeData.scissorRect);
@@ -920,15 +937,13 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 			auto rt = rsrcs.find(presentedRT)->second;
 			auto img = rsrcs.find(fullRT)->second;
 
-			//cmdList->CopyResource(bb.resource, rt.resource);
-
 			// Clear the render texture and depth buffer.
-			cmdList->ClearRenderTargetView(rt.cpuHandle, DirectX::Colors::Black, 0, nullptr);
+			cmdList->ClearRenderTargetView(rt.info.null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
 
 			// Specify the buffers we are going to render to.
-			cmdList->OMSetRenderTargets(1, &rt.cpuHandle, false, nullptr);
+			cmdList->OMSetRenderTargets(1, &rt.info.null_info_rtv.cpuHandle, false, nullptr);
 
-			cmdList->SetGraphicsRootDescriptorTable(0, img.gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(0, img.info.desc2info_srv.at(srvDesc).gpuHandle);
 
 			cmdList->IASetVertexBuffers(0, 0, nullptr);
 			cmdList->IASetIndexBuffer(nullptr);
@@ -958,7 +973,7 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList) {
 	constexpr UINT objCBByteSize = UDX12::Util::CalcConstantBufferByteSize(sizeof(GeometryObjectConstants));
 
 	auto& shaderCBMngr = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<Ubpa::DustEngine::ShaderCBMngrDX12>("ShaderCBMngrDX12");
+		->GetResource<DustEngine::ShaderCBMngrDX12>("ShaderCBMngrDX12");
 
 	auto buffer = shaderCBMngr.GetBuffer(geomrtryShader);
 
@@ -970,7 +985,7 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList) {
 		size_t objIdx = 0;
 		for (size_t i = 0; i < objects.size(); i++) {
 			auto object = objects[i];
-			auto& meshGPUBuffer = Ubpa::DustEngine::RsrcMngrDX12::Instance().GetMeshGPUBuffer(object.mesh);
+			auto& meshGPUBuffer = DustEngine::RsrcMngrDX12::Instance().GetMeshGPUBuffer(object.mesh);
 			const auto& submesh = object.mesh->GetSubMeshes().at(object.submeshIdx);
 			cmdList->IASetVertexBuffers(0, 1, &meshGPUBuffer.VertexBufferView());
 			cmdList->IASetIndexBuffer(&meshGPUBuffer.IndexBufferView());
@@ -988,9 +1003,9 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList) {
 			auto albedo = mat->texture2Ds.find("gAlbedoMap")->second;
 			auto roughness = mat->texture2Ds.find("gRoughnessMap")->second;
 			auto metalness = mat->texture2Ds.find("gMetalnessMap")->second;
-			auto albedoHandle = Ubpa::DustEngine::RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(albedo);
-			auto roughnessHandle = Ubpa::DustEngine::RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(roughness);
-			auto matalnessHandle = Ubpa::DustEngine::RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(metalness);
+			auto albedoHandle = DustEngine::RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(albedo);
+			auto roughnessHandle = DustEngine::RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(roughness);
+			auto matalnessHandle = DustEngine::RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(metalness);
 			cmdList->SetGraphicsRootDescriptorTable(0, albedoHandle);
 			cmdList->SetGraphicsRootDescriptorTable(1, roughnessHandle);
 			cmdList->SetGraphicsRootDescriptorTable(2, matalnessHandle);
@@ -1040,7 +1055,7 @@ void StdPipeline::Impl_Resize() {
 	for (auto& frsrc : pImpl->frameRsrcMngr.GetFrameResources()) {
 		frsrc->DelayUpdateResource(
 			"FrameGraphRsrcMngr",
-			[](std::shared_ptr<Ubpa::UDX12::FG::RsrcMngr> rsrcMngr) {
+			[](std::shared_ptr<UDX12::FG::RsrcMngr> rsrcMngr) {
 				rsrcMngr->Clear();
 			}
 		);

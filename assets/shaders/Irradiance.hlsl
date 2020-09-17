@@ -96,7 +96,7 @@ float4 PS(VertexOut pin) : SV_Target {
 
     float3 irradiance = float3(0, 0, 0);
     
-    const uint SAMPLE_NUM = 1500u;
+    const uint SAMPLE_NUM = 512u;
 	
 	for(uint i = 0u; i < SAMPLE_NUM; i++) {
 		float2 Xi = Hammersley(i, SAMPLE_NUM);
