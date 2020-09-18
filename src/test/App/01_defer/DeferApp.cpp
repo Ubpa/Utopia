@@ -338,6 +338,8 @@ void DeferApp::Draw()
 		{ backbuffer }
 	);
 
+	auto srvDesc = Ubpa::UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT);
+	auto dsvDesc = Ubpa::UDX12::Desc::DSV::Basic(mDepthStencilFormat);
 	(*fgRsrcMngr)
 		.RegisterTemporalRsrc(gbuffer0,
 			Ubpa::UDX12::FG::RsrcType::RT2D(DXGI_FORMAT_R32G32B32A32_FLOAT, mClientWidth, mClientHeight, Colors::Black))
@@ -347,36 +349,32 @@ void DeferApp::Draw()
 			Ubpa::UDX12::FG::RsrcType::RT2D(DXGI_FORMAT_R32G32B32A32_FLOAT, mClientWidth, mClientHeight, Colors::Black))
 
 		.RegisterRsrcTable({
-			{gbuffer0,Ubpa::UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT)},
-			{gbuffer1,Ubpa::UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT)},
-			{gbuffer2,Ubpa::UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT)} })
+			{gbuffer0,srvDesc},
+			{gbuffer1,srvDesc},
+			{gbuffer2,srvDesc} })
 
 		.RegisterImportedRsrc(backbuffer, { CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT })
 		.RegisterImportedRsrc(depthstencil, { mDepthStencilBuffer.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE })
 
-		.RegisterPassRsrcs(gbPass, gbuffer0, D3D12_RESOURCE_STATE_RENDER_TARGET,
+		.RegisterPassRsrc(gbPass, gbuffer0, D3D12_RESOURCE_STATE_RENDER_TARGET,
 			Ubpa::UDX12::FG::RsrcImplDesc_RTV_Null{})
-		.RegisterPassRsrcs(gbPass, gbuffer1, D3D12_RESOURCE_STATE_RENDER_TARGET,
+		.RegisterPassRsrc(gbPass, gbuffer1, D3D12_RESOURCE_STATE_RENDER_TARGET,
 			Ubpa::UDX12::FG::RsrcImplDesc_RTV_Null{})
-		.RegisterPassRsrcs(gbPass, gbuffer2, D3D12_RESOURCE_STATE_RENDER_TARGET,
+		.RegisterPassRsrc(gbPass, gbuffer2, D3D12_RESOURCE_STATE_RENDER_TARGET,
 			Ubpa::UDX12::FG::RsrcImplDesc_RTV_Null{})
-		.RegisterPassRsrcs(gbPass, depthstencil,
-			D3D12_RESOURCE_STATE_DEPTH_WRITE, Ubpa::UDX12::Desc::DSV::Basic(mDepthStencilFormat))
+		.RegisterPassRsrc(gbPass, depthstencil, D3D12_RESOURCE_STATE_DEPTH_WRITE, dsvDesc)
 
-		/*.RegisterPassRsrcs(debugPass, gbuffer1, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+		/*.RegisterPassRsrc(debugPass, gbuffer1, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 			Ubpa::UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT))
 
-		.RegisterPassRsrcs(debugPass, backbuffer, D3D12_RESOURCE_STATE_RENDER_TARGET,
+		.RegisterPassRsrc(debugPass, backbuffer, D3D12_RESOURCE_STATE_RENDER_TARGET,
 			Ubpa::UDX12::FG::RsrcImplDesc_RTV_Null{})*/
 
-		.RegisterPassRsrcs(deferLightingPass, gbuffer0, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-			Ubpa::UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT))
-		.RegisterPassRsrcs(deferLightingPass, gbuffer1, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-			Ubpa::UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT))
-		.RegisterPassRsrcs(deferLightingPass, gbuffer2, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-			Ubpa::UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT))
+		.RegisterPassRsrc(deferLightingPass, gbuffer0, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
+		.RegisterPassRsrc(deferLightingPass, gbuffer1, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
+		.RegisterPassRsrc(deferLightingPass, gbuffer2, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
 
-		.RegisterPassRsrcs(deferLightingPass, backbuffer, D3D12_RESOURCE_STATE_RENDER_TARGET,
+		.RegisterPassRsrc(deferLightingPass, backbuffer, D3D12_RESOURCE_STATE_RENDER_TARGET,
 			Ubpa::UDX12::FG::RsrcImplDesc_RTV_Null{})
 		;
 
@@ -394,15 +392,20 @@ void DeferApp::Draw()
 			auto gb2 = rsrcs.find(gbuffer2)->second;
 			auto ds = rsrcs.find(depthstencil)->second;
 
+			std::array rts{
+				gb0.info.desc2info_srv.at(srvDesc).cpuHandle,
+				gb1.info.desc2info_srv.at(srvDesc).cpuHandle,
+				gb2.info.desc2info_srv.at(srvDesc).cpuHandle
+			};
 			// Clear the render texture and depth buffer.
-			cmdList->ClearRenderTargetView(gb0.cpuHandle, Colors::Black, 0, nullptr);
-			cmdList->ClearRenderTargetView(gb1.cpuHandle, Colors::Black, 0, nullptr);
-			cmdList->ClearRenderTargetView(gb2.cpuHandle, Colors::Black, 0, nullptr);
-			cmdList->ClearDepthStencilView(ds.cpuHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.f, 0, 0, nullptr);
+			cmdList->ClearRenderTargetView(rts[0], Colors::Black, 0, nullptr);
+			cmdList->ClearRenderTargetView(rts[1], Colors::Black, 0, nullptr);
+			cmdList->ClearRenderTargetView(rts[2], Colors::Black, 0, nullptr);
+			cmdList->ClearDepthStencilView(ds.info.desc2info_dsv.at(dsvDesc).cpuHandle,
+				D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.f, 0, 0, nullptr);
 
 			// Specify the buffers we are going to render to.
-			std::array rts{ gb0.cpuHandle,gb1.cpuHandle,gb2.cpuHandle };
-			cmdList->OMSetRenderTargets(rts.size(), rts.data(), false, &ds.cpuHandle);
+			cmdList->OMSetRenderTargets(rts.size(), rts.data(), false, &ds.info.desc2info_dsv.at(dsvDesc).cpuHandle);
 
 			cmdList->SetGraphicsRootSignature(Ubpa::DustEngine::RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_geometry));
 
@@ -414,37 +417,6 @@ void DeferApp::Draw()
 			DrawRenderItems(cmdList, mOpaqueRitems);
 		}
 	);
-
-	//fgExecutor.RegisterPassFunc(
-	//	debugPass,
-	//	[&](ID3D12GraphicsCommandList* cmdList, const Ubpa::UDX12::FG::PassRsrcs& rsrcs) {
-	//		auto heap = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
-	//		cmdList->SetDescriptorHeaps(1, &heap);
-	//		cmdList->RSSetViewports(1, &mScreenViewport);
-	//		cmdList->RSSetScissorRects(1, &mScissorRect);
-	//		cmdList->SetPipelineState(Ubpa::DustEngine::RsrcMngrDX12::Instance().GetPSO(ID_PSO_screen));
-	//		auto img = rsrcs.find(gbuffer1)->second;
-	//		auto bb = rsrcs.find(backbuffer)->second;
-	//		
-	//		//cmdList->CopyResource(bb.resource, rt.resource);
-
-	//		// Clear the render texture and depth buffer.
-	//		cmdList.ClearRenderTargetView(bb.cpuHandle, Colors::LightSteelBlue);
-
-	//		// Specify the buffers we are going to render to.
-	//		//cmdList.OMSetRenderTarget(bb.cpuHandle, ds.cpuHandle);
-	//		cmdList->OMSetRenderTargets(1, &bb.cpuHandle, false, nullptr);
-
-	//		cmdList->SetGraphicsRootSignature(Ubpa::DustEngine::RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_screen));
-
-	//		cmdList->SetGraphicsRootDescriptorTable(0, img.gpuHandle);
-
-	//		cmdList->IASetVertexBuffers(0, 0, nullptr);
-	//		cmdList->IASetIndexBuffer(nullptr);
-	//		cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	//		cmdList->DrawInstanced(6, 1, 0, 0);
-	//	}
-	//);
 
 	fgExecutor.RegisterPassFunc(
 		deferLightingPass,
@@ -463,16 +435,16 @@ void DeferApp::Draw()
 			//cmdList->CopyResource(bb.resource, rt.resource);
 
 			// Clear the render texture and depth buffer.
-			cmdList->ClearRenderTargetView(bb.cpuHandle, Colors::LightSteelBlue, 0, nullptr);
+			cmdList->ClearRenderTargetView(bb.info.null_info_rtv.cpuHandle, Colors::LightSteelBlue, 0, nullptr);
 
 			// Specify the buffers we are going to render to.
-			cmdList->OMSetRenderTargets(1, &bb.cpuHandle, false, nullptr);
+			cmdList->OMSetRenderTargets(1, &bb.info.null_info_rtv.cpuHandle, false, nullptr);
 
 			cmdList->SetGraphicsRootSignature(Ubpa::DustEngine::RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_defer_light));
 
 			cmdList->SetPipelineState(Ubpa::DustEngine::RsrcMngrDX12::Instance().GetPSO(ID_PSO_defer_light));
 
-			cmdList->SetGraphicsRootDescriptorTable(0, gb0.gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(0, gb0.info.desc2info_srv.at(srvDesc).gpuHandle);
 			auto lightsCB = frameRsrcMngr->GetCurrentFrameResource()
 				->GetResource<Ubpa::UDX12::ArrayUploadBuffer<LightingLights>>("lights")
 				.GetResource();

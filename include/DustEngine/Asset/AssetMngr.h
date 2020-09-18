@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../_deps/crossguid/guid.hpp"
+#include <_deps/crossguid/guid.hpp>
 
 #include <UECS/Entity.h>
 

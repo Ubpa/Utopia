@@ -4,8 +4,8 @@
 
 #include <DustEngine/Asset/AssetMngr.h>
 
-#include <DustEngine/_deps/imgui/imgui.h>
-#include <DustEngine/_deps/imgui/misc/cpp/imgui_stdlib.h>
+#include <_deps/imgui/imgui.h>
+#include <_deps/imgui/misc/cpp/imgui_stdlib.h>
 
 #include <DustEngine/Core/Traits.h>
 

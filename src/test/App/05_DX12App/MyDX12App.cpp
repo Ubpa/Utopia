@@ -23,9 +23,9 @@
 
 #include <DustEngine/Core/ImGUIMngr.h>
 
-#include <DustEngine/_deps/imgui/imgui.h>
-#include <DustEngine/_deps/imgui/imgui_impl_win32.h>
-#include <DustEngine/_deps/imgui/imgui_impl_dx12.h>
+#include <_deps/imgui/imgui.h>
+#include <_deps/imgui/imgui_impl_win32.h>
+#include <_deps/imgui/imgui_impl_dx12.h>
 
 using Microsoft::WRL::ComPtr;
 

@@ -7,7 +7,7 @@
 #include <DustEngine/Transform/Components/Components.h>
 #include <DustEngine/Core/Components/Name.h>
 
-#include <DustEngine/_deps/imgui/imgui.h>
+#include <_deps/imgui/imgui.h>
 
 using namespace Ubpa::DustEngine;
 

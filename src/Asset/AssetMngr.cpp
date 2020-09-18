@@ -12,7 +12,7 @@
 #include <DustEngine/Core/Scene.h>
 #include <DustEngine/Core/DefaultAsset.h>
 
-#include <DustEngine/_deps/tinyobjloader/tiny_obj_loader.h>
+#include <_deps/tinyobjloader/tiny_obj_loader.h>
 
 #include <USRefl/USRefl.h>
 

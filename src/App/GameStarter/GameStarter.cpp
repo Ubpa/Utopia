@@ -30,9 +30,9 @@
 
 #include <DustEngine/Core/ImGUIMngr.h>
 
-#include <DustEngine/_deps/imgui/imgui.h>
-#include <DustEngine/_deps/imgui/imgui_impl_win32.h>
-#include <DustEngine/_deps/imgui/imgui_impl_dx12.h>
+#include <_deps/imgui/imgui.h>
+#include <_deps/imgui/imgui_impl_win32.h>
+#include <_deps/imgui/imgui_impl_dx12.h>
 
 #include <DustEngine/ScriptSystem/LuaContext.h>
 #include <DustEngine/ScriptSystem/LuaCtxMngr.h>

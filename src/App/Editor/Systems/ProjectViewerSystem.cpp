@@ -9,7 +9,7 @@
 #include <DustEngine/Core/Texture2D.h>
 #include <DustEngine/Render/DX12/RsrcMngrDX12.h>
 
-#include <DustEngine/_deps/imgui/imgui.h>
+#include <_deps/imgui/imgui.h>
 
 using namespace Ubpa::DustEngine;
 
