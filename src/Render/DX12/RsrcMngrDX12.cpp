@@ -304,9 +304,6 @@ RsrcMngrDX12& RsrcMngrDX12::RegisterTextureCube(
 	return *this;
 }
 
-	return *this;
-}
-
 //RsrcMngrDX12& RsrcMngrDX12::RegisterTexture2DArray(
 //	DirectX::ResourceUploadBatch& upload,
 //	size_t id, const Texture2D** tex2Ds, size_t num)
