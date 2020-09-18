@@ -7,13 +7,17 @@ struct DirectionalLight {
 
 #define PI 3.1415926
 #define EPSILON 0.000001
+#define MAX_DETIAL_MIP_LEVEL 4
 
 Texture2D    gbuffer0       : register(t0);
 Texture2D    gbuffer1       : register(t1);
 Texture2D    gbuffer2       : register(t2);
 TextureCube  gIrradianceMap : register(t3);
+TextureCube  gPreFilterMap  : register(t4);
+Texture2D    gBRDFLUT       : register(t5);
 
-SamplerState gSamLinear  : register(s0);
+SamplerState gSamplerPointWrap   : register(s0);
+SamplerState gSamplerLinearWrap  : register(s2);
 
 // Constant data that varies per frame.
 cbuffer cbLights : register(b0)
@@ -119,9 +123,9 @@ float GGX_D(float alpha, float3 N, float3 H) {
 
 float4 PS(VertexOut pin) : SV_Target
 {
-    float4 data0 = gbuffer0.Sample(gSamLinear, pin.TexC);
-    float4 data1 = gbuffer1.Sample(gSamLinear, pin.TexC);
-    float4 data2 = gbuffer2.Sample(gSamLinear, pin.TexC);
+    float4 data0 = gbuffer0.Sample(gSamplerPointWrap, pin.TexC);
+    float4 data1 = gbuffer1.Sample(gSamplerPointWrap, pin.TexC);
+    float4 data2 = gbuffer2.Sample(gSamplerPointWrap, pin.TexC);
 	
 	float3 albedo = data0.xyz;
 	float roughness = data0.w;
@@ -163,9 +167,15 @@ float4 PS(VertexOut pin) : SV_Target
 	float3 kS = FrR;
 	float3 kD = (1 - metalness) * (float3(1, 1, 1) - kS);
 	
-	float3 irradiance = gIrradianceMap.Sample(gSamLinear, N).rgb;
+	float3 R = reflect(-V, N);
+	float3 prefilterColor = gPreFilterMap.Sample(gSamplerLinearWrap, R, roughness * MAX_DETIAL_MIP_LEVEL).rgb;
+	float NdotV = saturate(dot(N, V));
+	float2 scale_bias = gBRDFLUT.Sample(gSamplerLinearWrap, float2(NdotV, roughness)).rg;
+	float3 specular = prefilterColor * (F0 * scale_bias.x + scale_bias.y);
+	
+	float3 irradiance = gIrradianceMap.Sample(gSamplerLinearWrap, N).rgb;
 	float3 diffuse = irradiance * albedo;
-	Lo += diffuse;
+	Lo += kD * diffuse + specular;
 	
     return float4(Lo, 1.0f);
 }

@@ -717,6 +717,14 @@ Mesh* AssetMngr::Impl::LoadObj(const std::filesystem::path& path) {
 	for (size_t i = 0; i < submeshes.size(); i++)
 		mesh->SetSubMesh(i, submeshes[i]);
 
+	// generate normals, uv, tangents
+	if (mesh->GetNormals().empty())
+		mesh->GenNormals();
+	if (mesh->GetUV().empty())
+		mesh->GenUV();
+	if (mesh->GetTangents().empty())
+		mesh->GenTangents();
+
 	mesh->UpdateVertexBuffer();
 	mesh->SetToNonEditable();
 
