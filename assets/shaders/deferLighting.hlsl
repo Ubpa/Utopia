@@ -12,9 +12,10 @@ struct DirectionalLight {
 Texture2D    gbuffer0       : register(t0);
 Texture2D    gbuffer1       : register(t1);
 Texture2D    gbuffer2       : register(t2);
-TextureCube  gIrradianceMap : register(t3);
-TextureCube  gPreFilterMap  : register(t4);
-Texture2D    gBRDFLUT       : register(t5);
+Texture2D    gDepthStencil  : register(t3);
+TextureCube  gIrradianceMap : register(t4);
+TextureCube  gPreFilterMap  : register(t5);
+Texture2D    gBRDFLUT       : register(t6);
 
 SamplerState gSamplerPointWrap   : register(s0);
 SamplerState gSamplerLinearWrap  : register(s2);
@@ -73,7 +74,7 @@ VertexOut VS(uint vid : SV_VertexID)
     vout.TexC = gTexCoords[vid];
 
     // Quad covering screen in NDC space.
-    vout.PosH = float4(2.0f*vout.TexC.x - 1.0f, 1.0f - 2.0f*vout.TexC.y, 0.0f, 1.0f);
+    vout.PosH = float4(2.0f*vout.TexC.x - 1.0f, 1.0f - 2.0f*vout.TexC.y, 1.0f, 1.0f);
 
     return vout;
 }
@@ -125,15 +126,22 @@ float4 PS(VertexOut pin) : SV_Target
 {
     float4 data0 = gbuffer0.Sample(gSamplerPointWrap, pin.TexC);
     float4 data1 = gbuffer1.Sample(gSamplerPointWrap, pin.TexC);
-    float4 data2 = gbuffer2.Sample(gSamplerPointWrap, pin.TexC);
+    //float4 data2 = gbuffer2.Sample(gSamplerPointWrap, pin.TexC);
+    float  depth = gDepthStencil.Sample(gSamplerPointWrap, pin.TexC).r;
+	float4 posHC = float4(
+		2.f * (pin.TexC.x - 0.5f),
+		2.f * (pin.TexC.y - 0.5f),
+		depth,
+		1.f
+	);
+	float4 posHW = mul(gInvViewProj, posHC);
+	float3 posW = posHW.xyz / posHC.w;
 	
 	float3 albedo = data0.xyz;
 	float roughness = data0.w;
 	
 	float3 N = data1.xyz;
 	float metalness = data1.w;
-	
-	float3 posW = data2.xyz;
 	
 	// -------------
 	

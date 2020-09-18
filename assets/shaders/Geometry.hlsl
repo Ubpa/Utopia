@@ -84,7 +84,7 @@ VertexOut VS(VertexIn vin)
 struct PixelOut {
 	// 0  [albedo roughness]
 	// 1  [  N    metalness]
-	// 2  [ pos     mat ID ]
+	// 2  [       matID    ]
 	float4 gbuffer0    : SV_Target0;
 	float4 gbuffer1    : SV_Target1;
 	float4 gbuffer2    : SV_Target2;
@@ -104,7 +104,7 @@ PixelOut PS(VertexOut pin)
 	
 	pout.gbuffer0 = float4(albedo, roughness);
 	pout.gbuffer1 = float4(N, metalness);
-	pout.gbuffer2 = float4(pin.PosW, 0.0f);
+	pout.gbuffer2 = float4(0,0,0,0);
 	
 	return pout;
 }
