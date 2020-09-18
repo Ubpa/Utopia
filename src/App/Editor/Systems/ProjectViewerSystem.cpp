@@ -195,8 +195,12 @@ namespace Ubpa::DustEngine::detail {
 					id = hlslID.ptr;
 				else if (ext == ".scene")
 					id = sceneID.ptr;
-				else if (ext == ".obj")
+				else if (
+					ext == ".obj"
+					|| ext == ".ply" && AssetMngr::Instance().IsSupported("ply")
+				) {
 					id = modelID.ptr;
+				}
 				else if (ext == ".texcube")
 					id = texcubeID.ptr;
 				else

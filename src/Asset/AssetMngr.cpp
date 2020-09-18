@@ -13,6 +13,11 @@
 #include <DustEngine/Core/DefaultAsset.h>
 
 #include <_deps/tinyobjloader/tiny_obj_loader.h>
+#ifdef UBPA_DUSTENGINE_USE_ASSIMP
+  #include <assimp/Importer.hpp>
+  #include <assimp/scene.h>
+  #include <assimp/postprocess.h>
+#endif // UBPA_DUSTENGINE_USE_ASSIMP
 
 #include <USRefl/USRefl.h>
 
@@ -65,7 +70,22 @@ struct AssetMngr::Impl {
 
 	static std::string LoadText(const std::filesystem::path& path);
 	static rapidjson::Document LoadJSON(const std::filesystem::path& metapath);
+	struct MeshContext {
+		std::vector<pointf3> positions;
+		std::vector<rgbf> colors;
+		std::vector<normalf> normals;
+		std::vector<vecf3> tangents;
+		std::vector<uint32_t> indices;
+		std::vector<pointf2> uv;
+		std::vector<SubMeshDescriptor> submeshes;
+	};
+	static Mesh* BuildMesh(MeshContext ctx);
 	static Mesh* LoadObj(const std::filesystem::path& path);
+#ifdef UBPA_DUSTENGINE_USE_ASSIMP
+	static Mesh* AssimpLoadMesh(const std::filesystem::path& path);
+	static void AssimpLoadNode(AssetMngr::Impl::MeshContext& ctx, const aiNode* node, const aiScene* scene);
+	static void AssimpLoadMesh(AssetMngr::Impl::MeshContext& ctx, const aiMesh* mesh, const aiScene* scene);
+#endif // UBPA_DUSTENGINE_USE_ASSIMP
 
 	std::map<xg::Guid, std::set<xg::Guid>> assetTree;
 };
@@ -76,6 +96,38 @@ AssetMngr::AssetMngr()
 
 AssetMngr::~AssetMngr() {
 	delete pImpl;
+}
+
+bool AssetMngr::IsSupported(std::string_view ext) const noexcept {
+	return
+		// [scripts]
+		ext == "lua"
+
+		// [models]
+		|| ext == "obj"
+#ifdef UBPA_DUSTENGINE_USE_ASSIMP
+		|| ext == "ply"
+#endif // UBPA_DUSTENGINE_USE_ASSIMP
+
+		// [texts]
+		|| ext == "txt"
+		|| ext == "json"
+
+		// [images]
+		|| ext == "png"
+		|| ext == "jpg"
+		|| ext == "bmp"
+		|| ext == "hdr"
+		|| ext == "tga"
+
+		// [rendering]
+		|| ext == "hlsl"
+		|| ext == "shader"
+		|| ext == "tex2d"
+		|| ext == "texcube"
+		|| ext == "mat"
+		|| ext == "scene"
+		;
 }
 
 void AssetMngr::Clear() {
@@ -153,24 +205,6 @@ xg::Guid AssetMngr::ImportAsset(const std::filesystem::path& path) {
 
 	assert(ext != ".meta");
 
-	/*if (ext != ".lua"
-		&& ext != ".obj"
-		&& ext != ".hlsl"
-		&& ext != ".scene"
-		&& ext != ".txt"
-		&& ext != ".json"
-		&& ext != ".shader"
-		&& ext != ".png"
-		&& ext != ".jpg"
-		&& ext != ".bmp"
-		&& ext != ".hdr"
-		&& ext != ".tga"
-		&& ext != ".tex2d"
-		&& ext != ".mat")
-	{
-		return {};
-	}*/
-
 	auto target = pImpl->path2guid.find(path);
 	if (target != pImpl->path2guid.end())
 		return target->second;
@@ -230,12 +264,11 @@ void AssetMngr::ImportAssetRecursively(const std::filesystem::path& directory) {
 
 void* AssetMngr::LoadAsset(const std::filesystem::path& path) {
 	ImportAsset(path);
+	auto target = pImpl->path2assert.find(path);
+	if (target != pImpl->path2assert.end())
+		return target->second.ptr.get();
 	const auto ext = path.extension();
 	if (ext == ".lua") {
-		auto target = pImpl->path2assert.find(path);
-		if (target != pImpl->path2assert.end())
-			return target->second.ptr.get();
-
 		auto str = Impl::LoadText(path);
 		auto lua = new LuaScript(std::move(str));
 		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ lua });
@@ -243,19 +276,20 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path) {
 		return lua;
 	}
 	else if (ext == ".obj") {
-		auto target = pImpl->path2assert.find(path);
-		if (target != pImpl->path2assert.end())
-			return target->second.ptr.get();
 		auto mesh = Impl::LoadObj(path);
 		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ mesh });
 		pImpl->asset2path.emplace(mesh, path);
 		return mesh;
 	}
+#ifdef UBPA_DUSTENGINE_USE_ASSIMP
+	else if (ext == ".ply") {
+		auto mesh = Impl::AssimpLoadMesh(path);
+		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ mesh });
+		pImpl->asset2path.emplace(mesh, path);
+		return mesh;
+	}
+#endif // UBPA_DUSTENGINE_USE_ASSIMP
 	else if (ext == ".hlsl") {
-		auto target = pImpl->path2assert.find(path);
-		if (target != pImpl->path2assert.end())
-			return target->second.ptr.get();
-
 		auto str = Impl::LoadText(path);
 		auto hlsl = new HLSLFile(std::move(str), path.parent_path().string());
 		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ hlsl });
@@ -263,10 +297,6 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path) {
 		return hlsl;
 	}
 	else if (ext == ".scene") {
-		auto target = pImpl->path2assert.find(path);
-		if (target != pImpl->path2assert.end())
-			return target->second.ptr.get();
-
 		auto str = Impl::LoadText(path);
 		auto scene = new Scene(std::move(str));
 		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ scene });
@@ -277,10 +307,6 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path) {
 		ext == ".txt"
 		|| ext == ".json"
 	) {
-		auto target = pImpl->path2assert.find(path);
-		if (target != pImpl->path2assert.end())
-			return target->second.ptr.get();
-
 		auto str = Impl::LoadText(path);
 		auto text = new TextAsset(std::move(str));
 		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ text });
@@ -288,10 +314,6 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path) {
 		return text;
 	}
 	else if (ext == ".shader") {
-		auto target = pImpl->path2assert.find(path);
-		if (target != pImpl->path2assert.end())
-			return target->second.ptr.get();
-
 		auto shaderJSON = Impl::LoadJSON(path);
 		auto guidstr = shaderJSON["hlslFile"].GetString();
 		xg::Guid guid{ guidstr };
@@ -313,19 +335,12 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path) {
 		|| ext == ".hdr"
 		|| ext == ".tga"
 	) {
-		auto target = pImpl->path2assert.find(path);
-		if (target != pImpl->path2assert.end())
-			return target->second.ptr.get();
 		auto img = new Image(path.string());
 		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ img });
 		pImpl->asset2path.emplace(img, path);
 		return img;
 	}
 	else if (ext == ".tex2d") {
-		auto target = pImpl->path2assert.find(path);
-		if (target != pImpl->path2assert.end())
-			return target->second.ptr.get();
-
 		auto tex2dJSON = Impl::LoadJSON(path);
 		auto guidstr = tex2dJSON["image"].GetString();
 		xg::Guid guid{ guidstr };
@@ -339,10 +354,6 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path) {
 		return tex2d;
 	}
 	else if (ext == ".texcube") {
-		auto target = pImpl->path2assert.find(path);
-		if (target != pImpl->path2assert.end())
-			return target->second.ptr.get();
-
 		auto texcubeJSON = Impl::LoadJSON(path);
 		auto mode = static_cast<TextureCube::SourceMode>(texcubeJSON["mode"].GetInt());
 		TextureCube* texcube;
@@ -378,10 +389,6 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path) {
 		return texcube;
 	}
 	else if (ext == ".mat") {
-		auto target = pImpl->path2assert.find(path);
-		if (target != pImpl->path2assert.end())
-			return target->second.ptr.get();
-
 		auto materialJSON = Impl::LoadJSON(path);
 		auto guidstr = materialJSON["shader"].GetString();
 		xg::Guid guid{ guidstr };
@@ -403,10 +410,6 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path) {
 		return material;
 	}
 	else {
-		auto target = pImpl->path2assert.find(path);
-		if (target != pImpl->path2assert.end())
-			return target->second.ptr.get();
-
 		auto defaultAsset = new DefaultAsset;
 		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ defaultAsset });
 		pImpl->asset2path.emplace(defaultAsset, path);
@@ -423,7 +426,10 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path, const std::type_in
 
 		return LoadAsset(path);
 	}
-	else if (ext == ".obj") {
+	else if (
+		ext == ".obj"
+		|| ext == ".ply" && IsSupported("ply")
+	) {
 		if (typeinfo != typeid(Mesh))
 			return nullptr;
 
@@ -622,6 +628,32 @@ rapidjson::Document AssetMngr::Impl::LoadJSON(const std::filesystem::path& metap
 	return doc;
 }
 
+
+Mesh* AssetMngr::Impl::BuildMesh(MeshContext ctx) {
+	auto mesh = new Mesh;
+	mesh->SetPositions(std::move(ctx.positions));
+	mesh->SetColors(std::move(ctx.colors));
+	mesh->SetNormals(std::move(ctx.normals));
+	mesh->SetUV(std::move(ctx.uv));
+	mesh->SetIndices(std::move(ctx.indices));
+	mesh->SetSubMeshCount(ctx.submeshes.size());
+	for (size_t i = 0; i < ctx.submeshes.size(); i++)
+		mesh->SetSubMesh(i, ctx.submeshes[i]);
+
+	// generate normals, uv, tangents
+	if (mesh->GetNormals().empty())
+		mesh->GenNormals();
+	if (mesh->GetUV().empty())
+		mesh->GenUV();
+	if (mesh->GetTangents().empty())
+		mesh->GenTangents();
+
+	mesh->UpdateVertexBuffer();
+	mesh->SetToNonEditable();
+
+	return mesh;
+}
+
 Mesh* AssetMngr::Impl::LoadObj(const std::filesystem::path& path) {
 	tinyobj::ObjReader reader;
 
@@ -640,19 +672,13 @@ Mesh* AssetMngr::Impl::LoadObj(const std::filesystem::path& path) {
 	const auto& shapes = reader.GetShapes();
 	const auto& materials = reader.GetMaterials();
 
-	std::vector<pointf3> positions;
-	std::vector<rgbf> colors;
-	std::vector<normalf> normals;
-	std::vector<vecf3> tangents;
-	std::vector<uint32_t> indices;
-	std::vector<pointf2> uv;
-	std::vector<SubMeshDescriptor> submeshes;
+	MeshContext ctx;
 	std::map<valu3, size_t> vertexIndexMap;
 
 	// Loop over shapes
 	for (size_t s = 0; s < shapes.size(); s++) {
 		// Loop over faces(polygon)
-		submeshes.emplace_back(indices.size(), shapes[s].mesh.num_face_vertices.size() * 3);
+		ctx.submeshes.emplace_back(ctx.indices.size(), shapes[s].mesh.num_face_vertices.size() * 3);
 		size_t index_offset = 0;
 		for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
 			auto fv = shapes[s].mesh.num_face_vertices[f];
@@ -675,58 +701,121 @@ Mesh* AssetMngr::Impl::LoadObj(const std::filesystem::path& path) {
 				tinyobj::real_t vx = attrib.vertices[3 * idx.vertex_index + 0];
 				tinyobj::real_t vy = attrib.vertices[3 * idx.vertex_index + 1];
 				tinyobj::real_t vz = attrib.vertices[3 * idx.vertex_index + 2];
-				positions.emplace_back(vx, vy, vz);
+				ctx.positions.emplace_back(vx, vy, vz);
 				if (idx.normal_index != -1) {
 					tinyobj::real_t nx = attrib.normals[3 * idx.normal_index + 0];
 					tinyobj::real_t ny = attrib.normals[3 * idx.normal_index + 1];
 					tinyobj::real_t nz = attrib.normals[3 * idx.normal_index + 2];
-					normals.emplace_back(nx, ny, nz);
+					ctx.normals.emplace_back(nx, ny, nz);
 				}
 				if (idx.texcoord_index != -1) {
 					tinyobj::real_t tx = attrib.texcoords[2 * idx.texcoord_index + 0];
 					tinyobj::real_t ty = attrib.texcoords[2 * idx.texcoord_index + 1];
-					uv.emplace_back(tx, ty);
+					ctx.uv.emplace_back(tx, ty);
 				}
 				// Optional: vertex colors
 				tinyobj::real_t red = attrib.colors[3 * idx.vertex_index + 0];
 				tinyobj::real_t green = attrib.colors[3 * idx.vertex_index + 1];
 				tinyobj::real_t blue = attrib.colors[3 * idx.vertex_index + 2];
-				colors.emplace_back(red, green, blue);
+				ctx.colors.emplace_back(red, green, blue);
 
-				face[v] = static_cast<unsigned>(positions.size() - 1);
-				vertexIndexMap[key_idx] = positions.size() - 1;
+				face[v] = static_cast<unsigned>(ctx.positions.size() - 1);
+				vertexIndexMap[key_idx] = ctx.positions.size() - 1;
 			}
 
 			index_offset += fv;
-			indices.push_back(face[0]);
-			indices.push_back(face[1]);
-			indices.push_back(face[2]);
+			ctx.indices.push_back(face[0]);
+			ctx.indices.push_back(face[1]);
+			ctx.indices.push_back(face[2]);
 
 			// per-face material
 			//shapes[s].mesh.material_ids[f];
 		}
 	}
 
-	auto mesh = new Mesh;
-	mesh->SetPositions(std::move(positions));
-	mesh->SetColors(std::move(colors));
-	mesh->SetNormals(std::move(normals));
-	mesh->SetUV(std::move(uv));
-	mesh->SetIndices(std::move(indices));
-	mesh->SetSubMeshCount(submeshes.size());
-	for (size_t i = 0; i < submeshes.size(); i++)
-		mesh->SetSubMesh(i, submeshes[i]);
-
-	// generate normals, uv, tangents
-	if (mesh->GetNormals().empty())
-		mesh->GenNormals();
-	if (mesh->GetUV().empty())
-		mesh->GenUV();
-	if (mesh->GetTangents().empty())
-		mesh->GenTangents();
-
-	mesh->UpdateVertexBuffer();
-	mesh->SetToNonEditable();
-
-	return mesh;
+	return BuildMesh(std::move(ctx));
 }
+
+#ifdef UBPA_DUSTENGINE_USE_ASSIMP
+void AssetMngr::Impl::AssimpLoadNode(MeshContext& ctx, const aiNode* node, const aiScene* scene) {
+	for (unsigned int i = 0; i < node->mNumMeshes; i++) {
+		aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
+		AssimpLoadMesh(ctx, mesh, scene);
+	}
+
+	for (unsigned i = 0; i < node->mNumChildren; i++)
+		AssimpLoadNode(ctx, node->mChildren[i], scene);
+}
+
+void AssetMngr::Impl::AssimpLoadMesh(MeshContext& ctx, const aiMesh* mesh, const aiScene* scene) {
+	SubMeshDescriptor desc{ ctx.indices.size(), mesh->mNumFaces * 3 };
+	desc.baseVertex = ctx.positions.size();
+	ctx.submeshes.push_back(desc);
+
+	for (unsigned i = 0; i < mesh->mNumVertices; i++) {
+		pointf3 pos;
+		pos[0] = mesh->mVertices[i][0];
+		pos[1] = mesh->mVertices[i][1];
+		pos[2] = mesh->mVertices[i][2];
+		ctx.positions.push_back(pos);
+
+		if (mesh->mColors[0]) {
+			rgbf color;
+			color[0] = mesh->mColors[0][i][0];
+			color[1] = mesh->mColors[0][i][1];
+			color[2] = mesh->mColors[0][i][2];
+			//color[3] = mesh->mColors[0][i][3];
+			ctx.colors.push_back(color);
+		}
+
+		if (mesh->mNormals) {
+			normalf normal;
+			normal[0] = mesh->mNormals[i][0];
+			normal[1] = mesh->mNormals[i][1];
+			normal[2] = mesh->mNormals[i][2];
+			ctx.normals.push_back(normal);
+		}
+
+		if (mesh->mTextureCoords[0]) {
+			pointf2 texcoord;
+			texcoord[0] = mesh->mTextureCoords[0][i][0];
+			texcoord[1] = mesh->mTextureCoords[0][i][1];
+			ctx.uv.push_back(texcoord);
+		}
+
+		if (mesh->mTangents) {
+			vecf3 tangent;
+			tangent[0] = mesh->mTangents[i][0];
+			tangent[1] = mesh->mTangents[i][1];
+			tangent[2] = mesh->mTangents[i][2];
+			ctx.tangents.push_back(tangent);
+		}
+
+		// bitangent
+		//vector[0] = mesh->mBitangents[i][0];
+		//vector[1] = mesh->mBitangents[i][1];
+		//vector[2] = mesh->mBitangents[i][2];
+		//vertex.Bitangent = vector;
+	}
+
+	for (unsigned int i = 0; i < mesh->mNumFaces; i++) {
+		aiFace face = mesh->mFaces[i];
+		assert(face.mNumIndices == 3);
+		for (unsigned int j = 0; j < face.mNumIndices; j++)
+			ctx.indices.push_back(face.mIndices[j]);
+	}
+}
+
+Mesh* AssetMngr::Impl::AssimpLoadMesh(const std::filesystem::path& path) {
+	Assimp::Importer importer;
+	const aiScene* scene = importer.ReadFile(path.string(), aiProcess_JoinIdenticalVertices | aiProcess_FlipUVs | aiProcess_Triangulate);
+	
+	if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
+		return nullptr;
+
+	MeshContext ctx;
+	AssimpLoadNode(ctx, scene->mRootNode, scene);
+
+	return BuildMesh(std::move(ctx));
+}
+#endif // UBPA_DUSTENGINE_USE_ASSIMP

@@ -168,7 +168,7 @@ float4 PS(VertexOut pin) : SV_Target
 	float3 kD = (1 - metalness) * (float3(1, 1, 1) - kS);
 	
 	float3 R = reflect(-V, N);
-	float3 prefilterColor = gPreFilterMap.Sample(gSamplerLinearWrap, R, roughness * MAX_DETIAL_MIP_LEVEL).rgb;
+	float3 prefilterColor = gPreFilterMap.SampleLevel(gSamplerLinearWrap, R, roughness * MAX_DETIAL_MIP_LEVEL).rgb;
 	float NdotV = saturate(dot(N, V));
 	float2 scale_bias = gBRDFLUT.Sample(gSamplerLinearWrap, float2(NdotV, roughness)).rg;
 	float3 specular = prefilterColor * (F0 * scale_bias.x + scale_bias.y);
