@@ -17,15 +17,15 @@ Ubpa_AddDep(UECS       0.12.2)
 Ubpa_AddDep(UDX12      0.0.8)
 
 Ubpa_DownloadZip(
-  https://cdn.jsdelivr.net/gh/Ubpa/UData@master/DustEngine/crossguid/crossguid_20200809.zip
-  crossguid_20200809.zip
-  SHA256 567663B30C1CEB24C8C9D815C1D60579A7CA9D3D3888702858EB2FD672E429B5
+  https://cdn.jsdelivr.net/gh/Ubpa/UData@master/DustEngine/crossguid/crossguid_20200919.zip
+  crossguid_20200919.zip
+  SHA256 1BEE5F2424612E3EF3684D139D6038EF2420EAC7687BF210057E752EFE2A05D5
 )
 
 Ubpa_DownloadZip(
-  https://cdn.jsdelivr.net/gh/Ubpa/UData@master/DustEngine/imgui/imgui_1_78_2.zip
-  imgui_1_78_2.zip
-  SHA256 ED9F2ACCF978558B1D4D5E5645EA0FD12D908BA7EA1B3B50B38691F773F3F9BB
+  https://cdn.jsdelivr.net/gh/Ubpa/UData@master/DustEngine/imgui/imgui_1_78_3.zip
+  imgui_1_78_3.zip
+  SHA256 8E90BCF8218B009BC4C9DAAC3DDD86753A72EC6EE40791FF2DFDD2D5C0811B77
 )
 
 Ubpa_AddSubDirsRec(include)
