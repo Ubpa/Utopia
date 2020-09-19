@@ -1,6 +1,7 @@
 #pragma once
 
 #include <USRefl/USRefl.h>
+#include <UECS/Entity.h>
 #include <UGM/UGM.h>
 
 namespace Ubpa::DustEngine {
@@ -24,7 +25,7 @@ namespace Ubpa::DustEngine {
 		float v_float;
 		double v_double;
 		std::string v_string;
-		//Entity v_entity{ Entity::Invalid() };
+		UECS::Entity v_entity{ UECS::Entity::Invalid() };
 		//const HLSLFile* v_hlslFile;
 		std::array<int, 3> v_array;
 		std::array<std::array<float, 2>, 3> v_array2;
@@ -84,6 +85,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::DustEngine::TestInspector>
 		Field{"v_float", &Ubpa::DustEngine::TestInspector::v_float},
 		Field{"v_double", &Ubpa::DustEngine::TestInspector::v_double},
 		Field{"v_string", &Ubpa::DustEngine::TestInspector::v_string},
+		Field{"v_entity", &Ubpa::DustEngine::TestInspector::v_entity},
 		Field{"v_array", &Ubpa::DustEngine::TestInspector::v_array},
 		Field{"v_array2", &Ubpa::DustEngine::TestInspector::v_array2},
 		Field{"v_bbox", &Ubpa::DustEngine::TestInspector::v_bbox},

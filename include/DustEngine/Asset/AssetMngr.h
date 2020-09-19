@@ -27,6 +27,10 @@ namespace Ubpa::DustEngine {
 			return instance;
 		}
 
+		// default : ".."
+		const std::filesystem::path& GetRootPath() const noexcept;
+		void SetRootPath(std::filesystem::path path);
+
 		void Clear();
 
 		bool IsImported(const std::filesystem::path& path) const;
@@ -48,13 +52,16 @@ namespace Ubpa::DustEngine {
 		// empty xg::Guid is root
 		const std::map<xg::Guid, std::set<xg::Guid>>& GetAssetTree() const;
 
+		const std::type_info& GetAssetType(const std::filesystem::path&) const;
+
 		// gets the corresponding asset path for the supplied guid, or an empty path if the GUID can't be found.
-		const std::filesystem::path& GUIDToAssetPath(const xg::Guid& guid) const;
+		const std::filesystem::path& GUIDToAssetPath(const xg::Guid&) const;
+
 		// if not loaded, return nullptr
-		void* GUIDToAsset(const xg::Guid& guid) const;
-		void* GUIDToAsset(const xg::Guid& guid, const std::type_info&) const;
+		void* GUIDToAsset(const xg::Guid&) const;
+		void* GUIDToAsset(const xg::Guid&, const std::type_info&) const;
 		template<typename T>
-		T* GUIDToAsset(const xg::Guid& guid) const;
+		T* GUIDToAsset(const xg::Guid&) const;
 
 		// import asset at path (relative)
 		// * generate meta

@@ -3,6 +3,7 @@
 #include "../PlayloadType.h"
 
 #include "../Components/Hierarchy.h"
+#include "../Components/Inspector.h"
 
 #include <DustEngine/Transform/Components/Components.h>
 #include <DustEngine/Core/Components/Name.h>
@@ -21,7 +22,7 @@ namespace Ubpa::DustEngine::detail {
 			return true;
 	}
 
-	void HierarchyPrintEntity(Hierarchy* hierarchy, UECS::Entity e) {
+	void HierarchyPrintEntity(Hierarchy* hierarchy, UECS::Entity e, Inspector* inspector) {
 		static constexpr ImGuiTreeNodeFlags nodeBaseFlags =
 			ImGuiTreeNodeFlags_OpenOnArrow
 			| ImGuiTreeNodeFlags_OpenOnDoubleClick
@@ -69,14 +70,19 @@ namespace Ubpa::DustEngine::detail {
 			ImGui::EndDragDropTarget();
 		}
 
-		if (ImGui::IsItemClicked())
+		if (ImGui::IsItemHovered() && ImGui::IsItemDeactivated()) {
 			hierarchy->select = e;
+			if (inspector && !inspector->lock) {
+				inspector->mode = Inspector::Mode::Entity;
+				inspector->entity = e;
+			}
+		}
 		if (ImGui::IsItemHovered())
 			hierarchy->hover = e;
 
 		if (nodeOpen && !isLeaf) {
 			for (const auto& child : children->value)
-				HierarchyPrintEntity(hierarchy, child);
+				HierarchyPrintEntity(hierarchy, child, inspector);
 			ImGui::TreePop();
 		}
 	}
@@ -150,11 +156,12 @@ void HierarchySystem::OnUpdate(UECS::Schedule& schedule) {
 					ImGui::EndDragDropTarget();
 				}
 
+				auto inspector = w->entityMngr.GetSingleton<Inspector>();
 				UECS::ArchetypeFilter filter;
 				filter.none = { UECS::CmptType::Of<Parent> };
 				hierarchy->world->RunEntityJob(
 					[=](UECS::Entity e) {
-						detail::HierarchyPrintEntity(hierarchy, e);
+						detail::HierarchyPrintEntity(hierarchy, e, inspector);
 					},
 					false,
 					filter

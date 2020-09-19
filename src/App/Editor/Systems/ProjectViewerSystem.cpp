@@ -3,6 +3,7 @@
 #include "../PlayloadType.h"
 
 #include "../Components/ProjectViewer.h"
+#include "../Components/Inspector.h"
 
 #include <DustEngine/Transform/Components/Components.h>
 #include <DustEngine/Asset/AssetMngr.h>
@@ -87,10 +88,32 @@ namespace Ubpa::DustEngine::detail {
 		}
 	}
 
-	void ProjectViewerSystemPrintFolder(ProjectViewer* viewer) {
+	void ProjectViewerSystemPrintFolder(Inspector* inspector, ProjectViewer* viewer) {
 		const auto& tree = AssetMngr::Instance().GetAssetTree();
 		if (!viewer->selectedFolder.isValid())
 			return;
+
+		std::vector<std::filesystem::path> paths;
+		auto curPath = AssetMngr::Instance().GUIDToAssetPath(viewer->selectedFolder);
+		while (curPath != AssetMngr::Instance().GetRootPath() && !curPath.empty()) {
+			paths.emplace_back(curPath);
+			curPath = curPath.parent_path();
+		}
+		for (size_t i = 0; i < paths.size(); i++) {
+			size_t idx = paths.size() - 1 - i;
+			const auto& path = paths[idx];
+			if (idx > 0) {
+				if (ImGui::SmallButton(path.stem().string().c_str()))
+					viewer->selectedFolder = AssetMngr::Instance().AssetPathToGUID(path);
+				ImGui::SameLine();
+				ImGui::Text(">");
+				ImGui::SameLine();
+			}
+			else
+				ImGui::Text(path.stem().string().c_str());
+		}
+		ImGui::Separator();
+
 		const auto& children = tree.find(viewer->selectedFolder)->second;
 		auto file = AssetMngr::Instance().LoadAsset<Texture2D>(L"..\\assets\\_internal\\FolderViewer\\textures\\file.tex2d");
 		auto folder = AssetMngr::Instance().LoadAsset<Texture2D>(L"..\\assets\\_internal\\FolderViewer\\textures\\folder.tex2d");
@@ -129,12 +152,16 @@ namespace Ubpa::DustEngine::detail {
 			ImGui::BeginGroup();
 			{
 				ImVec4 tint = viewer->selectedAsset == child ? ImVec4{ 0.65f, 0.65f, 0.65f, 1.f } : ImVec4{ 1,1,1,1 };
-				ImGui::ImageButton(ImTextureID(folderID.ptr), button_sz, { 0,0 }, { 1,1 }, 0, style.Colors[ImGuiCol_WindowBg], tint);
-				if (ImGui::IsItemClicked()) {
+				if (ImGui::ImageButton(ImTextureID(folderID.ptr), button_sz, { 0,0 }, { 1,1 }, 0, style.Colors[ImGuiCol_WindowBg], tint)) {
 					viewer->selectedAsset = child;
-					if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
-						viewer->selectedFolder = child;
+					if (inspector && !inspector->lock) {
+						inspector->mode = Inspector::Mode::Asset;
+						inspector->asset = child;
+					}
 				}
+				if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+					viewer->selectedFolder = child;
+				
 				auto nameStr = name.string();
 				if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None)) {
 					ImGui::SetDragDropPayload(PlayloadType::GUID, &child, sizeof(xg::Guid));
@@ -205,7 +232,13 @@ namespace Ubpa::DustEngine::detail {
 					id = texcubeID.ptr;
 				else
 					id = fileID.ptr;
-				ImGui::ImageButton(ImTextureID(id), button_sz, { 0,0 }, { 1,1 }, 0, style.Colors[ImGuiCol_WindowBg], tint);
+				if (ImGui::ImageButton(ImTextureID(id), button_sz, { 0,0 }, { 1,1 }, 0, style.Colors[ImGuiCol_WindowBg], tint)) {
+					viewer->selectedAsset = child;
+					if (inspector && !inspector->lock) {
+						inspector->mode = Inspector::Mode::Asset;
+						inspector->asset = child;
+					}
+				}
 				auto nameStr = name.string();
 				if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None)) {
 					ImGui::SetDragDropPayload(PlayloadType::GUID, &child, sizeof(xg::Guid));
@@ -213,8 +246,6 @@ namespace Ubpa::DustEngine::detail {
 					ImGui::Text(nameStr.c_str());
 					ImGui::EndDragDropSource();
 				}
-				if (ImGui::IsItemClicked())
-					viewer->selectedAsset = child;
 				NameShrink(nameStr, 9);
 				ImGui::Text(nameStr.c_str());
 			}
@@ -234,13 +265,14 @@ namespace Ubpa::DustEngine::detail {
 void ProjectViewerSystem::OnUpdate(UECS::Schedule& schedule) {
 	GetWorld()->AddCommand([](UECS::World* w) {
 		auto viewer = w->entityMngr.GetSingleton<ProjectViewer>();
+		auto inspector = w->entityMngr.GetSingleton<Inspector>();
 
 		ImGui::Begin("Project");
 		detail::ProjectViewerSystemPrintChildren(viewer, xg::Guid{});
 		ImGui::End();
 
 		ImGui::Begin("Folder");
-		detail::ProjectViewerSystemPrintFolder(viewer);
+		detail::ProjectViewerSystemPrintFolder(inspector, viewer);
 		ImGui::End();
 	});
 }

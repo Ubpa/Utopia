@@ -7,7 +7,7 @@
 #include "Systems/InspectorSystem.h"
 #include "Systems/ProjectViewerSystem.h"
 
-#include "CmptInsepctor.h"
+#include "InspectorRegistry.h"
 
 #include <DustEngine/App/DX12App/DX12App.h>
 
@@ -76,6 +76,7 @@ private:
 
 	void UpdateCamera();
 
+	void InitInspectorRegistry();
 	void BuildWorld();
 	void LoadTextures();
 	void BuildShaders();
@@ -373,7 +374,7 @@ bool Editor::Initialize() {
 	ImGui::GetIO().IniFilename = nullptr;
 
 	Ubpa::DustEngine::AssetMngr::Instance().ImportAssetRecursively(L"..\\assets");
-
+	InitInspectorRegistry();
 	BuildWorld();
 
 	Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload().Begin();
@@ -604,6 +605,7 @@ void Editor::Update() {
 			runningContext = std::make_unique<Ubpa::UECS::EntityMngr>(world.entityMngr);
 			world.entityMngr.Swap(*runningContext);
 			gameState = GameState::Running;
+			Ubpa::DustEngine::GameTimer::Instance().Reset();
 			// break;
 		case GameState::Running:
 			world.Update();
@@ -644,13 +646,19 @@ void Editor::Update() {
 		);
 
 		for (const auto& mat : meshRenderer->materials) {
+			if (!mat)
+				continue;
 			for (const auto& [name, tex] : mat->texture2Ds) {
+				if(!tex)
+					continue;
 				Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
 					Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
 					tex
 				);
 			}
 			for (const auto& [name, tex] : mat->textureCubes) {
+				if (!tex)
+					continue;
 				Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTextureCube(
 					Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
 					tex
@@ -661,12 +669,16 @@ void Editor::Update() {
 
 	if (auto skybox = world.entityMngr.GetSingleton<Ubpa::DustEngine::Skybox>(); skybox && skybox->material) {
 		for (const auto& [name, tex] : skybox->material->texture2Ds) {
+			if (!tex)
+				continue;
 			Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
 				Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
 				tex
 			);
 		}
 		for (const auto& [name, tex] : skybox->material->textureCubes) {
+			if (!tex)
+				continue;
 			Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTextureCube(
 				Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
 				tex
@@ -793,8 +805,9 @@ void Editor::UpdateCamera() {
 	editorWorld.entityMngr.Get<Ubpa::DustEngine::Rotation>(editorSceneCamera)->value = c2w.decompose_quatenion();
 }
 
-void Editor::BuildWorld() {
-	Ubpa::DustEngine::CmptInspector::Instance().RegisterCmpts<
+
+void Editor::InitInspectorRegistry() {
+	Ubpa::DustEngine::InspectorRegistry::Instance().RegisterCmpts <
 		// core
 		Ubpa::DustEngine::Camera,
 		Ubpa::DustEngine::MeshFilter,
@@ -816,8 +829,14 @@ void Editor::BuildWorld() {
 		Ubpa::DustEngine::WorldToLocal,
 
 		Ubpa::DustEngine::TestInspector
-	>();
+	> ();
 
+	Ubpa::DustEngine::InspectorRegistry::Instance().RegisterAssets <
+		Ubpa::DustEngine::Material
+	>();
+}
+
+void Editor::BuildWorld() {
 	editorWorld.systemMngr.Register<
 		Ubpa::DustEngine::CameraSystem,
 		Ubpa::DustEngine::LocalToParentSystem,

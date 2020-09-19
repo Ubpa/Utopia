@@ -679,7 +679,7 @@ void StdPipeline::Impl::UpdateRenderContext(const UECS::World& world) {
 			size_t N = std::min(meshRenderer->materials.size(), obj.mesh->GetSubMeshes().size());
 			for (size_t i = 0; i < N; i++) {
 				auto material = meshRenderer->materials[i];
-				if(!material->shader)
+				if(!material || !material->shader)
 					continue;
 				obj.submeshIdx = i;
 				renderContext.objectMap[material->shader][material].push_back(obj);

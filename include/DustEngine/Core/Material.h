@@ -14,3 +14,5 @@ namespace Ubpa::DustEngine {
 		std::map<std::string, const TextureCube*> textureCubes;
 	};
 }
+
+#include "details/Material_AutoRefl.inl"
