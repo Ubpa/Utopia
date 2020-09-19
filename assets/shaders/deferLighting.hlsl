@@ -175,11 +175,15 @@ float Fwin(float d, float range) {
 
 float DirFwin(float3 x, float3 dir, float cosHalfInnerSpotAngle, float cosHalfOuterSpotAngle) {
 	float cosTheta = dot(x, dir);
-	if(cosTheta < cosHalfOuterSpotAngle) return 0;
-	if(cosTheta > cosHalfInnerSpotAngle) return 1;
-	float t = (cosTheta - cosHalfOuterSpotAngle) /
-		(cosHalfOuterSpotAngle - cosHalfInnerSpotAngle);
-	return Pow4(t);
+	if(cosTheta < cosHalfOuterSpotAngle)
+		return 0;
+	else if(cosTheta > cosHalfInnerSpotAngle)
+		return 1;
+	else{
+		float t = (cosTheta - cosHalfOuterSpotAngle) /
+			(cosHalfInnerSpotAngle - cosHalfOuterSpotAngle);
+		return Pow4(t);
+	}
 }
 
 float4 PS(VertexOut pin) : SV_Target
@@ -187,15 +191,16 @@ float4 PS(VertexOut pin) : SV_Target
     float4 data0 = gbuffer0.Sample(gSamplerPointWrap, pin.TexC);
     float4 data1 = gbuffer1.Sample(gSamplerPointWrap, pin.TexC);
     //float4 data2 = gbuffer2.Sample(gSamplerPointWrap, pin.TexC);
-    float  depth = gDepthStencil.Sample(gSamplerPointWrap, pin.TexC).r;
+    
+	float depth = gDepthStencil.Sample(gSamplerPointWrap, pin.TexC).r;
 	float4 posHC = float4(
-		2.f * (pin.TexC.x - 0.5f),
-		2.f * (pin.TexC.y - 0.5f),
+		2 * pin.TexC.x - 1,
+		1 - 2 * pin.TexC.y,
 		depth,
 		1.f
 	);
 	float4 posHW = mul(gInvViewProj, posHC);
-	float3 posW = posHW.xyz / posHC.w;
+	float3 posW = posHW.xyz / posHW.w;
 	
 	float3 albedo = data0.xyz;
 	float roughness = data0.w;
@@ -211,7 +216,6 @@ float4 PS(VertexOut pin) : SV_Target
 	float3 V = normalize(gEyePosW - posW);
 	float3 F0 = MetalWorkflow_F0(albedo, metalness);
 	
-	// dir light
 	uint offset = 0u;
 	uint i;
 	for(i = offset; i < offset + gDirectionalLightNum; i++) {
@@ -279,7 +283,6 @@ float4 PS(VertexOut pin) : SV_Target
 		Lo += brdf * color * cos_theta;
 	}
 	
-	// ambient
 	float3 FrR = SchlickFrR(V, N, F0, roughness);
 	float3 kS = FrR;
 	float3 kD = (1 - metalness) * (float3(1, 1, 1) - kS);
