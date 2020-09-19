@@ -70,7 +70,7 @@ void Mesh::SetSubMesh(size_t index, SubMeshDescriptor desc) {
 
 void Mesh::GenNormals() {
 	normals.clear();
-	normals.resize(positions.size(), normalf(0, 1, 0));
+	normals.resize(positions.size(), normalf(0, 0, 0));
 
 	for (const auto& submesh : GetSubMeshes()) {
 		if (submesh.topology != MeshTopology::Triangles)
@@ -92,8 +92,12 @@ void Mesh::GenNormals() {
 		}
 	}
 
-	for (auto& normal : normals)
+	for (auto& normal : normals) {
+		if (normal.norm2() == 0)
+			return;
+
 		normal.normalize_self();
+	}
 }
 
 void Mesh::GenUV() {

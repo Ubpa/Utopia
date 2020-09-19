@@ -33,6 +33,7 @@
 #include <DustEngine/Core/Components/Name.h>
 #include <DustEngine/Core/Components/WorldTime.h>
 #include <DustEngine/Core/Components/Skybox.h>
+#include <DustEngine/Core/Components/Light.h>
 #include <DustEngine/Core/Systems/CameraSystem.h>
 #include <DustEngine/Core/Systems/WorldTimeSystem.h>
 #include <DustEngine/Core/GameTimer.h>
@@ -658,7 +659,7 @@ void Editor::Update() {
 		}
 	}, false);
 
-	if (auto skybox = world.entityMngr.GetSingleton<Ubpa::DustEngine::Skybox>()) {
+	if (auto skybox = world.entityMngr.GetSingleton<Ubpa::DustEngine::Skybox>(); skybox && skybox->material) {
 		for (const auto& [name, tex] : skybox->material->texture2Ds) {
 			Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
 				Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
@@ -801,6 +802,7 @@ void Editor::BuildWorld() {
 		Ubpa::DustEngine::WorldTime,
 		Ubpa::DustEngine::Name,
 		Ubpa::DustEngine::Skybox,
+		Ubpa::DustEngine::Light,
 
 		// transform
 		Ubpa::DustEngine::Children,
@@ -837,6 +839,7 @@ void Editor::BuildWorld() {
 		Ubpa::DustEngine::WorldTime,
 		Ubpa::DustEngine::Name,
 		Ubpa::DustEngine::Skybox,
+		Ubpa::DustEngine::Light,
 
 		// transform
 		Ubpa::DustEngine::Children,
@@ -892,6 +895,7 @@ void Editor::BuildWorld() {
 		Ubpa::DustEngine::WorldTime,
 		Ubpa::DustEngine::Name,
 		Ubpa::DustEngine::Skybox,
+		Ubpa::DustEngine::Light,
 
 		// transform
 		Ubpa::DustEngine::Children,
@@ -943,6 +947,7 @@ void Editor::BuildWorld() {
 		Ubpa::DustEngine::WorldTime,
 		Ubpa::DustEngine::Name,
 		Ubpa::DustEngine::Skybox,
+		Ubpa::DustEngine::Light,
 
 		// transform
 		Ubpa::DustEngine::Children,
