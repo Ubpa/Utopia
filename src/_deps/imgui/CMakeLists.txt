@@ -7,4 +7,6 @@ Ubpa_AddTarget(
   INC_PRIVATE
     "${PROJECT_SOURCE_DIR}/include/_deps/imgui"
     "${PROJECT_SOURCE_DIR}/include/_deps/imgui/misc/cpp"
+  LIB
+    Ubpa::UGM_core
 )

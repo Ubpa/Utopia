@@ -182,8 +182,16 @@ namespace Ubpa::DustEngine::detail {
 					auto target = jsonObject.FindMember(field.name.data());
 					if (target == jsonObject.MemberEnd())
 						return;
-
-					var = ReadVar<std::remove_reference_t<decltype(var)>>(target->value, ctx);
+					
+					if constexpr (std::is_array_v<std::remove_reference_t<decltype(var)>>) {
+						using Value = std::remove_pointer_t<std::decay_t<decltype(var)>>;
+						static constexpr size_t N = sizeof(decltype(var)) / sizeof(Value);
+						auto rst = ReadVar<std::array<Value, N>>(target->value, ctx);
+						for (size_t i = 0; i < N; i++)
+							var[i] = rst[i];
+					}
+					else
+						var = ReadVar<std::remove_reference_t<decltype(var)>>(target->value, ctx);
 				}
 			);
 		}

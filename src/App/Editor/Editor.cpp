@@ -34,8 +34,10 @@
 #include <DustEngine/Core/Components/WorldTime.h>
 #include <DustEngine/Core/Components/Skybox.h>
 #include <DustEngine/Core/Components/Light.h>
+#include <DustEngine/Core/Components/Input.h>
 #include <DustEngine/Core/Systems/CameraSystem.h>
 #include <DustEngine/Core/Systems/WorldTimeSystem.h>
+#include <DustEngine/Core/Systems/InputSystem.h>
 #include <DustEngine/Core/GameTimer.h>
 
 #include <DustEngine/Transform/Transform.h>
@@ -881,6 +883,7 @@ void Editor::InitInspectorRegistry() {
 		Ubpa::DustEngine::Name,
 		Ubpa::DustEngine::Skybox,
 		Ubpa::DustEngine::Light,
+		Ubpa::DustEngine::Input,
 
 		// transform
 		Ubpa::DustEngine::Children,
@@ -895,7 +898,6 @@ void Editor::InitInspectorRegistry() {
 
 		Ubpa::DustEngine::TestInspector
 	> ();
-
 	Ubpa::DustEngine::InspectorRegistry::Instance().RegisterAssets <
 		Ubpa::DustEngine::Material
 	>();
@@ -910,6 +912,7 @@ void Editor::BuildWorld() {
 		Ubpa::DustEngine::TRSToLocalToWorldSystem,
 		Ubpa::DustEngine::WorldToLocalSystem,
 		Ubpa::DustEngine::WorldTimeSystem,
+		Ubpa::DustEngine::InputSystem,
 
 		Ubpa::DustEngine::HierarchySystem,
 		Ubpa::DustEngine::InspectorSystem,
@@ -924,6 +927,7 @@ void Editor::BuildWorld() {
 		Ubpa::DustEngine::Name,
 		Ubpa::DustEngine::Skybox,
 		Ubpa::DustEngine::Light,
+		Ubpa::DustEngine::Input,
 
 		// transform
 		Ubpa::DustEngine::Children,
@@ -969,7 +973,8 @@ void Editor::BuildWorld() {
 		Ubpa::DustEngine::TRSToLocalToParentSystem,
 		Ubpa::DustEngine::TRSToLocalToWorldSystem,
 		Ubpa::DustEngine::WorldToLocalSystem,
-		Ubpa::DustEngine::WorldTimeSystem
+		Ubpa::DustEngine::WorldTimeSystem,
+		Ubpa::DustEngine::InputSystem
 	>();
 	world.cmptTraits.Register<
 		// core
@@ -980,6 +985,7 @@ void Editor::BuildWorld() {
 		Ubpa::DustEngine::Name,
 		Ubpa::DustEngine::Skybox,
 		Ubpa::DustEngine::Light,
+		Ubpa::DustEngine::Input,
 
 		// transform
 		Ubpa::DustEngine::Children,
@@ -1001,28 +1007,6 @@ void Editor::BuildWorld() {
 		name->value = "Test Inspector";
 	}
 
-	/*world.entityMngr.Create<Ubpa::DustEngine::WorldTime>();
-
-	auto e0 = world.entityMngr.Create<
-		Ubpa::DustEngine::LocalToWorld,
-		Ubpa::DustEngine::WorldToLocal,
-		Ubpa::DustEngine::Camera,
-		Ubpa::DustEngine::Translation,
-		Ubpa::DustEngine::Rotation
-	>();
-	cam = std::get<Ubpa::UECS::Entity>(e0);
-
-	auto quadMesh = Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Mesh>("../assets/models/quad.obj");
-	auto dynamicCube = world.entityMngr.Create<
-		Ubpa::DustEngine::LocalToWorld,
-		Ubpa::DustEngine::MeshFilter,
-		Ubpa::DustEngine::MeshRenderer,
-		Ubpa::DustEngine::Translation,
-		Ubpa::DustEngine::Rotation,
-		Ubpa::DustEngine::Scale
-	>();
-	std::get<Ubpa::DustEngine::MeshFilter*>(dynamicCube)->mesh = quadMesh;*/
-
 	Ubpa::DustEngine::Serializer::Instance().Register<
 		// core
 		Ubpa::DustEngine::Camera,
@@ -1032,6 +1016,7 @@ void Editor::BuildWorld() {
 		Ubpa::DustEngine::Name,
 		Ubpa::DustEngine::Skybox,
 		Ubpa::DustEngine::Light,
+		Ubpa::DustEngine::Input,
 
 		// transform
 		Ubpa::DustEngine::Children,
@@ -1049,6 +1034,9 @@ void Editor::BuildWorld() {
 	//OutputDebugStringA(Ubpa::DustEngine::Serializer::Instance().ToJSON(&world).c_str());
 	auto scene = Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Scene>(L"..\\assets\\scenes\\Game.scene");
 	Ubpa::DustEngine::Serializer::Instance().ToWorld(&world, scene->GetText());
+	{ // input
+		world.entityMngr.Create<Ubpa::DustEngine::Input>();
+	}
 	OutputDebugStringA(Ubpa::DustEngine::Serializer::Instance().ToJSON(&world).c_str());
 
 	auto mainLua = Ubpa::DustEngine::LuaCtxMngr::Instance().Register(&world)->Main();

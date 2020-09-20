@@ -76,6 +76,7 @@ namespace Ubpa::DustEngine {
 	template<typename T>           struct ArrayTraits<rgba<T>> : ArrayTraitsBase<4> {};
 	template<typename T>           struct ArrayTraits<svec<T>> : ArrayTraitsBase<3> {};
 	template<typename T>           struct ArrayTraits<transform<T>> : ArrayTraitsBase<4> {};
+	template<typename T, size_t N> struct ArrayTraits<T[N]> : ArrayTraitsBase<N> {};
 
 	// =========================================================================================
 
