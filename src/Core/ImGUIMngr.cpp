@@ -33,7 +33,6 @@ void ImGUIMngr::Init(void* hwnd, ID3D12Device* device, size_t numFrames, size_t 
 	ImGui_ImplDX12_Init_Shared(
 		device,
 		static_cast<int>(numFrames),
-		static_cast<int>(numContexts),
 		DXGI_FORMAT_R8G8B8A8_UNORM,
 		Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap(),
 		pImpl->fontDH.GetCpuHandle(),
@@ -60,7 +59,6 @@ void ImGUIMngr::Init(void* hwnd, ID3D12Device* device, size_t numFrames, size_t 
 		}
 		pImpl->contexts.push_back(ctx);
 	}
-	ImGui::SetCurrentContext(nullptr);
 
 	ImGui_ImplDX12_SetSharedFontAtlas(&pImpl->sharedFontAtlas);
 }

@@ -9,6 +9,7 @@
 #include <DustEngine/Transform/Transform.h>
 
 #include <DustEngine/Core/Texture2D.h>
+#include <DustEngine/Core/TextureCube.h>
 #include <DustEngine/Core/Image.h>
 #include <DustEngine/Core/HLSLFile.h>
 #include <DustEngine/Core/Shader.h>
@@ -16,6 +17,7 @@
 #include <DustEngine/Core/Components/Camera.h>
 #include <DustEngine/Core/Components/MeshFilter.h>
 #include <DustEngine/Core/Components/MeshRenderer.h>
+#include <DustEngine/Core/Components/Skybox.h>
 #include <DustEngine/Core/Systems/CameraSystem.h>
 #include <DustEngine/Core/ShaderMngr.h>
 
@@ -60,7 +62,6 @@ private:
     virtual void OnMouseUp(WPARAM btnState, int x, int y)override;
     virtual void OnMouseMove(WPARAM btnState, int x, int y)override;
 
-    void OnKeyboardInput();
 	void UpdateCamera();
 
 	void BuildWorld();
@@ -83,6 +84,8 @@ private:
 	Ubpa::UECS::Entity cam{ Ubpa::UECS::Entity::Invalid() };
 
 	std::unique_ptr<Ubpa::DustEngine::IPipeline> pipeline;
+
+	std::unique_ptr<Ubpa::UDX12::FrameResourceMngr> frameRsrcMngr;
 };
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
@@ -133,6 +136,15 @@ bool WorldApp::Initialize() {
 	Ubpa::DustEngine::RsrcMngrDX12::Instance().Init(uDevice.raw.Get());
 
 	Ubpa::UDX12::DescriptorHeapMngr::Instance().Init(uDevice.raw.Get(), 1024, 1024, 1024, 1024, 1024);
+
+	frameRsrcMngr = std::make_unique<Ubpa::UDX12::FrameResourceMngr>(gNumFrameResources, uDevice.raw.Get());
+	for (const auto& fr : frameRsrcMngr->GetFrameResources()) {
+		Microsoft::WRL::ComPtr<ID3D12CommandAllocator> allocator;
+		ThrowIfFailed(uDevice->CreateCommandAllocator(
+			D3D12_COMMAND_LIST_TYPE_DIRECT,
+			IID_PPV_ARGS(&allocator)));
+		fr->RegisterResource("CommandAllocator", allocator);
+	}
 
 	Ubpa::DustEngine::MeshLayoutMngr::Instance().Init();
 
@@ -191,10 +203,79 @@ void WorldApp::OnResize() {
 
 void WorldApp::Update()
 {
-    OnKeyboardInput();
+	auto& upload = Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload();
+	upload.Begin();
+
 	UpdateCamera();
 
 	world.Update();
+
+	// update mesh, texture ...
+	frameRsrcMngr->BeginFrame();
+
+	auto cmdAlloc = frameRsrcMngr->GetCurrentFrameResource()->GetResource<Microsoft::WRL::ComPtr<ID3D12CommandAllocator>>("CommandAllocator");
+	cmdAlloc->Reset();
+	ThrowIfFailed(uGCmdList->Reset(cmdAlloc.Get(), nullptr));
+	auto& deleteBatch = Ubpa::DustEngine::RsrcMngrDX12::Instance().GetDeleteBatch();
+
+	world.RunEntityJob([&](const Ubpa::DustEngine::MeshFilter* meshFilter, const Ubpa::DustEngine::MeshRenderer* meshRenderer) {
+		if (!meshFilter->mesh || meshRenderer->materials.empty())
+			return;
+
+		Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterMesh(
+			upload,
+			deleteBatch,
+			uGCmdList.Get(),
+			meshFilter->mesh
+		);
+
+		for (const auto& mat : meshRenderer->materials) {
+			if (!mat)
+				continue;
+			for (const auto& [name, tex] : mat->texture2Ds) {
+				if (!tex)
+					continue;
+				Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
+					Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+					tex
+				);
+			}
+			for (const auto& [name, tex] : mat->textureCubes) {
+				if (!tex)
+					continue;
+				Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTextureCube(
+					Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+					tex
+				);
+			}
+		}
+	}, false);
+
+	if (auto skybox = world.entityMngr.GetSingleton<Ubpa::DustEngine::Skybox>(); skybox && skybox->material) {
+		for (const auto& [name, tex] : skybox->material->texture2Ds) {
+			if (!tex)
+				continue;
+			Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
+				Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+				tex
+			);
+		}
+		for (const auto& [name, tex] : skybox->material->textureCubes) {
+			if (!tex)
+				continue;
+			Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTextureCube(
+				Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+				tex
+			);
+		}
+	}
+
+	// commit upload, delete ...
+	upload.End(uCmdQueue.raw.Get());
+	uGCmdList->Close();
+	uCmdQueue.Execute(uGCmdList.raw.Get());
+	deleteBatch.Commit(uDevice.raw.Get(), uCmdQueue.raw.Get());
+	frameRsrcMngr->EndFrame(uCmdQueue.raw.Get());
 
 	std::vector<Ubpa::DustEngine::IPipeline::CameraData> gameCameras;
 	Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::CmptAccessType::Of<Ubpa::DustEngine::Camera>} };
@@ -258,10 +339,6 @@ void WorldApp::OnMouseMove(WPARAM btnState, int x, int y)
     mLastMousePos.x = x;
     mLastMousePos.y = y;
 }
-
-void WorldApp::OnKeyboardInput()
-{
-}
  
 void WorldApp::UpdateCamera()
 {
@@ -291,6 +368,12 @@ void WorldApp::BuildWorld() {
 		Ubpa::DustEngine::WorldToLocalSystem,
 		RotateSystem
 	>();
+
+	{ // skybox
+		auto [e, skybox] = world.entityMngr.Create<Ubpa::DustEngine::Skybox>();
+		const auto& path = Ubpa::DustEngine::AssetMngr::Instance().GUIDToAssetPath(xg::Guid{ "bba13c3e-87d1-463a-974b-324d997349e3" });
+		skybox->material = Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Material>(path);
+	}
 
 	auto e0 = world.entityMngr.Create<
 		Ubpa::DustEngine::LocalToWorld,
@@ -327,12 +410,21 @@ void WorldApp::BuildWorld() {
 }
 
 void WorldApp::LoadTextures() {
-	auto tex2dGUIDs = Ubpa::DustEngine::AssetMngr::Instance().FindAssets(std::wregex{ LR"(.*\.tex2d)" });
+	auto tex2dGUIDs = Ubpa::DustEngine::AssetMngr::Instance().FindAssets(std::wregex{ LR"(\.\.\\assets\\_internal\\.*\.tex2d)" });
 	for (const auto& guid : tex2dGUIDs) {
 		const auto& path = Ubpa::DustEngine::AssetMngr::Instance().GUIDToAssetPath(guid);
 		Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
 			Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
 			Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Texture2D>(path)
+		);
+	}
+
+	auto texcubeGUIDs = Ubpa::DustEngine::AssetMngr::Instance().FindAssets(std::wregex{ LR"(\.\.\\assets\\_internal\\.*\.texcube)" });
+	for (const auto& guid : texcubeGUIDs) {
+		const auto& path = Ubpa::DustEngine::AssetMngr::Instance().GUIDToAssetPath(guid);
+		Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTextureCube(
+			Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+			Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::TextureCube>(path)
 		);
 	}
 }

@@ -8,6 +8,7 @@
 #include <DustEngine/Asset/AssetMngr.h>
 
 #include <DustEngine/Core/Texture2D.h>
+#include <DustEngine/Core/TextureCube.h>
 #include <DustEngine/Core/Image.h>
 #include <DustEngine/Core/HLSLFile.h>
 #include <DustEngine/Core/Shader.h>
@@ -16,6 +17,7 @@
 #include <DustEngine/Core/Components/Camera.h>
 #include <DustEngine/Core/Components/MeshFilter.h>
 #include <DustEngine/Core/Components/MeshRenderer.h>
+#include <DustEngine/Core/Components/Skybox.h>
 #include <DustEngine/Core/Systems/CameraSystem.h>
 #include <DustEngine/Core/GameTimer.h>
 
@@ -346,6 +348,9 @@ void MyDX12App::Update() {
 	ImGui_ImplWin32_NewFrame_Context(gameImGuiCtx, { 0,0 }, mClientWidth, mClientHeight);
 	ImGui_ImplWin32_NewFrame_Shared();
 
+	auto& upload = Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload();
+	upload.Begin();
+
 	ImGui::SetCurrentContext(gameImGuiCtx);
 	ImGui::NewFrame();
 
@@ -398,13 +403,12 @@ void MyDX12App::Update() {
 	cmdAlloc->Reset();
 
 	ThrowIfFailed(uGCmdList->Reset(cmdAlloc, nullptr));
-	auto& upload = Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload();
 	auto& deleteBatch = Ubpa::DustEngine::RsrcMngrDX12::Instance().GetDeleteBatch();
-	upload.Begin();
 
 	// update mesh
-	world.RunEntityJob([&](const Ubpa::DustEngine::MeshFilter* meshFilter) {
-		if (!meshFilter->mesh)
+	
+	world.RunEntityJob([&](const Ubpa::DustEngine::MeshFilter* meshFilter, const Ubpa::DustEngine::MeshRenderer* meshRenderer) {
+		if (!meshFilter->mesh || meshRenderer->materials.empty())
 			return;
 
 		Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterMesh(
@@ -413,7 +417,47 @@ void MyDX12App::Update() {
 			uGCmdList.Get(),
 			meshFilter->mesh
 		);
-		}, false);
+
+		for (const auto& mat : meshRenderer->materials) {
+			if (!mat)
+				continue;
+			for (const auto& [name, tex] : mat->texture2Ds) {
+				if(!tex)
+					continue;
+				Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
+					Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+					tex
+				);
+			}
+			for (const auto& [name, tex] : mat->textureCubes) {
+				if (!tex)
+					continue;
+				Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTextureCube(
+					Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+					tex
+				);
+			}
+		}
+	}, false);
+
+	if (auto skybox = world.entityMngr.GetSingleton<Ubpa::DustEngine::Skybox>(); skybox && skybox->material) {
+		for (const auto& [name, tex] : skybox->material->texture2Ds) {
+			if (!tex)
+				continue;
+			Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
+				Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+				tex
+			);
+		}
+		for (const auto& [name, tex] : skybox->material->textureCubes) {
+			if (!tex)
+				continue;
+			Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTextureCube(
+				Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+				tex
+			);
+		}
+	}
 
 	// commit upload, delete ...
 	upload.End(uCmdQueue.Get());
@@ -442,7 +486,7 @@ void MyDX12App::Draw() {
 	uGCmdList->OMSetRenderTargets(1, &CurrentBackBufferView(), FALSE, NULL);
 	uGCmdList.SetDescriptorHeaps(Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap());
 	ImGui::Render();
-	ImGui_ImplDX12_RenderDrawData(0, ImGui::GetDrawData(), uGCmdList.Get());
+	ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), uGCmdList.Get());
 	uGCmdList.ResourceBarrierTransition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 
 	uGCmdList->Close();
@@ -452,7 +496,7 @@ void MyDX12App::Draw() {
 
 	pipeline->EndFrame();
 	GetFrameResourceMngr()->EndFrame(uCmdQueue.Get());
-	ImGui_ImplDX12_EndFrame();
+	ImGui_ImplWin32_EndFrame();
 }
 
 void MyDX12App::OnMouseDown(WPARAM btnState, int x, int y)
@@ -529,6 +573,12 @@ void MyDX12App::BuildWorld() {
 		AnimateMeshSystem
 	>();
 
+	{ // skybox
+		auto [e, skybox] = world.entityMngr.Create<Ubpa::DustEngine::Skybox>();
+		const auto& path = Ubpa::DustEngine::AssetMngr::Instance().GUIDToAssetPath(xg::Guid{ "bba13c3e-87d1-463a-974b-324d997349e3" });
+		skybox->material = Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Material>(path);
+	}
+
 	auto e0 = world.entityMngr.Create<
 		Ubpa::DustEngine::LocalToWorld,
 		Ubpa::DustEngine::WorldToLocal,
@@ -559,12 +609,21 @@ void MyDX12App::BuildWorld() {
 }
 
 void MyDX12App::LoadTextures() {
-	auto tex2dGUIDs = Ubpa::DustEngine::AssetMngr::Instance().FindAssets(std::wregex{ LR"(.*\.tex2d)" });
+	auto tex2dGUIDs = Ubpa::DustEngine::AssetMngr::Instance().FindAssets(std::wregex{ LR"(\.\.\\assets\\_internal\\.*\.tex2d)" });
 	for (const auto& guid : tex2dGUIDs) {
 		const auto& path = Ubpa::DustEngine::AssetMngr::Instance().GUIDToAssetPath(guid);
 		Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
 			Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
 			Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Texture2D>(path)
+		);
+	}
+
+	auto texcubeGUIDs = Ubpa::DustEngine::AssetMngr::Instance().FindAssets(std::wregex{ LR"(\.\.\\assets\\_internal\\.*\.texcube)" });
+	for (const auto& guid : texcubeGUIDs) {
+		const auto& path = Ubpa::DustEngine::AssetMngr::Instance().GUIDToAssetPath(guid);
+		Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTextureCube(
+			Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+			Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::TextureCube>(path)
 		);
 	}
 }

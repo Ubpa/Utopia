@@ -402,13 +402,19 @@ void GameStarter::Update() {
 		);
 
 		for (const auto& mat : meshRenderer->materials) {
+			if (!mat)
+				continue;
 			for (const auto& [name, tex] : mat->texture2Ds) {
+				if(!tex)
+					continue;
 				Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
 					Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
 					tex
 				);
 			}
 			for (const auto& [name, tex] : mat->textureCubes) {
+				if (!tex)
+					continue;
 				Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTextureCube(
 					Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
 					tex
@@ -417,14 +423,18 @@ void GameStarter::Update() {
 		}
 	}, false);
 
-	if (auto skybox = world.entityMngr.GetSingleton<Ubpa::DustEngine::Skybox>()) {
+	if (auto skybox = world.entityMngr.GetSingleton<Ubpa::DustEngine::Skybox>(); skybox && skybox->material) {
 		for (const auto& [name, tex] : skybox->material->texture2Ds) {
+			if (!tex)
+				continue;
 			Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
 				Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
 				tex
 			);
 		}
 		for (const auto& [name, tex] : skybox->material->textureCubes) {
+			if (!tex)
+				continue;
 			Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTextureCube(
 				Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
 				tex
@@ -459,7 +469,7 @@ void GameStarter::Draw() {
 	uGCmdList->OMSetRenderTargets(1, &CurrentBackBufferView(), FALSE, NULL);
 	uGCmdList.SetDescriptorHeaps(Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap());
 	ImGui::Render();
-	ImGui_ImplDX12_RenderDrawData(0, ImGui::GetDrawData(), uGCmdList.Get());
+	ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), uGCmdList.Get());
 	uGCmdList.ResourceBarrierTransition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 	
 	uGCmdList->Close();
@@ -469,7 +479,7 @@ void GameStarter::Draw() {
 
 	pipeline->EndFrame();
 	GetFrameResourceMngr()->EndFrame(uCmdQueue.Get());
-	ImGui_ImplDX12_EndFrame();
+	ImGui_ImplWin32_EndFrame();
 }
 
 void GameStarter::OnMouseDown(WPARAM btnState, int x, int y)
@@ -620,6 +630,23 @@ void GameStarter::BuildWorld() {
 }
 
 void GameStarter::LoadTextures() {
+	auto tex2dGUIDs = Ubpa::DustEngine::AssetMngr::Instance().FindAssets(std::wregex{ LR"(\.\.\\assets\\_internal\\.*\.tex2d)" });
+	for (const auto& guid : tex2dGUIDs) {
+		const auto& path = Ubpa::DustEngine::AssetMngr::Instance().GUIDToAssetPath(guid);
+		Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
+			Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+			Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Texture2D>(path)
+		);
+	}
+
+	auto texcubeGUIDs = Ubpa::DustEngine::AssetMngr::Instance().FindAssets(std::wregex{ LR"(\.\.\\assets\\_internal\\.*\.texcube)" });
+	for (const auto& guid : texcubeGUIDs) {
+		const auto& path = Ubpa::DustEngine::AssetMngr::Instance().GUIDToAssetPath(guid);
+		Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTextureCube(
+			Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+			Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::TextureCube>(path)
+		);
+	}
 }
 
 void GameStarter::BuildShaders() {
