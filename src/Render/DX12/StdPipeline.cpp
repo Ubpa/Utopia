@@ -214,8 +214,8 @@ struct StdPipeline::Impl {
 	size_t GetGeometryPSO_ID(const Mesh* mesh);
 	std::unordered_map<size_t, size_t> PSOIDMap;
 
-	void UpdateRenderContext(const UECS::World& world);
-	void UpdateShaderCBs(const ResizeData& resizeData, const UECS::World& world, const CameraData& cameraData);
+	void UpdateRenderContext(const std::vector<const UECS::World*>& worlds);
+	void UpdateShaderCBs(const ResizeData& resizeData, const CameraData& cameraData);
 	void Render(const ResizeData& resizeData, ID3D12Resource* rtb);
 	void DrawObjects(ID3D12GraphicsCommandList*);
 };
@@ -665,28 +665,30 @@ size_t StdPipeline::Impl::GetGeometryPSO_ID(const Mesh* mesh) {
 	return target->second;
 }
 
-void StdPipeline::Impl::UpdateRenderContext(const UECS::World& world) {
+void StdPipeline::Impl::UpdateRenderContext(const std::vector<const UECS::World*>& worlds) {
 	renderContext.objectMap.clear();
 
-	const_cast<UECS::World&>(world).RunEntityJob(
-		[&](const MeshFilter* meshFilter, const MeshRenderer* meshRenderer, const LocalToWorld* l2w) {
-			if (!meshFilter->mesh)
-				return;
+	for (auto world : worlds) {
+		const_cast<UECS::World*>(world)->RunEntityJob(
+			[&](const MeshFilter* meshFilter, const MeshRenderer* meshRenderer, const LocalToWorld* l2w) {
+				if (!meshFilter->mesh)
+					return;
 
-			RenderContext::Object obj;
-			obj.mesh = meshFilter->mesh;
-			obj.l2w = l2w->value.as<valf<16>>();
-			size_t N = std::min(meshRenderer->materials.size(), obj.mesh->GetSubMeshes().size());
-			for (size_t i = 0; i < N; i++) {
-				auto material = meshRenderer->materials[i];
-				if(!material || !material->shader)
-					continue;
-				obj.submeshIdx = i;
-				renderContext.objectMap[material->shader][material].push_back(obj);
-			}
-		},
-		false
-	);
+				RenderContext::Object obj;
+				obj.mesh = meshFilter->mesh;
+				obj.l2w = l2w->value.as<valf<16>>();
+				size_t N = std::min(meshRenderer->materials.size(), obj.mesh->GetSubMeshes().size());
+				for (size_t i = 0; i < N; i++) {
+					auto material = meshRenderer->materials[i];
+					if (!material || !material->shader)
+						continue;
+					obj.submeshIdx = i;
+					renderContext.objectMap[material->shader][material].push_back(obj);
+				}
+			},
+			false
+		);
+	}
 
 	{ // light
 		std::array<ShaderLight, ShaderLightArray::size> dirLights;
@@ -700,32 +702,35 @@ void StdPipeline::Impl::UpdateRenderContext(const UECS::World& world) {
 		renderContext.lights.rectLightNum = 0;
 		renderContext.lights.diskLightNum = 0;
 
-		const_cast<UECS::World&>(world).RunEntityJob(
-			[&](const Light* light) {
-				switch (light->type)
-				{
-				case Ubpa::DustEngine::LightType::Directional:
-					renderContext.lights.diectionalLightNum++;
-					break;
-				case Ubpa::DustEngine::LightType::Point:
-					renderContext.lights.pointLightNum++;
-					break;
-				case Ubpa::DustEngine::LightType::Spot:
-					renderContext.lights.spotLightNum++;
-					break;
-				case Ubpa::DustEngine::LightType::Rect:
-					renderContext.lights.rectLightNum++;
-					break;
-				case Ubpa::DustEngine::LightType::Disk:
-					renderContext.lights.diskLightNum++;
-					break;
-				default:
-					assert("not support" && false);
-					break;
-				}
-			},
-			false
-		);
+		for (auto world : worlds) {
+			const_cast<UECS::World*>(world)->RunEntityJob(
+				[&](const Light* light) {
+					switch (light->type)
+					{
+					case Ubpa::DustEngine::LightType::Directional:
+						renderContext.lights.diectionalLightNum++;
+						break;
+					case Ubpa::DustEngine::LightType::Point:
+						renderContext.lights.pointLightNum++;
+						break;
+					case Ubpa::DustEngine::LightType::Spot:
+						renderContext.lights.spotLightNum++;
+						break;
+					case Ubpa::DustEngine::LightType::Rect:
+						renderContext.lights.rectLightNum++;
+						break;
+					case Ubpa::DustEngine::LightType::Disk:
+						renderContext.lights.diskLightNum++;
+						break;
+					default:
+						assert("not support" && false);
+						break;
+					}
+				},
+				false
+			);
+		}
+		
 
 		size_t offset_diectionalLight = 0;
 		size_t offset_pointLight = offset_diectionalLight + renderContext.lights.diectionalLightNum;
@@ -737,72 +742,79 @@ void StdPipeline::Impl::UpdateRenderContext(const UECS::World& world) {
 		size_t cur_spotLight = 0;
 		size_t cur_rectLight = 0;
 		size_t cur_diskLight = 0;
-		const_cast<UECS::World&>(world).RunEntityJob(
-			[&](const Light* light, const LocalToWorld* l2w) {
-				switch (light->type)
-				{
-				case Ubpa::DustEngine::LightType::Directional:
-					renderContext.lights.lights[cur_diectionalLight].color = light->color * light->intensity;
-					renderContext.lights.lights[cur_diectionalLight].dir = (l2w->value * vecf3{ 0,0,1 }).normalize();
-					cur_diectionalLight++;
-					break;
-				case Ubpa::DustEngine::LightType::Point:
-					renderContext.lights.lights[cur_pointLight].color = light->color * light->intensity;
-					renderContext.lights.lights[cur_pointLight].position = l2w->value * pointf3{ 0.f };
-					renderContext.lights.lights[cur_pointLight].range = light->range;
-					cur_pointLight++;
-					break;
-				case Ubpa::DustEngine::LightType::Spot:
-					renderContext.lights.lights[cur_spotLight].color = light->color * light->intensity;
-					renderContext.lights.lights[cur_spotLight].position = l2w->value * pointf3{ 0.f };
-					renderContext.lights.lights[cur_spotLight].dir = (l2w->value * vecf3{ 0,0,1 }).normalize();
-					renderContext.lights.lights[cur_spotLight].range = light->range;
-					renderContext.lights.lights[cur_spotLight].*
-						ShaderLight::Spot::pCosHalfInnerSpotAngle = std::cos(to_radian(light->innerSpotAngle) / 2.f);
-					renderContext.lights.lights[cur_spotLight].*
-						ShaderLight::Spot::pCosHalfOuterSpotAngle = std::cos(to_radian(light->outerSpotAngle) / 2.f);
-					cur_spotLight++;
-					break;
-				case Ubpa::DustEngine::LightType::Rect:
-					renderContext.lights.lights[cur_rectLight].color = light->color * light->intensity;
-					renderContext.lights.lights[cur_rectLight].position = l2w->value * pointf3{ 0.f };
-					renderContext.lights.lights[cur_rectLight].dir = (l2w->value * vecf3{ 0,0,1 }).normalize();
-					renderContext.lights.lights[cur_rectLight].horizontal = (l2w->value * vecf3{ 1,0,0 }).normalize();
-					renderContext.lights.lights[cur_rectLight].range = light->range;
-					renderContext.lights.lights[cur_rectLight].*
-						ShaderLight::Rect::pWidth = light->width;
-					renderContext.lights.lights[cur_rectLight].*
-						ShaderLight::Rect::pHeight = light->height;
-					cur_rectLight++;
-					break;
-				case Ubpa::DustEngine::LightType::Disk:
-					renderContext.lights.lights[cur_diskLight].color = light->color * light->intensity;
-					renderContext.lights.lights[cur_diskLight].position = l2w->value * pointf3{ 0.f };
-					renderContext.lights.lights[cur_diskLight].dir = (l2w->value * vecf3{ 0,0,1 }).normalize();
-					renderContext.lights.lights[cur_diskLight].range = light->range;
-					renderContext.lights.lights[cur_diskLight].*
-						ShaderLight::Disk::pRadius = light->radius;
-					cur_diskLight++;
-					break;
-				default:
-					break;
-				}
-			},
-			false
-		);
+		for (auto world : worlds) {
+			const_cast<UECS::World*>(world)->RunEntityJob(
+				[&](const Light* light, const LocalToWorld* l2w) {
+					switch (light->type)
+					{
+					case Ubpa::DustEngine::LightType::Directional:
+						renderContext.lights.lights[cur_diectionalLight].color = light->color * light->intensity;
+						renderContext.lights.lights[cur_diectionalLight].dir = (l2w->value * vecf3{ 0,0,1 }).normalize();
+						cur_diectionalLight++;
+						break;
+					case Ubpa::DustEngine::LightType::Point:
+						renderContext.lights.lights[cur_pointLight].color = light->color * light->intensity;
+						renderContext.lights.lights[cur_pointLight].position = l2w->value * pointf3{ 0.f };
+						renderContext.lights.lights[cur_pointLight].range = light->range;
+						cur_pointLight++;
+						break;
+					case Ubpa::DustEngine::LightType::Spot:
+						renderContext.lights.lights[cur_spotLight].color = light->color * light->intensity;
+						renderContext.lights.lights[cur_spotLight].position = l2w->value * pointf3{ 0.f };
+						renderContext.lights.lights[cur_spotLight].dir = (l2w->value * vecf3{ 0,0,1 }).normalize();
+						renderContext.lights.lights[cur_spotLight].range = light->range;
+						renderContext.lights.lights[cur_spotLight].*
+							ShaderLight::Spot::pCosHalfInnerSpotAngle = std::cos(to_radian(light->innerSpotAngle) / 2.f);
+						renderContext.lights.lights[cur_spotLight].*
+							ShaderLight::Spot::pCosHalfOuterSpotAngle = std::cos(to_radian(light->outerSpotAngle) / 2.f);
+						cur_spotLight++;
+						break;
+					case Ubpa::DustEngine::LightType::Rect:
+						renderContext.lights.lights[cur_rectLight].color = light->color * light->intensity;
+						renderContext.lights.lights[cur_rectLight].position = l2w->value * pointf3{ 0.f };
+						renderContext.lights.lights[cur_rectLight].dir = (l2w->value * vecf3{ 0,0,1 }).normalize();
+						renderContext.lights.lights[cur_rectLight].horizontal = (l2w->value * vecf3{ 1,0,0 }).normalize();
+						renderContext.lights.lights[cur_rectLight].range = light->range;
+						renderContext.lights.lights[cur_rectLight].*
+							ShaderLight::Rect::pWidth = light->width;
+						renderContext.lights.lights[cur_rectLight].*
+							ShaderLight::Rect::pHeight = light->height;
+						cur_rectLight++;
+						break;
+					case Ubpa::DustEngine::LightType::Disk:
+						renderContext.lights.lights[cur_diskLight].color = light->color * light->intensity;
+						renderContext.lights.lights[cur_diskLight].position = l2w->value * pointf3{ 0.f };
+						renderContext.lights.lights[cur_diskLight].dir = (l2w->value * vecf3{ 0,0,1 }).normalize();
+						renderContext.lights.lights[cur_diskLight].range = light->range;
+						renderContext.lights.lights[cur_diskLight].*
+							ShaderLight::Disk::pRadius = light->radius;
+						cur_diskLight++;
+						break;
+					default:
+						break;
+					}
+				},
+				false
+			);
+		}
+		
 	}
 
+	// use first skybox in the world vector
 	renderContext.skybox = defaultSkybox;
-	if (auto ptr = world.entityMngr.GetSingleton<Skybox>(); ptr && ptr->material && ptr->material->shader == skyboxShader) {
-		auto target = ptr->material->textureCubes.find("gSkybox");
-		if(target != ptr->material->textureCubes.end())
-			renderContext.skybox = RsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(target->second);
+	for (auto world : worlds) {
+		if (auto ptr = world->entityMngr.GetSingleton<Skybox>(); ptr && ptr->material && ptr->material->shader == skyboxShader) {
+			auto target = ptr->material->textureCubes.find("gSkybox");
+			if (target != ptr->material->textureCubes.end()) {
+				renderContext.skybox = RsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(target->second);
+				break;
+			}
+		}
 	}
 }
 
 void StdPipeline::Impl::UpdateShaderCBs(
 	const ResizeData& resizeData,
-	const UECS::World& world,
 	const CameraData& cameraData
 ) {
 	auto& shaderCBMngr = frameRsrcMngr.GetCurrentFrameResource()
@@ -1318,9 +1330,9 @@ StdPipeline::~StdPipeline() {
 	delete pImpl;
 }
 
-void StdPipeline::BeginFrame(const UECS::World& world, const CameraData& cameraData) {
+void StdPipeline::BeginFrame(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData) {
 	// collect some cpu data
-	pImpl->UpdateRenderContext(world);
+	pImpl->UpdateRenderContext(worlds);
 
 	// Cycle through the circular frame resource array.
 	// Has the GPU finished processing the commands of the current frame resource?
@@ -1328,7 +1340,7 @@ void StdPipeline::BeginFrame(const UECS::World& world, const CameraData& cameraD
 	pImpl->frameRsrcMngr.BeginFrame();
 
 	// cpu -> gpu
-	pImpl->UpdateShaderCBs(GetResizeData(), world, cameraData);
+	pImpl->UpdateShaderCBs(GetResizeData(), cameraData);
 }
 
 void StdPipeline::Render(ID3D12Resource* rt) {

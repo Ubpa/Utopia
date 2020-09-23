@@ -10,9 +10,8 @@
 using namespace Ubpa::DustEngine;
 using namespace Ubpa::UECS;
 
-void LocalToParentSystem::ChildLocalToWorld(const transformf& parent_l2w, Entity e) {
+void LocalToParentSystem::ChildLocalToWorld(World* w, const transformf& parent_l2w, Entity e) {
 	transformf l2w;
-	auto w = GetWorld();
 	if (w->entityMngr.Have(e, CmptType::Of<LocalToWorld>)) {
 		auto child_l2w = w->entityMngr.Get<LocalToWorld>(e);
 		auto child_l2p = w->entityMngr.Get<LocalToParent>(e);
@@ -25,19 +24,19 @@ void LocalToParentSystem::ChildLocalToWorld(const transformf& parent_l2w, Entity
 	if (w->entityMngr.Have(e, CmptType::Of<Children>)) {
 		auto children = w->entityMngr.Get<Children>(e);
 		for (const auto& child : children->value)
-			ChildLocalToWorld(l2w, child);
+			ChildLocalToWorld(w, l2w, child);
 	}
 }
 
-void LocalToParentSystem::OnUpdate(UECS::Schedule& schedule) {
-	UECS::ArchetypeFilter rootFilter;
+void LocalToParentSystem::OnUpdate(Schedule& schedule) {
+	ArchetypeFilter rootFilter;
 	rootFilter.none = { CmptType::Of<Parent> };
 
-	schedule.InsertNone(TRSToLocalToWorldSystem::SystemFuncName, UECS::CmptType::Of<LocalToParent>);
+	schedule.InsertNone(TRSToLocalToWorldSystem::SystemFuncName, CmptType::Of<LocalToParent>);
 	schedule.RegisterEntityJob(
-		[this](LocalToWorld* l2w, const Children* children) {
+		[](World* w, LocalToWorld* l2w, const Children* children) {
 			for (const auto& child : children->value)
-				ChildLocalToWorld(l2w->value, child);
+				ChildLocalToWorld(w, l2w->value, child);
 		},
 		SystemFuncName,
 		true,

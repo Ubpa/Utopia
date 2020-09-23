@@ -11,7 +11,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::RTDCmptTraits>
     static constexpr AttrList attrs = {};
 
     static constexpr FieldList fields = {
-        //Field{"default_alignment", &Ubpa::UECS::RTDCmptTraits::default_alignment},
+        Field{"DefaultAlignment", &Ubpa::UECS::RTDCmptTraits::DefaultAlignment},
 		Field{"Clear", &Ubpa::UECS::RTDCmptTraits::Clear},
 
         Field{"RegisterSize", &Ubpa::UECS::RTDCmptTraits::RegisterSize},
@@ -41,7 +41,8 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::RTDCmptTraits>
         Field{"Nameof", &Ubpa::UECS::RTDCmptTraits::Nameof},
 
         Field{"Deregister",
-            static_cast<Ubpa::UECS::RTDCmptTraits&(Ubpa::UECS::RTDCmptTraits::*)(Ubpa::UECS::CmptType)>(&Ubpa::UECS::RTDCmptTraits::Deregister),
+            static_cast<Ubpa::UECS::RTDCmptTraits&(Ubpa::UECS::RTDCmptTraits::*)(Ubpa::UECS::CmptType)noexcept>
+            (&Ubpa::UECS::RTDCmptTraits::Deregister),
         },
     };
 };

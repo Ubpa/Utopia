@@ -135,11 +135,11 @@ int main() {
 
 	Serializer::Instance().RegisterComponentSerializeFunction<A>();
 	Serializer::Instance().RegisterComponentDeserializeFunction<A>();
-	Serializer::Instance().RegisterUserTypeSerializeFunction([](const UserType0* t, Serializer::SerializeContext ctx) {
-		ctx.writer->Double(static_cast<double>(t->data));
+	Serializer::Instance().RegisterUserTypeSerializeFunction([](const UserType0* t, Serializer::SerializeContext& ctx) {
+		ctx.writer.Double(static_cast<double>(t->data));
 	});
 	Serializer::Instance().RegisterUserTypeDeserializeFunction(
-		[](UserType0* t, const rapidjson::Value& jsonValue, Serializer::DeserializeContext ctx) {
+		[](UserType0* t, const rapidjson::Value& jsonValue, Serializer::DeserializeContext& ctx) {
 			t->data = static_cast<float>(jsonValue.GetDouble());
 		}
 	);
@@ -197,7 +197,7 @@ int main() {
 	auto [new_e0] = new_w->entityMngr.Create();
 	auto [new_e1] = new_w->entityMngr.Create();
 	new_w->entityMngr.Destroy(new_e0);
-	new_w->cmptTraits.Register<A>();
+	new_w->entityMngr.cmptTraits.Register<A>();
 	Serializer::Instance().ToWorld(new_w.get(), json);
 	new_w->entityMngr.Destroy(new_e1);
 	auto new_json = Serializer::Instance().ToJSON(new_w.get());

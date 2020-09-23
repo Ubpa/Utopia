@@ -18,6 +18,7 @@ set(components
   Skybox
   Light
   Input
+  Roamer
 )
 
 set(refls "")

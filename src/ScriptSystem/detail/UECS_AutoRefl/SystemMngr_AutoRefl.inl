@@ -6,22 +6,26 @@
 
 template<>
 struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::SystemMngr>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::SystemMngr>
+	: Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::SystemMngr>
 {
-    static constexpr AttrList attrs = {};
+	static constexpr AttrList attrs = {};
 
-    static constexpr FieldList fields = {
-        Field{Name::constructor, WrapConstructor<Ubpa::UECS::SystemMngr(Ubpa::UECS::World *)>()},
-        /*Field{"Register",
-            static_cast<void(Ubpa::UECS::SystemMngr::*)(std::unique_ptr<Ubpa::UECS::System>)>(&Ubpa::UECS::SystemMngr::Register),
-        },*/
-		Field{"IsRegister",
-		    static_cast<bool(Ubpa::UECS::SystemMngr::*)(std::string_view)const>(&Ubpa::UECS::SystemMngr::IsRegister),
-        },
-		Field{"Deregister",
-			static_cast<void(Ubpa::UECS::SystemMngr::*)(std::string_view)>(&Ubpa::UECS::SystemMngr::Deregister),
-        },
-        Field{"Accept", &Ubpa::UECS::SystemMngr::Accept},
-    };
+	static constexpr FieldList fields = {
+		Field{Name::constructor, WrapConstructor<Ubpa::UECS::SystemMngr()>()},
+		Field{Name::constructor, WrapConstructor<Ubpa::UECS::SystemMngr(Ubpa::UECS::SystemMngr&)>()},
+		Field{"GetSystems", &Ubpa::UECS::SystemMngr::GetSystems},
+		Field{"GetActiveSystemIndices", &Ubpa::UECS::SystemMngr::GetActiveSystemIndices},
+		Field{"GetNameToIndexMap", &Ubpa::UECS::SystemMngr::GetNameToIndexMap},
+		Field{"GetIndex", static_cast<size_t(Ubpa::UECS::SystemMngr::*)(std::string_view) const>(&Ubpa::UECS::SystemMngr::GetIndex)},
+		Field{"Clear", &Ubpa::UECS::SystemMngr::Clear},
+		Field{"Register",
+			static_cast<size_t(Ubpa::UECS::SystemMngr::*)(std::string, Ubpa::UECS::SystemMngr::Func)>
+			(&Ubpa::UECS::SystemMngr::Register)
+		},
+		Field{"Unregister", static_cast<void(Ubpa::UECS::SystemMngr::*)(size_t)>(&Ubpa::UECS::SystemMngr::Unregister)},
+		Field{"Unregister", static_cast<void(Ubpa::UECS::SystemMngr::*)(std::string_view)>(&Ubpa::UECS::SystemMngr::Unregister)},
+		Field{"Activate", &Ubpa::UECS::SystemMngr::Activate},
+		Field{"Deactivate", &Ubpa::UECS::SystemMngr::Deactivate},
+	};
 };
 

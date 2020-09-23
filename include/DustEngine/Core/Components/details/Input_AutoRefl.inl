@@ -11,6 +11,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::DustEngine::Input>
     static constexpr AttrList attrs = {};
 
     static constexpr FieldList fields = {
+        Field{"DisplaySize", &Ubpa::DustEngine::Input::DisplaySize},
         Field{"MousePos", &Ubpa::DustEngine::Input::MousePos},
         Field{"MouseDown", &Ubpa::DustEngine::Input::MouseDown},
         Field{"MouseWheel", &Ubpa::DustEngine::Input::MouseWheel},
@@ -20,6 +21,8 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::DustEngine::Input>
         Field{"KeyAlt", &Ubpa::DustEngine::Input::KeyAlt},
         Field{"KeySuper", &Ubpa::DustEngine::Input::KeySuper},
         Field{"KeysDown", &Ubpa::DustEngine::Input::KeysDown},
+        Field{"MouseInDisplay", &Ubpa::DustEngine::Input::MouseInDisplay},
+        Field{"MouseInDisplayPre", &Ubpa::DustEngine::Input::MouseInDisplayPre},
         Field{"MouseClicked", &Ubpa::DustEngine::Input::MouseClicked},
         Field{"MousePosPrev", &Ubpa::DustEngine::Input::MousePosPrev},
         Field{"MouseDelta", &Ubpa::DustEngine::Input::MouseDelta},

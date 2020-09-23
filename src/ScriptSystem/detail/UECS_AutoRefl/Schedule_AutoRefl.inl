@@ -3,19 +3,19 @@
 #pragma once
 
 #include <USRefl/USRefl.h>
-#include <ULuaPP/ULuaPP.h>
 
 template<>
 struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::Schedule>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::Schedule>
+	: Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::Schedule>
 {
-    static constexpr AttrList attrs = {};
-
-    static constexpr FieldList fields = {
-        Field{"LockFilter", &Ubpa::UECS::Schedule::LockFilter},
-        Field{"Order", &Ubpa::UECS::Schedule::Order},
-        Field{"InsertNone", &Ubpa::UECS::Schedule::InsertNone},
-        Field{"EraseNone", &Ubpa::UECS::Schedule::EraseNone},
-    };
+	static constexpr AttrList attrs = {};
+	
+	static constexpr FieldList fields = {
+		Field{"Order", &Ubpa::UECS::Schedule::Order},
+		Field{"LockFilter", &Ubpa::UECS::Schedule::LockFilter},
+		Field{"InsertNone", &Ubpa::UECS::Schedule::InsertNone},
+		Field{"EraseNone", &Ubpa::UECS::Schedule::EraseNone},
+		Field{"RegisterCommand", &Ubpa::UECS::Schedule::RegisterCommand},
+	};
 };
 

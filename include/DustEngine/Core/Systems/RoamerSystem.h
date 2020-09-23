@@ -3,8 +3,8 @@
 #include <UECS/World.h>
 
 namespace Ubpa::DustEngine {
-	struct TRSToLocalToParentSystem {
-		static constexpr char SystemFuncName[] = "TRSToLocalToParentSystem";
+	struct RoamerSystem {
+		static constexpr char SystemFuncName[] = "RoamerSystem";
 
 		static void OnUpdate(UECS::Schedule& schedule);
 	};

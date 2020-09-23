@@ -5,14 +5,11 @@
 #include <UGM/transform.h>
 
 namespace Ubpa::DustEngine {
-	class LocalToParentSystem : public UECS::System {
-	public:
-		using System::System;
-
+	struct LocalToParentSystem {
 		static constexpr char SystemFuncName[] = "LocalToParentSystem";
 
-		void ChildLocalToWorld(const transformf& parent_l2w, UECS::Entity e);
+		static void ChildLocalToWorld(UECS::World* w, const transformf& parent_l2w, UECS::Entity e);
 
-		virtual void OnUpdate(UECS::Schedule& schedule) override;
+		static void OnUpdate(UECS::Schedule& schedule);
 	};
 }

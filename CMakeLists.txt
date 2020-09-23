@@ -13,7 +13,7 @@ Ubpa_AddDep(USTL       0.1.1)
 Ubpa_AddDep(UDP        0.7.1)
 Ubpa_AddDep(UGM        0.6.11)
 Ubpa_AddDep(ULuaPP     0.1.6)
-Ubpa_AddDep(UECS       0.12.2)
+Ubpa_AddDep(UECS       0.13.0)
 Ubpa_AddDep(UDX12      0.0.8)
 
 Ubpa_DownloadZip(

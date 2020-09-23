@@ -3,12 +3,9 @@
 #include <UECS/World.h>
 
 namespace Ubpa::DustEngine {
-	class WorldToLocalSystem : public UECS::System {
-	public:
-		using System::System;
-
+	struct WorldToLocalSystem {
 		static constexpr char SystemFuncName[] = "WorldToLocalSystem";
 
-		virtual void OnUpdate(UECS::Schedule& schedule) override;
+		static void OnUpdate(UECS::Schedule& schedule);
 	};
 }

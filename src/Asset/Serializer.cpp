@@ -15,81 +15,71 @@ using namespace Ubpa;
 using namespace rapidjson;
 using namespace std;
 
-struct Serializer::Impl : IListener {
-	StringBuffer sb;
-	Writer<StringBuffer> writer;
+struct Serializer::Impl {
+	Visitor<void(const void*, SerializeContext&)> serializer;
+	Visitor<void(void*, const rapidjson::Value&, DeserializeContext&)> deserializer;
 
-	Visitor<void(const void*, SerializeContext)> serializer;
-	Visitor<void(void*, const rapidjson::Value&, DeserializeContext)> deserializer;
-	Serializer::SerializeContext ctx{ &writer, &serializer };
+	struct WorldSerializer : IListener {
+		SerializeContext ctx;
+		const World* w;
 
-	const World* curWorld{ nullptr };
-
-	Impl() {
-		writer.Reset(sb);
-	}
-
-	void Clear() {
-		sb.Clear();
-		writer.Reset(sb);
-	}
-
-	virtual void EnterWorld(const World* world) override {
-		writer.StartObject();
-		writer.Key(Serializer::Key::ENTITY_MNGR);
-		curWorld = world;
-	}
-	virtual void ExistWorld(const World* world) override {
-		writer.EndObject();
-		curWorld = nullptr;
-	}
-
-	virtual void EnterSystemMngr(const SystemMngr*) override {}
-	virtual void ExistSystemMngr(const SystemMngr*) override {}
-
-	virtual void EnterSystem(const System*) override {}
-	virtual void ExistSystem(const System*) override {}
-
-	virtual void EnterEntityMngr(const EntityMngr*) override {
-		writer.StartObject();
-		writer.Key(Serializer::Key::ENTITIES);
-		writer.StartArray();
-	}
-	virtual void ExistEntityMngr(const EntityMngr*) override {
-		writer.EndArray(); // entities
-		writer.EndObject();
-	}
-
-	virtual void EnterEntity(const Entity* e) override {
-		writer.StartObject();
-		writer.Key(Key::INDEX);
-		writer.Uint64(e->Idx());
-		writer.Key(Key::COMPONENTS);
-		writer.StartArray();
-	}
-	virtual void ExistEntity(const Entity*) override {
-		writer.EndArray(); // components
-		writer.EndObject();
-	}
-
-	virtual void EnterCmptPtr(const CmptPtr* p) override {
-		writer.StartObject();
-		writer.Key(Key::TYPE);
-		writer.Uint64(p->Type().HashCode());
-		auto name = curWorld->cmptTraits.Nameof(p->Type());
-		if (!name.empty()) {
-			writer.Key(Key::NAME);
-			writer.String(name.data());
+		WorldSerializer(const Visitor<void(const void*, SerializeContext&)>& serializer)
+			: ctx{ serializer }
+		{
+			ctx.writer.Reset(ctx.sb);
 		}
-		writer.Key(Key::CONTENT);
-		if (serializer.IsRegistered(p->Type().HashCode()))
-			serializer.Visit(p->Type().HashCode(), p->Ptr(), ctx);
-		else
-			writer.Key(Key::NOT_SUPPORT);
-	}
-	virtual void ExistCmptPtr(const CmptPtr*) override {
-		writer.EndObject();
-	}
+
+		virtual void EnterWorld(const World* world) override {
+			ctx.writer.StartObject();
+			ctx.writer.Key(Serializer::Key::ENTITY_MNGR);
+			w = world;
+		}
+		virtual void ExistWorld(const World* world) override {
+			ctx.writer.EndObject();
+			w = nullptr;
+		}
+
+		virtual void EnterEntityMngr(const EntityMngr*) override {
+			ctx.writer.StartObject();
+			ctx.writer.Key(Serializer::Key::ENTITIES);
+			ctx.writer.StartArray();
+		}
+		virtual void ExistEntityMngr(const EntityMngr*) override {
+			ctx.writer.EndArray(); // entities
+			ctx.writer.EndObject();
+		}
+
+		virtual void EnterEntity(Entity e) override {
+			ctx.writer.StartObject();
+			ctx.writer.Key(Key::INDEX);
+			ctx.writer.Uint64(e.Idx());
+			ctx.writer.Key(Key::COMPONENTS);
+			ctx.writer.StartArray();
+		}
+		virtual void ExistEntity(Entity) override {
+			ctx.writer.EndArray(); // components
+			ctx.writer.EndObject();
+		}
+
+		virtual void EnterCmpt(CmptPtr p) override {
+			ctx.writer.StartObject();
+			ctx.writer.Key(Key::TYPE);
+			ctx.writer.Uint64(p.Type().HashCode());
+			auto name = w->entityMngr.cmptTraits.Nameof(p.Type());
+			if (!name.empty()) {
+				ctx.writer.Key(Key::NAME);
+				ctx.writer.String(name.data());
+			}
+			ctx.writer.Key(Key::CONTENT);
+			if (ctx.serializer.IsRegistered(p.Type().HashCode()))
+				ctx.serializer.Visit(p.Type().HashCode(), p.Ptr(), ctx);
+			else
+				ctx.writer.Key(Key::NOT_SUPPORT);
+		}
+		virtual void ExistCmpt(CmptPtr) override {
+			ctx.writer.EndObject();
+		}
+	};
 };
 
 Serializer::Serializer()
@@ -101,9 +91,16 @@ Serializer::~Serializer() {
 }
 
 string Serializer::ToJSON(const World* world) {
-	world->Accept(pImpl);
-	auto json = pImpl->sb.GetString();
-	pImpl->Clear();
+	Impl::WorldSerializer worldSerializer(pImpl->serializer);
+	world->Accept(&worldSerializer);
+	auto json = worldSerializer.ctx.sb.GetString();
+	return json;
+}
+
+string Serializer::ToJSON(size_t ID, const void* obj) {
+	SerializeContext ctx{ pImpl->serializer };
+	pImpl->serializer.Visit(ID, obj, ctx);
+	auto json = ctx.sb.GetString();
 	return json;
 }
 
@@ -141,6 +138,8 @@ void Serializer::ToWorld(UECS::World* world, string_view json) {
 			entityIdxMap.emplace(index, Entity{ newEntityIndex++, 0 });
 	}
 
+	DeserializeContext ctx{ entityIdxMap, pImpl->deserializer };
+
 	for (const auto& val_e : entities) {
 		const auto& jsonEntity = val_e.GetObject();
 		const auto& jsonCmpts = jsonEntity[Key::COMPONENTS].GetArray();
@@ -154,7 +153,6 @@ void Serializer::ToWorld(UECS::World* world, string_view json) {
 		}
 
 		auto entity = world->entityMngr.Create(cmptTypes.data(), cmptTypes.size());
-		DeserializeContext ctx{ &entityIdxMap,&(pImpl->deserializer) };
 		for (size_t i = 0; i < cmptTypes.size(); i++) {
 			if (pImpl->deserializer.IsRegistered(cmptTypes[i].HashCode())) {
 				pImpl->deserializer.Visit(

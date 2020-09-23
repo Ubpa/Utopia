@@ -62,19 +62,17 @@ end
 
 --------------------------------------------------------------------
 
-em = world:GetEntityMngr()
+world.entityMngr.cmptTraits:RegisterSize(luaCmptType0, 64)
+world.entityMngr.cmptTraits:RegisterName(luaCmptType0, "Cmpt0")
 
-em.cmptTraits:RegisterSize(luaCmptType0, 64)
-em.cmptTraits:RegisterName(luaCmptType0, "Cmpt0")
+world.entityMngr.cmptTraits:RegisterDefaultConstructor(luaCmptType0, default_ctor)
+world.entityMngr.cmptTraits:RegisterCopyConstructor(luaCmptType0, copy_ctor)
+world.entityMngr.cmptTraits:RegisterMoveConstructor(luaCmptType0, move_ctor)
+world.entityMngr.cmptTraits:RegisterMoveAssignment(luaCmptType0, move_assignment)
+world.entityMngr.cmptTraits:RegisterDestructor(luaCmptType0, dtor)
 
-em.cmptTraits:RegisterDefaultConstructor(luaCmptType0, default_ctor)
-em.cmptTraits:RegisterCopyConstructor(luaCmptType0, copy_ctor)
-em.cmptTraits:RegisterMoveConstructor(luaCmptType0, move_ctor)
-em.cmptTraits:RegisterMoveAssignment(luaCmptType0, move_assignment)
-em.cmptTraits:RegisterDestructor(luaCmptType0, dtor)
-
-em.cmptTraits:RegisterSize(luaCmptType1, 8)
-em.cmptTraits:RegisterName(luaCmptType1, "Cmpt1")
+world.entityMngr.cmptTraits:RegisterSize(luaCmptType1, 8)
+world.entityMngr.cmptTraits:RegisterName(luaCmptType1, "Cmpt1")
 
 f = function(schedule)
   local g = function(w, singletons, chunk)
@@ -93,16 +91,16 @@ f = function(schedule)
 	  local e = entity_buf:GetEntity(16*i)
 	  print(e:Idx())
 	  print(e:Version())
-	  if not em:Have(e, luaCmptType1) then
-	    w:AddCommand(function (curW)
-		  em:Attach(e, luaCmptType1, 1)
+	  if not w.entityMngr:Have(e, luaCmptType1) then
+	    w:AddCommand(function ()
+		  w.entityMngr:Attach(e, luaCmptType1, 1)
 	    end)
       end
 	end
   end
   local filter = ArchetypeFilter.new()
   filter.all:add(CmptAccessType.new("Cmpt0", AccessMode.LATEST))
-  LuaSystem.RegisterChunkJob(
+  LuaECSAgency.RegisterChunkJob(
     schedule,
 	g,
 	"test",
@@ -111,15 +109,15 @@ f = function(schedule)
 	true
   )
   world:RunJob(
-    function(w)
-	  local em = w:GetEntityMngr();
-	  local num = em:TotalEntityNum()
+    function()
+	  local num = world.entityMngr:TotalEntityNum()
 	  print("world's entity num : " .. num)
 	end,
 	SingletonLocator.new()
   )
 end
-LuaSystem.RegisterSystem(world, "LuaSystem-001", f)
+LuaSystem001 = world.systemMngr:Register("LuaSystem-001", f)
+world.systemMngr:Activate(LuaSystem001)
 
 parent = Parent.new()
 e = parent.value

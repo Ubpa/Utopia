@@ -33,16 +33,18 @@ namespace Ubpa::DustEngine {
 
 		using JSONWriter = rapidjson::Writer<rapidjson::StringBuffer>;
 		struct SerializeContext {
-			JSONWriter* const writer;
-			const Visitor<void(const void*, SerializeContext)>* const serializer;
+			SerializeContext(const Visitor<void(const void*, SerializeContext&)>& s) :serializer{ s } { writer.Reset(sb); }
+			JSONWriter writer;
+			rapidjson::StringBuffer sb;
+			const Visitor<void(const void*, SerializeContext&)>& serializer;
 		};
-		using SerializeFunc = std::function<void(const void*, SerializeContext)>;
+		using SerializeFunc = std::function<void(const void*, SerializeContext&)>;
 		using EntityIdxMap = std::unordered_map<size_t, UECS::Entity>;
 		struct DeserializeContext {
-			const EntityIdxMap* entityIdxMap;
-			const Visitor<void(void*, const rapidjson::Value&, DeserializeContext)>*const deserializer;
+			const EntityIdxMap& entityIdxMap;
+			const Visitor<void(void*, const rapidjson::Value&, DeserializeContext&)>& deserializer;
 		};
-		using DeserializeFunc = std::function<void(void*, const rapidjson::Value&, DeserializeContext)>;
+		using DeserializeFunc = std::function<void(void*, const rapidjson::Value&, DeserializeContext&)>;
 
 		void RegisterComponentSerializeFunction(UECS::CmptType, SerializeFunc);
 		void RegisterComponentDeserializeFunction(UECS::CmptType, DeserializeFunc);
@@ -70,6 +72,7 @@ namespace Ubpa::DustEngine {
 
 		std::string ToJSON(const UECS::World*);
 		void ToWorld(UECS::World*, std::string_view json);
+		std::string ToJSON(size_t ID, const void* obj);
 	private:
 		// core functions
 		void RegisterSerializeFunction(size_t id, SerializeFunc);

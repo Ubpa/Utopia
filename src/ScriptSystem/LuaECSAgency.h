@@ -4,14 +4,7 @@
 #include <ULuaPP/ULuaPP.h>
 
 namespace Ubpa::DustEngine {
-	class LuaContext;
-
-	class LuaSystem : public UECS::System {
-	public:
-		using System::System;
-
-		static void RegisterSystem(UECS::World* world, std::string name, sol::function onUpdate);
-
+	struct LuaECSAgency {
 		// World, SingletonsView, Entity, size_t index, CmptsView
 		static const UECS::SystemFunc* RegisterEntityJob(
 			UECS::Schedule*,
@@ -40,16 +33,7 @@ namespace Ubpa::DustEngine {
 			std::string name,
 			UECS::SingletonLocator
 		);
-
-	private:
-		LuaSystem(UECS::World* world, std::string name, sol::function onUpdate);
-
-		virtual void OnUpdate(UECS::Schedule& schedule) override;
-
-		LuaContext* luaCtx;
-		sol::function mainOnUpdate;
 	};
 }
 
-#include "detail/UECS_AutoRefl/System_AutoRefl.inl"
-#include "detail/LuaSystem_AutoRefl.inl"
+#include "detail/LuaECSAgency_AutoRefl.inl"

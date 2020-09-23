@@ -3,9 +3,7 @@
 #include <UECS/World.h>
 
 namespace Ubpa::DustEngine {
-	struct TRSToLocalToParentSystem {
-		static constexpr char SystemFuncName[] = "TRSToLocalToParentSystem";
-
+	struct LuaScriptQueueSystem {
 		static void OnUpdate(UECS::Schedule& schedule);
 	};
 }

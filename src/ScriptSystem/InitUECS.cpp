@@ -19,7 +19,6 @@ void Ubpa::DustEngine::detail::InitUECS(lua_State* L) {
 	ULuaPP::Register<UECS::Schedule>(L);
 	ULuaPP::Register<UECS::SingletonLocator>(L);
 	ULuaPP::Register<UECS::SingletonsView>(L);
-	ULuaPP::Register<UECS::System>(L);
 	ULuaPP::Register<UECS::SystemMngr>(L);
 	ULuaPP::Register<UECS::World>(L);
 }

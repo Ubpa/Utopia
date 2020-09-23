@@ -1,5 +1,7 @@
 #include <DustEngine/ScriptSystem/LuaContext.h>
 
+#include <DustEngine/ScriptSystem/LuaScriptQueue.h>
+
 #include "InitUECS.h"
 #include "InitUGraphviz.h"
 #include "InitCore.h"
@@ -7,7 +9,7 @@
 #include "LuaArray.h"
 #include "LuaBuffer.h"
 #include "LuaMemory.h"
-#include "LuaSystem.h"
+#include "LuaECSAgency.h"
 
 #include <ULuaPP/ULuaPP.h>
 
@@ -118,7 +120,8 @@ lua_State* LuaContext::Impl::Construct() {
 	ULuaPP::Register<LuaArray_CmptAccessType>(L);
 	ULuaPP::Register<LuaBuffer>(L);
 	ULuaPP::Register<LuaMemory>(L);
-	ULuaPP::Register<LuaSystem>(L);
+	ULuaPP::Register<LuaECSAgency>(L);
+	ULuaPP::Register<LuaScriptQueue>(L);
 	return L;
 }
 

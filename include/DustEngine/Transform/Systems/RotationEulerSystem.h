@@ -3,12 +3,9 @@
 #include <UECS/World.h>
 
 namespace Ubpa::DustEngine {
-	class RotationEulerSystem : public UECS::System {
-	public:
-		using System::System;
-
+	struct RotationEulerSystem {
 		static constexpr char SystemFuncName[] = "RotationEulerSystem";
 
-		virtual void OnUpdate(UECS::Schedule& schedule) override;
+		static void OnUpdate(UECS::Schedule& schedule);
 	};
 }

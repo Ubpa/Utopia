@@ -163,7 +163,7 @@ namespace Ubpa::DustEngine::detail {
 					viewer->selectedFolder = child;
 				
 				auto nameStr = name.string();
-				if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None)) {
+				if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID)) {
 					ImGui::SetDragDropPayload(PlayloadType::GUID, &child, sizeof(xg::Guid));
 					ImGui::ImageButton(ImTextureID(folderID.ptr), { 32,32 });
 					ImGui::Text(nameStr.c_str());
@@ -240,7 +240,7 @@ namespace Ubpa::DustEngine::detail {
 					}
 				}
 				auto nameStr = name.string();
-				if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None)) {
+				if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID)) {
 					ImGui::SetDragDropPayload(PlayloadType::GUID, &child, sizeof(xg::Guid));
 					ImGui::ImageButton(ImTextureID(id), { 32,32 });
 					ImGui::Text(nameStr.c_str());
@@ -263,16 +263,19 @@ namespace Ubpa::DustEngine::detail {
 }
 
 void ProjectViewerSystem::OnUpdate(UECS::Schedule& schedule) {
-	GetWorld()->AddCommand([](UECS::World* w) {
+	schedule.RegisterCommand([](UECS::World* w) {
 		auto viewer = w->entityMngr.GetSingleton<ProjectViewer>();
 		auto inspector = w->entityMngr.GetSingleton<Inspector>();
 
-		ImGui::Begin("Project");
-		detail::ProjectViewerSystemPrintChildren(viewer, xg::Guid{});
+		if (!viewer)
+			return;
+		
+		if (ImGui::Begin("Project"))
+			detail::ProjectViewerSystemPrintChildren(viewer, xg::Guid{});
 		ImGui::End();
 
-		ImGui::Begin("Folder");
-		detail::ProjectViewerSystemPrintFolder(inspector, viewer);
+		if (ImGui::Begin("Folder"))
+			detail::ProjectViewerSystemPrintFolder(inspector, viewer);
 		ImGui::End();
 	});
 }

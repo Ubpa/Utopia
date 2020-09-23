@@ -1,12 +1,15 @@
 #pragma once
 
 #include <UGM/point.h>
+#include <UGM/val.h>
 
 namespace Ubpa::DustEngine {
 	struct Input {
 		// ============================
 		//           [Basic]           
 		// ============================
+
+		valf2 DisplaySize;
 
 		// Mouse position, in pixels.
 		// Set to (-FLT_MAX, -FLT_MAX) if mouse is unavailable (on another screen, etc.)
@@ -43,6 +46,9 @@ namespace Ubpa::DustEngine {
 		//            [Pro]            
 		// ============================
 		// Forward compatibility not guaranteed!
+
+		bool MouseInDisplay;
+		bool MouseInDisplayPre;
 
 		// Mouse button went from !Down to Down
 		bool MouseClicked[5];

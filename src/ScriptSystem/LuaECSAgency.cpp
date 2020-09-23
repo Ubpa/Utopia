@@ -1,15 +1,11 @@
-#include "LuaSystem.h"
+#include "LuaECSAgency.h"
 
 #include <DustEngine/ScriptSystem/LuaCtxMngr.h>
 #include <DustEngine/ScriptSystem/LuaContext.h>
 
 using namespace Ubpa::DustEngine;
 
-void LuaSystem::RegisterSystem(UECS::World* world, std::string name, sol::function onUpdate) {
-	world->systemMngr.Register(std::unique_ptr<LuaSystem>(new LuaSystem(world, name, onUpdate)));
-}
-
-const Ubpa::UECS::SystemFunc* LuaSystem::RegisterEntityJob(
+const Ubpa::UECS::SystemFunc* LuaECSAgency::RegisterEntityJob(
 	UECS::Schedule* s,
 	sol::function systemFunc,
 	std::string name,
@@ -45,7 +41,7 @@ const Ubpa::UECS::SystemFunc* LuaSystem::RegisterEntityJob(
 				cmpts.push_back(chunk.GetCmptArray(t));
 				types.push_back(t);
 				cmptPtrs.emplace_back(t, cmpts.back());
-				sizes.push_back(w->cmptTraits.Sizeof(t));
+				sizes.push_back(w->entityMngr.cmptTraits.Sizeof(t));
 			}
 
 			size_t i = 0;
@@ -63,7 +59,7 @@ const Ubpa::UECS::SystemFunc* LuaSystem::RegisterEntityJob(
 	return sysfunc;
 }
 
-const Ubpa::UECS::SystemFunc* LuaSystem::RegisterChunkJob(
+const Ubpa::UECS::SystemFunc* LuaECSAgency::RegisterChunkJob(
 	UECS::Schedule* s,
 	sol::function systemFunc,
 	std::string name,
@@ -88,7 +84,7 @@ const Ubpa::UECS::SystemFunc* LuaSystem::RegisterChunkJob(
 	return sysfunc;
 }
 
-const Ubpa::UECS::SystemFunc* LuaSystem::RegisterJob(
+const Ubpa::UECS::SystemFunc* LuaECSAgency::RegisterJob(
 	UECS::Schedule* s,
 	sol::function systemFunc,
 	std::string name,
@@ -106,16 +102,4 @@ const Ubpa::UECS::SystemFunc* LuaSystem::RegisterJob(
 		luaCtx->Recycle(L);
 	}, std::move(name), std::move(singletonLocator));
 	return sysfunc;
-}
-
-LuaSystem::LuaSystem(UECS::World* world, std::string name, sol::function onUpdate)
-	: UECS::System{ world,name }, luaCtx{ LuaCtxMngr::Instance().GetContext(world) }
-{
-	sol::state_view lua{ luaCtx->Main() };
-	auto bytecode = onUpdate.dump();
-	mainOnUpdate = lua.load(bytecode.as_string_view());
-}
-
-void LuaSystem::OnUpdate(UECS::Schedule& schedule) {
-	mainOnUpdate.call(&schedule);
 }
