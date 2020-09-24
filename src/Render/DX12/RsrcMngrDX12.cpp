@@ -29,8 +29,11 @@ struct RsrcMngrDX12::Impl {
 		UDX12::DescriptorHeapAllocation allocationRTV;
 	};
 	struct ShaderCompileData {
-		Microsoft::WRL::ComPtr<ID3DBlob> vsByteCode;
-		Microsoft::WRL::ComPtr<ID3DBlob> psByteCode;
+		struct PassData {
+			Microsoft::WRL::ComPtr<ID3DBlob> vsByteCode;
+			Microsoft::WRL::ComPtr<ID3DBlob> psByteCode;
+		};
+		std::vector<PassData> passes;
 	};
 
 	bool isInit{ false };
@@ -475,32 +478,35 @@ RsrcMngrDX12& RsrcMngrDX12::RegisterShader(const Shader* shader) {
 		{nullptr, nullptr}
 	};
 	Ubpa::UDX12::D3DInclude d3dInclude{ shader->hlslFile->GetLocalDir(), "../" };
-	auto vsByteCode = UDX12::Util::CompileShader(
-		shader->hlslFile->GetText(),
-		macros,
-		shader->vertexName,
-		"vs_" + shader->targetName,
-		&d3dInclude
-	);
-	auto psByteCode = UDX12::Util::CompileShader(
-		shader->hlslFile->GetText(),
-		macros,
-		shader->fragmentName,
-		"ps_" + shader->targetName,
-		&d3dInclude
-	);
 	auto& shaderCompileData = pImpl->shaderMap[shader->GetInstanceID()];
-	shaderCompileData.vsByteCode = vsByteCode;
-	shaderCompileData.psByteCode = psByteCode;
+	shaderCompileData.passes.resize(shader->passes.size());
+	for (size_t i = 0; i < shader->passes.size(); i++) {
+		auto& pass = shader->passes[i];
+		Impl::ShaderCompileData::PassData passdata;
+		shaderCompileData.passes[i].vsByteCode = UDX12::Util::CompileShader(
+			shader->hlslFile->GetText(),
+			macros,
+			pass.vertexName,
+			"vs_" + shader->targetName,
+			&d3dInclude
+		);
+		shaderCompileData.passes[i].psByteCode = UDX12::Util::CompileShader(
+			shader->hlslFile->GetText(),
+			macros,
+			pass.fragmentName,
+			"ps_" + shader->targetName,
+			&d3dInclude
+		);
+	}
 	return *this;
 }
 
-const ID3DBlob* RsrcMngrDX12::GetShaderByteCode_vs(const Shader* shader) const {
-	return pImpl->shaderMap.find(shader->GetInstanceID())->second.vsByteCode.Get();
+const ID3DBlob* RsrcMngrDX12::GetShaderByteCode_vs(const Shader* shader, size_t passIdx) const {
+	return pImpl->shaderMap.at(shader->GetInstanceID()).passes[passIdx].vsByteCode.Get();
 }
 
-const ID3DBlob* RsrcMngrDX12::GetShaderByteCode_ps(const Shader* shader) const {
-	return pImpl->shaderMap.find(shader->GetInstanceID())->second.psByteCode.Get();
+const ID3DBlob* RsrcMngrDX12::GetShaderByteCode_ps(const Shader* shader, size_t passIdx) const {
+	return pImpl->shaderMap.at(shader->GetInstanceID()).passes[passIdx].psByteCode.Get();
 }
 
 //RsrcMngrDX12& RsrcMngrDX12::RegisterRenderTexture2D(size_t id, UINT width, UINT height, DXGI_FORMAT format) {

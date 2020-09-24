@@ -1,1 +1,1 @@
-{"hlslFile":"94aa0330-a09e-47f4-8799-da329e55fa7c","shaderName":"StdPipeline/Irradiance","vertexName":"VS","fragmentName":"PS","targetName":"5_0"}
+{"hlslFile":"94aa0330-a09e-47f4-8799-da329e55fa7c","shaderName":"StdPipeline/Irradiance","passes":[{"vertexName":"VS","fragmentName":"PS"}],"targetName":"5_0"}

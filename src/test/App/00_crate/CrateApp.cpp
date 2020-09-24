@@ -603,8 +603,10 @@ void DeferApp::BuildShadersAndInputLayout()
 
 	shader = new Ubpa::DustEngine::Shader;
 	shader->hlslFile = hlslFile;
-	shader->vertexName = "vert";
-	shader->fragmentName = "frag";
+	Ubpa::DustEngine::ShaderPass pass;
+	pass.vertexName = "vert";
+	pass.fragmentName = "frag";
+	shader->passes.push_back(pass);
 	shader->targetName = "5_0";
 	shader->shaderName = "Default";
 
@@ -639,8 +641,8 @@ void DeferApp::BuildPSOs()
 	auto opaquePsoDesc = Ubpa::UDX12::Desc::PSO::Basic(
 		Ubpa::DustEngine::RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_default),
 		mInputLayout.data(), (UINT)mInputLayout.size(),
-		Ubpa::DustEngine::RsrcMngrDX12::Instance().GetShaderByteCode_vs(shader),
-		Ubpa::DustEngine::RsrcMngrDX12::Instance().GetShaderByteCode_ps(shader),
+		Ubpa::DustEngine::RsrcMngrDX12::Instance().GetShaderByteCode_vs(shader, 0),
+		Ubpa::DustEngine::RsrcMngrDX12::Instance().GetShaderByteCode_ps(shader, 0),
 		mBackBufferFormat,
 		mDepthStencilFormat
 	);

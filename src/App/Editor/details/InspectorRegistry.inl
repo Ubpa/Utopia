@@ -54,7 +54,7 @@ namespace Ubpa::DustEngine::detail {
 	template<typename Cmpt>
 	void InspectCmpt(Cmpt* cmpt, InspectorRegistry::InspectContext ctx) {
 		if constexpr (HasDefinition<USRefl::TypeInfo<Cmpt>>::value) {
-			ImGui::PushID(UECS::CmptType::Of<Cmpt>.HashCode());
+			ImGui::PushID((const void *)UECS::CmptType::Of<Cmpt>.HashCode());
 			if (ImGui::CollapsingHeader(USRefl::TypeInfo<Cmpt>::name.data())) {
 				USRefl::TypeInfo<Cmpt>::ForEachVarOf(*cmpt, [ctx](auto field, auto& var) {
 					InspectVar(field, var, ctx);
@@ -85,7 +85,7 @@ namespace Ubpa::DustEngine::detail {
 	void InspectUserType(Field field, UserType* obj, InspectorRegistry::InspectContext ctx) {
 		if constexpr (HasDefinition<USRefl::TypeInfo<UserType>>::value) {
 			if (ImGui::TreeNode(field.name.data())) {
-				ImGui::PushID(GetID<UserType>());
+				ImGui::PushID((const void*)GetID<UserType>());
 				USRefl::TypeInfo<UserType>::ForEachVarOf(*obj, [ctx](auto field, auto& var) {
 					InspectVar(field, var, ctx);
 				});

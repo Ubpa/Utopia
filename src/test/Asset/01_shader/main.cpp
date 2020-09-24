@@ -29,8 +29,10 @@ int main() {
 
 	auto shader = new Shader;
 	shader->hlslFile = hlslFile;
-	shader->vertexName = "VS";
-	shader->fragmentName = "PS";
+	ShaderPass pass;
+	pass.vertexName = "VS";
+	pass.fragmentName = "PS";
+	shader->passes.push_back(std::move(pass));
 	shader->targetName = "5_0";
 	shader->shaderName = "Default";
 
@@ -42,8 +44,8 @@ int main() {
 	auto reloadedShader = AssetMngr::Instance().LoadAsset<Shader>("../assets/shaders/Default.shader");
 	std::cout << reloadedShader->hlslFile->GetText() << std::endl;
 	std::cout << reloadedShader->shaderName << std::endl;
-	std::cout << reloadedShader->vertexName << std::endl;
-	std::cout << reloadedShader->fragmentName << std::endl;
+	std::cout << reloadedShader->passes.front().vertexName << std::endl;
+	std::cout << reloadedShader->passes.front().fragmentName << std::endl;
 	std::cout << reloadedShader->targetName << std::endl;
 
 	return 0;

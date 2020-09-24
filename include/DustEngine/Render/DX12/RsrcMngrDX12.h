@@ -64,8 +64,8 @@ namespace Ubpa::DustEngine {
 
 		UDX12::MeshGPUBuffer& GetMeshGPUBuffer(const Mesh* mesh) const;
 		 
-		const ID3DBlob* GetShaderByteCode_vs(const Shader* shader) const;
-		const ID3DBlob* GetShaderByteCode_ps(const Shader* shader) const;
+		const ID3DBlob* GetShaderByteCode_vs(const Shader* shader, size_t passIdx) const;
+		const ID3DBlob* GetShaderByteCode_ps(const Shader* shader, size_t passIdx) const;
 
 		ID3D12RootSignature* GetRootSignature(size_t id) const;
 

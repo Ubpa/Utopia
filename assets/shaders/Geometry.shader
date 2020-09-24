@@ -1,1 +1,1 @@
-{"hlslFile":"d1ee38ec-7485-422e-93f3-c8886169a858","shaderName":"StdPipeline/Geometry","vertexName":"VS","fragmentName":"PS","targetName":"5_0"}
+{"hlslFile":"d1ee38ec-7485-422e-93f3-c8886169a858","shaderName":"StdPipeline/Geometry","passes":[{"vertexName":"VS","fragmentName":"PS"}],"targetName":"5_0"}

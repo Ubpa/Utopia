@@ -962,7 +962,8 @@ void Editor::InitInspectorRegistry() {
 		Ubpa::DustEngine::TestInspector
 	> ();
 	Ubpa::DustEngine::InspectorRegistry::Instance().RegisterAssets <
-		Ubpa::DustEngine::Material
+		Ubpa::DustEngine::Material,
+		Ubpa::DustEngine::Shader
 	>();
 }
 
@@ -1026,7 +1027,7 @@ void Editor::InitWorld(Ubpa::UECS::World& w) {
 }
 
 void Editor::BuildWorld() {
-	Ubpa::DustEngine::Serializer::Instance().Register <
+	Ubpa::DustEngine::Serializer::Instance().RegisterComponents <
 		// core
 		Ubpa::DustEngine::Camera,
 		Ubpa::DustEngine::MeshFilter,

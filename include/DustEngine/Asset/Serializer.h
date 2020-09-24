@@ -51,28 +51,44 @@ namespace Ubpa::DustEngine {
 
 		template<typename Func>
 		void RegisterComponentSerializeFunction(Func&& func);
-		template<typename... Cmpts>
-		void RegisterComponentSerializeFunction();
-
 		template<typename Func>
 		void RegisterComponentDeserializeFunction(Func&& func);
+
+		template<typename... Cmpts>
+		void RegisterComponentSerializeFunction();
 		template<typename... Cmpts>
 		void RegisterComponentDeserializeFunction();
 
 		// register Cmpts' serialize and deserialize function
 		template<typename... Cmpts>
-		void Register();
+		void RegisterComponents();
 
 		void RegisterUserTypeSerializeFunction(size_t id, SerializeFunc);
 		void RegisterUserTypeDeserializeFunction(size_t id, DeserializeFunc);
+
 		template<typename Func>
 		void RegisterUserTypeSerializeFunction(Func&& func);
 		template<typename Func>
 		void RegisterUserTypeDeserializeFunction(Func&& func);
 
+		template<typename... UserTypes>
+		void RegisterUserTypeSerializeFunction();
+		template<typename... UserTypes>
+		void RegisterUserTypeDeserializeFunction();
+
+		// register UserTypes' serialize and deserialize function
+		template<typename... UserTypes>
+		void RegisterUserTypes();
+
 		std::string ToJSON(const UECS::World*);
-		void ToWorld(UECS::World*, std::string_view json);
+		bool ToWorld(UECS::World*, std::string_view json);
+
 		std::string ToJSON(size_t ID, const void* obj);
+		template<typename UserType>
+		std::string ToJSON(const UserType* obj);
+		bool ToUserType(std::string_view json, size_t ID, void* obj);
+		template<typename UserType>
+		bool ToUserType(std::string_view json, UserType* obj);
 	private:
 		// core functions
 		void RegisterSerializeFunction(size_t id, SerializeFunc);

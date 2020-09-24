@@ -12,3 +12,5 @@ namespace Ubpa::DustEngine {
 		inline static std::atomic<size_t> curID{ 0 };
 	};
 }
+
+#include "details/Object_AutoRefl.inl"

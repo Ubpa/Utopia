@@ -394,9 +394,38 @@ namespace Ubpa::DustEngine {
 		(RegisterComponentDeserializeFunction(&detail::ReadUserType<Cmpts>), ...);
 	}
 
+	template<typename... UserTypes>
+	void Serializer::RegisterUserTypeSerializeFunction() {
+		(RegisterUserTypeSerializeFunction(&detail::WriteUserType<UserTypes>), ...);
+	}
+
+	template<typename... UserTypes>
+	void Serializer::RegisterUserTypeDeserializeFunction() {
+		(RegisterUserTypeDeserializeFunction(&detail::ReadUserType<UserTypes>), ...);
+	}
+
 	template<typename... Cmpts>
-	void Serializer::Register() {
+	void Serializer::RegisterComponents() {
 		RegisterComponentSerializeFunction<Cmpts...>();
 		RegisterComponentDeserializeFunction<Cmpts...>();
+	}
+
+	// register UserTypes' serialize and deserialize function
+	template<typename... UserTypes>
+	void Serializer::RegisterUserTypes() {
+		RegisterUserTypeSerializeFunction<UserTypes...>();
+		RegisterUserTypeDeserializeFunction<UserTypes...>();
+	}
+
+	template<typename UserType>
+	std::string Serializer::ToJSON(const UserType* obj) {
+		static_assert(!std::is_void_v<UserType>);
+		return ToJSON(GetID<UserType>(), obj);
+	}
+
+	template<typename UserType>
+	bool Serializer::ToUserType(std::string_view json, UserType* obj) {
+		static_assert(!std::is_void_v<UserType>);
+		return ToUserType(json, GetID<UserType>(), obj);
 	}
 }

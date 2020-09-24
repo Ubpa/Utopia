@@ -31,15 +31,20 @@ using namespace DirectX::PackedVector;
 
 const int gNumFrameResources = 3;
 
-struct RotateSystem : Ubpa::UECS::System {
-	using Ubpa::UECS::System::System;
-	virtual void OnUpdate(Ubpa::UECS::Schedule& schedule) override {
+struct RotateSystem {
+	static void OnUpdate(Ubpa::UECS::Schedule& schedule) {
 		Ubpa::UECS::ArchetypeFilter filter;
 		filter.all = { Ubpa::UECS::CmptAccessType::Of<Ubpa::DustEngine::MeshFilter> };
-		schedule.RegisterEntityJob([](Ubpa::DustEngine::Rotation* rot, Ubpa::DustEngine::Translation* trans) {
-			rot->value = rot->value * Ubpa::quatf{ Ubpa::vecf3{0,1,0}, Ubpa::to_radian(2.f) };
-			trans->value += 0.2f * (Ubpa::vecf3{ Ubpa::rand01<float>(), Ubpa::rand01<float>(), Ubpa::rand01<float>() } - Ubpa::vecf3{ 0.5f });
-		}, "rotate", true, filter);
+		schedule.RegisterEntityJob(
+			[](Ubpa::DustEngine::Rotation* rot, Ubpa::DustEngine::Translation* trans) {
+				rot->value = rot->value * Ubpa::quatf{ Ubpa::vecf3{0,1,0}, Ubpa::to_radian(2.f) };
+				trans->value += 0.2f * (Ubpa::vecf3{ Ubpa::rand01<float>(), Ubpa::rand01<float>(), Ubpa::rand01<float>() }
+					- Ubpa::vecf3{ 0.5f });
+			},
+			"rotate",
+			true,
+			filter
+		);
 	}
 };
 
@@ -283,7 +288,7 @@ void WorldApp::Update()
 		gameCameras.emplace_back(e, world);
 	}, false, camFilter);
 	assert(gameCameras.size() == 1); // now only support 1 camera
-	pipeline->BeginFrame(world, gameCameras.front());
+	pipeline->BeginFrame({ &world }, gameCameras.front());
 }
 
 void WorldApp::Draw()

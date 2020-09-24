@@ -57,7 +57,7 @@ void InspectorSystem::OnUpdate(UECS::Schedule& schedule) {
 					// You may want to implement a more feature-full filtering scheme in your own application.
 					static ImGuiTextFilter filter;
 					filter.Draw();
-					size_t ID = 0;
+					int ID = 0;
 					size_t N = hierarchy->world->entityMngr.cmptTraits.GetNames().size();
 					for (const auto& [type, name] : hierarchy->world->entityMngr.cmptTraits.GetNames()) {
 						if (!hierarchy->world->entityMngr.Have(inspector->entity, type) && filter.PassFilter(name.c_str())) {
@@ -84,7 +84,7 @@ void InspectorSystem::OnUpdate(UECS::Schedule& schedule) {
 					// You may want to implement a more feature-full filtering scheme in your own application.
 					static ImGuiTextFilter filter;
 					filter.Draw();
-					size_t ID = 0;
+					int ID = 0;
 					auto cmpts = hierarchy->world->entityMngr.Components(inspector->entity);
 					size_t N = cmpts.size();
 					for (const auto& cmpt : cmpts) {

@@ -405,7 +405,7 @@ void GameStarter::Update() {
 			if (!mat)
 				continue;
 			for (const auto& [name, tex] : mat->texture2Ds) {
-				if(!tex)
+				if (!tex)
 					continue;
 				Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
 					Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
@@ -421,7 +421,7 @@ void GameStarter::Update() {
 				);
 			}
 		}
-	}, false);
+		}, false);
 
 	if (auto skybox = world.entityMngr.GetSingleton<Ubpa::DustEngine::Skybox>(); skybox && skybox->material) {
 		for (const auto& [name, tex] : skybox->material->texture2Ds) {
@@ -452,9 +452,9 @@ void GameStarter::Update() {
 	Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::CmptAccessType::Of<Ubpa::DustEngine::Camera>} };
 	world.RunEntityJob([&](Ubpa::UECS::Entity e) {
 		gameCameras.emplace_back(e, world);
-	}, false, camFilter);
+		}, false, camFilter);
 	assert(gameCameras.size() == 1); // now only support 1 camera
-	pipeline->BeginFrame(world, gameCameras.front());
+	pipeline->BeginFrame({ &world }, gameCameras.front());
 }
 
 void GameStarter::Draw() {
@@ -543,7 +543,7 @@ void GameStarter::UpdateCamera()
 }
 
 void GameStarter::BuildWorld() {
-	world.systemMngr.Register<
+	auto indices = world.systemMngr.Register<
 		Ubpa::DustEngine::CameraSystem,
 		Ubpa::DustEngine::LocalToParentSystem,
 		Ubpa::DustEngine::RotationEulerSystem,
@@ -552,7 +552,10 @@ void GameStarter::BuildWorld() {
 		Ubpa::DustEngine::WorldToLocalSystem,
 		Ubpa::DustEngine::WorldTimeSystem
 	>();
-	world.cmptTraits.Register<
+	for (auto idx : indices)
+		world.systemMngr.Activate(idx);
+	
+	world.entityMngr.cmptTraits.Register<
 		// core
 		Ubpa::DustEngine::Camera,
 		Ubpa::DustEngine::MeshFilter,
@@ -595,7 +598,7 @@ void GameStarter::BuildWorld() {
 	>();
 	std::get<Ubpa::DustEngine::MeshFilter*>(dynamicCube)->mesh = quadMesh;*/
 
-	Ubpa::DustEngine::Serializer::Instance().Register<
+	Ubpa::DustEngine::Serializer::Instance().RegisterComponents <
 		// core
 		Ubpa::DustEngine::Camera,
 		Ubpa::DustEngine::MeshFilter,

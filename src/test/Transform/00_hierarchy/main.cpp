@@ -7,24 +7,22 @@ using namespace Ubpa::DustEngine;
 using namespace Ubpa;
 using namespace std;
 
-class PrintSystem : public System {
-public:
-	using System::System;
-	mutex m;
-
-	virtual void OnUpdate(Schedule& schedule) override {
-		schedule.RegisterEntityJob([&](const LocalToWorld* l2w) {
-			m.lock();
-			l2w->value.print();
-			m.unlock();
-		}, "print");
+struct PrintSystem {
+	static void OnUpdate(Schedule& schedule) {
+		schedule.RegisterEntityJob(
+			[&](const LocalToWorld* l2w) {
+				l2w->value.print();
+			},
+			"print",
+			false
+		);
 	}
 };
 
 int main() {
 	World w;
 
-	w.cmptTraits.Register<
+	w.entityMngr.cmptTraits.Register<
 		Children,
 		LocalToParent,
 		LocalToWorld,
@@ -36,7 +34,7 @@ int main() {
 		WorldToLocal
 	>();
 
-	w.systemMngr.Register<
+	auto indices = w.systemMngr.Register<
 		PrintSystem,
 		LocalToParentSystem,
 		RotationEulerSystem,
@@ -44,6 +42,8 @@ int main() {
 		TRSToLocalToWorldSystem,
 		WorldToLocalSystem
 	>();
+	for (auto idx : indices)
+		w.systemMngr.Activate(idx);
 
 	auto [r_e, r_c, r_l2w, r_t] = w.entityMngr.Create<
 		Children,

@@ -43,8 +43,10 @@ int main() {
 	{ // create Shader, Texture2D and Material
 		auto shader = new Shader;
 		shader->hlslFile = AssetMngr::Instance().LoadAsset<HLSLFile>(hlslPath);
-		shader->vertexName = "VS";
-		shader->fragmentName = "PS";
+		ShaderPass pass;
+		pass.vertexName = "VS";
+		pass.fragmentName = "PS";
+		shader->passes.push_back(pass);
 		shader->targetName = "5_0";
 		shader->shaderName = "Default";
 		if (!AssetMngr::Instance().CreateAsset(shader, shaderPath)) {

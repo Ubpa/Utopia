@@ -22,7 +22,9 @@
 #include <DustEngine/Core/Components/MeshFilter.h>
 #include <DustEngine/Core/Components/MeshRenderer.h>
 #include <DustEngine/Core/Components/Skybox.h>
+#include <DustEngine/Core/Components/WorldTime.h>
 #include <DustEngine/Core/Systems/CameraSystem.h>
+#include <DustEngine/Core/Systems/WorldTimeSystem.h>
 #include <DustEngine/Core/ShaderMngr.h>
 #include <DustEngine/Core/ImGUIMngr.h>
 
@@ -38,26 +40,37 @@ using namespace DirectX::PackedVector;
 
 const int gNumFrameResources = 3;
 
-struct AnimateMeshSystem : Ubpa::UECS::System {
-	using Ubpa::UECS::System::System;
+struct AnimateMeshSystem {
 	size_t cnt = 0;
-	virtual void OnUpdate(Ubpa::UECS::Schedule& schedule) override {
-		if (cnt < 600) {
-			schedule.RegisterEntityJob([](Ubpa::DustEngine::MeshFilter* meshFilter) {
-				if (meshFilter->mesh->IsEditable()) {
-					auto positions = meshFilter->mesh->GetPositions();
-					for (auto& pos : positions)
-						pos[1] = 0.2f * (Ubpa::rand01<float>() - 0.5f);
-					meshFilter->mesh->SetPositions(positions);
+	static void OnUpdate(Ubpa::UECS::Schedule& schedule) {
+		schedule.RegisterEntityJob(
+			[](
+				Ubpa::DustEngine::MeshFilter* meshFilter,
+				Ubpa::UECS::Latest<Ubpa::UECS::Singleton<Ubpa::DustEngine::WorldTime>> time
+			) {
+				if (time->elapsedTime < 10.f) {
+					if (meshFilter->mesh->IsEditable()) {
+						auto positions = meshFilter->mesh->GetPositions();
+						for (auto& pos : positions)
+							pos[1] = 0.2f * (Ubpa::rand01<float>() - 0.5f);
+						meshFilter->mesh->SetPositions(positions);
+					}
 				}
-			}, "AnimateMesh");
-		}
-		else if (cnt == 600) {
-			schedule.RegisterEntityJob([](Ubpa::DustEngine::MeshFilter* meshFilter) {
-				meshFilter->mesh->SetToNonEditable();
-			}, "set mesh static");
-		}
-		cnt++;
+				else
+					meshFilter->mesh->SetToNonEditable();
+			},
+			"AnimateMesh"
+		);
+		schedule.RegisterCommand([](Ubpa::UECS::World* w) {
+			auto time = w->entityMngr.GetSingleton<Ubpa::DustEngine::WorldTime>();
+			if (!time)
+				return;
+
+			if (time->elapsedTime < 10.f)
+				return;
+
+			w->systemMngr.Deactivate(w->systemMngr.GetIndex<AnimateMeshSystem>());
+		});
 	}
 };
 
@@ -507,7 +520,7 @@ void ImGUIApp::Update()
 		gameCameras.emplace_back(e, world);
 	}, false, camFilter);
 	assert(gameCameras.size() == 1); // now only support 1 camera
-	pipeline->BeginFrame(world, gameCameras.front());
+	pipeline->BeginFrame({ &world }, gameCameras.front());
 }
 
 void ImGUIApp::Draw()
@@ -607,15 +620,18 @@ void ImGUIApp::UpdateCamera()
 }
 
 void ImGUIApp::BuildWorld() {
-	world.systemMngr.Register<
+	auto indices = world.systemMngr.Register<
 		Ubpa::DustEngine::CameraSystem,
 		Ubpa::DustEngine::LocalToParentSystem,
 		Ubpa::DustEngine::RotationEulerSystem,
 		Ubpa::DustEngine::TRSToLocalToParentSystem,
 		Ubpa::DustEngine::TRSToLocalToWorldSystem,
 		Ubpa::DustEngine::WorldToLocalSystem,
+		Ubpa::DustEngine::WorldTimeSystem,
 		AnimateMeshSystem
 	>();
+	for (auto idx : indices)
+		world.systemMngr.Activate(idx);
 
 	{ // skybox
 		auto [e, skybox] = world.entityMngr.Create<Ubpa::DustEngine::Skybox>();
@@ -623,14 +639,20 @@ void ImGUIApp::BuildWorld() {
 		skybox->material = Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Material>(path);
 	}
 
-	auto e0 = world.entityMngr.Create<
-		Ubpa::DustEngine::LocalToWorld,
-		Ubpa::DustEngine::WorldToLocal,
-		Ubpa::DustEngine::Camera,
-		Ubpa::DustEngine::Translation,
-		Ubpa::DustEngine::Rotation
-	>();
-	cam = std::get<Ubpa::UECS::Entity>(e0);
+	{
+		auto e = world.entityMngr.Create<
+			Ubpa::DustEngine::LocalToWorld,
+			Ubpa::DustEngine::WorldToLocal,
+			Ubpa::DustEngine::Camera,
+			Ubpa::DustEngine::Translation,
+			Ubpa::DustEngine::Rotation
+		>();
+		cam = std::get<Ubpa::UECS::Entity>(e);
+	}
+
+	{
+		world.entityMngr.Create<Ubpa::DustEngine::WorldTime>();
+	}
 
 	auto quadMesh = Ubpa::DustEngine::AssetMngr::Instance().LoadAsset<Ubpa::DustEngine::Mesh>("../assets/models/quad.obj");
 	auto dynamicCube = world.entityMngr.Create<
