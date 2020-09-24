@@ -619,7 +619,7 @@ void GameStarter::BuildWorld() {
 	auto mainLua = Ubpa::DustEngine::LuaCtxMngr::Instance().Register(&world)->Main();
 	sol::state_view solLua(mainLua);
 	auto gameLuaScript = Ubpa::DustEngine::AssetMngr::Instance()
-		.LoadAsset<Ubpa::DustEngine::LuaScript>(L"..\\assets\\scripts\\Game.lua");
+		.LoadAsset<Ubpa::DustEngine::LuaScript>(L"..\\assets\\scripts\\MoveRoot.lua");
 	solLua["world"] = &world;
 	solLua.script(gameLuaScript->GetText());
 }

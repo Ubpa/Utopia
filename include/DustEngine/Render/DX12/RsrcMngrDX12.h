@@ -47,7 +47,12 @@ namespace Ubpa::DustEngine {
 			Mesh* mesh
 		);
 		
-		RsrcMngrDX12& RegisterShader(const Shader* shader);
+		bool RegisterShader(const Shader* shader);
+
+		const ID3DBlob* GetShaderByteCode_vs(const Shader* shader, size_t passIdx) const;
+		const ID3DBlob* GetShaderByteCode_ps(const Shader* shader, size_t passIdx) const;
+		ID3D12ShaderReflection* GetShaderRefl_vs(const Shader* shader, size_t passIdx) const;
+		ID3D12ShaderReflection* GetShaderRefl_ps(const Shader* shader, size_t passIdx) const;
 
 		RsrcMngrDX12& RegisterRootSignature(
 			size_t id,
@@ -63,9 +68,6 @@ namespace Ubpa::DustEngine {
 		ID3D12Resource* GetTextureCubeResource(const TextureCube* texcube) const;
 
 		UDX12::MeshGPUBuffer& GetMeshGPUBuffer(const Mesh* mesh) const;
-		 
-		const ID3DBlob* GetShaderByteCode_vs(const Shader* shader, size_t passIdx) const;
-		const ID3DBlob* GetShaderByteCode_ps(const Shader* shader, size_t passIdx) const;
 
 		ID3D12RootSignature* GetRootSignature(size_t id) const;
 

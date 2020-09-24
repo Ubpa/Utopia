@@ -57,7 +57,6 @@ Texture2D    gBRDFLUT       : register(t6);
 SamplerState gSamplerPointWrap   : register(s0);
 SamplerState gSamplerLinearWrap  : register(s2);
 
-// Constant data that varies per frame.
 cbuffer cbLightArray : register(b0)
 {
 	uint gDirectionalLightNum;
