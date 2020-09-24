@@ -1,6 +1,6 @@
 #include <DustEngine/Asset/Serializer.h>
 
-#include <DustEngine/Core/HLSLFile.h>
+#include <DustEngine/Render/HLSLFile.h>
 
 #include <UECS/World.h>
 

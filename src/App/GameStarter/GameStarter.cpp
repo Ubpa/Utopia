@@ -1,33 +1,23 @@
 #include <DustEngine/App/DX12App/DX12App.h>
 
-#include <DustEngine/Render/DX12/RsrcMngrDX12.h>
-#include <DustEngine/Render/DX12/ShaderCBMngrDX12.h>
-#include <DustEngine/Render/DX12/MeshLayoutMngr.h>
-#include <DustEngine/Render/DX12/StdPipeline.h>
-
 #include <DustEngine/Asset/AssetMngr.h>
 #include <DustEngine/Asset/Serializer.h>
 
-#include <DustEngine/Core/Texture2D.h>
-#include <DustEngine/Core/TextureCube.h>
-#include <DustEngine/Core/Image.h>
-#include <DustEngine/Core/HLSLFile.h>
-#include <DustEngine/Core/Shader.h>
-#include <DustEngine/Core/ShaderMngr.h>
-#include <DustEngine/Core/Mesh.h>
+#include <DustEngine/Render/DX12/RsrcMngrDX12.h>
+#include <DustEngine/Render/DX12/StdPipeline.h>
+#include <DustEngine/Render/Texture2D.h>
+#include <DustEngine/Render/TextureCube.h>
+#include <DustEngine/Render/Shader.h>
+#include <DustEngine/Render/HLSLFile.h>
+#include <DustEngine/Render/ShaderMngr.h>
+#include <DustEngine/Render/Mesh.h>
+#include <DustEngine/Render/Components/Components.h>
+#include <DustEngine/Render/Systems/Systems.h>
+
 #include <DustEngine/Core/Scene.h>
-#include <DustEngine/Core/Components/Camera.h>
-#include <DustEngine/Core/Components/MeshFilter.h>
-#include <DustEngine/Core/Components/MeshRenderer.h>
-#include <DustEngine/Core/Components/Name.h>
-#include <DustEngine/Core/Components/WorldTime.h>
-#include <DustEngine/Core/Components/Skybox.h>
-#include <DustEngine/Core/Systems/CameraSystem.h>
-#include <DustEngine/Core/Systems/WorldTimeSystem.h>
 #include <DustEngine/Core/GameTimer.h>
-
-#include <DustEngine/Transform/Transform.h>
-
+#include <DustEngine/Core/Components/Components.h>
+#include <DustEngine/Core/Systems/Systems.h>
 #include <DustEngine/Core/ImGUIMngr.h>
 
 #include <_deps/imgui/imgui.h>
@@ -37,8 +27,12 @@
 #include <DustEngine/ScriptSystem/LuaContext.h>
 #include <DustEngine/ScriptSystem/LuaCtxMngr.h>
 #include <DustEngine/ScriptSystem/LuaScript.h>
+#include <DustEngine/ScriptSystem/LuaScriptQueue.h>
+#include <DustEngine/ScriptSystem/LuaScriptQueueSystem.h>
 
 #include <ULuaPP/ULuaPP.h>
+
+#include <dxgidebug.h>
 
 using Microsoft::WRL::ComPtr;
 
@@ -289,8 +283,6 @@ bool GameStarter::Initialize() {
 	if (!InitDirect3D())
 		return false;
 
-	Ubpa::DustEngine::MeshLayoutMngr::Instance().Init();
-
 	Ubpa::DustEngine::ImGUIMngr::Instance().Init(MainWnd(), uDevice.Get(), NumFrameResources, 1);
 	gameImGuiCtx = Ubpa::DustEngine::ImGUIMngr::Instance().GetContexts().at(0);
 
@@ -330,7 +322,7 @@ void GameStarter::OnResize()
 void GameStarter::Update() {
 	// Start the Dear ImGui frame
 	ImGui_ImplDX12_NewFrame();
-	ImGui_ImplWin32_NewFrame_Context(gameImGuiCtx, { 0,0 }, mClientWidth, mClientHeight);
+	ImGui_ImplWin32_NewFrame_Context(gameImGuiCtx, { 0,0 }, (float)mClientWidth, (float)mClientHeight);
 	ImGui_ImplWin32_NewFrame_Shared();
 
 	auto& upload = Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload();

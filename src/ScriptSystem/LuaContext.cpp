@@ -2,10 +2,10 @@
 
 #include <DustEngine/ScriptSystem/LuaScriptQueue.h>
 
-#include "InitUECS.h"
-#include "InitUGraphviz.h"
-#include "InitCore.h"
-#include "InitTransform.h"
+#include "Init/InitRender.h"
+#include "Init/InitCore.h"
+#include "Init/InitUECS.h"
+#include "Init/InitUGraphviz.h"
 #include "LuaArray.h"
 #include "LuaBuffer.h"
 #include "LuaMemory.h"
@@ -112,10 +112,10 @@ struct Ubpa::USRefl::TypeInfo<LuaArray_CmptAccessType>
 lua_State* LuaContext::Impl::Construct() {
 	lua_State* L = luaL_newstate(); /* opens Lua */
 	luaL_openlibs(L); /* opens the standard libraries */
+	detail::InitCore(L);
+	detail::InitRender(L);
 	detail::InitUECS(L);
 	detail::InitUGraphviz(L);
-	detail::InitCore(L);
-	detail::InitTransform(L);
 	ULuaPP::Register<LuaArray_CmptType>(L);
 	ULuaPP::Register<LuaArray_CmptAccessType>(L);
 	ULuaPP::Register<LuaBuffer>(L);

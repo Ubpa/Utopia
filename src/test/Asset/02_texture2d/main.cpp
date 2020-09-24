@@ -1,5 +1,5 @@
 #include <DustEngine/Asset/AssetMngr.h>
-#include <DustEngine/Core/Texture2D.h>
+#include <DustEngine/Render/Texture2D.h>
 #include <DustEngine/Core/Image.h>
 
 #include <iostream>

@@ -1,9 +1,9 @@
 #include <DustEngine/Asset/AssetMngr.h>
-#include <DustEngine/Core/Texture2D.h>
+#include <DustEngine/Render/Texture2D.h>
 #include <DustEngine/Core/Image.h>
-#include <DustEngine/Core/Material.h>
-#include <DustEngine/Core/HLSLFile.h>
-#include <DustEngine/Core/Shader.h>
+#include <DustEngine/Render/Material.h>
+#include <DustEngine/Render/HLSLFile.h>
+#include <DustEngine/Render/Shader.h>
 
 #include <iostream>
 

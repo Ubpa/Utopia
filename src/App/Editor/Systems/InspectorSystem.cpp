@@ -5,9 +5,6 @@
 #include "../Components/Inspector.h"
 #include "../Components/Hierarchy.h"
 
-
-#include <DustEngine/Transform/Components/Components.h>
-
 #include <_deps/imgui/imgui.h>
 
 using namespace Ubpa::DustEngine;

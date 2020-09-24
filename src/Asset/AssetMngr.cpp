@@ -3,13 +3,13 @@
 #include <DustEngine/Asset/Serializer.h>
 
 #include <DustEngine/ScriptSystem/LuaScript.h>
-#include <DustEngine/Core/Mesh.h>
-#include <DustEngine/Core/HLSLFile.h>
-#include <DustEngine/Core/Shader.h>
+#include <DustEngine/Render/Mesh.h>
+#include <DustEngine/Render/HLSLFile.h>
+#include <DustEngine/Render/Shader.h>
 #include <DustEngine/Core/Image.h>
-#include <DustEngine/Core/Texture2D.h>
-#include <DustEngine/Core/TextureCube.h>
-#include <DustEngine/Core/Material.h>
+#include <DustEngine/Render/Texture2D.h>
+#include <DustEngine/Render/TextureCube.h>
+#include <DustEngine/Render/Material.h>
 #include <DustEngine/Core/TextAsset.h>
 #include <DustEngine/Core/Scene.h>
 #include <DustEngine/Core/DefaultAsset.h>

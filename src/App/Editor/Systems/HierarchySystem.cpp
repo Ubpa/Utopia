@@ -5,7 +5,8 @@
 #include "../Components/Hierarchy.h"
 #include "../Components/Inspector.h"
 
-#include <DustEngine/Transform/Components/Components.h>
+#include <DustEngine/Core/Components/Children.h>
+#include <DustEngine/Core/Components/Parent.h>
 #include <DustEngine/Core/Components/Name.h>
 
 #include <_deps/imgui/imgui.h>

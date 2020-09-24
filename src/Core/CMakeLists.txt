@@ -11,14 +11,18 @@ Ubpa_DownloadFile(
 )
 
 set(components
-  Camera
-  MeshFilter
-  MeshRenderer
-  WorldTime
-  Skybox
-  Light
+  Children
   Input
+  LocalToParent
+  LocalToWorld
+  Parent
   Roamer
+  Rotation
+  RotationEuler
+  Scale
+  Translation
+  WorldTime
+  WorldToLocal
 )
 
 set(refls "")
@@ -42,7 +46,7 @@ Ubpa_AddTarget(
   LIB
     Ubpa::UGM_core
     Ubpa::UDP_core
-    Ubpa::DustEngine_Transform
+    Ubpa::UECS_core
     Ubpa::DustEngine__deps_imgui
   DEFINE
     NOMINMAX

@@ -3,8 +3,8 @@
 #include <DustEngine/Core/Components/Roamer.h>
 #include <DustEngine/Core/Components/Input.h>
 #include <DustEngine/Core/Components/WorldTime.h>
-#include <DustEngine/Transform/Components/Translation.h>
-#include <DustEngine/Transform/Components/Rotation.h>
+#include <DustEngine/Core/Components/Translation.h>
+#include <DustEngine/Core/Components/Rotation.h>
 
 using namespace Ubpa::DustEngine;
 using namespace Ubpa::UECS;

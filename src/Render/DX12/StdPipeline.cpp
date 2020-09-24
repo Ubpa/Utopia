@@ -3,25 +3,28 @@
 #include <DustEngine/Render/DX12/RsrcMngrDX12.h>
 #include <DustEngine/Render/DX12/MeshLayoutMngr.h>
 #include <DustEngine/Render/DX12/ShaderCBMngrDX12.h>
-#include <DustEngine/Core/ShaderMngr.h>
+#include <DustEngine/Render/ShaderMngr.h>
+#include <DustEngine/Render/Texture2D.h>
+#include <DustEngine/Render/TextureCube.h>
+#include <DustEngine/Render/HLSLFile.h>
+#include <DustEngine/Render/Shader.h>
+#include <DustEngine/Render/Mesh.h>
 
 #include <DustEngine/Asset/AssetMngr.h>
 
-#include <DustEngine/Core/Texture2D.h>
-#include <DustEngine/Core/TextureCube.h>
 #include <DustEngine/Core/Image.h>
-#include <DustEngine/Core/HLSLFile.h>
-#include <DustEngine/Core/Shader.h>
-#include <DustEngine/Core/Mesh.h>
-#include <DustEngine/Core/Components/Camera.h>
-#include <DustEngine/Core/Components/MeshFilter.h>
-#include <DustEngine/Core/Components/MeshRenderer.h>
-#include <DustEngine/Core/Components/Skybox.h>
-#include <DustEngine/Core/Components/Light.h>
-#include <DustEngine/Core/Systems/CameraSystem.h>
+#include <DustEngine/Render/Components/Camera.h>
+#include <DustEngine/Render/Components/MeshFilter.h>
+#include <DustEngine/Render/Components/MeshRenderer.h>
+#include <DustEngine/Render/Components/Skybox.h>
+#include <DustEngine/Render/Components/Light.h>
 #include <DustEngine/Core/GameTimer.h>
 
-#include <DustEngine/Transform/Transform.h>
+#include <DustEngine/Core/Components/LocalToWorld.h>
+#include <DustEngine/Core/Components/Translation.h>
+#include <DustEngine/Core/Components/WorldToLocal.h>
+
+#include <UECS/World.h>
 
 #include <_deps/imgui/imgui.h>
 #include <_deps/imgui/imgui_impl_win32.h>
@@ -952,7 +955,7 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 	auto srvDesc = UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT);
 	auto dsSrvDesc = UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R24_UNORM_X8_TYPELESS);
 	auto dsvDesc = UDX12::Desc::DSV::Basic(dsFormat);
-	auto rsrcType = UDX12::FG::RsrcType::RT2D(DXGI_FORMAT_R32G32B32A32_FLOAT, width, height, DirectX::Colors::Black);
+	auto rsrcType = UDX12::FG::RsrcType::RT2D(DXGI_FORMAT_R32G32B32A32_FLOAT, width, (UINT)height, DirectX::Colors::Black);
 	const UDX12::FG::RsrcImplDesc_RTV_Null rtvNull;
 	
 	auto iblData = frameRsrcMngr.GetCurrentFrameResource()
@@ -1027,7 +1030,7 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 			cmdList->ClearDepthStencilView(dsHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.f, 0, 0, nullptr);
 
 			// Specify the buffers we are going to render to.
-			cmdList->OMSetRenderTargets(rtHandles.size(), rtHandles.data(), false, &dsHandle);
+			cmdList->OMSetRenderTargets((UINT)rtHandles.size(), rtHandles.data(), false, &dsHandle);
 
 			cmdList->SetGraphicsRootSignature(RsrcMngrDX12::Instance().GetRootSignature(Impl::ID_RootSignature_geometry));
 
@@ -1074,7 +1077,7 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 				auto buffer = shaderCBMngr.GetCommonBuffer();
 
 				cmdList->SetGraphicsRootDescriptorTable(0, renderContext.skybox);
-				for (size_t i = 0; i < 6; i++) {
+				for (UINT i = 0; i < 6; i++) {
 					// Specify the buffers we are going to render to.
 					cmdList->OMSetRenderTargets(1, &iblData->RTVsDH.GetCpuHandle(i), false, nullptr);
 					auto address = buffer->GetResource()->GetGPUVirtualAddress()
@@ -1107,13 +1110,13 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 					viewport.MaxDepth = 1.f;
 					viewport.TopLeftX = 0.f;
 					viewport.TopLeftY = 0.f;
-					viewport.Width = size;
-					viewport.Height = size;
-					D3D12_RECT rect = { 0,0,size,size };
+					viewport.Width = (float)size;
+					viewport.Height = (float)size;
+					D3D12_RECT rect = { 0,0,(LONG)size,(LONG)size };
 					cmdList->RSSetViewports(1, &viewport);
 					cmdList->RSSetScissorRects(1, &rect);
 
-					for (size_t i = 0; i < 6; i++) {
+					for (UINT i = 0; i < 6; i++) {
 						auto positionLs = buffer->GetResource()->GetGPUVirtualAddress()
 							+ i * UDX12::Util::CalcConstantBufferByteSize(sizeof(QuadPositionLs));
 						cmdList->SetGraphicsRootConstantBufferView(1, positionLs);
@@ -1313,7 +1316,7 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList) {
 			cmdList->SetGraphicsRootConstantBufferView(5, matCBAddress);
 
 			cmdList->SetPipelineState(RsrcMngrDX12::Instance().GetPSO(GetGeometryPSO_ID(object.mesh)));
-			cmdList->DrawIndexedInstanced(submesh.indexCount, 1, submesh.indexStart, submesh.baseVertex, 0);
+			cmdList->DrawIndexedInstanced((UINT)submesh.indexCount, 1, (UINT)submesh.indexStart, (INT)submesh.baseVertex, 0);
 			objIdx++;
 		}
 		offset += matCBByteSize + objects.size() * objCBByteSize;

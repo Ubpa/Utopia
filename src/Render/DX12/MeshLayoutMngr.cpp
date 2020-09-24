@@ -1,6 +1,6 @@
 #include <DustEngine/Render/DX12/MeshLayoutMngr.h>
 
-#include <DustEngine/Core/Mesh.h>
+#include <DustEngine/Render/Mesh.h>
 
 using namespace Ubpa::DustEngine;
 
@@ -72,7 +72,7 @@ std::vector<D3D12_INPUT_ELEMENT_DESC> MeshLayoutMngr::GenerateDesc(
 	return rst;
 }
 
-void MeshLayoutMngr::Init() {
+MeshLayoutMngr::MeshLayoutMngr() {
 	layoutMap.reserve(0b1111);
 	for (size_t ID = 0; ID <= 0b1111; ID++) {
 		auto [uv, normal, tangent, color] = DecodeMeshLayoutID(ID);

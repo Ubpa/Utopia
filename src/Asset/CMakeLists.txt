@@ -19,7 +19,6 @@ Ubpa_AddTarget(
     Ubpa::URapidJSON_core
     Ubpa::DustEngine__deps_crossguid
     Ubpa::DustEngine__deps_tinyobjloader
-    Ubpa::DustEngine_Core
     Ubpa::DustEngine_ScriptSystem
     ${libs}
   DEFINE_PRIVATE

@@ -1,35 +1,25 @@
 #include "../common/d3dApp.h"
 
-#include <DustEngine/Render/DX12/ShaderCBMngrDX12.h>
-#include <DustEngine/Render/DX12/MeshLayoutMngr.h>
-#include <DustEngine/Render/DX12/StdPipeline.h>
-
 #include <DustEngine/Asset/AssetMngr.h>
 
-#include <DustEngine/Transform/Transform.h>
+#include <DustEngine/Render/DX12/RsrcMngrDX12.h>
+#include <DustEngine/Render/DX12/StdPipeline.h>
+#include <DustEngine/Render/Texture2D.h>
+#include <DustEngine/Render/TextureCube.h>
+#include <DustEngine/Render/Shader.h>
+#include <DustEngine/Render/HLSLFile.h>
+#include <DustEngine/Render/ShaderMngr.h>
+#include <DustEngine/Render/Mesh.h>
+#include <DustEngine/Render/Components/Components.h>
+#include <DustEngine/Render/Systems/Systems.h>
 
-#include <DustEngine/Core/Texture2D.h>
-#include <DustEngine/Core/TextureCube.h>
-#include <DustEngine/Core/Image.h>
-#include <DustEngine/Core/HLSLFile.h>
-#include <DustEngine/Core/Shader.h>
-#include <DustEngine/Core/Mesh.h>
-#include <DustEngine/Core/Components/Camera.h>
-#include <DustEngine/Core/Components/MeshFilter.h>
-#include <DustEngine/Core/Components/MeshRenderer.h>
-#include <DustEngine/Core/Components/Skybox.h>
-#include <DustEngine/Core/Components/WorldTime.h>
-#include <DustEngine/Core/Systems/CameraSystem.h>
-#include <DustEngine/Core/Systems/WorldTimeSystem.h>
-#include <DustEngine/Core/ShaderMngr.h>
-
-#include <UDX12/UploadBuffer.h>
-
-#include <UGM/UGM.h>
+#include <DustEngine/Core/Scene.h>
+#include <DustEngine/Core/GameTimer.h>
+#include <DustEngine/Core/Components/Components.h>
+#include <DustEngine/Core/Systems/Systems.h>
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
-using namespace DirectX::PackedVector;
 
 const int gNumFrameResources = 3;
 
@@ -167,8 +157,6 @@ bool DynamicMeshApp::Initialize()
 			IID_PPV_ARGS(&allocator)));
 		fr->RegisterResource("CommandAllocator", allocator);
 	}
-
-	Ubpa::DustEngine::MeshLayoutMngr::Instance().Init();
 
 	Ubpa::DustEngine::AssetMngr::Instance().ImportAssetRecursively(L"..\\assets");
 

@@ -1,11 +1,11 @@
 #include <DustEngine/Render/DX12/RsrcMngrDX12.h>
 
-#include <DustEngine/Core/Texture2D.h>
-#include <DustEngine/Core/TextureCube.h>
+#include <DustEngine/Render/Texture2D.h>
+#include <DustEngine/Render/TextureCube.h>
 #include <DustEngine/Core/Image.h>
-#include <DustEngine/Core/HLSLFile.h>
-#include <DustEngine/Core/Shader.h>
-#include <DustEngine/Core/Mesh.h>
+#include <DustEngine/Render/HLSLFile.h>
+#include <DustEngine/Render/Shader.h>
+#include <DustEngine/Render/Mesh.h>
 
 #include <unordered_map>
 #include <iostream>

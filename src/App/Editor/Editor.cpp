@@ -11,39 +11,24 @@
 
 #include <DustEngine/App/DX12App/DX12App.h>
 
-#include <DustEngine/Render/DX12/RsrcMngrDX12.h>
-#include <DustEngine/Render/DX12/ShaderCBMngrDX12.h>
-#include <DustEngine/Render/DX12/MeshLayoutMngr.h>
-#include <DustEngine/Render/DX12/StdPipeline.h>
-
 #include <DustEngine/Asset/AssetMngr.h>
 #include <DustEngine/Asset/Serializer.h>
 
-#include <DustEngine/Core/Texture2D.h>
-#include <DustEngine/Core/TextureCube.h>
-#include <DustEngine/Core/Image.h>
-#include <DustEngine/Core/HLSLFile.h>
-#include <DustEngine/Core/Shader.h>
-#include <DustEngine/Core/ShaderMngr.h>
-#include <DustEngine/Core/Mesh.h>
+#include <DustEngine/Render/DX12/RsrcMngrDX12.h>
+#include <DustEngine/Render/DX12/StdPipeline.h>
+#include <DustEngine/Render/Texture2D.h>
+#include <DustEngine/Render/TextureCube.h>
+#include <DustEngine/Render/Shader.h>
+#include <DustEngine/Render/HLSLFile.h>
+#include <DustEngine/Render/ShaderMngr.h>
+#include <DustEngine/Render/Mesh.h>
+#include <DustEngine/Render/Components/Components.h>
+#include <DustEngine/Render/Systems/Systems.h>
+
 #include <DustEngine/Core/Scene.h>
 #include <DustEngine/Core/GameTimer.h>
-#include <DustEngine/Core/Components/Camera.h>
-#include <DustEngine/Core/Components/MeshFilter.h>
-#include <DustEngine/Core/Components/MeshRenderer.h>
-#include <DustEngine/Core/Components/Name.h>
-#include <DustEngine/Core/Components/WorldTime.h>
-#include <DustEngine/Core/Components/Skybox.h>
-#include <DustEngine/Core/Components/Light.h>
-#include <DustEngine/Core/Components/Input.h>
-#include <DustEngine/Core/Components/Roamer.h>
-#include <DustEngine/Core/Systems/CameraSystem.h>
-#include <DustEngine/Core/Systems/WorldTimeSystem.h>
-#include <DustEngine/Core/Systems/InputSystem.h>
-#include <DustEngine/Core/Systems/RoamerSystem.h>
-
-#include <DustEngine/Transform/Transform.h>
-
+#include <DustEngine/Core/Components/Components.h>
+#include <DustEngine/Core/Systems/Systems.h>
 #include <DustEngine/Core/ImGUIMngr.h>
 
 #include <_deps/imgui/imgui.h>
@@ -382,8 +367,6 @@ bool Editor::Initialize() {
 	sceneRT_SRV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(1);
 	sceneRT_RTV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Allocate(1);
 
-	Ubpa::DustEngine::MeshLayoutMngr::Instance().Init();
-
 	Ubpa::DustEngine::ImGUIMngr::Instance().Init(MainWnd(), uDevice.Get(), NumFrameResources, 3);
 	editorImGuiCtx = Ubpa::DustEngine::ImGUIMngr::Instance().GetContexts().at(0);
 	gameImGuiCtx = Ubpa::DustEngine::ImGUIMngr::Instance().GetContexts().at(1);
@@ -432,7 +415,7 @@ void Editor::OnResize()
 
 void Editor::OnGameResize() {
 	Ubpa::rgbaf background = { 0.f,0.f,0.f,1.f };
-	auto rtType = Ubpa::UDX12::FG::RsrcType::RT2D(gameRTFormat, gameWidth, gameHeight, background.data());
+	auto rtType = Ubpa::UDX12::FG::RsrcType::RT2D(gameRTFormat, gameWidth, (UINT)gameHeight, background.data());
 	ThrowIfFailed(uDevice->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
 		D3D12_HEAP_FLAG_NONE,
@@ -457,7 +440,7 @@ void Editor::OnGameResize() {
 
 void Editor::OnSceneResize() {
 	Ubpa::rgbaf background = { 0.f,0.f,0.f,1.f };
-	auto rtType = Ubpa::UDX12::FG::RsrcType::RT2D(sceneRTFormat, sceneWidth, sceneHeight, background.data());
+	auto rtType = Ubpa::UDX12::FG::RsrcType::RT2D(sceneRTFormat, sceneWidth, (UINT)sceneHeight, background.data());
 	ThrowIfFailed(uDevice->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
 		D3D12_HEAP_FLAG_NONE,
@@ -483,9 +466,9 @@ void Editor::OnSceneResize() {
 void Editor::Update() {
 	// Start the Dear ImGui frame
 	ImGui_ImplDX12_NewFrame();
-	ImGui_ImplWin32_NewFrame_Context(editorImGuiCtx, { 0.f, 0.f }, mClientWidth, mClientHeight);
-	ImGui_ImplWin32_NewFrame_Context(gameImGuiCtx, gamePos, gameWidth, gameHeight);
-	ImGui_ImplWin32_NewFrame_Context(sceneImGuiCtx, scenePos, sceneWidth, sceneHeight);
+	ImGui_ImplWin32_NewFrame_Context(editorImGuiCtx, { 0.f, 0.f }, (float)mClientWidth, (float)mClientHeight);
+	ImGui_ImplWin32_NewFrame_Context(gameImGuiCtx, gamePos, (float)gameWidth, (float)gameHeight);
+	ImGui_ImplWin32_NewFrame_Context(sceneImGuiCtx, scenePos, (float)sceneWidth, (float)sceneHeight);
 	ImGui_ImplWin32_NewFrame_Shared();
 
 	auto& upload = Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload();

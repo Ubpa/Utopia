@@ -1,6 +1,6 @@
 #include <DustEngine/Asset/AssetMngr.h>
-#include <DustEngine/Core/HLSLFile.h>
-#include <DustEngine/Core/Shader.h>
+#include <DustEngine/Render/HLSLFile.h>
+#include <DustEngine/Render/Shader.h>
 
 #include <iostream>
 

@@ -2,20 +2,17 @@
 
 #include <DustEngine/Asset/AssetMngr.h>
 
-#include <DustEngine/Core/Texture2D.h>
+#include <DustEngine/Render/Texture2D.h>
+#include <DustEngine/Render/HLSLFile.h>
+#include <DustEngine/Render/Shader.h>
+#include <DustEngine/Render/Mesh.h>
+
 #include <DustEngine/Core/Image.h>
-#include <DustEngine/Core/HLSLFile.h>
-#include <DustEngine/Core/Shader.h>
-#include <DustEngine/Core/Mesh.h>
 
 #include <UDX12/UploadBuffer.h>
 
-#include <UGM/UGM.h>
-#include <DirectXMath.h>
-
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
-using namespace DirectX::PackedVector;
 
 const int gNumFrameResources = 3;
 constexpr size_t ID_RootSignature_default = 0;

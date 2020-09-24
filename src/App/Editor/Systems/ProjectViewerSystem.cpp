@@ -5,9 +5,8 @@
 #include "../Components/ProjectViewer.h"
 #include "../Components/Inspector.h"
 
-#include <DustEngine/Transform/Components/Components.h>
 #include <DustEngine/Asset/AssetMngr.h>
-#include <DustEngine/Core/Texture2D.h>
+#include <DustEngine/Render/Texture2D.h>
 #include <DustEngine/Render/DX12/RsrcMngrDX12.h>
 
 #include <_deps/imgui/imgui.h>

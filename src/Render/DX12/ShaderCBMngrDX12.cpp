@@ -1,6 +1,6 @@
 #include <DustEngine/Render/DX12/ShaderCBMngrDX12.h>
 
-#include <DustEngine/Core/Shader.h>
+#include <DustEngine/Render/Shader.h>
 
 using namespace Ubpa::DustEngine;
 

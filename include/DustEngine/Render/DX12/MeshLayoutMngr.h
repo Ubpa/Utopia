@@ -26,9 +26,6 @@ namespace Ubpa::DustEngine {
 			return instance;
 		}
 
-		// generate all layout
-		void Init();
-
 		const std::vector<D3D12_INPUT_ELEMENT_DESC>& GetMeshLayoutValue(size_t ID);
 
 		static constexpr size_t GetMeshLayoutID(
@@ -44,7 +41,7 @@ namespace Ubpa::DustEngine {
 		static size_t GetMeshLayoutID(const Mesh* mesh) noexcept;
 
 	private:
-		MeshLayoutMngr() = default;
+		MeshLayoutMngr();
 
 		// if not exist attribute, set it to offset 0
 		static std::vector<D3D12_INPUT_ELEMENT_DESC> GenerateDesc(
