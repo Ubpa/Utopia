@@ -59,7 +59,6 @@ struct StdPipeline::Impl {
 	size_t ID_PSO_irradiance;
 	size_t ID_PSO_prefilter;
 
-	static constexpr size_t ID_RootSignature_geometry = 0;
 	static constexpr size_t ID_RootSignature_screen = 1;
 	static constexpr size_t ID_RootSignature_defer_light = 2;
 	static constexpr size_t ID_RootSignature_skybox = 3;
@@ -391,38 +390,6 @@ void StdPipeline::Impl::BuildShaders() {
 }
 
 void StdPipeline::Impl::BuildRootSignature() {
-	{ // geometry
-		CD3DX12_DESCRIPTOR_RANGE texRange0;
-		texRange0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
-		CD3DX12_DESCRIPTOR_RANGE texRange1;
-		texRange1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1);
-		CD3DX12_DESCRIPTOR_RANGE texRange2;
-		texRange2.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2);
-		CD3DX12_DESCRIPTOR_RANGE texRange3;
-		texRange3.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3);
-
-		// Root parameter can be a table, root descriptor or root constants.
-		CD3DX12_ROOT_PARAMETER slotRootParameter[7];
-
-		// Perfomance TIP: Order from most frequent to least frequent.
-		slotRootParameter[0].InitAsDescriptorTable(1, &texRange0);
-		slotRootParameter[1].InitAsDescriptorTable(1, &texRange1);
-		slotRootParameter[2].InitAsDescriptorTable(1, &texRange2);
-		slotRootParameter[3].InitAsDescriptorTable(1, &texRange3);
-		slotRootParameter[4].InitAsConstantBufferView(0); // object
-		slotRootParameter[5].InitAsConstantBufferView(1); // material
-		slotRootParameter[6].InitAsConstantBufferView(2); // camera
-
-		auto staticSamplers = RsrcMngrDX12::Instance().GetStaticSamplers();
-
-		// A root signature is an array of root parameters.
-		CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(7, slotRootParameter,
-			(UINT)staticSamplers.size(), staticSamplers.data(),
-			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
-
-		RsrcMngrDX12::Instance().RegisterRootSignature(ID_RootSignature_geometry, &rootSigDesc);
-	}
-
 	{ // screen
 		CD3DX12_DESCRIPTOR_RANGE texTable;
 		texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
@@ -653,7 +620,7 @@ size_t StdPipeline::Impl::GetGeometryPSO_ID(const Mesh* mesh) {
 
 		const auto& layout = MeshLayoutMngr::Instance().GetMeshLayoutValue(layoutID);
 		auto geometryPsoDesc = UDX12::Desc::PSO::MRT(
-			RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_geometry),
+			RsrcMngrDX12::Instance().GetShaderRootSignature(geomrtryShader),
 			layout.data(), (UINT)layout.size(),
 			RsrcMngrDX12::Instance().GetShaderByteCode_vs(geomrtryShader, 0),
 			RsrcMngrDX12::Instance().GetShaderByteCode_ps(geomrtryShader, 0),
@@ -1032,7 +999,7 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 			// Specify the buffers we are going to render to.
 			cmdList->OMSetRenderTargets((UINT)rtHandles.size(), rtHandles.data(), false, &dsHandle);
 
-			cmdList->SetGraphicsRootSignature(RsrcMngrDX12::Instance().GetRootSignature(Impl::ID_RootSignature_geometry));
+			cmdList->SetGraphicsRootSignature(RsrcMngrDX12::Instance().GetShaderRootSignature(geomrtryShader));
 
 			auto cbPerCamera = frameRsrcMngr.GetCurrentFrameResource()
 				->GetResource<ShaderCBMngrDX12>("ShaderCBMngrDX12")

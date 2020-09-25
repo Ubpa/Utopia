@@ -53,6 +53,7 @@ namespace Ubpa::DustEngine {
 		const ID3DBlob* GetShaderByteCode_ps(const Shader* shader, size_t passIdx) const;
 		ID3D12ShaderReflection* GetShaderRefl_vs(const Shader* shader, size_t passIdx) const;
 		ID3D12ShaderReflection* GetShaderRefl_ps(const Shader* shader, size_t passIdx) const;
+		ID3D12RootSignature* GetShaderRootSignature(const Shader* shader) const;
 
 		RsrcMngrDX12& RegisterRootSignature(
 			size_t id,

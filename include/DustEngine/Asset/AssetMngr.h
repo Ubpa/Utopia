@@ -41,6 +41,11 @@ namespace Ubpa::DustEngine {
 
 		// unique
 		bool CreateAsset(void* ptr, const std::filesystem::path& path);
+		template<typename Asset>
+		bool CreateAsset(Asset* ptr, const std::filesystem::path& path);
+		// copy
+		template<typename Asset>
+		bool CreateAsset(Asset&& asset, const std::filesystem::path& path);
 
 		bool Contains(const void* ptr) const;
 

@@ -35,6 +35,7 @@ struct RsrcMngrDX12::Impl {
 			Microsoft::WRL::ComPtr<ID3D12ShaderReflection> vsRefl;
 			Microsoft::WRL::ComPtr<ID3D12ShaderReflection> psRefl;
 		};
+		Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature;
 		std::vector<PassData> passes;
 	};
 
@@ -518,6 +519,102 @@ bool RsrcMngrDX12::RegisterShader(const Shader* shader) {
 			IID_PPV_ARGS(&shaderCompileData.passes[i].psRefl)
 		));
 	}
+
+	auto RangeTypeMap = [](RootDescriptorType type) {
+		switch (type)
+		{
+		case Ubpa::DustEngine::RootDescriptorType::CBV:
+			return D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+		case Ubpa::DustEngine::RootDescriptorType::SRV:
+			return D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+		case Ubpa::DustEngine::RootDescriptorType::UAV:
+			return D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+		default:
+			assert(false);
+			return D3D12_DESCRIPTOR_RANGE_TYPE{};
+		}
+	};
+
+	size_t N = shader->rootParameters.size();
+	if (N == 0)
+		return true;
+	std::vector<CD3DX12_ROOT_PARAMETER> rootParamters(N);
+	std::vector<std::vector<CD3DX12_DESCRIPTOR_RANGE>> rangesVec;
+	for (size_t i = 0; i < N; i++) {
+		std::visit([&](const auto& parameter) {
+			using Type = std::decay_t<decltype(parameter)>;
+			if constexpr (std::is_same_v<Type, RootDescriptorTable>) {
+				const RootDescriptorTable& table = parameter;
+				std::vector<CD3DX12_DESCRIPTOR_RANGE> ranges(table.size());
+				for (size_t i = 0; i < table.size(); i++) {
+					ranges[i].Init(
+						RangeTypeMap(table[i].RangeType),
+						table[i].NumDescriptors,
+						table[i].BaseShaderRegister,
+						table[i].RegisterSpace
+					);
+				}
+				rootParamters[i].InitAsDescriptorTable((UINT)ranges.size(), ranges.data());
+				rangesVec.emplace_back(std::move(ranges));
+			}
+			else if constexpr (std::is_same_v<Type, RootConstants>) {
+				assert(false);
+			}
+			else if constexpr (std::is_same_v<Type, RootDescriptor>) {
+				const RootDescriptor& descriptor = parameter;
+				switch (descriptor.DescriptorType)
+				{
+				case Ubpa::DustEngine::RootDescriptorType::CBV:
+					rootParamters[i].InitAsConstantBufferView(descriptor.ShaderRegister, descriptor.RegisterSpace);
+					break;
+				case Ubpa::DustEngine::RootDescriptorType::SRV:
+					rootParamters[i].InitAsShaderResourceView(descriptor.ShaderRegister, descriptor.RegisterSpace);
+					break;
+				case Ubpa::DustEngine::RootDescriptorType::UAV:
+					rootParamters[i].InitAsUnorderedAccessView(descriptor.ShaderRegister, descriptor.RegisterSpace);
+					break;
+				default:
+					assert(false);
+					break;
+				}
+			}
+			else
+				static_assert(false);
+		}, shader->rootParameters[i]);
+	}
+
+	const auto samplers = GetStaticSamplers();
+
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(
+		(UINT)rootParamters.size(), rootParamters.data(),
+		(UINT)samplers.size(), samplers.data(),
+		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
+	);
+
+	ID3DBlob* serializedRootSig = nullptr;
+	ID3DBlob* errorBlob = nullptr;
+
+	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+		&serializedRootSig, &errorBlob);
+
+	if (errorBlob != nullptr)
+	{
+		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+		errorBlob->Release();
+		pImpl->shaderMap.erase(shader->GetInstanceID());
+		return false;
+	}
+	ThrowIfFailed(hr);
+
+	ThrowIfFailed(pImpl->device->CreateRootSignature(
+		0,
+		serializedRootSig->GetBufferPointer(),
+		serializedRootSig->GetBufferSize(),
+		IID_PPV_ARGS(&shaderCompileData.rootSignature)
+	));
+
+	serializedRootSig->Release();
+
 	return true;
 }
 
@@ -535,6 +632,10 @@ ID3D12ShaderReflection* RsrcMngrDX12::GetShaderRefl_vs(const Shader* shader, siz
 
 ID3D12ShaderReflection* RsrcMngrDX12::GetShaderRefl_ps(const Shader* shader, size_t passIdx) const {
 	return pImpl->shaderMap.at(shader->GetInstanceID()).passes[passIdx].psRefl.Get();
+}
+
+ID3D12RootSignature* RsrcMngrDX12::GetShaderRootSignature(const Shader* shader) const {
+	return pImpl->shaderMap.at(shader->GetInstanceID()).rootSignature.Get();
 }
 
 //RsrcMngrDX12& RsrcMngrDX12::RegisterRenderTexture2D(size_t id, UINT width, UINT height, DXGI_FORMAT format) {

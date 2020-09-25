@@ -1,6 +1,18 @@
 #pragma once
 
 namespace Ubpa::DustEngine {
+	template<typename Asset>
+	bool CreateAsset(Asset* ptr, const std::filesystem::path& path) {
+		static_assert(!std::is_pointer_v<std::decay_t<Asset>>);
+		return  CreateAsset((void*)ptr, path);
+	}
+
+	template<typename Asset>
+	bool AssetMngr::CreateAsset(Asset&& asset, const std::filesystem::path& path) {
+		static_assert(!std::is_pointer_v<std::decay_t<Asset>>);
+		return CreateAsset((void*)new std::decay_t<Asset>(std::forward<Asset>(asset)), path);
+	}
+
 	template<typename T>
 	T* AssetMngr::LoadAsset(const std::filesystem::path& path) {
 		void* ptr = LoadAsset(path, typeid(std::decay_t<T>));

@@ -14,6 +14,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::DustEngine::Shader>
 		Field{"hlslFile", &Ubpa::DustEngine::Shader::hlslFile},
 		Field{"shaderName", &Ubpa::DustEngine::Shader::shaderName},
 		Field{"targetName", &Ubpa::DustEngine::Shader::targetName},
+		Field{"rootParameters", &Ubpa::DustEngine::Shader::rootParameters},
 		Field{"passes", &Ubpa::DustEngine::Shader::passes},
 	};
 };

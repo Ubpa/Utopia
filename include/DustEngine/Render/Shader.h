@@ -2,6 +2,7 @@
 
 #include "RenderRsrcObject.h"
 #include "ShaderPass.h"
+#include "RootParameter.h"
 
 #include <string>
 #include <vector>
@@ -13,6 +14,7 @@ namespace Ubpa::DustEngine {
 		const HLSLFile* hlslFile{ nullptr };
 		std::string shaderName; // e.g. a/b/c/d
 		std::string targetName; // e.g. 5_0
+		std::vector<RootParameter> rootParameters;
 		std::vector<ShaderPass> passes;
 	};
 }

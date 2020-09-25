@@ -12,41 +12,44 @@ int main() {
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
 
-	std::filesystem::path path = "../assets/shaders/Default.hlsl";
+	AssetMngr::Instance().ImportAssetRecursively(L"..\\assets");
+	auto hlslPath = AssetMngr::Instance().GUIDToAssetPath(xg::Guid{ "d1ee38ec-7485-422e-93f3-c8886169a858" });
+	auto hlsl = AssetMngr::Instance().LoadAsset<HLSLFile>(hlslPath);
 
-	if (!std::filesystem::is_directory("../assets/shaders"))
-		std::filesystem::create_directories("../assets/shaders");
-
-	AssetMngr::Instance().ImportAsset(path);
-	auto hlslFile = AssetMngr::Instance().LoadAsset<HLSLFile>(path);
-	std::cout << hlslFile->GetText() << std::endl;
-
-	std::cout << AssetMngr::Instance().Contains(hlslFile) << std::endl;
-	auto guid = AssetMngr::Instance().AssetPathToGUID(path);
-	std::cout << guid.str() << std::endl;
-	std::cout << AssetMngr::Instance().GUIDToAssetPath(guid).string() << std::endl;
-	std::cout << AssetMngr::Instance().GetAssetPath(hlslFile).string() << std::endl;
-
-	auto shader = new Shader;
-	shader->hlslFile = hlslFile;
+	Shader shader;
+	shader.hlslFile = hlsl;
+	shader.shaderName = "StdPipeline/Geometry";
+	shader.targetName = "5_0";
 	ShaderPass pass;
 	pass.vertexName = "VS";
 	pass.fragmentName = "PS";
-	shader->passes.push_back(std::move(pass));
-	shader->targetName = "5_0";
-	shader->shaderName = "Default";
+	shader.passes.push_back(pass);
+	
+	DescriptorRange ranges[4];
+	ranges[0].Init(RootDescriptorType::SRV, 1, 0);
+	ranges[1].Init(RootDescriptorType::SRV, 1, 1);
+	ranges[2].Init(RootDescriptorType::SRV, 1, 2);
+	ranges[3].Init(RootDescriptorType::SRV, 1, 3);
+	RootDescriptorTable tables[4];
+	tables[0].push_back(ranges[0]);
+	tables[1].push_back(ranges[1]);
+	tables[2].push_back(ranges[2]);
+	tables[3].push_back(ranges[3]);
 
-	if (!AssetMngr::Instance().CreateAsset(shader, "../assets/shaders/Default.shader"))
-		delete shader;
+	RootDescriptor rootDescs[3];
+	rootDescs[0].Init(RootDescriptorType::CBV, 0);
+	rootDescs[1].Init(RootDescriptorType::CBV, 1);
+	rootDescs[2].Init(RootDescriptorType::CBV, 2);
 
-	AssetMngr::Instance().Clear();
-	AssetMngr::Instance().ImportAsset(path);
-	auto reloadedShader = AssetMngr::Instance().LoadAsset<Shader>("../assets/shaders/Default.shader");
-	std::cout << reloadedShader->hlslFile->GetText() << std::endl;
-	std::cout << reloadedShader->shaderName << std::endl;
-	std::cout << reloadedShader->passes.front().vertexName << std::endl;
-	std::cout << reloadedShader->passes.front().fragmentName << std::endl;
-	std::cout << reloadedShader->targetName << std::endl;
+	shader.rootParameters.emplace_back(tables[0]);
+	shader.rootParameters.emplace_back(tables[1]);
+	shader.rootParameters.emplace_back(tables[2]);
+	shader.rootParameters.emplace_back(tables[3]);
+	shader.rootParameters.emplace_back(rootDescs[0]);
+	shader.rootParameters.emplace_back(rootDescs[1]);
+	shader.rootParameters.emplace_back(rootDescs[2]);
+
+	AssetMngr::Instance().CreateAsset(shader, L"..\\assets\\test\\test.shader");
 
 	return 0;
 }
