@@ -1,3 +1,5 @@
+#include "StdPipeline.hlsli"
+
 TextureCube  gSkybox       : register(t0);
 SamplerState gSampleLinear : register(s0);
 
@@ -13,26 +15,7 @@ static const float3 gPositions[8] =
     float3(1.0f, 1.0f, 1.0f),
 };
 
-cbuffer cbPerCamera: register(b0)
-{
-	float4x4 gView;
-	float4x4 gInvView;
-	float4x4 gProj;
-	float4x4 gInvProj;
-	float4x4 gViewProj;
-	float4x4 gInvViewProj;
-
-	float3 gEyePosW;
-	float _g_cbPerFrame_pad0;
-
-	float2 gRenderTargetSize;
-	float2 gInvRenderTargetSize;
-
-	float gNearZ;
-	float gFarZ;
-	float gTotalTime;
-	float gDeltaTime;
-};
+STD_PIPELINE_CB_PER_CAMERA(0);
 
 // front to inner
 static const uint gIndexMap[36] =

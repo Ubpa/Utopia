@@ -11,7 +11,9 @@ namespace Ubpa::UECS {
 }
 
 namespace Ubpa::DustEngine {
-	class IPipeline {
+	struct Material;
+
+	class PipelineBase {
 	public:
 		struct InitDesc {
 			size_t numFrame;
@@ -26,9 +28,9 @@ namespace Ubpa::DustEngine {
 			const UECS::World& world;
 		};
 
-		IPipeline(InitDesc initDesc) : initDesc{ initDesc } {}
+		PipelineBase(InitDesc initDesc) : initDesc{ initDesc } {}
 
-		virtual ~IPipeline() = default;
+		virtual ~PipelineBase() = default;
 
 		// data : cpu -> gpu
 		// run in update
@@ -50,6 +52,8 @@ namespace Ubpa::DustEngine {
 			resizeData.scissorRect = scissorRect;
 			Impl_Resize();
 		}
+
+		static void SetGraphicsRootSRV(ID3D12GraphicsCommandList* cmdList, const Material* material);
 
 	protected:
 		virtual void Impl_Resize() = 0;

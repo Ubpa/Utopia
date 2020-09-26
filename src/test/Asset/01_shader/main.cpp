@@ -1,6 +1,7 @@
 #include <DustEngine/Asset/AssetMngr.h>
 #include <DustEngine/Render/HLSLFile.h>
 #include <DustEngine/Render/Shader.h>
+#include <DustEngine/Render/Texture2D.h>
 
 #include <iostream>
 
@@ -18,7 +19,7 @@ int main() {
 
 	Shader shader;
 	shader.hlslFile = hlsl;
-	shader.shaderName = "StdPipeline/Geometry";
+	shader.shaderName = "StdPipeline/Geometry(TEST)";
 	shader.targetName = "5_0";
 	ShaderPass pass;
 	pass.vertexName = "VS";
@@ -48,6 +49,19 @@ int main() {
 	shader.rootParameters.emplace_back(rootDescs[0]);
 	shader.rootParameters.emplace_back(rootDescs[1]);
 	shader.rootParameters.emplace_back(rootDescs[2]);
+
+	shader.properties["gAlbedoMap"] = AssetMngr::Instance().LoadAsset<Texture2D>(
+		AssetMngr::Instance().GUIDToAssetPath(xg::Guid{ "1936ed7e-6896-4ace-abd9-5b084fcfb891" })
+	);
+	shader.properties["gRoughnessMap"] = AssetMngr::Instance().LoadAsset<Texture2D>(
+		AssetMngr::Instance().GUIDToAssetPath(xg::Guid{ "1936ed7e-6896-4ace-abd9-5b084fcfb891" })
+	);
+	shader.properties["gMetalnessMap"] = AssetMngr::Instance().LoadAsset<Texture2D>(
+		AssetMngr::Instance().GUIDToAssetPath(xg::Guid{ "1936ed7e-6896-4ace-abd9-5b084fcfb891" })
+	);
+	shader.properties["gNormalMap"] = AssetMngr::Instance().LoadAsset<Texture2D>(
+		AssetMngr::Instance().GUIDToAssetPath(xg::Guid{ "b5e7fb39-fedd-4371-a00a-552a86307db7" })
+	);
 
 	AssetMngr::Instance().CreateAsset(shader, L"..\\assets\\test\\test.shader");
 

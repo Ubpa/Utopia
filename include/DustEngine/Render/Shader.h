@@ -2,10 +2,12 @@
 
 #include "RenderRsrcObject.h"
 #include "ShaderPass.h"
+#include "ShaderProperty.h"
 #include "RootParameter.h"
 
 #include <string>
 #include <vector>
+#include <map>
 
 namespace Ubpa::DustEngine {
 	class HLSLFile;
@@ -15,6 +17,7 @@ namespace Ubpa::DustEngine {
 		std::string shaderName; // e.g. a/b/c/d
 		std::string targetName; // e.g. 5_0
 		std::vector<RootParameter> rootParameters;
+		std::map<std::string, ShaderProperty, std::less<>> properties;
 		std::vector<ShaderPass> passes;
 	};
 }

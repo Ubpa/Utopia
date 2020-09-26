@@ -14,6 +14,8 @@
 #include <USTL/tuple.h>
 #include <DustEngine/Core/Components/Name.h>
 
+#include <variant>
+
 namespace Ubpa::DustEngine::detail {
 	template<typename T>
 	struct ValNTraits {
@@ -243,6 +245,23 @@ namespace Ubpa::DustEngine::detail {
 		}
 	}
 
+	template<size_t Idx, typename Field, typename Variant>
+	bool InspectVariantAt(Field field, Variant& var, size_t idx, InspectorRegistry::InspectContext ctx) {
+		if (idx != Idx)
+			return false;
+
+		using Value = std::variant_alternative_t<Idx, Variant>;
+		InspectVar(field, std::get<Value>(var), ctx);
+
+		return true;
+	}
+
+	// TODO : stop
+	template<typename Field, typename Variant, size_t... Ns>
+	void InspectVariant(Field field, Variant& var, std::index_sequence<Ns...>, InspectorRegistry::InspectContext ctx) {
+		(InspectVariantAt<Ns>(field, var, var.index(), ctx), ...);
+	}
+
 	template<typename Field, typename Value>
 	void InspectVar(Field field, Value& var, InspectorRegistry::InspectContext ctx) {
 		//static_assert(!std::is_const_v<Value>);
@@ -417,6 +436,8 @@ namespace Ubpa::DustEngine::detail {
 				ImGui::TreePop();
 			}
 		}
+		else if constexpr (is_instance_of_v<Value, std::variant>)
+			InspectVariant(field, var, std::make_index_sequence<std::variant_size_v<Value>>{}, ctx);
 		else if constexpr (MapTraits<Value>::isMap) {
 			if (ImGui::TreeNode(field.name.data())) {
 				ImGui::PushID(field.name.data());

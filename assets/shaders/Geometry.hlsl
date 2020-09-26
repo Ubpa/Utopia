@@ -1,4 +1,4 @@
-#include "DustEngine.hlsli"
+#include "StdPipeline.hlsli"
 
 Texture2D gAlbedoMap    : register(t0);
 Texture2D gRoughnessMap : register(t1);
@@ -7,7 +7,7 @@ Texture2D gNormalMap    : register(t3);
 
 SamplerState gSamplerLinearWrap  : register(s2);
 
-DUST_ENGINE_CB_PER_OBJECT(0);
+STD_PIPELINE_CB_PER_OBJECT(0);
 
 cbuffer cbPerMaterial : register(b1)
 {
@@ -16,7 +16,7 @@ cbuffer cbPerMaterial : register(b1)
     float  gMetalnessFactor;
 };
 
-DUST_ENGINE_CB_PER_CAMERA(2);
+STD_PIPELINE_CB_PER_CAMERA(2);
 
 struct VertexIn
 {

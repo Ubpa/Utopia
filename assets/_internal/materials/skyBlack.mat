@@ -1,1 +1,12 @@
-{"shader":"1fe35123-ddfa-4a28-82ac-e4504d3f0e76","texture2Ds":{},"textureCubes":{"gSkybox":"4fcdaad5-f960-4d8f-aab8-29b771636256"}}
+{
+    "shader":"1fe35123-ddfa-4a28-82ac-e4504d3f0e76",
+    "texture2Ds":{
+
+    },
+    "properties":{
+        "gSkybox":{
+            "__INDEX":23,
+            "__CONTENT":"4fcdaad5-f960-4d8f-aab8-29b771636256"
+        }
+    }
+}

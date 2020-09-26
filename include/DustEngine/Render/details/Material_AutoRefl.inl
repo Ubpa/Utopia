@@ -12,8 +12,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::DustEngine::Material>
 
 	static constexpr FieldList fields = {
 		Field{"shader", &Ubpa::DustEngine::Material::shader},
-		Field{"texture2Ds", &Ubpa::DustEngine::Material::texture2Ds},
-		Field{"textureCubes", &Ubpa::DustEngine::Material::textureCubes},
+		Field{"properties", &Ubpa::DustEngine::Material::properties}
 	};
 };
 

@@ -215,7 +215,7 @@ bool TestApp::Initialize() {
 			ThrowIfFailed(refl->GetDesc(&shaderDesc));
 			size_t indent = 0;
 			PrintL("[" + name + " refl]", indent++);
-
+			
 			// PrintL("slot num:" + std::to_string(refl->GetNumInterfaceSlots()), indent);
 			PrintL("input param num:" + std::to_string(shaderDesc.InputParameters), indent);
 			PrintL("output param num:" + std::to_string(shaderDesc.OutputParameters), indent);
@@ -230,7 +230,7 @@ bool TestApp::Initialize() {
 				PrintL(std::string("name:") + cbDesc.Name, indent);
 				PrintL(std::string("num var:") + std::to_string(cbDesc.Variables), indent);
 				PrintL(std::string("size:") + std::to_string(cbDesc.Size), indent);
-
+				
 				for (UINT j = 0; j < cbDesc.Variables; j++) {
 					PrintL("[var refl]", indent++);
 					auto var = cb->GetVariableByIndex(j);

@@ -70,7 +70,7 @@ private:
 	Ubpa::UECS::World world;
 	Ubpa::UECS::Entity cam{ Ubpa::UECS::Entity::Invalid() };
 
-	std::unique_ptr<Ubpa::DustEngine::IPipeline> pipeline;
+	std::unique_ptr<Ubpa::DustEngine::PipelineBase> pipeline;
 
 	bool show_demo_window = true;
 	bool show_another_window = false;
@@ -295,7 +295,7 @@ bool GameStarter::Initialize() {
 	BuildShaders();
 	Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload().End(uCmdQueue.Get());
 
-	Ubpa::DustEngine::IPipeline::InitDesc initDesc;
+	Ubpa::DustEngine::PipelineBase::InitDesc initDesc;
 	initDesc.device = uDevice.Get();
 	initDesc.rtFormat = GetBackBufferFormat();
 	initDesc.cmdQueue = uCmdQueue.Get();
@@ -393,44 +393,40 @@ void GameStarter::Update() {
 			meshFilter->mesh
 		);
 
-		for (const auto& mat : meshRenderer->materials) {
-			if (!mat)
+		for (const auto& material : meshRenderer->materials) {
+			if (!material)
 				continue;
-			for (const auto& [name, tex] : mat->texture2Ds) {
-				if (!tex)
-					continue;
-				Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
-					Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
-					tex
-				);
-			}
-			for (const auto& [name, tex] : mat->textureCubes) {
-				if (!tex)
-					continue;
-				Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTextureCube(
-					Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
-					tex
-				);
+			for (const auto& [name, property] : material->properties) {
+				if (std::holds_alternative<const Ubpa::DustEngine::Texture2D*>(property)) {
+					Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
+						Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+						std::get<const Ubpa::DustEngine::Texture2D*>(property)
+					);
+				}
+				else if (std::holds_alternative<const Ubpa::DustEngine::TextureCube*>(property)) {
+					Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTextureCube(
+						Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+						std::get<const Ubpa::DustEngine::TextureCube*>(property)
+					);
+				}
 			}
 		}
-		}, false);
+	}, false);
 
 	if (auto skybox = world.entityMngr.GetSingleton<Ubpa::DustEngine::Skybox>(); skybox && skybox->material) {
-		for (const auto& [name, tex] : skybox->material->texture2Ds) {
-			if (!tex)
-				continue;
-			Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
-				Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
-				tex
-			);
-		}
-		for (const auto& [name, tex] : skybox->material->textureCubes) {
-			if (!tex)
-				continue;
-			Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTextureCube(
-				Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
-				tex
-			);
+		for (const auto& [name, property] : skybox->material->properties) {
+			if (std::holds_alternative<const Ubpa::DustEngine::Texture2D*>(property)) {
+				Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
+					Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+					std::get<const Ubpa::DustEngine::Texture2D*>(property)
+				);
+			}
+			else if (std::holds_alternative<const Ubpa::DustEngine::TextureCube*>(property)) {
+				Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTextureCube(
+					Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+					std::get<const Ubpa::DustEngine::TextureCube*>(property)
+				);
+			}
 		}
 	}
 
@@ -440,7 +436,7 @@ void GameStarter::Update() {
 	uCmdQueue.Execute(uGCmdList.Get());
 	deleteBatch.Commit(uDevice.Get(), uCmdQueue.Get());
 
-	std::vector<Ubpa::DustEngine::IPipeline::CameraData> gameCameras;
+	std::vector<Ubpa::DustEngine::PipelineBase::CameraData> gameCameras;
 	Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::CmptAccessType::Of<Ubpa::DustEngine::Camera>} };
 	world.RunEntityJob([&](Ubpa::UECS::Entity e) {
 		gameCameras.emplace_back(e, world);

@@ -9,12 +9,13 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::DustEngine::Shader>
 	: Ubpa::USRefl::TypeInfoBase<Ubpa::DustEngine::Shader, Base<Ubpa::DustEngine::RenderRsrcObject>>
 {
 	static constexpr AttrList attrs = {};
-
+	
 	static constexpr FieldList fields = {
 		Field{"hlslFile", &Ubpa::DustEngine::Shader::hlslFile},
 		Field{"shaderName", &Ubpa::DustEngine::Shader::shaderName},
 		Field{"targetName", &Ubpa::DustEngine::Shader::targetName},
 		Field{"rootParameters", &Ubpa::DustEngine::Shader::rootParameters},
+		Field{"properties", &Ubpa::DustEngine::Shader::properties},
 		Field{"passes", &Ubpa::DustEngine::Shader::passes},
 	};
 };

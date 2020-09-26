@@ -4,6 +4,8 @@
 #include <UECS/Entity.h>
 #include <UGM/UGM.h>
 
+#include <variant>
+
 namespace Ubpa::DustEngine {
 	enum class TestEnum {
 		A,
@@ -47,6 +49,7 @@ namespace Ubpa::DustEngine {
 		//std::unordered_multimap<std::string, std::string> v_unordered_multimap;
 		std::tuple<size_t, bool, float> v_tuple;
 		std::pair<size_t, bool> v_pair;
+		std::variant<size_t, std::string> v_variant{ std::string{"I'm varaint"} };
 		//std::vector<Entity> v_vector_entity;
 		//UserType v_usertype;
 		TestEnum v_enum{ TestEnum::B };
@@ -99,6 +102,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::DustEngine::TestInspector>
 		Field{"v_map", &Ubpa::DustEngine::TestInspector::v_map},
 		Field{"v_tuple", &Ubpa::DustEngine::TestInspector::v_tuple},
 		Field{"v_pair", &Ubpa::DustEngine::TestInspector::v_pair},
+		Field{"v_variant", &Ubpa::DustEngine::TestInspector::v_variant},
 		Field{"v_enum", &Ubpa::DustEngine::TestInspector::v_enum}
 	};
 };

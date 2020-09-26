@@ -91,7 +91,7 @@ private:
 	const DXGI_FORMAT gameRTFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 	Ubpa::UDX12::DescriptorHeapAllocation gameRT_SRV;
 	Ubpa::UDX12::DescriptorHeapAllocation gameRT_RTV;
-	std::unique_ptr<Ubpa::DustEngine::IPipeline> gamePipeline;
+	std::unique_ptr<Ubpa::DustEngine::PipelineBase> gamePipeline;
 
 	void OnSceneResize();
 	size_t sceneWidth, sceneHeight;
@@ -100,7 +100,7 @@ private:
 	const DXGI_FORMAT sceneRTFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 	Ubpa::UDX12::DescriptorHeapAllocation sceneRT_SRV;
 	Ubpa::UDX12::DescriptorHeapAllocation sceneRT_RTV;
-	std::unique_ptr<Ubpa::DustEngine::IPipeline> scenePipeline;
+	std::unique_ptr<Ubpa::DustEngine::PipelineBase> scenePipeline;
 
 	bool show_demo_window = true;
 	bool show_another_window = false;
@@ -391,7 +391,7 @@ bool Editor::Initialize() {
 
 	//OutputDebugStringA(Ubpa::DustEngine::Serializer::Instance().ToJSON(&gameWorld).c_str());
 
-	Ubpa::DustEngine::IPipeline::InitDesc initDesc;
+	Ubpa::DustEngine::PipelineBase::InitDesc initDesc;
 	initDesc.device = uDevice.Get();
 	initDesc.rtFormat = gameRTFormat;
 	initDesc.cmdQueue = uCmdQueue.Get();
@@ -743,44 +743,40 @@ void Editor::Update() {
 				meshFilter->mesh
 			);
 
-			for (const auto& mat : meshRenderer->materials) {
-				if (!mat)
+			for (const auto& material : meshRenderer->materials) {
+				if (!material)
 					continue;
-				for (const auto& [name, tex] : mat->texture2Ds) {
-					if (!tex)
-						continue;
-					Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
-						Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
-						tex
-					);
-				}
-				for (const auto& [name, tex] : mat->textureCubes) {
-					if (!tex)
-						continue;
-					Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTextureCube(
-						Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
-						tex
-					);
+				for (const auto& [name, property] : material->properties) {
+					if (std::holds_alternative<const Ubpa::DustEngine::Texture2D*>(property)) {
+						Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
+							Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+							std::get<const Ubpa::DustEngine::Texture2D*>(property)
+						);
+					}
+					else if (std::holds_alternative<const Ubpa::DustEngine::TextureCube*>(property)) {
+						Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTextureCube(
+							Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+							std::get<const Ubpa::DustEngine::TextureCube*>(property)
+						);
+					}
 				}
 			}
 		}, false);
 
 		if (auto skybox = w->entityMngr.GetSingleton<Ubpa::DustEngine::Skybox>(); skybox && skybox->material) {
-			for (const auto& [name, tex] : skybox->material->texture2Ds) {
-				if (!tex)
-					continue;
-				Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
-					Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
-					tex
-				);
-			}
-			for (const auto& [name, tex] : skybox->material->textureCubes) {
-				if (!tex)
-					continue;
-				Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTextureCube(
-					Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
-					tex
-				);
+			for (const auto& [name, property] : skybox->material->properties) {
+				if (std::holds_alternative<const Ubpa::DustEngine::Texture2D*>(property)) {
+					Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
+						Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+						std::get<const Ubpa::DustEngine::Texture2D*>(property)
+					);
+				}
+				else if (std::holds_alternative<const Ubpa::DustEngine::TextureCube*>(property)) {
+					Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTextureCube(
+						Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+						std::get<const Ubpa::DustEngine::TextureCube*>(property)
+					);
+				}
 			}
 		}
 	};
@@ -794,7 +790,7 @@ void Editor::Update() {
 	deleteBatch.Commit(uDevice.Get(), uCmdQueue.Get());
 
 	{
-		std::vector<Ubpa::DustEngine::IPipeline::CameraData> gameCameras;
+		std::vector<Ubpa::DustEngine::PipelineBase::CameraData> gameCameras;
 		Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::CmptAccessType::Of<Ubpa::DustEngine::Camera>} };
 		curGameWorld->RunEntityJob([&](Ubpa::UECS::Entity e) {
 			gameCameras.emplace_back(e, *curGameWorld);
@@ -804,7 +800,7 @@ void Editor::Update() {
 	}
 
 	{
-		std::vector<Ubpa::DustEngine::IPipeline::CameraData> sceneCameras;
+		std::vector<Ubpa::DustEngine::PipelineBase::CameraData> sceneCameras;
 		Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::CmptAccessType::Of<Ubpa::DustEngine::Camera>} };
 		sceneWorld.RunEntityJob([&](Ubpa::UECS::Entity e) {
 			sceneCameras.emplace_back(e, sceneWorld);

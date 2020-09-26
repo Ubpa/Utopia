@@ -1,4 +1,4 @@
-#include "DustEngine.hlsli"
+#include "StdPipeline.hlsli"
 
 // 1. directional light
 // color
@@ -72,7 +72,7 @@ cbuffer cbLightArray : register(b0)
 	Light gLights[16];
 };
 
-DUST_ENGINE_CB_PER_CAMERA(1);
+STD_PIPELINE_CB_PER_CAMERA(1);
 
 struct VertexOut
 {

@@ -68,7 +68,7 @@ int main() {
 
 		auto material = new Material;
 		material->shader = shader;
-		material->texture2Ds.emplace("gDiffuseMap", tex2d);
+		material->properties.emplace("gDiffuseMap", tex2d);
 
 		if (!AssetMngr::Instance().CreateAsset(material, matPath))
 			delete material;
@@ -84,7 +84,10 @@ int main() {
 
 	auto mat = AssetMngr::Instance().LoadAsset<Material>(matPath);
 	std::cout << mat->shader->shaderName << std::endl;
-	for (const auto& [name, tex2D] : mat->texture2Ds) {
+	for (const auto& [name, property] : mat->properties) {
+		if(!std::holds_alternative<const Texture2D*>(property))
+			continue;
+		auto tex2D = std::get<const Texture2D*>(property);
 		std::cout << name << std::endl;
 		for (size_t j = 0; j < tex2D->image->height; j++) {
 			for (size_t i = 0; i < tex2D->image->width; i++)

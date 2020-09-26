@@ -1,9 +1,9 @@
 #pragma once
 
-#include "IPipeline.h"
+#include "PipelineBase.h"
 
 namespace Ubpa::DustEngine {
-	class StdPipeline final : public IPipeline {
+	class StdPipeline final : public PipelineBase {
 	public:
 		StdPipeline(InitDesc desc);
 		virtual ~StdPipeline();

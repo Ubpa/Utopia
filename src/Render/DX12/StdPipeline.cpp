@@ -186,6 +186,9 @@ struct StdPipeline::Impl {
 
 	const InitDesc initDesc;
 
+	static constexpr char StdPipeline_cbPerObject[] = "StdPipeline_cbPerObject";
+	static constexpr char StdPipeline_cbPerCamera[] = "StdPipeline_cbPerCamera";
+
 	RenderContext renderContext;
 	D3D12_GPU_DESCRIPTOR_HANDLE defaultSkybox;
 
@@ -233,7 +236,7 @@ StdPipeline::Impl::~Impl() {
 
 void StdPipeline::Impl::BuildTextures() {
 	auto skyboxBlack = AssetMngr::Instance().LoadAsset<Material>(LR"(..\assets\_internal\materials\skyBlack.mat)");
-	auto blackTexCube = skyboxBlack->textureCubes.at("gSkybox");
+	auto blackTexCube = std::get<const TextureCube*>(skyboxBlack->properties.at("gSkybox"));
 	auto blackTexCubeRsrc = RsrcMngrDX12::Instance().GetTextureCubeResource(blackTexCube);
 	defaultSkybox = RsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(blackTexCube);
 
@@ -668,9 +671,10 @@ void StdPipeline::Impl::UpdateRenderContext(const std::vector<const UECS::World*
 	renderContext.skybox = defaultSkybox;
 	for (auto world : worlds) {
 		if (auto ptr = world->entityMngr.GetSingleton<Skybox>(); ptr && ptr->material && ptr->material->shader == skyboxShader) {
-			auto target = ptr->material->textureCubes.find("gSkybox");
-			if (target != ptr->material->textureCubes.end()) {
-				renderContext.skybox = RsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(target->second);
+			auto target = ptr->material->properties.find("gSkybox");
+			if (target != ptr->material->properties.end() && std::holds_alternative<const TextureCube*>(target->second)) {
+				auto texcube = std::get<const TextureCube*>(target->second);
+				renderContext.skybox = RsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(texcube);
 				break;
 			}
 		}
@@ -1143,7 +1147,7 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList) {
 	const auto& mat2objects = renderContext.objectMap.find(geomrtryShader)->second;
 
 	size_t matOffset = 0;
-	for (const auto& [mat, objects] : mat2objects) {
+	for (const auto& [material, objects] : mat2objects) {
 		D3D12_GPU_VIRTUAL_ADDRESS matCBAddress =
 			matBuffer->GetResource()->GetGPUVirtualAddress()
 			+ matOffset;
@@ -1161,18 +1165,8 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList) {
 				commonBuffer->GetResource()->GetGPUVirtualAddress()
 				+ renderContext.entity2offset.at(object.entity);
 
-			auto albedo = mat->texture2Ds.find("gAlbedoMap")->second;
-			auto roughness = mat->texture2Ds.find("gRoughnessMap")->second;
-			auto metalness = mat->texture2Ds.find("gMetalnessMap")->second;
-			auto normalmap = mat->texture2Ds.find("gNormalMap")->second;
-			auto albedoHandle = DustEngine::RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(albedo);
-			auto roughnessHandle = DustEngine::RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(roughness);
-			auto matalnessHandle = DustEngine::RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(metalness);
-			auto normalHandle = DustEngine::RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(normalmap);
-			cmdList->SetGraphicsRootDescriptorTable(0, albedoHandle);
-			cmdList->SetGraphicsRootDescriptorTable(1, roughnessHandle);
-			cmdList->SetGraphicsRootDescriptorTable(2, matalnessHandle);
-			cmdList->SetGraphicsRootDescriptorTable(3, normalHandle);
+			StdPipeline::SetGraphicsRootSRV(cmdList, material);
+
 			cmdList->SetGraphicsRootConstantBufferView(4, objCBAddress);
 			cmdList->SetGraphicsRootConstantBufferView(5, matCBAddress);
 
@@ -1185,7 +1179,7 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList) {
 
 StdPipeline::StdPipeline(InitDesc initDesc)
 	:
-	IPipeline{ initDesc },
+	PipelineBase{ initDesc },
 	pImpl{ new Impl{ initDesc } }
 {}
 
