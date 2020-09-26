@@ -88,6 +88,18 @@
         "gRoughnessMap":{
             "__INDEX":22,
             "__CONTENT":"1936ed7e-6896-4ace-abd9-5b084fcfb891"
+        },
+        "gAlbedoFactor":{
+            "__INDEX":20,
+            "__CONTENT":[1,1,1]
+        },
+        "gRoughnessFactor":{
+            "__INDEX":3,
+            "__CONTENT":1
+        },
+        "gMetalnessFactor":{
+            "__INDEX":3,
+            "__CONTENT":1
         }
     },
     "passes":[

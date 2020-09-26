@@ -88,11 +88,6 @@ struct StdPipeline::Impl {
 		float DeltaTime;
 
 	};
-	struct GeometryMaterialConstants {
-		rgbf albedoFactor;
-		float roughnessFactor;
-		float metalnessFactor;
-	};
 
 	struct ShaderLight {
 		rgbf color;
@@ -169,6 +164,7 @@ struct StdPipeline::Impl {
 		std::unordered_map<const Shader*,
 			std::unordered_map<const Material*,
 			std::vector<Object>>> objectMap;
+		std::unordered_map<const Shader*, PipelineBase::ShaderCBDesc> shaderCBDescMap;
 
 		D3D12_GPU_DESCRIPTOR_HANDLE skybox;
 		ShaderLightArray lights;
@@ -182,12 +178,19 @@ struct StdPipeline::Impl {
 		};
 		std::unordered_map<size_t, EntityData> entity2data;
 		std::unordered_map<size_t, size_t> entity2offset;
+
+
 	};
 
 	const InitDesc initDesc;
 
 	static constexpr char StdPipeline_cbPerObject[] = "StdPipeline_cbPerObject";
 	static constexpr char StdPipeline_cbPerCamera[] = "StdPipeline_cbPerCamera";
+
+	const std::set<std::string_view> commonCBs{
+		StdPipeline_cbPerObject,
+		StdPipeline_cbPerCamera
+	};
 
 	RenderContext renderContext;
 	D3D12_GPU_DESCRIPTOR_HANDLE defaultSkybox;
@@ -494,6 +497,7 @@ void StdPipeline::Impl::UpdateRenderContext(const std::vector<const UECS::World*
 	renderContext.objectMap.clear();
 	renderContext.entity2data.clear();
 	renderContext.entity2offset.clear();
+	renderContext.shaderCBDescMap.clear();
 
 	{ // object
 		ArchetypeFilter filter;
@@ -735,20 +739,11 @@ void StdPipeline::Impl::UpdateShaderCBs(
 
 	// geometry
 	for (const auto& [shader, mat2objects] : renderContext.objectMap) {
-		if (shader->shaderName == "StdPipeline/Geometry") {
-			auto buffer = shaderCBMngr.GetBuffer(shader);
-			buffer->FastReserve(
-				mat2objects.size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(GeometryMaterialConstants))
-			);
-			size_t offset = 0;
-			for (const auto& [mat, objects] : mat2objects) {
-				GeometryMaterialConstants matC;
-				matC.albedoFactor = { 1.f };
-				matC.roughnessFactor = 1.f;
-				matC.metalnessFactor = 1.f;
-				buffer->Set(offset, &matC, sizeof(GeometryMaterialConstants));
-				offset += UDX12::Util::CalcConstantBufferByteSize(sizeof(GeometryMaterialConstants));
-			}
+		if (shader->shaderName == "StdPipeline/Geometry") { // TODO: light mode
+			std::vector<const Material*> materials;
+			for (const auto& [material, objects] : mat2objects)
+				materials.push_back(material);
+			renderContext.shaderCBDescMap[shader] = PipelineBase::UpdateShaderCBs(shaderCBMngr, shader, materials, commonCBs);
 		}
 	}
 }
@@ -1136,21 +1131,16 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 }
 
 void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList) {
-	constexpr UINT matCBByteSize = UDX12::Util::CalcConstantBufferByteSize(sizeof(GeometryMaterialConstants));
-
 	auto& shaderCBMngr = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<DustEngine::ShaderCBMngrDX12>("ShaderCBMngrDX12");
 
 	auto matBuffer = shaderCBMngr.GetBuffer(geomrtryShader);
 	auto commonBuffer = shaderCBMngr.GetCommonBuffer();
 
-	const auto& mat2objects = renderContext.objectMap.find(geomrtryShader)->second;
+	const auto& mat2objects = renderContext.objectMap.at(geomrtryShader); // LightMode
+	const auto& shaderCBDesc = renderContext.shaderCBDescMap.at(geomrtryShader);
 
-	size_t matOffset = 0;
 	for (const auto& [material, objects] : mat2objects) {
-		D3D12_GPU_VIRTUAL_ADDRESS matCBAddress =
-			matBuffer->GetResource()->GetGPUVirtualAddress()
-			+ matOffset;
 		// For each render item...
 		for (size_t i = 0; i < objects.size(); i++) {
 			const auto& object = objects[i];
@@ -1165,15 +1155,13 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList) {
 				commonBuffer->GetResource()->GetGPUVirtualAddress()
 				+ renderContext.entity2offset.at(object.entity);
 
-			StdPipeline::SetGraphicsRootSRV(cmdList, material);
+			StdPipeline::SetGraphicsRoot_CBV_SRV(cmdList, shaderCBMngr, shaderCBDesc, material);
 
 			cmdList->SetGraphicsRootConstantBufferView(4, objCBAddress);
-			cmdList->SetGraphicsRootConstantBufferView(5, matCBAddress);
 
 			cmdList->SetPipelineState(RsrcMngrDX12::Instance().GetPSO(GetGeometryPSO_ID(object.mesh)));
 			cmdList->DrawIndexedInstanced((UINT)submesh.indexCount, 1, (UINT)submesh.indexStart, (INT)submesh.baseVertex, 0);
 		}
-		matOffset += matCBByteSize;
 	}
 }
 
