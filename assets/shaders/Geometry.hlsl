@@ -1,3 +1,5 @@
+#include "DustEngine.hlsli"
+
 Texture2D gAlbedoMap    : register(t0);
 Texture2D gRoughnessMap : register(t1);
 Texture2D gMetalnessMap : register(t2);
@@ -5,11 +7,7 @@ Texture2D gNormalMap    : register(t3);
 
 SamplerState gSamplerLinearWrap  : register(s2);
 
-cbuffer cbPerObject : register(b0)
-{
-    float4x4 gWorld;
-	float4x4 gInvWorld;
-};
+DUST_ENGINE_CB_PER_OBJECT(0);
 
 cbuffer cbPerMaterial : register(b1)
 {
@@ -18,26 +16,7 @@ cbuffer cbPerMaterial : register(b1)
     float  gMetalnessFactor;
 };
 
-cbuffer cbPerCamera: register(b2)
-{
-    float4x4 gView;
-    float4x4 gInvView;
-    float4x4 gProj;
-    float4x4 gInvProj;
-    float4x4 gViewProj;
-    float4x4 gInvViewProj;
-
-    float3 gEyePosW;
-    float _g_cbPerFrame_pad0;
-
-    float2 gRenderTargetSize;
-    float2 gInvRenderTargetSize;
-
-    float gNearZ;
-    float gFarZ;
-    float gTotalTime;
-    float gDeltaTime;
-};
+DUST_ENGINE_CB_PER_CAMERA(2);
 
 struct VertexIn
 {

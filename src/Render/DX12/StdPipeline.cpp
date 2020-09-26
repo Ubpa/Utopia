@@ -33,6 +33,7 @@
 #include <UDX12/FrameResourceMngr.h>
 
 using namespace Ubpa::DustEngine;
+using namespace Ubpa::UECS;
 using namespace Ubpa;
 
 struct StdPipeline::Impl {
@@ -46,7 +47,6 @@ struct StdPipeline::Impl {
 		BuildTextures();
 		BuildFrameResources();
 		BuildShaders();
-		BuildRootSignature();
 		BuildPSOs();
 	}
 
@@ -59,14 +59,7 @@ struct StdPipeline::Impl {
 	size_t ID_PSO_irradiance;
 	size_t ID_PSO_prefilter;
 
-	static constexpr size_t ID_RootSignature_screen = 1;
-	static constexpr size_t ID_RootSignature_defer_light = 2;
-	static constexpr size_t ID_RootSignature_skybox = 3;
-	static constexpr size_t ID_RootSignature_postprocess = 4;
-	static constexpr size_t ID_RootSignature_irradiance = 5;
-	static constexpr size_t ID_RootSignature_prefilter = 6;
-
-	struct GeometryObjectConstants {
+	struct ObjectConstants {
 		transformf World;
 		transformf InvWorld;
 	};
@@ -171,8 +164,7 @@ struct StdPipeline::Impl {
 		struct Object {
 			const Mesh* mesh{ nullptr };
 			size_t submeshIdx{ static_cast<size_t>(-1) };
-
-			valf<16> l2w;
+			size_t entity;
 		};
 		std::unordered_map<const Shader*,
 			std::unordered_map<const Material*,
@@ -180,6 +172,16 @@ struct StdPipeline::Impl {
 
 		D3D12_GPU_DESCRIPTOR_HANDLE skybox;
 		ShaderLightArray lights;
+
+		// common
+		size_t cameraOffset = 0;
+		size_t objectOffset = UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
+		struct EntityData {
+			valf<16> l2w;
+			valf<16> w2l;
+		};
+		std::unordered_map<size_t, EntityData> entity2data;
+		std::unordered_map<size_t, size_t> entity2offset;
 	};
 
 	const InitDesc initDesc;
@@ -193,7 +195,6 @@ struct StdPipeline::Impl {
 	UFG::Compiler fgCompiler;
 	UFG::FrameGraph fg;
 
-	DustEngine::Shader* screenShader;
 	DustEngine::Shader* geomrtryShader;
 	DustEngine::Shader* deferShader;
 	DustEngine::Shader* skyboxShader;
@@ -210,7 +211,6 @@ struct StdPipeline::Impl {
 	void BuildTextures();
 	void BuildFrameResources();
 	void BuildShaders();
-	void BuildRootSignature();
 	void BuildPSOs();
 
 	size_t GetGeometryPSO_ID(const Mesh* mesh);
@@ -328,7 +328,6 @@ void StdPipeline::Impl::BuildFrameResources() {
 }
 
 void StdPipeline::Impl::BuildShaders() {
-	screenShader = ShaderMngr::Instance().Get("StdPipeline/Screen");
 	geomrtryShader = ShaderMngr::Instance().Get("StdPipeline/Geometry");
 	deferShader = ShaderMngr::Instance().Get("StdPipeline/Defer Lighting");
 	skyboxShader = ShaderMngr::Instance().Get("StdPipeline/Skybox");
@@ -389,156 +388,9 @@ void StdPipeline::Impl::BuildShaders() {
 	}
 }
 
-void StdPipeline::Impl::BuildRootSignature() {
-	{ // screen
-		CD3DX12_DESCRIPTOR_RANGE texTable;
-		texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
-
-		// Root parameter can be a table, root descriptor or root constants.
-		CD3DX12_ROOT_PARAMETER slotRootParameter[1];
-
-		// Perfomance TIP: Order from most frequent to least frequent.
-		slotRootParameter[0].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
-
-		auto staticSamplers = RsrcMngrDX12::Instance().GetStaticSamplers();
-
-		// A root signature is an array of root parameters.
-		CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(1, slotRootParameter,
-			(UINT)staticSamplers.size(), staticSamplers.data(),
-			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
-
-		RsrcMngrDX12::Instance().RegisterRootSignature(ID_RootSignature_screen, &rootSigDesc);
-	}
-
-	{ // skybox
-		CD3DX12_DESCRIPTOR_RANGE texTable;
-		texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
-
-		// Root parameter can be a table, root descriptor or root constants.
-		CD3DX12_ROOT_PARAMETER slotRootParameter[2];
-
-		// Perfomance TIP: Order from most frequent to least frequent.
-		slotRootParameter[0].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
-		slotRootParameter[1].InitAsConstantBufferView(0); // camera
-
-		auto staticSamplers = RsrcMngrDX12::Instance().GetStaticSamplers();
-
-		// A root signature is an array of root parameters.
-		CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(2, slotRootParameter,
-			(UINT)staticSamplers.size(), staticSamplers.data(),
-			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
-
-		RsrcMngrDX12::Instance().RegisterRootSignature(ID_RootSignature_skybox, &rootSigDesc);
-	}
-
-	{ // irradiance
-		CD3DX12_DESCRIPTOR_RANGE texTable;
-		texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
-
-		// Root parameter can be a table, root descriptor or root constants.
-		CD3DX12_ROOT_PARAMETER slotRootParameter[2];
-
-		// Perfomance TIP: Order from most frequent to least frequent.
-		slotRootParameter[0].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
-		slotRootParameter[1].InitAsConstantBufferView(0); // positionLs
-
-		auto staticSamplers = RsrcMngrDX12::Instance().GetStaticSamplers();
-
-		// A root signature is an array of root parameters.
-		CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(2, slotRootParameter,
-			(UINT)staticSamplers.size(), staticSamplers.data(),
-			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
-
-		RsrcMngrDX12::Instance().RegisterRootSignature(ID_RootSignature_irradiance, &rootSigDesc);
-	}
-
-	{ // prefilter
-		CD3DX12_DESCRIPTOR_RANGE texTable;
-		texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
-
-		// Root parameter can be a table, root descriptor or root constants.
-		CD3DX12_ROOT_PARAMETER slotRootParameter[3];
-
-		// Perfomance TIP: Order from most frequent to least frequent.
-		slotRootParameter[0].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
-		slotRootParameter[1].InitAsConstantBufferView(0); // positionLs
-		slotRootParameter[2].InitAsConstantBufferView(1); // mipinfo
-
-		auto staticSamplers = RsrcMngrDX12::Instance().GetStaticSamplers();
-
-		// A root signature is an array of root parameters.
-		CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(3, slotRootParameter,
-			(UINT)staticSamplers.size(), staticSamplers.data(),
-			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
-
-		RsrcMngrDX12::Instance().RegisterRootSignature(ID_RootSignature_prefilter, &rootSigDesc);
-	}
-
-	{ // defer lighting
-		CD3DX12_DESCRIPTOR_RANGE gbufferRange;
-		gbufferRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 3, 0); // gbuffers
-		CD3DX12_DESCRIPTOR_RANGE ds;
-		ds.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3); // depth, stencil
-		CD3DX12_DESCRIPTOR_RANGE IBLRange; // irradiance, prefilter, BRDF LUT
-		IBLRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 3, 4);
-
-		// Root parameter can be a table, root descriptor or root constants.
-		CD3DX12_ROOT_PARAMETER slotRootParameter[5];
-
-		// Perfomance TIP: Order from most frequent to least frequent.
-		slotRootParameter[0].InitAsDescriptorTable(1, &gbufferRange, D3D12_SHADER_VISIBILITY_PIXEL);
-		slotRootParameter[1].InitAsDescriptorTable(1, &ds, D3D12_SHADER_VISIBILITY_PIXEL);
-		slotRootParameter[2].InitAsDescriptorTable(1, &IBLRange, D3D12_SHADER_VISIBILITY_PIXEL);
-		slotRootParameter[3].InitAsConstantBufferView(0); // lights
-		slotRootParameter[4].InitAsConstantBufferView(1); // camera
-
-		auto staticSamplers = RsrcMngrDX12::Instance().GetStaticSamplers();
-
-		// A root signature is an array of root parameters.
-		CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(5, slotRootParameter,
-			(UINT)staticSamplers.size(), staticSamplers.data(),
-			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
-
-		RsrcMngrDX12::Instance().RegisterRootSignature(ID_RootSignature_defer_light, &rootSigDesc);
-	}
-
-	{ // post process
-		CD3DX12_DESCRIPTOR_RANGE texTable;
-		texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 3, 0); // gbuffers
-
-		// Root parameter can be a table, root descriptor or root constants.
-		CD3DX12_ROOT_PARAMETER slotRootParameter[1];
-
-		// Perfomance TIP: Order from most frequent to least frequent.
-		slotRootParameter[0].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
-
-		auto staticSamplers = RsrcMngrDX12::Instance().GetStaticSamplers();
-
-		// A root signature is an array of root parameters.
-		CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(1, slotRootParameter,
-			(UINT)staticSamplers.size(), staticSamplers.data(),
-			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
-
-		RsrcMngrDX12::Instance().RegisterRootSignature(ID_RootSignature_postprocess, &rootSigDesc);
-	}
-}
-
 void StdPipeline::Impl::BuildPSOs() {
-	auto screenPsoDesc = UDX12::Desc::PSO::Basic(
-		RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_screen),
-		nullptr, 0,
-		RsrcMngrDX12::Instance().GetShaderByteCode_vs(screenShader, 0),
-		RsrcMngrDX12::Instance().GetShaderByteCode_ps(screenShader, 0),
-		initDesc.rtFormat,
-		DXGI_FORMAT_UNKNOWN
-	);
-	screenPsoDesc.RasterizerState.FrontCounterClockwise = TRUE;
-	screenPsoDesc.DepthStencilState.DepthEnable = false;
-	screenPsoDesc.DepthStencilState.StencilEnable = false;
-	ID_PSO_screen = RsrcMngrDX12::Instance().RegisterPSO(&screenPsoDesc);
-
 	auto skyboxPsoDesc = UDX12::Desc::PSO::Basic(
-		RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_skybox),
+		RsrcMngrDX12::Instance().GetShaderRootSignature(skyboxShader),
 		nullptr, 0,
 		RsrcMngrDX12::Instance().GetShaderByteCode_vs(skyboxShader, 0),
 		RsrcMngrDX12::Instance().GetShaderByteCode_ps(skyboxShader, 0),
@@ -553,7 +405,7 @@ void StdPipeline::Impl::BuildPSOs() {
 	ID_PSO_skybox = RsrcMngrDX12::Instance().RegisterPSO(&skyboxPsoDesc);
 
 	auto deferLightingPsoDesc = UDX12::Desc::PSO::Basic(
-		RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_defer_light),
+		RsrcMngrDX12::Instance().GetShaderRootSignature(deferShader),
 		nullptr, 0,
 		RsrcMngrDX12::Instance().GetShaderByteCode_vs(deferShader, 0),
 		RsrcMngrDX12::Instance().GetShaderByteCode_ps(deferShader, 0),
@@ -567,7 +419,7 @@ void StdPipeline::Impl::BuildPSOs() {
 	ID_PSO_defer_light = RsrcMngrDX12::Instance().RegisterPSO(&deferLightingPsoDesc);
 
 	auto postprocessPsoDesc = UDX12::Desc::PSO::Basic(
-		RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_postprocess),
+		RsrcMngrDX12::Instance().GetShaderRootSignature(postprocessShader),
 		nullptr, 0,
 		RsrcMngrDX12::Instance().GetShaderByteCode_vs(postprocessShader, 0),
 		RsrcMngrDX12::Instance().GetShaderByteCode_ps(postprocessShader, 0),
@@ -581,7 +433,7 @@ void StdPipeline::Impl::BuildPSOs() {
 
 	{
 		auto desc = UDX12::Desc::PSO::Basic(
-			RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_irradiance),
+			RsrcMngrDX12::Instance().GetShaderRootSignature(irradianceShader),
 			nullptr, 0,
 			RsrcMngrDX12::Instance().GetShaderByteCode_vs(irradianceShader, 0),
 			RsrcMngrDX12::Instance().GetShaderByteCode_ps(irradianceShader, 0),
@@ -596,7 +448,7 @@ void StdPipeline::Impl::BuildPSOs() {
 
 	{
 		auto desc = UDX12::Desc::PSO::Basic(
-			RsrcMngrDX12::Instance().GetRootSignature(ID_RootSignature_prefilter),
+			RsrcMngrDX12::Instance().GetShaderRootSignature(prefilterShader),
 			nullptr, 0,
 			RsrcMngrDX12::Instance().GetShaderByteCode_vs(prefilterShader, 0),
 			RsrcMngrDX12::Instance().GetShaderByteCode_ps(prefilterShader, 0),
@@ -637,27 +489,70 @@ size_t StdPipeline::Impl::GetGeometryPSO_ID(const Mesh* mesh) {
 
 void StdPipeline::Impl::UpdateRenderContext(const std::vector<const UECS::World*>& worlds) {
 	renderContext.objectMap.clear();
+	renderContext.entity2data.clear();
+	renderContext.entity2offset.clear();
 
-	for (auto world : worlds) {
-		const_cast<UECS::World*>(world)->RunEntityJob(
-			[&](const MeshFilter* meshFilter, const MeshRenderer* meshRenderer, const LocalToWorld* l2w) {
-				if (!meshFilter->mesh)
-					return;
+	{ // object
+		ArchetypeFilter filter;
+		filter.all = {
+			CmptAccessType::Of<Latest<MeshFilter>>,
+			CmptAccessType::Of<Latest<MeshRenderer>>,
+			CmptAccessType::Of<Latest<LocalToWorld>>,
+		};
+		for (auto world : worlds) {
+			const_cast<UECS::World*>(world)->RunChunkJob(
+				[&](ChunkView chunk) {
+					auto meshFilters = chunk.GetCmptArray<MeshFilter>();
+					auto meshRenderers = chunk.GetCmptArray<MeshRenderer>();
+					auto L2Ws = chunk.GetCmptArray<LocalToWorld>();
+					auto W2Ls = chunk.GetCmptArray<WorldToLocal>();
+					auto entities = chunk.GetEntityArray();
 
-				RenderContext::Object obj;
-				obj.mesh = meshFilter->mesh;
-				obj.l2w = l2w->value.as<valf<16>>();
-				size_t N = std::min(meshRenderer->materials.size(), obj.mesh->GetSubMeshes().size());
-				for (size_t i = 0; i < N; i++) {
-					auto material = meshRenderer->materials[i];
-					if (!material || !material->shader)
-						continue;
-					obj.submeshIdx = i;
-					renderContext.objectMap[material->shader][material].push_back(obj);
-				}
-			},
-			false
-		);
+					size_t N = chunk.EntityNum();
+
+					for (size_t i = 0; i < N; i++) {
+						auto meshFilter = meshFilters[i];
+						auto meshRenderer = meshRenderers[i];
+
+						if (!meshFilter.mesh)
+							return;
+
+						RenderContext::Object obj;
+						obj.mesh = meshFilter.mesh;
+						obj.entity = entities[i].Idx();
+
+						size_t M = std::min(meshRenderer.materials.size(), obj.mesh->GetSubMeshes().size());
+
+						if(M == 0)
+							continue;
+
+						bool isDraw = false;
+
+						for (size_t j = 0; j < M; j++) {
+							auto material = meshRenderer.materials[j];
+							if (!material || !material->shader)
+								continue;
+							obj.submeshIdx = j;
+							renderContext.objectMap[material->shader][material].push_back(obj);
+							isDraw = true;
+						}
+
+						if(!isDraw)
+							continue;
+
+						auto target = renderContext.entity2data.find(obj.entity);
+						if (target != renderContext.entity2data.end())
+							continue;
+						RenderContext::EntityData data;
+						data.l2w = L2Ws[i].value;
+						data.w2l = W2Ls ? W2Ls[i].value : L2Ws[i].value.inverse();
+						renderContext.entity2data.emplace_hint(target, std::pair{ obj.entity, data });
+					}
+				},
+				filter,
+				false
+			);
+		}
 	}
 
 	{ // light
@@ -701,7 +596,6 @@ void StdPipeline::Impl::UpdateRenderContext(const std::vector<const UECS::World*
 			);
 		}
 		
-
 		size_t offset_diectionalLight = 0;
 		size_t offset_pointLight = offset_diectionalLight + renderContext.lights.diectionalLightNum;
 		size_t offset_spotLight = offset_pointLight + renderContext.lights.pointLightNum;
@@ -796,9 +690,12 @@ void StdPipeline::Impl::UpdateShaderCBs(
 		buffer->Set(0, &renderContext.lights, sizeof(ShaderLightArray));
 	}
 
-	{ // camera
+	{ // camera, objects
 		auto buffer = shaderCBMngr.GetCommonBuffer();
-		buffer->FastReserve(UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants)));
+		buffer->FastReserve(
+			UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants))
+			+ renderContext.entity2data.size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(ObjectConstants))
+		);
 
 		auto cmptCamera = cameraData.world.entityMngr.Get<Camera>(cameraData.entity);
 		auto cmptW2L = cameraData.world.entityMngr.Get<WorldToLocal>(cameraData.entity);
@@ -819,19 +716,25 @@ void StdPipeline::Impl::UpdateShaderCBs(
 		cbPerCamera.TotalTime = DustEngine::GameTimer::Instance().TotalTime();
 		cbPerCamera.DeltaTime = DustEngine::GameTimer::Instance().DeltaTime();
 
-		buffer->Set(0, &cbPerCamera, sizeof(CameraConstants));
+		buffer->Set(renderContext.cameraOffset, &cbPerCamera, sizeof(CameraConstants));
+
+		size_t offset = renderContext.objectOffset;
+		for (auto& [idx, data] : renderContext.entity2data) {
+			ObjectConstants objectConstants;
+			objectConstants.World = data.l2w;
+			objectConstants.InvWorld = data.w2l;
+			renderContext.entity2offset[idx] = offset;
+			buffer->Set(offset, &objectConstants, sizeof(ObjectConstants));
+			offset += UDX12::Util::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+		}
 	}
 
 	// geometry
 	for (const auto& [shader, mat2objects] : renderContext.objectMap) {
-		size_t objectNum = 0;
-		for (const auto& [mat, objects] : mat2objects)
-			objectNum += objects.size();
 		if (shader->shaderName == "StdPipeline/Geometry") {
 			auto buffer = shaderCBMngr.GetBuffer(shader);
 			buffer->FastReserve(
 				mat2objects.size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(GeometryMaterialConstants))
-				+ objectNum * UDX12::Util::CalcConstantBufferByteSize(sizeof(GeometryObjectConstants))
 			);
 			size_t offset = 0;
 			for (const auto& [mat, objects] : mat2objects) {
@@ -841,13 +744,6 @@ void StdPipeline::Impl::UpdateShaderCBs(
 				matC.metalnessFactor = 1.f;
 				buffer->Set(offset, &matC, sizeof(GeometryMaterialConstants));
 				offset += UDX12::Util::CalcConstantBufferByteSize(sizeof(GeometryMaterialConstants));
-				for (const auto& object : objects) {
-					GeometryObjectConstants objectConstants;
-					objectConstants.World = object.l2w;
-					objectConstants.InvWorld = objectConstants.World.inverse();
-					buffer->Set(offset, &objectConstants, sizeof(GeometryObjectConstants));
-					offset += UDX12::Util::CalcConstantBufferByteSize(sizeof(GeometryObjectConstants));
-				}
 			}
 		}
 	}
@@ -1027,7 +923,7 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 			cmdList->SetDescriptorHeaps(1, &heap);
 			
 			{ // irradiance
-				cmdList->SetGraphicsRootSignature(RsrcMngrDX12::Instance().GetRootSignature(Impl::ID_RootSignature_irradiance));
+				cmdList->SetGraphicsRootSignature(RsrcMngrDX12::Instance().GetShaderRootSignature(irradianceShader));
 				cmdList->SetPipelineState(RsrcMngrDX12::Instance().GetPSO(ID_PSO_irradiance));
 
 				D3D12_VIEWPORT viewport;
@@ -1059,7 +955,7 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 			}
 
 			{ // prefilter
-				cmdList->SetGraphicsRootSignature(RsrcMngrDX12::Instance().GetRootSignature(Impl::ID_RootSignature_prefilter));
+				cmdList->SetGraphicsRootSignature(RsrcMngrDX12::Instance().GetShaderRootSignature(prefilterShader));
 				cmdList->SetPipelineState(RsrcMngrDX12::Instance().GetPSO(ID_PSO_prefilter));
 
 				auto buffer = shaderCBMngr.GetCommonBuffer();
@@ -1126,7 +1022,7 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 			// Specify the buffers we are going to render to.
 			cmdList->OMSetRenderTargets(1, &rt.info.null_info_rtv.cpuHandle, false, &ds.info.desc2info_dsv.at(dsvDesc).cpuHandle);
 
-			cmdList->SetGraphicsRootSignature(RsrcMngrDX12::Instance().GetRootSignature(Impl::ID_RootSignature_defer_light));
+			cmdList->SetGraphicsRootSignature(RsrcMngrDX12::Instance().GetShaderRootSignature(deferShader));
 			cmdList->SetPipelineState(RsrcMngrDX12::Instance().GetPSO(ID_PSO_defer_light));
 
 			cmdList->SetGraphicsRootDescriptorTable(0, gb0.info.desc2info_srv.at(srvDesc).gpuHandle);
@@ -1164,7 +1060,7 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
 			cmdList->SetDescriptorHeaps(1, &heap);
 
-			cmdList->SetGraphicsRootSignature(RsrcMngrDX12::Instance().GetRootSignature(Impl::ID_RootSignature_skybox));
+			cmdList->SetGraphicsRootSignature(RsrcMngrDX12::Instance().GetShaderRootSignature(skyboxShader));
 			cmdList->SetPipelineState(RsrcMngrDX12::Instance().GetPSO(ID_PSO_skybox));
 
 			cmdList->RSSetViewports(1, &resizeData.screenViewport);
@@ -1193,7 +1089,7 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 	fgExecutor.RegisterPassFunc(
 		postprocessPass,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
-			cmdList->SetGraphicsRootSignature(RsrcMngrDX12::Instance().GetRootSignature(Impl::ID_RootSignature_postprocess));
+			cmdList->SetGraphicsRootSignature(RsrcMngrDX12::Instance().GetShaderRootSignature(postprocessShader));
 			cmdList->SetPipelineState(RsrcMngrDX12::Instance().GetPSO(ID_PSO_postprocess));
 
 			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
@@ -1237,21 +1133,23 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 
 void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList) {
 	constexpr UINT matCBByteSize = UDX12::Util::CalcConstantBufferByteSize(sizeof(GeometryMaterialConstants));
-	constexpr UINT objCBByteSize = UDX12::Util::CalcConstantBufferByteSize(sizeof(GeometryObjectConstants));
 
 	auto& shaderCBMngr = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<DustEngine::ShaderCBMngrDX12>("ShaderCBMngrDX12");
 
-	auto buffer = shaderCBMngr.GetBuffer(geomrtryShader);
+	auto matBuffer = shaderCBMngr.GetBuffer(geomrtryShader);
+	auto commonBuffer = shaderCBMngr.GetCommonBuffer();
 
 	const auto& mat2objects = renderContext.objectMap.find(geomrtryShader)->second;
 
-	size_t offset = 0;
+	size_t matOffset = 0;
 	for (const auto& [mat, objects] : mat2objects) {
+		D3D12_GPU_VIRTUAL_ADDRESS matCBAddress =
+			matBuffer->GetResource()->GetGPUVirtualAddress()
+			+ matOffset;
 		// For each render item...
-		size_t objIdx = 0;
 		for (size_t i = 0; i < objects.size(); i++) {
-			auto object = objects[i];
+			const auto& object = objects[i];
 			auto& meshGPUBuffer = DustEngine::RsrcMngrDX12::Instance().GetMeshGPUBuffer(object.mesh);
 			const auto& submesh = object.mesh->GetSubMeshes().at(object.submeshIdx);
 			cmdList->IASetVertexBuffers(0, 1, &meshGPUBuffer.VertexBufferView());
@@ -1260,12 +1158,8 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList) {
 			cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 			D3D12_GPU_VIRTUAL_ADDRESS objCBAddress =
-				buffer->GetResource()->GetGPUVirtualAddress()
-				+ offset + matCBByteSize
-				+ objIdx * objCBByteSize;
-			D3D12_GPU_VIRTUAL_ADDRESS matCBAddress =
-				buffer->GetResource()->GetGPUVirtualAddress()
-				+ offset;
+				commonBuffer->GetResource()->GetGPUVirtualAddress()
+				+ renderContext.entity2offset.at(object.entity);
 
 			auto albedo = mat->texture2Ds.find("gAlbedoMap")->second;
 			auto roughness = mat->texture2Ds.find("gRoughnessMap")->second;
@@ -1284,9 +1178,8 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList) {
 
 			cmdList->SetPipelineState(RsrcMngrDX12::Instance().GetPSO(GetGeometryPSO_ID(object.mesh)));
 			cmdList->DrawIndexedInstanced((UINT)submesh.indexCount, 1, (UINT)submesh.indexStart, (INT)submesh.baseVertex, 0);
-			objIdx++;
 		}
-		offset += matCBByteSize + objects.size() * objCBByteSize;
+		matOffset += matCBByteSize;
 	}
 }
 

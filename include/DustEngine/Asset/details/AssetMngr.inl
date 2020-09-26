@@ -2,7 +2,7 @@
 
 namespace Ubpa::DustEngine {
 	template<typename Asset>
-	bool CreateAsset(Asset* ptr, const std::filesystem::path& path) {
+	bool AssetMngr::CreateAsset(Asset* ptr, const std::filesystem::path& path) {
 		static_assert(!std::is_pointer_v<std::decay_t<Asset>>);
 		return  CreateAsset((void*)ptr, path);
 	}

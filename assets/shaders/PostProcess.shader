@@ -1,1 +1,24 @@
-{"hlslFile":"e3f9c655-abd1-4025-8fd3-ac952cfb7dd2","shaderName":"StdPipeline/Post Process","passes":[{"vertexName":"VS","fragmentName":"PS"}],"targetName":"5_0"}
+{
+    "hlslFile":"e3f9c655-abd1-4025-8fd3-ac952cfb7dd2",
+    "shaderName":"StdPipeline/Post Process",
+    "passes":[
+        {
+            "vertexName":"VS",
+            "fragmentName":"PS"
+        }
+    ],
+    "targetName":"5_0",
+    "rootParameters":[
+        {
+            "__INDEX":0,
+            "__CONTENT":[
+                {
+                    "RangeType":1,
+                    "NumDescriptors":1,
+                    "BaseShaderRegister":0,
+                    "RegisterSpace":0
+                }
+            ]
+        }
+    ]
+}

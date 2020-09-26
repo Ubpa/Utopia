@@ -50,7 +50,6 @@ struct RsrcMngrDX12::Impl {
 	unordered_map<size_t, ShaderCompileData> shaderMap;
 
 	unordered_map<size_t, UDX12::MeshGPUBuffer> meshMap;
-	unordered_map<size_t, ID3D12RootSignature*> rootSignatureMap;
 	vector<ID3D12PipelineState*> PSOs;
 
 	const CD3DX12_STATIC_SAMPLER_DESC pointWrap{
@@ -146,9 +145,6 @@ void RsrcMngrDX12::Clear() {
 			rsrc->Release();
 	}
 
-	for (auto& [name, rootSig] : pImpl->rootSignatureMap)
-		rootSig->Release();
-
 	for (auto PSO : pImpl->PSOs)
 		PSO->Release();
 
@@ -159,7 +155,6 @@ void RsrcMngrDX12::Clear() {
 	pImpl->textureCubeMap.clear();
 	pImpl->renderTargetMap.clear();
 	pImpl->meshMap.clear();
-	pImpl->rootSignatureMap.clear();
 	pImpl->PSOs.clear();
 	pImpl->shaderMap.clear();
 
@@ -736,47 +731,6 @@ ID3D12RootSignature* RsrcMngrDX12::GetShaderRootSignature(const Shader* shader) 
 //
 //	return *this;
 //}
-
-RsrcMngrDX12& RsrcMngrDX12::RegisterRootSignature(
-	size_t id,
-	const D3D12_ROOT_SIGNATURE_DESC* desc
-) {
-	auto target = pImpl->rootSignatureMap.find(id);
-	if (target != pImpl->rootSignatureMap.end())
-		return *this;
-
-	// create a root signature with a single slot which points to a descriptor range consisting of a single constant buffer
-	ID3DBlob* serializedRootSig = nullptr;
-	ID3DBlob* errorBlob = nullptr;
-
-	HRESULT hr = D3D12SerializeRootSignature(desc, D3D_ROOT_SIGNATURE_VERSION_1,
-		&serializedRootSig, &errorBlob);
-
-	if (errorBlob != nullptr)
-	{
-		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
-		errorBlob->Release();
-	}
-	ThrowIfFailed(hr);
-
-	ID3D12RootSignature* rootSig;
-
-	ThrowIfFailed(pImpl->device->CreateRootSignature(
-		0,
-		serializedRootSig->GetBufferPointer(),
-		serializedRootSig->GetBufferSize(),
-		IID_PPV_ARGS(&rootSig)));
-
-	pImpl->rootSignatureMap.emplace(id, rootSig);
-
-	serializedRootSig->Release();
-
-	return *this;
-}
-
-ID3D12RootSignature* RsrcMngrDX12::GetRootSignature(size_t id) const {
-	return pImpl->rootSignatureMap.find(id)->second;
-}
 
 size_t RsrcMngrDX12::RegisterPSO(const D3D12_GRAPHICS_PIPELINE_STATE_DESC* desc) {
 	ID3D12PipelineState* pso;
