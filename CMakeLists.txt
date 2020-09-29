@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 
-project(DustEngine VERSION 0.0.1)
+project(DustEngine VERSION 0.0.2)
 message(STATUS "[Project] ${PROJECT_NAME}")
 
 include(cmake/InitUCMake.cmake)
@@ -8,12 +8,14 @@ Ubpa_InitUCMake()
 
 Ubpa_InitProject()
 
+set(Ubpa_USRefl_Build_AutoRefl TRUE CACHE BOOL "use auto refl" FORCE)
+
 Ubpa_AddDep(URapidJSON 0.0.1)
 Ubpa_AddDep(USTL       0.1.1)
 Ubpa_AddDep(UDP        0.7.1)
 Ubpa_AddDep(UGM        0.6.11)
 Ubpa_AddDep(ULuaPP     0.1.7)
-Ubpa_AddDep(UECS       0.13.0)
+Ubpa_AddDep(UECS       0.13.1)
 Ubpa_AddDep(UDX12      0.0.8)
 
 Ubpa_DownloadZip(

@@ -139,7 +139,7 @@ namespace Ubpa::DustEngine::detail {
 		ImGuiStyle& style = ImGui::GetStyle();
 		ImVec2 button_sz(64, 64);
 		float window_visible_x2 = ImGui::GetWindowPos().x + ImGui::GetWindowContentRegionMax().x;
-		size_t idx = 0;
+		UINT idx = 0;
 		// pass 1 : folder
 		for (const auto& child : children) {
 			const auto& path = AssetMngr::Instance().GUIDToAssetPath(child);
