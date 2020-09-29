@@ -24,6 +24,7 @@ DX12App::~DX12App() {
 		Ubpa::UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Free(std::move(swapchainRTVCpuDH));
 
 	Ubpa::DustEngine::RsrcMngrDX12::Instance().Clear();
+	Ubpa::UDX12::DescriptorHeapMngr::Instance().Clear();
 }
 
 LRESULT CALLBACK DX12App::MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {

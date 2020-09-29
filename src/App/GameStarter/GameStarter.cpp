@@ -250,18 +250,26 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
     _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
 
+	int rst;
     try {
         GameStarter theApp(hInstance);
         if(!theApp.Initialize())
             return 1;
 
-        int rst = theApp.Run();
-		return rst;
+        rst = theApp.Run();
     }
     catch(Ubpa::UDX12::Util::Exception& e) {
 		MessageBox(nullptr, e.ToString().c_str(), L"HR Failed", MB_OK);
         return 1;
-    }
+	}
+
+#ifdef _DEBUG
+	ComPtr<IDXGIDebug> debug;
+	DXGIGetDebugInterface1(0, IID_PPV_ARGS(&debug));
+	debug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_DETAIL);
+#endif // _DEBUG
+
+	return rst;
 }
 
 GameStarter::GameStarter(HINSTANCE hInstance)

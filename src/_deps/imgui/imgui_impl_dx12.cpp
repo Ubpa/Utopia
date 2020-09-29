@@ -1004,15 +1004,10 @@ void ImGui_ImplDX12_InitPlatformInterface(ImGuiContext* ctx)
 
 void ImGui_ImplDX12_ShutdownPlatformInterface(ImGuiContext* ctx)
 {
-	//ImGui::DestroyPlatformWindows();
+    auto origCtx = ImGui::GetCurrentContext();
+    ImGui::SetCurrentContext(ctx);
 
-	// We call the destroy window on every viewport (including the main viewport, index 0) to give a chance to the back-end
-	// to clear any data they may have stored in e.g. PlatformUserData, RendererUserData.
-	// It is convenient for the platform back-end code to store something in the main viewport, in order for e.g. the mouse handling
-	// code to operator a consistent manner.
-	// It is expected that the back-end can handle calls to Renderer_DestroyWindow/Platform_DestroyWindow without
-	// crashing if it doesn't have data stored.
-	ImGuiContext& g = *ctx;
-	for (int i = 0; i < g.Viewports.Size; i++)
-		ImGui::DestroyPlatformWindow(g.Viewports[i]);
+	ImGui::DestroyPlatformWindows();
+
+	ImGui::SetCurrentContext(origCtx);
 }

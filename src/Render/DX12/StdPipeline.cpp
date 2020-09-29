@@ -53,7 +53,6 @@ struct StdPipeline::Impl {
 	~Impl();
 
 	size_t ID_PSO_defer_light;
-	size_t ID_PSO_screen;
 	size_t ID_PSO_skybox;
 	size_t ID_PSO_postprocess;
 	size_t ID_PSO_irradiance;

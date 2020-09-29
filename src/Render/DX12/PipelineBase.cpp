@@ -125,7 +125,7 @@ void PipelineBase::SetGraphicsRoot_CBV_SRV(
 		D3D12_SHADER_DESC shaderDesc;
 		ThrowIfFailed(refl->GetDesc(&shaderDesc));
 
-		auto GetSRVRootParamIndex = [&](size_t registerIndex) {
+		auto GetSRVRootParamIndex = [&](UINT registerIndex) {
 			for (size_t i = 0; i < material->shader->rootParameters.size(); i++) {
 				const auto& param = material->shader->rootParameters[i];
 
@@ -150,13 +150,13 @@ void PipelineBase::SetGraphicsRoot_CBV_SRV(
 				);
 
 				if (flag)
-					return i;
+					return (UINT)i;
 			}
 			assert(false);
-			return static_cast<size_t>(-1);
+			return static_cast<UINT>(-1);
 		};
 
-		auto GetCBVRootParamIndex = [&](size_t registerIndex) {
+		auto GetCBVRootParamIndex = [&](UINT registerIndex) {
 			for (size_t i = 0; i < material->shader->rootParameters.size(); i++) {
 				const auto& param = material->shader->rootParameters[i];
 
@@ -166,7 +166,7 @@ void PipelineBase::SetGraphicsRoot_CBV_SRV(
 						if constexpr (std::is_same_v<Type, RootDescriptor>) {
 							const RootDescriptor& descriptor = param;
 							if (descriptor.DescriptorType != RootDescriptorType::CBV)
-								return  false;
+								return false;
 
 							return descriptor.ShaderRegister == registerIndex;
 						}
@@ -177,10 +177,10 @@ void PipelineBase::SetGraphicsRoot_CBV_SRV(
 				);
 				
 				if (flag)
-					return i;
+					return (UINT)i;
 			}
 			assert(false);
-			return static_cast<size_t>(-1);
+			return static_cast<UINT>(-1);
 		};
 
 		for (UINT i = 0; i < shaderDesc.BoundResources; i++) {
@@ -207,7 +207,7 @@ void PipelineBase::SetGraphicsRoot_CBV_SRV(
 					break;
 
 				auto dim = rsrcDesc.Dimension;
-				size_t rootParamIndex = GetSRVRootParamIndex(rsrcDesc.BindPoint);
+				UINT rootParamIndex = GetSRVRootParamIndex(rsrcDesc.BindPoint);
 				switch (dim)
 				{
 				case D3D_SRV_DIMENSION_TEXTURE2D: {

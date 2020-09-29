@@ -68,9 +68,9 @@ const std::vector<ImGuiContext*>& ImGUIMngr::GetContexts() const {
 }
 
 void ImGUIMngr::Clear() {
-	ImGui_ImplDX12_Shutdown_Shared();
 	for(const auto& ctx : pImpl->contexts)
 		ImGui_ImplDX12_Shutdown_Context(ctx);
+	ImGui_ImplDX12_Shutdown_Shared();
 
 	ImGui_ImplWin32_Shutdown_Shared();
 	for (const auto& ctx : pImpl->contexts)
