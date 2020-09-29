@@ -44,6 +44,8 @@ Ubpa_AddTarget(
   INC
     "${PROJECT_SOURCE_DIR}/include"
   LIB
+    Ubpa::USTL_core
+    Ubpa::USRefl_core
     Ubpa::UGM_core
     Ubpa::UDP_core
     Ubpa::UECS_core
