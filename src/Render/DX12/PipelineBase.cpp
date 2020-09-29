@@ -118,7 +118,8 @@ void PipelineBase::SetGraphicsRoot_CBV_SRV(
 	ShaderCBMngrDX12& shaderCBMngr,
 	const ShaderCBDesc& shaderCBDescconst,
 	const Material* material,
-	const std::map<std::string_view, D3D12_GPU_VIRTUAL_ADDRESS>& commonCBs
+	const std::map<std::string_view, D3D12_GPU_VIRTUAL_ADDRESS>& commonCBs,
+	const std::map<std::string_view, D3D12_GPU_DESCRIPTOR_HANDLE>& commonSRVs
 ) {
 	auto buffer = shaderCBMngr.GetBuffer(material->shader);
 	size_t cbPos = buffer->GetResource()->GetGPUVirtualAddress()
@@ -141,8 +142,7 @@ void PipelineBase::SetGraphicsRoot_CBV_SRV(
 								return false;
 
 							const auto& range = table.front();
-							if (range.NumDescriptors != 1)
-								return false;
+							assert(range.NumDescriptors > 0);
 
 							return range.BaseShaderRegister == registerIndex;
 						}
@@ -155,8 +155,8 @@ void PipelineBase::SetGraphicsRoot_CBV_SRV(
 				if (flag)
 					return (UINT)i;
 			}
-			assert(false);
-			return static_cast<UINT>(-1);
+			// assert(false);
+			return static_cast<UINT>(-1); // inner SRV
 		};
 
 		auto GetCBVRootParamIndex = [&](UINT registerIndex) {
@@ -210,36 +210,42 @@ void PipelineBase::SetGraphicsRoot_CBV_SRV(
 			}
 			case D3D_SIT_TEXTURE:
 			{
-				auto target = material->properties.find(rsrcDesc.Name);
-				if (target == material->properties.end())
+				UINT rootParamIndex = GetSRVRootParamIndex(rsrcDesc.BindPoint);
+				if (rootParamIndex == static_cast<size_t>(-1))
 					break;
 
-				auto dim = rsrcDesc.Dimension;
-				UINT rootParamIndex = GetSRVRootParamIndex(rsrcDesc.BindPoint);
-				switch (dim)
-				{
-				case D3D_SRV_DIMENSION_TEXTURE2D: {
-					assert(std::holds_alternative<const Texture2D*>(target->second));
-					auto tex2d = std::get<const Texture2D*>(target->second);
-					cmdList->SetGraphicsRootDescriptorTable(
-						rootParamIndex,
-						RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(tex2d)
-					);
-					break;
+				D3D12_GPU_DESCRIPTOR_HANDLE handle;
+				handle.ptr = 0;
+
+				if (auto target = material->properties.find(rsrcDesc.Name); target != material->properties.end()) {
+					auto dim = rsrcDesc.Dimension;
+					switch (dim)
+					{
+					case D3D_SRV_DIMENSION_TEXTURE2D: {
+						assert(std::holds_alternative<const Texture2D*>(target->second));
+						auto tex2d = std::get<const Texture2D*>(target->second);
+						handle = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(tex2d);
+						break;
+					}
+					case D3D_SRV_DIMENSION_TEXTURECUBE: {
+						assert(std::holds_alternative<const TextureCube*>(target->second));
+						auto texcube = std::get<const TextureCube*>(target->second);
+						handle = RsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(texcube);
+						break;
+					}
+					default:
+						assert("not support" && false);
+						break;
+					}
 				}
-				case D3D_SRV_DIMENSION_TEXTURECUBE: {
-					assert(std::holds_alternative<const TextureCube*>(target->second));
-					auto texcube = std::get<const TextureCube*>(target->second);
-					cmdList->SetGraphicsRootDescriptorTable(
-						rootParamIndex,
-						RsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(texcube)
-					);
+				else if (auto target = commonSRVs.find(rsrcDesc.Name); target != commonSRVs.end())
+					handle = target->second;
+				else
 					break;
-				}
-				default:
-					assert("not support" && false);
-					break;
-				}
+				
+				if (handle.ptr != 0)
+					cmdList->SetGraphicsRootDescriptorTable(rootParamIndex, handle);
+
 				break;
 			}
 			default:
@@ -252,4 +258,10 @@ void PipelineBase::SetGraphicsRoot_CBV_SRV(
 		SetGraphicsRoot_Refl(RsrcMngrDX12::Instance().GetShaderRefl_vs(material->shader, i));
 		SetGraphicsRoot_Refl(RsrcMngrDX12::Instance().GetShaderRefl_ps(material->shader, i));
 	}
+}
+
+void PipelineBase::SetPSODescForRenderState(D3D12_GRAPHICS_PIPELINE_STATE_DESC& desc, const RenderState& renderState) {
+	desc.RasterizerState.CullMode = static_cast<D3D12_CULL_MODE>(renderState.cullMode);
+	desc.DepthStencilState.DepthFunc = static_cast<D3D12_COMPARISON_FUNC>(renderState.zTest);
+	desc.DepthStencilState.DepthWriteMask = static_cast<D3D12_DEPTH_WRITE_MASK>(renderState.zWrite);
 }

@@ -1,7 +1,7 @@
 static const float PI = 3.14159265359;
 
-TextureCube  gCubeMap       : register(t0);
-SamplerState basicSampler   : register(s0);
+TextureCube  gCubeMap           : register(t0);
+SamplerState gSamplerLinearWrap : register(s2);
 
 struct VertexOut {
     float4 PosH : SV_POSITION;
@@ -96,7 +96,7 @@ float4 PS(VertexOut pin) : SV_Target {
 
     float3 irradiance = float3(0, 0, 0);
     
-    const uint SAMPLE_NUM = 2048u;
+    const uint SAMPLE_NUM = 1024u;
 	
 	for(uint i = 0u; i < SAMPLE_NUM; i++) {
 		float2 Xi = Hammersley(i, SAMPLE_NUM);
@@ -104,7 +104,7 @@ float4 PS(VertexOut pin) : SV_Target {
 		float3 sL = CosOnHalfSphere(Xi);
 		float3 L = sL.x * right + sL.y * up + sL.z * N;
 		
-		irradiance += gCubeMap.Sample(basicSampler, L).xyz;
+		irradiance += gCubeMap.Sample(gSamplerLinearWrap, L).xyz;
 	}
 	irradiance /= float(SAMPLE_NUM);
 	
@@ -118,7 +118,7 @@ float4 PS(VertexOut pin) : SV_Target {
 			float3 sL = CosOnHalfSphere(Xi);
 			float3 L = sL.x * right + sL.y * up + sL.z * N;
 			
-			irradiance += gCubeMap.Sample(basicSampler, L).xyz;
+			irradiance += gCubeMap.Sample(gSamplerLinearWrap, L).xyz;
 		}
 	}
 	irradiance /= float(SAMPLE_NUM) * float(SAMPLE_NUM);
@@ -135,7 +135,7 @@ float4 PS(VertexOut pin) : SV_Target {
 			float3 sL = float3(sin(theta)*cos(phi),sin(theta)*sin(phi),cos(theta));
 			float3 L = sL.x * right + sL.y * up + sL.z * N;
 			
-			irradiance += gCubeMap.Sample(basicSampler, L).xyz * cos(theta)*sin(theta);
+			irradiance += gCubeMap.Sample(gSamplerLinearWrap, L).xyz * cos(theta)*sin(theta);
 		}
 	}
 	

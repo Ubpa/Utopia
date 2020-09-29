@@ -1,7 +1,6 @@
 #include "StdPipeline.hlsli"
 
-TextureCube  gSkybox       : register(t0);
-SamplerState gSampleLinear : register(s0);
+TextureCube  gSkybox            : register(t0);
 
 static const float3 gPositions[8] =
 {
@@ -60,5 +59,5 @@ VertexOut VS(uint vid : SV_VertexID)
 
 float4 PS(VertexOut pin) : SV_Target
 {
-    return gSkybox.Sample(gSampleLinear, normalize(pin.TexC));
+    return gSkybox.Sample(gSamplerLinearWrap, normalize(pin.TexC));
 }

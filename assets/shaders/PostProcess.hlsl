@@ -1,5 +1,5 @@
-Texture2D    gImage        : register(t0);
-SamplerState gSampleLinear : register(s0);
+Texture2D    gImage             : register(t0);
+SamplerState gSamplerLinearWrap : register(s2);
 
 static const float2 gTexCoords[6] =
 {
@@ -31,7 +31,7 @@ VertexOut VS(uint vid : SV_VertexID)
 
 float4 PS(VertexOut pin) : SV_Target
 {
-    float4 color = gImage.Sample(gSampleLinear, pin.TexC);
+    float4 color = gImage.Sample(gSamplerLinearWrap, pin.TexC);
 	
 	// HDR tonemapping
 	// color.rgb = color.rgb / (float3(1.0f, 1.0f, 1.0f) + color.rgb);

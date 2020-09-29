@@ -1,65 +1,83 @@
 #include "StdPipeline.hlsli"
 #include "PBR.hlsli"
 
-Texture2D    gbuffer0       : register(t0);
-Texture2D    gbuffer1       : register(t1);
-Texture2D    gbuffer2       : register(t2);
-Texture2D    gDepthStencil  : register(t3);
-STD_PIPELINE_SR_IBL(4); // cover 3 shader resource registers
+Texture2D gAlbedoMap    : register(t0);
+Texture2D gRoughnessMap : register(t1);
+Texture2D gMetalnessMap : register(t2);
+Texture2D gNormalMap    : register(t3);
+STD_PIPELINE_SR_IBL(4); // cover 3 register
 
-STD_PIPELINE_CB_LIGHT_ARRAY(0);
+STD_PIPELINE_CB_PER_OBJECT(0);
 
-STD_PIPELINE_CB_PER_CAMERA(1);
+cbuffer cbPerMaterial : register(b1)
+{
+	float3 gAlbedoFactor;
+    float  gRoughnessFactor;
+    float  gMetalnessFactor;
+};
+
+STD_PIPELINE_CB_PER_CAMERA(2);
+STD_PIPELINE_CB_LIGHT_ARRAY(3);
+
+struct VertexIn
+{
+	float3 PosL     : POSITION;
+    float3 NormalL  : NORMAL;
+	float2 TexC     : TEXCOORD;
+	float3 TangentL : TENGENT;
+};
 
 struct VertexOut
 {
-	float4 PosH    : SV_POSITION;
-	float2 TexC    : TEXCOORD;
+	float4   PosH    : SV_POSITION;
+    float3   PosW    : POSITION;
+	float2   TexC    : TEXCOORD;
+    float3   T       : TENGENT;
+	float3   B       : BINORMAL;
+    float3   N       : NORMAL;
 };
 
-static const float2 gTexCoords[6] =
+VertexOut VS(VertexIn vin)
 {
-    float2(0.0f, 1.0f),
-    float2(1.0f, 1.0f),
-    float2(0.0f, 0.0f),
-    float2(1.0f, 0.0f),
-    float2(0.0f, 0.0f),
-    float2(1.0f, 1.0f)
-};
+	VertexOut vout = (VertexOut)0.0f;
+	
+    // Transform to world space.
+    float4 posW = mul(gWorld, float4(vin.PosL, 1.0f));
+    vout.PosW = posW.xyz;
 
-VertexOut VS(uint vid : SV_VertexID)
-{
-	VertexOut vout;
+	float3x3 normalMatrix = transpose((float3x3)gInvWorld);
+    vout.N = normalize(mul(normalMatrix, vin.NormalL));
+	float4 TangentH = mul(gWorld, float4(vin.TangentL, 1));
+	float3 TangentW = TangentH.xyz / TangentH.w;
+    vout.T = normalize(TangentW - dot(TangentW, vout.N) * vout.N);
+	vout.B = cross(vout.N, vout.T);
 
-    vout.TexC = gTexCoords[vid];
-
-    // Quad covering screen in NDC space.
-    vout.PosH = float4(2.0f*vout.TexC.x - 1.0f, 1.0f - 2.0f*vout.TexC.y, 1.0f, 1.0f);
+    // Transform to homogeneous clip space.
+    vout.PosH = mul(gViewProj, posW);
+	
+	// Output vertex attributes for interpolation across triangle.
+    vout.TexC = vin.TexC;
 
     return vout;
 }
 
-float4 PS(VertexOut pin) : SV_Target
+struct PixelOut {
+	float4 color : SV_Target0;
+};
+
+PixelOut PS(VertexOut pin)
 {
-    float4 data0 = gbuffer0.Sample(gSamplerPointWrap, pin.TexC);
-    float4 data1 = gbuffer1.Sample(gSamplerPointWrap, pin.TexC);
-    //float4 data2 = gbuffer2.Sample(gSamplerPointWrap, pin.TexC);
-    
-	float depth = gDepthStencil.Sample(gSamplerPointWrap, pin.TexC).r;
-	float4 posHC = float4(
-		2 * pin.TexC.x - 1,
-		1 - 2 * pin.TexC.y,
-		depth,
-		1.f
-	);
-	float4 posHW = mul(gInvViewProj, posHC);
-	float3 posW = posHW.xyz / posHW.w;
+	PixelOut pout;
 	
-	float3 albedo = data0.xyz;
-	float roughness = data0.w;
+    float3 albedo    = gAlbedoFactor    * gAlbedoMap   .Sample(gSamplerLinearWrap, pin.TexC).xyz;
+    float  roughness = gRoughnessFactor * gRoughnessMap.Sample(gSamplerLinearWrap, pin.TexC).x;
+    float  metalness = gMetalnessFactor * gMetalnessMap.Sample(gSamplerLinearWrap, pin.TexC).x;
 	
-	float3 N = data1.xyz;
-	float metalness = data1.w;
+	float3 NormalM = gNormalMap.Sample(gSamplerLinearWrap, pin.TexC).xyz;
+	float3 NormalS = normalize(2 * NormalM - 1);
+	float3 N = normalize(NormalS.x * pin.T + NormalS.y * pin.B + NormalS.z * pin.N);
+	
+	float3 posW = pin.PosW;
 	
 	// -------------
 	
@@ -151,5 +169,7 @@ float4 PS(VertexOut pin) : SV_Target
 	
 	Lo += kD * diffuse + specular;
 	
-    return float4(Lo, 1.0f);
+	pout.color = float4(Lo, 1);
+	
+	return pout;
 }

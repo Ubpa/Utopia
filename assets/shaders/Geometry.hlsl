@@ -5,8 +5,6 @@ Texture2D gRoughnessMap : register(t1);
 Texture2D gMetalnessMap : register(t2);
 Texture2D gNormalMap    : register(t3);
 
-SamplerState gSamplerLinearWrap  : register(s2);
-
 STD_PIPELINE_CB_PER_OBJECT(0);
 
 cbuffer cbPerMaterial : register(b1)

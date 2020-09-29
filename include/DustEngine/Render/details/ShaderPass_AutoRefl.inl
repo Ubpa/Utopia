@@ -10,9 +10,10 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::DustEngine::ShaderPass>
 {
 	static constexpr AttrList attrs = {};
 
-	static constexpr FieldList fields = {
+	static constexpr FieldList fields = { 
 		Field{"vertexName", &Ubpa::DustEngine::ShaderPass::vertexName},
 		Field{"fragmentName", &Ubpa::DustEngine::ShaderPass::fragmentName},
+		Field{"renderState", &Ubpa::DustEngine::ShaderPass::renderState},
 		Field{"tags", &Ubpa::DustEngine::ShaderPass::tags},
 	};
 };

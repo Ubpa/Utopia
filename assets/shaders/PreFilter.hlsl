@@ -1,7 +1,7 @@
 static const float PI = 3.14159265359;
 
-TextureCube  gCubeMap       : register(t0);
-SamplerState basicSampler   : register(s0);
+TextureCube  gCubeMap             : register(t0);
+SamplerState gSamplerLinearWrap   : register(s2);
 
 struct VertexOut {
     float4 PosH : SV_POSITION;
@@ -105,7 +105,7 @@ float4 PS(VertexOut pin) : SV_Target {
     float3 R = N;
     float3 V = R;
 
-    const uint SAMPLE_NUM = 512u;
+    const uint SAMPLE_NUM = 256u;
     float3 prefilteredColor = float3(0,0,0);
     float totalWeight = 0.0;
 	
@@ -129,7 +129,7 @@ float4 PS(VertexOut pin) : SV_Target {
             float mipLevel = roughness == 0.0 ? 0.0 : 0.5 * log2(saSample / saTexel); 
             
 			// weight by dot(N, L)
-            prefilteredColor += gCubeMap.Sample(basicSampler, L, mipLevel).rgb * NdotL;
+            prefilteredColor += gCubeMap.Sample(gSamplerLinearWrap, L, mipLevel).rgb * NdotL;
             totalWeight      += NdotL;
         }
 	}

@@ -16,7 +16,7 @@ Ubpa_AddDep(UDP        0.7.1)
 Ubpa_AddDep(UGM        0.6.11)
 Ubpa_AddDep(ULuaPP     0.1.7)
 Ubpa_AddDep(UECS       0.13.1)
-Ubpa_AddDep(UDX12      0.0.8)
+Ubpa_AddDep(UDX12      0.0.9)
 
 Ubpa_DownloadZip(
   https://cdn.jsdelivr.net/gh/Ubpa/UData@master/DustEngine/crossguid/crossguid_20200919.zip
