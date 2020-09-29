@@ -49,6 +49,7 @@ Ubpa_AddTarget(
     Ubpa::UGM_core
     Ubpa::UDP_core
     Ubpa::UECS_core
+    Ubpa::UDX12_core
     Ubpa::DustEngine__deps_imgui
   DEFINE
     NOMINMAX
