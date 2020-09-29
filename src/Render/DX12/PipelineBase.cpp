@@ -11,8 +11,8 @@ using namespace Ubpa::DustEngine;
 PipelineBase::ShaderCBDesc PipelineBase::UpdateShaderCBs(
 	ShaderCBMngrDX12& shaderCBMngr,
 	const Shader* shader,
-	std::vector<const Material*> materials,
-	std::set<std::string_view> commonCBs
+	const std::vector<const Material*>& materials,
+	const std::set<std::string_view>& commonCBs
 ) {
 	PipelineBase::ShaderCBDesc rst;
 	assert(shader);
@@ -93,8 +93,10 @@ PipelineBase::ShaderCBDesc PipelineBase::UpdateShaderCBs(
 					}
 					else if constexpr (std::is_same_v<Value, const Texture2D*> || std::is_same_v<Value, const TextureCube*>)
 						assert(false);
-					else
+					else {
+						assert(varDesc.Size == sizeof(Value));
 						buffer->Set(offset + varDesc.StartOffset, &value, varDesc.Size);
+					}
 				}, target->second);
 			}
 		}
@@ -115,13 +117,14 @@ void PipelineBase::SetGraphicsRoot_CBV_SRV(
 	ID3D12GraphicsCommandList* cmdList,
 	ShaderCBMngrDX12& shaderCBMngr,
 	const ShaderCBDesc& shaderCBDescconst,
-	const Material* material
+	const Material* material,
+	const std::map<std::string_view, D3D12_GPU_VIRTUAL_ADDRESS>& commonCBs
 ) {
 	auto buffer = shaderCBMngr.GetBuffer(material->shader);
 	size_t cbPos = buffer->GetResource()->GetGPUVirtualAddress()
 		+ shaderCBDescconst.indexMap.at(material) * shaderCBDescconst.materialCBSize;
 
-	auto SetSRV = [&](ID3D12ShaderReflection* refl) {
+	auto SetGraphicsRoot_Refl = [&](ID3D12ShaderReflection* refl) {
 		D3D12_SHADER_DESC shaderDesc;
 		ThrowIfFailed(refl->GetDesc(&shaderDesc));
 
@@ -191,13 +194,18 @@ void PipelineBase::SetGraphicsRoot_CBV_SRV(
 			{
 			case D3D_SIT_CBUFFER:
 			{
-				auto target = shaderCBDescconst.offsetMap.find(rsrcDesc.BindPoint);
-				if (target == shaderCBDescconst.offsetMap.end())
+				UINT idx = GetCBVRootParamIndex(rsrcDesc.BindPoint);
+				D3D12_GPU_VIRTUAL_ADDRESS adress;
+
+				if (auto target = shaderCBDescconst.offsetMap.find(rsrcDesc.BindPoint); target != shaderCBDescconst.offsetMap.end())
+					adress = cbPos + target->second;
+				else if (auto target = commonCBs.find(rsrcDesc.Name); target != commonCBs.end())
+					adress = target->second;
+				else {
+					assert(false);
 					break;
-				cmdList->SetGraphicsRootConstantBufferView(
-					GetCBVRootParamIndex(rsrcDesc.BindPoint),
-					cbPos + target->second
-				);
+				}
+				cmdList->SetGraphicsRootConstantBufferView(idx, adress);
 				break;
 			}
 			case D3D_SIT_TEXTURE:
@@ -241,7 +249,7 @@ void PipelineBase::SetGraphicsRoot_CBV_SRV(
 	};
 
 	for (size_t i = 0; i < material->shader->passes.size(); i++) {
-		SetSRV(RsrcMngrDX12::Instance().GetShaderRefl_vs(material->shader, i));
-		SetSRV(RsrcMngrDX12::Instance().GetShaderRefl_ps(material->shader, i));
+		SetGraphicsRoot_Refl(RsrcMngrDX12::Instance().GetShaderRefl_vs(material->shader, i));
+		SetGraphicsRoot_Refl(RsrcMngrDX12::Instance().GetShaderRefl_ps(material->shader, i));
 	}
 }

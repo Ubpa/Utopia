@@ -6,6 +6,7 @@
 #include <iostream>
 
 using namespace Ubpa::DustEngine;
+using namespace Ubpa;
 
 int main() {
 	// Enable run-time memory check for debug builds.
@@ -24,6 +25,7 @@ int main() {
 	ShaderPass pass;
 	pass.vertexName = "VS";
 	pass.fragmentName = "PS";
+	pass.tags.emplace("LightMode", "Deferred");
 	shader.passes.push_back(pass);
 	
 	DescriptorRange ranges[4];
@@ -61,7 +63,10 @@ int main() {
 	);
 	shader.properties["gNormalMap"] = AssetMngr::Instance().LoadAsset<Texture2D>(
 		AssetMngr::Instance().GUIDToAssetPath(xg::Guid{ "b5e7fb39-fedd-4371-a00a-552a86307db7" })
-	);
+		);
+	shader.properties["gAlbedoFactor"] = rgbf{ 1.f };
+	shader.properties["gRoughnessFactor"] = 1.f;
+	shader.properties["gMetalnessFactor"] = 1.f;
 
 	AssetMngr::Instance().CreateAsset(shader, L"..\\assets\\test\\test.shader");
 

@@ -5,6 +5,8 @@
 #include <UECS/Entity.h>
 
 #include <unordered_map>
+#include <map>
+#include <set>
 #include <vector>
 
 namespace Ubpa::UECS {
@@ -67,14 +69,15 @@ namespace Ubpa::DustEngine {
 		static ShaderCBDesc UpdateShaderCBs(
 			ShaderCBMngrDX12& shaderCBMngr,
 			const Shader* shader,
-			std::vector<const Material*> materials,
-			std::set<std::string_view> commonCBs
+			const std::vector<const Material*>& materials,
+			const std::set<std::string_view>& commonCBs
 		);
 		static void SetGraphicsRoot_CBV_SRV(
 			ID3D12GraphicsCommandList* cmdList,
 			ShaderCBMngrDX12& shaderCBMngr,
 			const ShaderCBDesc& shaderCBDescconst,
-			const Material* material
+			const Material* material,
+			const std::map<std::string_view, D3D12_GPU_VIRTUAL_ADDRESS>& commonCBs
 		);
 
 	protected:

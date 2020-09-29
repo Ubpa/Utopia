@@ -105,7 +105,10 @@
     "passes":[
         {
             "vertexName":"VS",
-            "fragmentName":"PS"
+            "fragmentName":"PS",
+            "tags":{
+                "LightMode":"Deferred"
+            }
         }
     ]
 }
