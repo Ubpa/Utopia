@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <map>
 #include <set>
+#include <unordered_set>
 #include <vector>
 
 namespace Ubpa::UECS {
@@ -70,7 +71,7 @@ namespace Ubpa::DustEngine {
 		static ShaderCBDesc UpdateShaderCBs(
 			ShaderCBMngrDX12& shaderCBMngr,
 			const Shader* shader,
-			const std::vector<const Material*>& materials,
+			const std::unordered_set<const Material*>& materials,
 			const std::set<std::string_view>& commonCBs
 		);
 		static void SetGraphicsRoot_CBV_SRV(

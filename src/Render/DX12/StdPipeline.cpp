@@ -9,6 +9,7 @@
 #include <DustEngine/Render/HLSLFile.h>
 #include <DustEngine/Render/Shader.h>
 #include <DustEngine/Render/Mesh.h>
+#include <DustEngine/Render/RenderQueue.h>
 
 #include <DustEngine/Asset/AssetMngr.h>
 
@@ -113,14 +114,14 @@ struct StdPipeline::Impl {
 	struct LightArray {
 		static constexpr size_t size = 16;
 
-		UINT diectionalLightNum;
-		UINT pointLightNum;
-		UINT spotLightNum;
-		UINT rectLightNum;
-		UINT diskLightNum;
-		UINT _g_cbLightArray_pad0;
-		UINT _g_cbLightArray_pad1;
-		UINT _g_cbLightArray_pad2;
+		UINT diectionalLightNum{ 0 };
+		UINT pointLightNum{ 0 };
+		UINT spotLightNum{ 0 };
+		UINT rectLightNum{ 0 };
+		UINT diskLightNum{ 0 };
+		const UINT _g_cbLightArray_pad0{ static_cast<UINT>(-1) };
+		const UINT _g_cbLightArray_pad1{ static_cast<UINT>(-1) };
+		const UINT _g_cbLightArray_pad2{ static_cast<UINT>(-1) };
 		ShaderLight lights[size];
 	};
 
@@ -155,14 +156,10 @@ struct StdPipeline::Impl {
 	UDX12::DescriptorHeapAllocation defaultIBLSRVDH; // 3
 
 	struct RenderContext {
-		struct Object {
-			const Mesh* mesh{ nullptr };
-			size_t submeshIdx{ static_cast<size_t>(-1) };
-			size_t entity;
-		};
-		std::unordered_map<const Shader*,
-			std::unordered_map<const Material*,
-			std::vector<Object>>> objectMap;
+		RenderQueue renderQueue;
+
+		CameraConstants cameraConstants;
+
 		std::unordered_map<const Shader*, PipelineBase::ShaderCBDesc> shaderCBDescMap;
 
 		D3D12_GPU_DESCRIPTOR_HANDLE skybox;
@@ -221,26 +218,26 @@ struct StdPipeline::Impl {
 	void BuildPSOs();
 
 	size_t GetPSO_ID(const Shader* shader, size_t passIdx, const Mesh* mesh, size_t rtNum, DXGI_FORMAT rtFormat);
-	struct PSODesc {
-		PSODesc() { memset(this, 0, sizeof(PSODesc)); }
+	struct PartialPSODesc {
+		PartialPSODesc() { memset(this, 0, sizeof(PartialPSODesc)); }
 		size_t shaderID;
 		size_t passIndex;
 		size_t layoutID;
 		size_t rtNum;
 		DXGI_FORMAT rtFormat;
-		bool operator==(const PSODesc& rhs) const noexcept {
+		bool operator==(const PartialPSODesc& rhs) const noexcept {
 			return UDX12::FG::detail::bitwise_equal(*this, rhs);
 		}
 	};
-	struct PSODescHasher {
-		size_t operator()(const PSODesc& desc) const noexcept {
+	struct PartialPSODescHasher {
+		size_t operator()(const PartialPSODesc& desc) const noexcept {
 			return UDX12::FG::detail::hash_of(desc);
 		}
 	};
-	std::unordered_map<PSODesc, size_t, PSODescHasher> PSOIDMap;
+	std::unordered_map<PartialPSODesc, size_t, PartialPSODescHasher> PSOIDMap;
 
-	void UpdateRenderContext(const std::vector<const UECS::World*>& worlds);
-	void UpdateShaderCBs(const ResizeData& resizeData, const CameraData& cameraData);
+	void UpdateRenderContext(const std::vector<const UECS::World*>& worlds, const ResizeData& resizeData, const CameraData& cameraData);
+	void UpdateShaderCBs();
 	void Render(const ResizeData& resizeData, ID3D12Resource* rtb);
 	void DrawObjects(ID3D12GraphicsCommandList*, std::string_view lightMode, size_t rtNum, DXGI_FORMAT rtFormat);
 };
@@ -486,14 +483,14 @@ void StdPipeline::Impl::BuildPSOs() {
 
 size_t StdPipeline::Impl::GetPSO_ID(const Shader* shader, size_t passIdx, const Mesh* mesh, size_t rtNum, DXGI_FORMAT rtFormat) {
 	size_t layoutID = MeshLayoutMngr::Instance().GetMeshLayoutID(mesh);
-	PSODesc psoDesc;
-	psoDesc.layoutID = layoutID;
-	psoDesc.shaderID = shader->GetInstanceID();
-	psoDesc.passIndex = passIdx;
-	psoDesc.rtNum = rtNum;
-	psoDesc.rtFormat = rtFormat;
+	PartialPSODesc partPsoDesc;
+	partPsoDesc.layoutID = layoutID;
+	partPsoDesc.shaderID = shader->GetInstanceID();
+	partPsoDesc.passIndex = passIdx;
+	partPsoDesc.rtNum = rtNum;
+	partPsoDesc.rtFormat = rtFormat;
 
-	auto target = PSOIDMap.find(psoDesc);
+	auto target = PSOIDMap.find(partPsoDesc);
 	if (target == PSOIDMap.end()) {
 		const auto& layout = MeshLayoutMngr::Instance().GetMeshLayoutValue(layoutID);
 
@@ -509,16 +506,41 @@ size_t StdPipeline::Impl::GetPSO_ID(const Shader* shader, size_t passIdx, const 
 		desc.RasterizerState.FrontCounterClockwise = TRUE;
 		PipelineBase::SetPSODescForRenderState(desc, shader->passes[passIdx].renderState);
 		size_t psoID = RsrcMngrDX12::Instance().RegisterPSO(&desc);
-		target = PSOIDMap.emplace_hint(target, std::pair{ psoDesc, psoID });
+		target = PSOIDMap.emplace_hint(target, std::pair{ partPsoDesc, psoID });
 	}
 	return target->second;
 }
 
-void StdPipeline::Impl::UpdateRenderContext(const std::vector<const UECS::World*>& worlds) {
-	renderContext.objectMap.clear();
+void StdPipeline::Impl::UpdateRenderContext(
+	const std::vector<const UECS::World*>& worlds,
+	const ResizeData& resizeData,
+	const CameraData& cameraData
+) {
+	renderContext.renderQueue.Clear();
 	renderContext.entity2data.clear();
 	renderContext.entity2offset.clear();
 	renderContext.shaderCBDescMap.clear();
+
+	{ // camera
+		auto cmptCamera = cameraData.world.entityMngr.Get<Camera>(cameraData.entity);
+		auto cmptW2L = cameraData.world.entityMngr.Get<WorldToLocal>(cameraData.entity);
+		auto cmptTranslation = cameraData.world.entityMngr.Get<Translation>(cameraData.entity);
+		
+		renderContext.cameraConstants.View = cmptW2L->value;
+		renderContext.cameraConstants.InvView = renderContext.cameraConstants.View.inverse();
+		renderContext.cameraConstants.Proj = cmptCamera->prjectionMatrix;
+		renderContext.cameraConstants.InvProj = renderContext.cameraConstants.Proj.inverse();
+		renderContext.cameraConstants.ViewProj = renderContext.cameraConstants.Proj * renderContext.cameraConstants.View;
+		renderContext.cameraConstants.InvViewProj = renderContext.cameraConstants.InvView * renderContext.cameraConstants.InvProj;
+		renderContext.cameraConstants.EyePosW = cmptTranslation->value.as<pointf3>();
+		renderContext.cameraConstants.RenderTargetSize = { resizeData.width, resizeData.height };
+		renderContext.cameraConstants.InvRenderTargetSize = { 1.0f / resizeData.width, 1.0f / resizeData.height };
+
+		renderContext.cameraConstants.NearZ = cmptCamera->clippingPlaneMin;
+		renderContext.cameraConstants.FarZ = cmptCamera->clippingPlaneMax;
+		renderContext.cameraConstants.TotalTime = DustEngine::GameTimer::Instance().TotalTime();
+		renderContext.cameraConstants.DeltaTime = DustEngine::GameTimer::Instance().DeltaTime();
+	}
 
 	{ // object
 		ArchetypeFilter filter;
@@ -545,9 +567,9 @@ void StdPipeline::Impl::UpdateRenderContext(const std::vector<const UECS::World*
 						if (!meshFilter.mesh)
 							return;
 
-						RenderContext::Object obj;
+						RenderObject obj;
 						obj.mesh = meshFilter.mesh;
-						obj.entity = entities[i].Idx();
+						obj.entity = entities[i];
 
 						size_t M = std::min(meshRenderer.materials.size(), obj.mesh->GetSubMeshes().size());
 
@@ -560,27 +582,37 @@ void StdPipeline::Impl::UpdateRenderContext(const std::vector<const UECS::World*
 							auto material = meshRenderer.materials[j];
 							if (!material || !material->shader)
 								continue;
+							if (material->shader->passes.empty())
+								continue;
+
+							obj.material = material;
+							obj.translation = L2Ws[i].value.decompose_translation();
 							obj.submeshIdx = j;
-							renderContext.objectMap[material->shader][material].push_back(obj);
+
+							for (size_t k = 0; k < obj.material->shader->passes.size(); k++) {
+								obj.passIdx = k;
+								renderContext.renderQueue.Add(obj);
+							}
 							isDraw = true;
 						}
 
 						if(!isDraw)
 							continue;
 
-						auto target = renderContext.entity2data.find(obj.entity);
+						auto target = renderContext.entity2data.find(obj.entity.Idx());
 						if (target != renderContext.entity2data.end())
 							continue;
 						RenderContext::EntityData data;
 						data.l2w = L2Ws[i].value;
 						data.w2l = W2Ls ? W2Ls[i].value : L2Ws[i].value.inverse();
-						renderContext.entity2data.emplace_hint(target, std::pair{ obj.entity, data });
+						renderContext.entity2data.emplace_hint(target, std::pair{ obj.entity.Idx(), data });
 					}
 				},
 				filter,
 				false
 			);
 		}
+		renderContext.renderQueue.Sort(renderContext.cameraConstants.EyePosW);
 	}
 
 	{ // light
@@ -706,10 +738,7 @@ void StdPipeline::Impl::UpdateRenderContext(const std::vector<const UECS::World*
 	}
 }
 
-void StdPipeline::Impl::UpdateShaderCBs(
-	const ResizeData& resizeData,
-	const CameraData& cameraData
-) {
+void StdPipeline::Impl::UpdateShaderCBs() {
 	auto& shaderCBMngr = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<DustEngine::ShaderCBMngrDX12>("ShaderCBMngrDX12");
 
@@ -721,27 +750,7 @@ void StdPipeline::Impl::UpdateShaderCBs(
 			+ renderContext.entity2data.size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(ObjectConstants))
 		);
 
-		// camera
-		auto cmptCamera = cameraData.world.entityMngr.Get<Camera>(cameraData.entity);
-		auto cmptW2L = cameraData.world.entityMngr.Get<WorldToLocal>(cameraData.entity);
-		auto cmptTranslation = cameraData.world.entityMngr.Get<Translation>(cameraData.entity);
-		CameraConstants cbPerCamera;
-		cbPerCamera.View = cmptW2L->value;
-		cbPerCamera.InvView = cbPerCamera.View.inverse();
-		cbPerCamera.Proj = cmptCamera->prjectionMatrix;
-		cbPerCamera.InvProj = cbPerCamera.Proj.inverse();
-		cbPerCamera.ViewProj = cbPerCamera.Proj * cbPerCamera.View;
-		cbPerCamera.InvViewProj = cbPerCamera.InvView * cbPerCamera.InvProj;
-		cbPerCamera.EyePosW = cmptTranslation->value.as<pointf3>();
-		cbPerCamera.RenderTargetSize = { resizeData.width, resizeData.height };
-		cbPerCamera.InvRenderTargetSize = { 1.0f / resizeData.width, 1.0f / resizeData.height };
-
-		cbPerCamera.NearZ = cmptCamera->clippingPlaneMin;
-		cbPerCamera.FarZ = cmptCamera->clippingPlaneMax;
-		cbPerCamera.TotalTime = DustEngine::GameTimer::Instance().TotalTime();
-		cbPerCamera.DeltaTime = DustEngine::GameTimer::Instance().DeltaTime();
-
-		buffer->Set(renderContext.cameraOffset, &cbPerCamera, sizeof(CameraConstants));
+		buffer->Set(renderContext.cameraOffset, &renderContext.cameraConstants, sizeof(CameraConstants));
 
 		// light array
 		buffer->Set(renderContext.lightOffset, &renderContext.lights, sizeof(LightArray));
@@ -757,14 +766,55 @@ void StdPipeline::Impl::UpdateShaderCBs(
 			offset += UDX12::Util::CalcConstantBufferByteSize(sizeof(ObjectConstants));
 		}
 	}
+	
+	// TODO
+	std::unordered_set<const Material*> materials;
+	const Shader* shader{ nullptr };
+	const auto& opaques = renderContext.renderQueue.GetOpaques();
+	auto AddOpaque = [&](size_t& index) {
+		if (opaques.size() == index)
+			return false;
 
-	// geometry
-	for (const auto& [shader, mat2objects] : renderContext.objectMap) {
-		std::vector<const Material*> materials;
-		for (const auto& [material, objects] : mat2objects)
-			materials.push_back(material);
+		const auto& object = opaques[index];
+
+		if (shader == nullptr)
+			shader = object.material->shader;
+		else if (shader != object.material->shader)
+			return false;
+
+		materials.insert(object.material);
+		index++;
+
+		return true;
+	};
+
+	std::unordered_map<const Shader*, std::unordered_set<const Material*>> transparentMaterialMap; // shader -> material
+	for (const auto& transparent : renderContext.renderQueue.GetTransparents())
+		transparentMaterialMap[transparent.material->shader].insert(transparent.material);
+	auto Commit = [&]() {
+		if (shader == nullptr)
+			return;
+
+		if (auto target = transparentMaterialMap.find(shader); target != transparentMaterialMap.end()) {
+			for (auto material : target->second)
+				materials.insert(material);
+			transparentMaterialMap.erase(target);
+		}
+
 		renderContext.shaderCBDescMap[shader] = PipelineBase::UpdateShaderCBs(shaderCBMngr, shader, materials, commonCBs);
+		shader = nullptr;
+		materials.clear();
+	};
+
+	size_t i = 0;
+	while (i < opaques.size()) {
+		if (AddOpaque(i))
+			continue;
+		Commit();
 	}
+	Commit();
+	for (const auto& [shader, materials] : transparentMaterialMap)
+		renderContext.shaderCBDescMap[shader] = PipelineBase::UpdateShaderCBs(shaderCBMngr, shader, materials, commonCBs);
 }
 
 void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb) {
@@ -1179,7 +1229,6 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::str
 	auto& shaderCBMngr = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<DustEngine::ShaderCBMngrDX12>("ShaderCBMngrDX12");
 
-
 	D3D12_GPU_DESCRIPTOR_HANDLE ibl;
 	if (renderContext.skybox.ptr == defaultSkybox.ptr)
 		ibl = defaultIBLSRVDH.GetGpuHandle();
@@ -1188,68 +1237,63 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::str
 			->GetResource<std::shared_ptr<IBLData>>("IBL data");
 		ibl = iblData->SRVDH.GetGpuHandle();
 	}
-	
-	for (const auto& [shader, material] : renderContext.objectMap) {
-		std::vector<size_t> filteredPasses;
-		for (size_t i = 0; i < shader->passes.size(); i++) {
-			const auto& pass = shader->passes[i];
-			auto target = pass.tags.find("LightMode");
-			if(target == pass.tags.end())
-				continue;
-			if (target->second == lightMode)
-				filteredPasses.push_back(i);
-		}
-		if (filteredPasses.empty())
-			continue;
 
-		cmdList->SetGraphicsRootSignature(RsrcMngrDX12::Instance().GetShaderRootSignature(shader));
+	auto commonBuffer = shaderCBMngr.GetCommonBuffer();
+	auto cameraCBAdress = commonBuffer->GetResource()->GetGPUVirtualAddress()
+		+ renderContext.cameraOffset;
+	
+	const Shader* shader{ nullptr };
+	auto Draw = [&](const RenderObject& obj) {
+		const auto& pass = obj.material->shader->passes[obj.passIdx];
+
+		if (auto target = pass.tags.find("LightMode"); target == pass.tags.end() || target->second != lightMode)
+			return;
+
+		if (shader != obj.material->shader) {
+			shader = obj.material->shader;
+			cmdList->SetGraphicsRootSignature(RsrcMngrDX12::Instance().GetShaderRootSignature(shader));
+		}
 
 		auto matBuffer = shaderCBMngr.GetBuffer(shader);
-		auto commonBuffer = shaderCBMngr.GetCommonBuffer();
 
-		const auto& mat2objects = renderContext.objectMap.at(shader);
 		const auto& shaderCBDesc = renderContext.shaderCBDescMap.at(shader);
-
-		auto cameraCBAdress = commonBuffer->GetResource()->GetGPUVirtualAddress()
-			+ renderContext.cameraOffset;
 
 		auto lightCBAdress = commonBuffer->GetResource()->GetGPUVirtualAddress()
 			+ renderContext.lightOffset;
 
-		for (const auto& [material, objects] : mat2objects) {
-			// For each render item...
-			for (size_t i = 0; i < objects.size(); i++) {
-				const auto& object = objects[i];
-				auto& meshGPUBuffer = DustEngine::RsrcMngrDX12::Instance().GetMeshGPUBuffer(object.mesh);
-				const auto& submesh = object.mesh->GetSubMeshes().at(object.submeshIdx);
-				cmdList->IASetVertexBuffers(0, 1, &meshGPUBuffer.VertexBufferView());
-				cmdList->IASetIndexBuffer(&meshGPUBuffer.IndexBufferView());
-				// submesh.topology
-				cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		auto& meshGPUBuffer = DustEngine::RsrcMngrDX12::Instance().GetMeshGPUBuffer(obj.mesh);
+		const auto& submesh = obj.mesh->GetSubMeshes().at(obj.submeshIdx);
+		cmdList->IASetVertexBuffers(0, 1, &meshGPUBuffer.VertexBufferView());
+		cmdList->IASetIndexBuffer(&meshGPUBuffer.IndexBufferView());
+		// submesh.topology
+		cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-				D3D12_GPU_VIRTUAL_ADDRESS objCBAddress =
-					commonBuffer->GetResource()->GetGPUVirtualAddress()
-					+ renderContext.entity2offset.at(object.entity);
+		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress =
+			commonBuffer->GetResource()->GetGPUVirtualAddress()
+			+ renderContext.entity2offset.at(obj.entity.Idx());
 
-				StdPipeline::SetGraphicsRoot_CBV_SRV(cmdList, shaderCBMngr, shaderCBDesc, material,
-					{
-						{StdPipeline_cbPerObject, objCBAddress},
-						{StdPipeline_cbPerCamera, cameraCBAdress},
-						{StdPipeline_cbLightArray, lightCBAdress}
-					},
-					{
-						{StdPipeline_srvIBL, ibl}
-					});
-
-				for (auto passIndex : filteredPasses) {
-					cmdList->SetPipelineState(RsrcMngrDX12::Instance().GetPSO(GetPSO_ID(
-						shader, passIndex, object.mesh, rtNum, rtFormat
-					)));
-					cmdList->DrawIndexedInstanced((UINT)submesh.indexCount, 1, (UINT)submesh.indexStart, (INT)submesh.baseVertex, 0);
-				}
+		StdPipeline::SetGraphicsRoot_CBV_SRV(cmdList, shaderCBMngr, shaderCBDesc, obj.material,
+			{
+				{StdPipeline_cbPerObject, objCBAddress},
+				{StdPipeline_cbPerCamera, cameraCBAdress},
+				{StdPipeline_cbLightArray, lightCBAdress}
+			},
+			{
+				{StdPipeline_srvIBL, ibl}
 			}
-		}
-	}
+		);
+
+		cmdList->SetPipelineState(RsrcMngrDX12::Instance().GetPSO(GetPSO_ID(
+			shader, obj.passIdx, obj.mesh, rtNum, rtFormat
+		)));
+		cmdList->DrawIndexedInstanced((UINT)submesh.indexCount, 1, (UINT)submesh.indexStart, (INT)submesh.baseVertex, 0);
+	};
+
+	for (const auto& obj : renderContext.renderQueue.GetOpaques())
+		Draw(obj);
+
+	for (const auto& obj : renderContext.renderQueue.GetTransparents())
+		Draw(obj);
 }
 
 StdPipeline::StdPipeline(InitDesc initDesc)
@@ -1264,7 +1308,7 @@ StdPipeline::~StdPipeline() {
 
 void StdPipeline::BeginFrame(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData) {
 	// collect some cpu data
-	pImpl->UpdateRenderContext(worlds);
+	pImpl->UpdateRenderContext(worlds, GetResizeData(), cameraData);
 
 	// Cycle through the circular frame resource array.
 	// Has the GPU finished processing the commands of the current frame resource?
@@ -1272,7 +1316,7 @@ void StdPipeline::BeginFrame(const std::vector<const UECS::World*>& worlds, cons
 	pImpl->frameRsrcMngr.BeginFrame();
 
 	// cpu -> gpu
-	pImpl->UpdateShaderCBs(GetResizeData(), cameraData);
+	pImpl->UpdateShaderCBs();
 }
 
 void StdPipeline::Render(ID3D12Resource* rt) {

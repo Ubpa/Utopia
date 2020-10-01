@@ -15,6 +15,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::DustEngine::ShaderPass>
 		Field{"fragmentName", &Ubpa::DustEngine::ShaderPass::fragmentName},
 		Field{"renderState", &Ubpa::DustEngine::ShaderPass::renderState},
 		Field{"tags", &Ubpa::DustEngine::ShaderPass::tags},
+		Field{"queue", &Ubpa::DustEngine::ShaderPass::queue},
 	};
 };
 

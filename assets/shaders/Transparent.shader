@@ -1,6 +1,6 @@
 {
-    "hlslFile":"c08331a5-339c-4e87-a739-3d6585c5b999",
-    "shaderName":"StdPipeline/Forward",
+    "hlslFile":"92bd0b61-5844-4d20-95ba-4bb17636ae74",
+    "shaderName":"StdPipeline/Transparent",
     "targetName":"5_0",
     "rootParameters":[
         {
@@ -128,11 +128,15 @@
             "renderState":{
                 "cullMode":3,
                 "zTest":2,
-                "zWrite":true
+                "zWrite":true,
+                "blendState":{
+                    "blendEnable":true
+                }
             },
             "tags":{
                 "LightMode":"Forward"
-            }
+            },
+            "queue": 2500
         }
     ]
 }

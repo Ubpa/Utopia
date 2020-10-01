@@ -479,7 +479,7 @@ bool RsrcMngrDX12::RegisterShader(const Shader* shader) {
 	auto& shaderCompileData = pImpl->shaderMap[shader->GetInstanceID()];
 	shaderCompileData.passes.resize(shader->passes.size());
 	for (size_t i = 0; i < shader->passes.size(); i++) {
-		auto& pass = shader->passes[i];
+		const auto& pass = shader->passes[i];
 		Impl::ShaderCompileData::PassData passdata;
 		shaderCompileData.passes[i].vsByteCode = UDX12::Util::CompileShader(
 			shader->hlslFile->GetText(),
