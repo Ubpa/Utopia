@@ -151,14 +151,16 @@ namespace Ubpa::DustEngine::detail {
 	}
 
 	template<typename Value>
-	Value ReadVar(const rapidjson::Value& jsonValueField, Serializer::DeserializeContext& ctx);
+	void ReadVar(Value& var, const rapidjson::Value& jsonValueField, Serializer::DeserializeContext& ctx);
 
 	template<size_t Idx, typename Variant>
 	bool ReadVariantAt(Variant& var, size_t idx, const rapidjson::Value& jsonValueContent, Serializer::DeserializeContext& ctx) {
 		if (idx != Idx)
 			return false;
 
-		var = ReadVar<std::variant_alternative_t<Idx, Variant>>(jsonValueContent, ctx);
+		std::variant_alternative_t<Idx, Variant> element;
+		ReadVar(element, jsonValueContent, ctx);
+		var = std::move(element);
 
 		return true;
 	}
@@ -183,7 +185,7 @@ namespace Ubpa::DustEngine::detail {
 					if (target == jsonObject.MemberEnd())
 						return;
 					
-					if constexpr (std::is_array_v<std::remove_reference_t<decltype(var)>>) {
+					/*if constexpr (std::is_array_v<std::remove_reference_t<decltype(var)>>) {
 						using Value = std::remove_pointer_t<std::decay_t<decltype(var)>>;
 						static constexpr size_t N = sizeof(decltype(var)) / sizeof(Value);
 						auto rst = ReadVar<std::array<Value, N>>(target->value, ctx);
@@ -191,7 +193,8 @@ namespace Ubpa::DustEngine::detail {
 							var[i] = rst[i];
 					}
 					else
-						var = ReadVar<std::remove_reference_t<decltype(var)>>(target->value, ctx);
+						ReadVar(var, target->value, ctx);*/
+					ReadVar(var, target->value, ctx);
 				}
 			);
 		}
@@ -204,110 +207,102 @@ namespace Ubpa::DustEngine::detail {
 	}
 
 	template<typename Value>
-	Value ReadVar(const rapidjson::Value& jsonValueField, Serializer::DeserializeContext& ctx) {
+	void ReadVar(Value& var, const rapidjson::Value& jsonValueField, Serializer::DeserializeContext& ctx) {
 		if constexpr (std::is_floating_point_v<Value>)
-			return static_cast<Value>(jsonValueField.GetDouble());
-		if constexpr (std::is_enum_v<Value>)
-			return static_cast<Value>(ReadVar<std::underlying_type_t<Value>>(jsonValueField, ctx));
+			var = static_cast<Value>(jsonValueField.GetDouble());
+		else if constexpr (std::is_enum_v<Value>) {
+			std::underlying_type_t<Value> under;
+			ReadVar(under, jsonValueField, ctx);
+			var = static_cast<Value>(under);
+		}
 		else if constexpr (std::is_integral_v<Value>) {
 			if constexpr (std::is_same_v<Value, bool>)
-				return jsonValueField.GetBool();
+				var = jsonValueField.GetBool();
 			else {
 				constexpr size_t size = sizeof(Value);
 				if constexpr (std::is_unsigned_v<Value>) {
 					if constexpr (size <= sizeof(unsigned int))
-						return static_cast<Value>(jsonValueField.GetUint());
+						var = static_cast<Value>(jsonValueField.GetUint());
 					else
-						return static_cast<Value>(jsonValueField.GetUint64());
+						var = static_cast<Value>(jsonValueField.GetUint64());
 				}
 				else {
 					if constexpr (size <= sizeof(int))
-						return static_cast<Value>(jsonValueField.GetInt());
+						var = static_cast<Value>(jsonValueField.GetInt());
 					else
-						return static_cast<Value>(jsonValueField.GetInt64());
+						var = static_cast<Value>(jsonValueField.GetInt64());
 				}
 			}
 		}
 		else if constexpr (std::is_same_v<Value, std::string>)
-			return jsonValueField.GetString();
+			var = jsonValueField.GetString();
 		else if constexpr (std::is_pointer_v<Value>) {
 			if (jsonValueField.IsNull())
-				return nullptr;
+				var = nullptr;
 			else {
 				using Asset = std::remove_const_t<std::remove_pointer_t<Value>>;
 				std::string guid = jsonValueField.GetString();
 				const auto& path = AssetMngr::Instance().GUIDToAssetPath(xg::Guid{ guid });
-				return AssetMngr::Instance().LoadAsset<Asset>(path);
+				var = AssetMngr::Instance().LoadAsset<Asset>(path);
 			}
 		}
 		else if constexpr (std::is_same_v<Value, UECS::Entity>) {
 			auto index = jsonValueField.GetUint64();
-			return ctx.entityIdxMap.at(index);
+			var = ctx.entityIdxMap.at(index);
 		}
-		else {
-			// compound type
-			static_assert(std::is_default_constructible_v<Value>);
-			Value rst;
-
-			if constexpr (ArrayTraits<Value>::isArray) {
-				const auto& arr = jsonValueField.GetArray();
-				assert(ArrayTraits<Value>::size == arr.Size());
-				for (size_t i = 0; i < ArrayTraits<Value>::size; i++) {
-					ArrayTraits_Set(
-						rst, i,
-						ReadVar<ArrayTraits_ValueType<Value>>(arr[static_cast<rapidjson::SizeType>(i)], ctx)
+		else if constexpr (ArrayTraits<Value>::isArray) {
+			const auto& arr = jsonValueField.GetArray();
+			size_t N = std::min<size_t>(arr.Size(), ArrayTraits<Value>::size);
+			for (size_t i = 0; i < N; i++)
+				ReadVar(ArrayTraits_Get(var, i), arr[static_cast<rapidjson::SizeType>(i)], ctx);
+		}
+		else if constexpr (OrderContainerTraits<Value>::isOrderContainer) {
+			const auto& arr = jsonValueField.GetArray();
+			for (const auto& jsonValueElement : arr) {
+				OrderContainerTraits_ValueType<Value> element;
+				ReadVar(element, jsonValueElement, ctx);
+				OrderContainerTraits_Add(var, std::move(element));
+			}
+			OrderContainerTraits_PostProcess(var);
+		}
+		else if constexpr (MapTraits<Value>::isMap) {
+			if constexpr (std::is_same_v<MapTraits_KeyType<Value>, std::string>) {
+				const auto& m = jsonValueField.GetObject();
+				for (const auto& [val_key, val_mapped] : m) {
+					MapTraits_MappedType<Value> mapped;
+					ReadVar(mapped, val_mapped, ctx);
+					MapTraits_Emplace(
+						var,
+						MapTraits_KeyType<Value>{val_key.GetString()},
+						std::move(mapped)
 					);
 				}
 			}
-			else if constexpr (OrderContainerTraits<Value>::isOrderContainer) {
-				const auto& arr = jsonValueField.GetArray();
-				for (size_t i = 0; i < arr.Size(); i++) {
-					OrderContainerTraits_Add(
-						rst,
-						ReadVar<OrderContainerTraits_ValueType<Value>>(arr[static_cast<rapidjson::SizeType>(i)], ctx)
-					);
-				}
-				OrderContainerTraits_PostProcess(rst);
-			}
-			else if constexpr (MapTraits<Value>::isMap) {
-				if constexpr (std::is_same_v<MapTraits_KeyType<Value>, std::string>) {
-					const auto& m = jsonValueField.GetObject();
-					for (const auto& [val_key, val_mapped] : m) {
-						MapTraits_Emplace(
-							rst,
-							MapTraits_KeyType<Value>{val_key.GetString()},
-							ReadVar<MapTraits_MappedType<Value>>(val_mapped, ctx)
-						);
-					}
-				}
-				else {
-					const auto& m = jsonValueField.GetArray();
-					for (const auto& val_pair : m) {
-						const auto& pair = val_pair.GetObject();
-						MapTraits_Emplace(
-							rst,
-							ReadVar<MapTraits_KeyType<Value>>(pair[Serializer::Key::KEY], ctx),
-							ReadVar<MapTraits_MappedType<Value>>(pair[Serializer::Key::MAPPED], ctx)
-						);
-					}
+			else {
+				const auto& m = jsonValueField.GetArray();
+				for (const auto& val_pair : m) {
+					const auto& pair = val_pair.GetObject();
+					MapTraits_KeyType<Value> key;
+					MapTraits_MappedType<Value> mapped;
+					ReadVar(key, pair[Serializer::Key::KEY], ctx);
+					ReadVar(mapped, pair[Serializer::Key::MAPPED], ctx);
+					MapTraits_Emplace(var, std::move(key), std::move(mapped));
 				}
 			}
-			else if constexpr (TupleTraits<Value>::isTuple) {
-				std::apply([&](auto& ... elements) {
-					const auto& arr = jsonValueField.GetArray();
-					rapidjson::SizeType i = 0;
-					((elements = ReadVar<std::remove_reference_t<decltype(elements)>>(arr[i++], ctx)), ...);
-				}, rst);
-			}
-			else if constexpr (Ubpa::is_instance_of_v<Value, std::variant>) {
-				constexpr size_t N = std::variant_size_v<Value>;
-				ReadVariant(rst, std::make_index_sequence<N>{}, jsonValueField, ctx);
-			}
-			else
-				ReadUserType(&rst, jsonValueField, ctx);
-
-			return rst;
 		}
+		else if constexpr (TupleTraits<Value>::isTuple) {
+			std::apply([&](auto& ... elements) {
+				const auto& arr = jsonValueField.GetArray();
+				rapidjson::SizeType i = 0;
+				(ReadVar(elements, arr[i++], ctx), ...);
+			}, var);
+		}
+		else if constexpr (Ubpa::is_instance_of_v<Value, std::variant>) {
+			constexpr size_t N = std::variant_size_v<Value>;
+			ReadVariant(var, std::make_index_sequence<N>{}, jsonValueField, ctx);
+		}
+		else
+			ReadUserType(&var, jsonValueField, ctx);
 	};
 }
 
