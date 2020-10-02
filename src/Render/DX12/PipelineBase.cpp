@@ -266,13 +266,27 @@ void PipelineBase::SetPSODescForRenderState(D3D12_GRAPHICS_PIPELINE_STATE_DESC& 
 	desc.RasterizerState.CullMode = static_cast<D3D12_CULL_MODE>(renderState.cullMode);
 	desc.DepthStencilState.DepthFunc = static_cast<D3D12_COMPARISON_FUNC>(renderState.zTest);
 	desc.DepthStencilState.DepthWriteMask = static_cast<D3D12_DEPTH_WRITE_MASK>(renderState.zWrite);
-	if (renderState.blendState.blendEnable) {
+	if (renderState.blendState.enable) {
 		desc.BlendState.RenderTarget[0].BlendEnable = TRUE;
-		desc.BlendState.RenderTarget[0].SrcBlend = static_cast<D3D12_BLEND>(renderState.blendState.srcBlend);
-		desc.BlendState.RenderTarget[0].DestBlend = static_cast<D3D12_BLEND>(renderState.blendState.destBlend);
-		desc.BlendState.RenderTarget[0].BlendOp = static_cast<D3D12_BLEND_OP>(renderState.blendState.blendOp);
-		desc.BlendState.RenderTarget[0].SrcBlendAlpha = static_cast<D3D12_BLEND>(renderState.blendState.srcBlendAlpha);
-		desc.BlendState.RenderTarget[0].DestBlendAlpha = static_cast<D3D12_BLEND>(renderState.blendState.destBlendAlpha);
-		desc.BlendState.RenderTarget[0].BlendOpAlpha = static_cast<D3D12_BLEND_OP>(renderState.blendState.blendOpAlpha);
+		desc.BlendState.RenderTarget[0].SrcBlend = static_cast<D3D12_BLEND>(renderState.blendState.src);
+		desc.BlendState.RenderTarget[0].DestBlend = static_cast<D3D12_BLEND>(renderState.blendState.dest);
+		desc.BlendState.RenderTarget[0].BlendOp = static_cast<D3D12_BLEND_OP>(renderState.blendState.op);
+		desc.BlendState.RenderTarget[0].SrcBlendAlpha = static_cast<D3D12_BLEND>(renderState.blendState.srcAlpha);
+		desc.BlendState.RenderTarget[0].DestBlendAlpha = static_cast<D3D12_BLEND>(renderState.blendState.destAlpha);
+		desc.BlendState.RenderTarget[0].BlendOpAlpha = static_cast<D3D12_BLEND_OP>(renderState.blendState.opAlpha);
 	}
+	if (renderState.stencilState.enable) {
+		desc.DepthStencilState.StencilEnable = TRUE;
+		desc.DepthStencilState.StencilReadMask = renderState.stencilState.readMask;
+		desc.DepthStencilState.StencilWriteMask = renderState.stencilState.writeMask;
+		D3D12_DEPTH_STENCILOP_DESC stencilDesc;
+		stencilDesc.StencilDepthFailOp = static_cast<D3D12_STENCIL_OP>(renderState.stencilState.depthFailOp);
+		stencilDesc.StencilFailOp = static_cast<D3D12_STENCIL_OP>(renderState.stencilState.failOp);
+		stencilDesc.StencilPassOp = static_cast<D3D12_STENCIL_OP>(renderState.stencilState.passOp);
+		stencilDesc.StencilFunc = static_cast<D3D12_COMPARISON_FUNC>(renderState.stencilState.func);
+		desc.DepthStencilState.FrontFace = stencilDesc;
+		desc.DepthStencilState.BackFace = stencilDesc;
+	}
+	for (size_t i = 0; i < 8; i++)
+		desc.BlendState.RenderTarget[i].RenderTargetWriteMask = renderState.colorMask[i];
 }

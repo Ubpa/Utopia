@@ -808,6 +808,14 @@ void Editor::Update() {
 		assert(sceneCameras.size() == 1); // now only support 1 camera
 		scenePipeline->BeginFrame({ curGameWorld, &sceneWorld }, sceneCameras.front());
 	}
+
+	{
+		static bool flag = false;
+		if (!flag) {
+			OutputDebugStringA(curGameWorld->GenUpdateFrameGraph().Dump().c_str());
+			flag = true;
+		}
+	}
 }
 
 void Editor::Draw() {

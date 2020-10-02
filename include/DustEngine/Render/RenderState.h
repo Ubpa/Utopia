@@ -7,7 +7,7 @@ namespace Ubpa::DustEngine {
 		BACK = 3
 	};
 
-	enum class ZTest {
+	enum class CompareFunc {
 		NEVER = 1,
 		LESS = 2,
 		EQUAL = 3,
@@ -18,7 +18,7 @@ namespace Ubpa::DustEngine {
 		ALWAYS = 8
 	};
 
-	enum class BLEND {
+	enum class Blend {
 		ZERO = 1,
 		ONE = 2,
 		SRC_COLOR = 3,
@@ -38,7 +38,7 @@ namespace Ubpa::DustEngine {
 		INV_SRC1_ALPHA = 19
 	};
 
-	enum class BLEND_OP {
+	enum class BlendOp {
 		ADD = 1,
 		SUBTRACT = 2,
 		REV_SUBTRACT = 3,
@@ -46,21 +46,50 @@ namespace Ubpa::DustEngine {
 		MAX = 5
 	};
 
+	// op(src * src_rgb, dest * dest_rgb)
 	struct BlendState {
-		bool blendEnable{ false };
-		BLEND srcBlend{ BLEND::SRC_ALPHA };
-		BLEND destBlend{ BLEND::INV_SRC_ALPHA };
-		BLEND_OP blendOp{ BLEND_OP::ADD };
-		BLEND srcBlendAlpha{ BLEND::ONE };
-		BLEND destBlendAlpha{ BLEND::INV_SRC_ALPHA };
-		BLEND_OP blendOpAlpha{ BLEND_OP::ADD };
+		bool enable{ false };
+		Blend src{ Blend::SRC_ALPHA };
+		Blend dest{ Blend::INV_SRC_ALPHA };
+		BlendOp op{ BlendOp::ADD };
+		Blend srcAlpha{ Blend::ONE };
+		Blend destAlpha{ Blend::INV_SRC_ALPHA };
+		BlendOp opAlpha{ BlendOp::ADD };
+	};
+
+	enum class StencilOp {
+		KEEP = 1,
+		ZERO = 2,
+		REPLACE = 3,
+		INCR_SAT = 4,
+		DECR_SAT = 5,
+		INVERT = 6,
+		INCR = 7,
+		DECR = 8
+	};
+
+	struct StencilState {
+		bool enable{ false };
+		uint8_t ref{ 0 };
+		uint8_t readMask{ 0xff };
+		uint8_t writeMask{ 0xff };
+		StencilOp failOp{ StencilOp::KEEP };
+		StencilOp depthFailOp{ StencilOp::KEEP };
+		StencilOp passOp{ StencilOp::KEEP };
+		CompareFunc func{ CompareFunc::ALWAYS };
 	};
 
 	struct RenderState {
 		CullMode cullMode{ CullMode::BACK };
-		ZTest zTest{ ZTest::LESS };
+
+		CompareFunc zTest{ CompareFunc::LESS };
 		bool zWrite{ true };
+
+		StencilState stencilState;
+
 		BlendState blendState;
+
+		uint8_t colorMask[8] = { 0x0f,0x0f,0x0f,0x0f,0x0f,0x0f,0x0f,0x0f };
 	};
 }
 

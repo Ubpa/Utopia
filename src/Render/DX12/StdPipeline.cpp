@@ -1282,7 +1282,8 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::str
 				{StdPipeline_srvIBL, ibl}
 			}
 		);
-
+		if (shader->passes[obj.passIdx].renderState.stencilState.enable)
+			cmdList->OMSetStencilRef(shader->passes[obj.passIdx].renderState.stencilState.ref);
 		cmdList->SetPipelineState(RsrcMngrDX12::Instance().GetPSO(GetPSO_ID(
 			shader, obj.passIdx, obj.mesh, rtNum, rtFormat
 		)));
