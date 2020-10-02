@@ -7,7 +7,7 @@
 #include <UDP/Visitor/ncVisitor.h>
 #include <_deps/crossguid/guid.hpp>
 
-namespace Ubpa::DustEngine {
+namespace Ubpa::Utopia {
 	class InspectorRegistry {
 	public:
 		static InspectorRegistry& Instance() noexcept {

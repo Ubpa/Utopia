@@ -5,18 +5,18 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::DustEngine::LuaMemory>
-	: Ubpa::USRefl::TypeInfoBase<Ubpa::DustEngine::LuaMemory>
+struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::LuaMemory>
+	: Ubpa::USRefl::TypeInfoBase<Ubpa::Utopia::LuaMemory>
 {
 	static constexpr AttrList attrs = {};
 
 	static constexpr FieldList fields = {
-		Field{"Malloc", &Ubpa::DustEngine::LuaMemory::Malloc},
-		Field{"Free", &Ubpa::DustEngine::LuaMemory::Free},
-		Field{"Offset", &Ubpa::DustEngine::LuaMemory::Offset},
-		Field{"Copy", &Ubpa::DustEngine::LuaMemory::Copy},
-		Field{"Set", &Ubpa::DustEngine::LuaMemory::Set},
-		Field{"StrCpy", &Ubpa::DustEngine::LuaMemory::StrCpy},
+		Field{"Malloc", &Ubpa::Utopia::LuaMemory::Malloc},
+		Field{"Free", &Ubpa::Utopia::LuaMemory::Free},
+		Field{"Offset", &Ubpa::Utopia::LuaMemory::Offset},
+		Field{"Copy", &Ubpa::Utopia::LuaMemory::Copy},
+		Field{"Set", &Ubpa::Utopia::LuaMemory::Set},
+		Field{"StrCpy", &Ubpa::Utopia::LuaMemory::StrCpy},
 	};
 };
 

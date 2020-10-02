@@ -1,8 +1,8 @@
-#include <DustEngine/Render/Systems/CameraSystem.h>
+#include <Utopia/Render/Systems/CameraSystem.h>
 
-#include <DustEngine/Render/Components/Camera.h>
+#include <Utopia/Render/Components/Camera.h>
 
-using namespace Ubpa::DustEngine;
+using namespace Ubpa::Utopia;
 using namespace Ubpa::UECS;
 
 void CameraSystem::OnUpdate(Schedule& schedule) {

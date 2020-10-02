@@ -3,7 +3,7 @@
 #include <cstring>
 #include <cstdlib>
 
-using namespace Ubpa::DustEngine;
+using namespace Ubpa::Utopia;
 
 void* LuaMemory::Malloc(size_t size) {
 	return malloc(size);

@@ -2,7 +2,7 @@
 #define _CRT_SECURE_NO_WARNINGS 1
 #endif // WIN32
 
-#include <DustEngine/Core/Image.h>
+#include <Utopia/Core/Image.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "_deps/stb_image.h"
@@ -12,7 +12,7 @@
 
 #include <UGM/point.h>
 
-using namespace Ubpa::DustEngine;
+using namespace Ubpa::Utopia;
 using namespace Ubpa;
 using namespace std;
 

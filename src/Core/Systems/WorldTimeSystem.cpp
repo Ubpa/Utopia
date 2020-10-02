@@ -1,10 +1,10 @@
-#include <DustEngine/Core/Systems/WorldTimeSystem.h>
+#include <Utopia/Core/Systems/WorldTimeSystem.h>
 
-#include <DustEngine/Core/Components/WorldTime.h>
+#include <Utopia/Core/Components/WorldTime.h>
 
-#include <DustEngine/Core/GameTimer.h>
+#include <Utopia/Core/GameTimer.h>
 
-using namespace Ubpa::DustEngine;
+using namespace Ubpa::Utopia;
 using namespace Ubpa::UECS;
 
 void WorldTimeSystem::OnUpdate(Schedule& schedule) {

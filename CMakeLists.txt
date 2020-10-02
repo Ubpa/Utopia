@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 
-project(DustEngine VERSION 0.0.2)
+project(Utopia VERSION 0.0.2)
 message(STATUS "[Project] ${PROJECT_NAME}")
 
 include(cmake/InitUCMake.cmake)
@@ -19,13 +19,13 @@ Ubpa_AddDep(UECS       0.13.1)
 Ubpa_AddDep(UDX12      0.0.9)
 
 Ubpa_DownloadZip(
-  https://cdn.jsdelivr.net/gh/Ubpa/UData@master/DustEngine/crossguid/crossguid_20200919.zip
+  https://cdn.jsdelivr.net/gh/Ubpa/UData@master/Utopia/crossguid/crossguid_20200919.zip
   crossguid_20200919.zip
   SHA256 1BEE5F2424612E3EF3684D139D6038EF2420EAC7687BF210057E752EFE2A05D5
 )
 
 Ubpa_DownloadZip(
-  https://cdn.jsdelivr.net/gh/Ubpa/UData@master/DustEngine/imgui/imgui_dock_1_78_0.zip
+  https://cdn.jsdelivr.net/gh/Ubpa/UData@master/Utopia/imgui/imgui_dock_1_78_0.zip
   imgui_dock_1_78_0.zip
   SHA256 E57BA9CD40CA2113BEF0BC1864C3B8BC0B9A97C39F50DA02AAF251CE0A168F0C
 )

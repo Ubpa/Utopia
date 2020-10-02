@@ -1,8 +1,8 @@
 #include "InitCore.h"
 
-#include <DustEngine/Core/Components/Components.h>
+#include <Utopia/Core/Components/Components.h>
 
-void Ubpa::DustEngine::detail::InitCore(lua_State* L) {
+void Ubpa::Utopia::detail::InitCore(lua_State* L) {
 	ULuaPP::Register<Children>(L);
 	ULuaPP::Register<Input>(L);
 	ULuaPP::Register<LocalToParent>(L);

@@ -1,8 +1,8 @@
 #include "InitRender.h"
 
-#include <DustEngine/Render/Components/Components.h>
+#include <Utopia/Render/Components/Components.h>
 
-void Ubpa::DustEngine::detail::InitRender(lua_State* L) {
+void Ubpa::Utopia::detail::InitRender(lua_State* L) {
 	ULuaPP::Register<Camera>(L);
 	ULuaPP::Register<Light>(L);
 	ULuaPP::Register<MeshFilter>(L);

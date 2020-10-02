@@ -5,15 +5,15 @@
 #include "../Components/ProjectViewer.h"
 #include "../Components/Inspector.h"
 
-#include <DustEngine/Asset/AssetMngr.h>
-#include <DustEngine/Render/Texture2D.h>
-#include <DustEngine/Render/DX12/RsrcMngrDX12.h>
+#include <Utopia/Asset/AssetMngr.h>
+#include <Utopia/Render/Texture2D.h>
+#include <Utopia/Render/DX12/RsrcMngrDX12.h>
 
 #include <_deps/imgui/imgui.h>
 
-using namespace Ubpa::DustEngine;
+using namespace Ubpa::Utopia;
 
-namespace Ubpa::DustEngine::detail {
+namespace Ubpa::Utopia::detail {
 	bool IsFolderLeaf(const xg::Guid& folderGuid) {
 		const auto& tree = AssetMngr::Instance().GetAssetTree();
 		auto target = tree.find(folderGuid);
@@ -207,8 +207,8 @@ namespace Ubpa::DustEngine::detail {
 				}
 				else if (ext == ".tex2d") {
 					auto tex2d = AssetMngr::Instance().LoadAsset<Texture2D>(path);
-					Ubpa::DustEngine::RsrcMngrDX12::Instance().RegisterTexture2D(
-						Ubpa::DustEngine::RsrcMngrDX12::Instance().GetUpload(),
+					Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTexture2D(
+						Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(),
 						tex2d
 					);
 					id = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(tex2d).ptr;

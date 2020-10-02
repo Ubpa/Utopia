@@ -1,6 +1,6 @@
-#include <DustEngine/Render/Mesh.h>
+#include <Utopia/Render/Mesh.h>
 
-using namespace Ubpa::DustEngine;
+using namespace Ubpa::Utopia;
 
 void Mesh::SetPositions(std::vector<pointf3> positions) {
 	assert(isEditable);

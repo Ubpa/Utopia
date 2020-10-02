@@ -28,9 +28,9 @@ set(components
 set(refls "")
 
 foreach(cmpt ${components})
-  set(dst "${PROJECT_SOURCE_DIR}/include/DustEngine/Core/Components/details/${cmpt}_AutoRefl.inl")
+  set(dst "${PROJECT_SOURCE_DIR}/include/Utopia/Core/Components/details/${cmpt}_AutoRefl.inl")
   Ubpa_USReflAutoRefl(
-    "${PROJECT_SOURCE_DIR}/include/DustEngine/Core/Components/${cmpt}.h"
+    "${PROJECT_SOURCE_DIR}/include/Utopia/Core/Components/${cmpt}.h"
     ${dst}
   )
   list(APPEND refls ${dst})
@@ -39,7 +39,7 @@ endforeach()
 Ubpa_AddTarget(
   MODE STATIC
   SOURCE
-    "${PROJECT_SOURCE_DIR}/include/DustEngine/Core"
+    "${PROJECT_SOURCE_DIR}/include/Utopia/Core"
 	${refls}
   INC
     "${PROJECT_SOURCE_DIR}/include"
@@ -50,7 +50,7 @@ Ubpa_AddTarget(
     Ubpa::UDP_core
     Ubpa::UECS_core
     Ubpa::UDX12_core
-    Ubpa::DustEngine__deps_imgui
+    Ubpa::Utopia__deps_imgui
   DEFINE
     NOMINMAX
 )

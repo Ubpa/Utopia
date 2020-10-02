@@ -1,13 +1,13 @@
-#include <DustEngine/Render/TextureCube.h>
+#include <Utopia/Render/TextureCube.h>
 
-#include <DustEngine/Core/Image.h>
+#include <Utopia/Core/Image.h>
 
 #include <UGM/vec.h>
 
 #include <cassert>
 #include <thread>
 
-using namespace Ubpa::DustEngine;
+using namespace Ubpa::Utopia;
 using namespace Ubpa;
 
 TextureCube::TextureCube(std::array<const Image*, 6> images) {

@@ -3,7 +3,7 @@
 #include <UECS/Entity.h>
 #include <_deps/crossguid/guid.hpp>
 
-namespace Ubpa::DustEngine {
+namespace Ubpa::Utopia {
 	struct Inspector {
 		enum class Mode {
 			Entity,

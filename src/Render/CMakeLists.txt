@@ -9,9 +9,9 @@ set(components
 set(refls "")
 
 foreach(cmpt ${components})
-  set(dst "${PROJECT_SOURCE_DIR}/include/DustEngine/Render/Components/details/${cmpt}_AutoRefl.inl")
+  set(dst "${PROJECT_SOURCE_DIR}/include/Utopia/Render/Components/details/${cmpt}_AutoRefl.inl")
   Ubpa_USReflAutoRefl(
-    "${PROJECT_SOURCE_DIR}/include/DustEngine/Render/Components/${cmpt}.h"
+    "${PROJECT_SOURCE_DIR}/include/Utopia/Render/Components/${cmpt}.h"
     ${dst}
   )
   list(APPEND refls ${dst})
@@ -20,11 +20,11 @@ endforeach()
 Ubpa_AddTarget(
   MODE STATIC
   SOURCE
-    "${PROJECT_SOURCE_DIR}/include/DustEngine/Render"
+    "${PROJECT_SOURCE_DIR}/include/Utopia/Render"
 	${refls}
   INC
     "${PROJECT_SOURCE_DIR}/include"
   LIB
     Ubpa::UDX12_core
-    Ubpa::DustEngine_Core
+    Ubpa::Utopia_Core
 )

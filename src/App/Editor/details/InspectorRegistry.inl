@@ -2,21 +2,21 @@
 
 #include "../PlayloadType.h"
 
-#include <DustEngine/Asset/AssetMngr.h>
+#include <Utopia/Asset/AssetMngr.h>
 
 #include <_deps/imgui/imgui.h>
 #include <_deps/imgui/misc/cpp/imgui_stdlib.h>
 
-#include <DustEngine/Core/Traits.h>
+#include <Utopia/Core/Traits.h>
 
 #include <UECS/Entity.h>
 
 #include <USTL/tuple.h>
-#include <DustEngine/Core/Components/Name.h>
+#include <Utopia/Core/Components/Name.h>
 
 #include <variant>
 
-namespace Ubpa::DustEngine::detail {
+namespace Ubpa::Utopia::detail {
 	template<typename T>
 	struct ValNTraits {
 		static constexpr bool isValN = false;
@@ -486,7 +486,7 @@ namespace Ubpa::DustEngine::detail {
 	}
 }
 
-namespace Ubpa::DustEngine {
+namespace Ubpa::Utopia {
 	template<typename... Cmpts>
 	void InspectorRegistry::RegisterCmpts() {
 		(InspectorRegistry::Instance().RegisterCmpt(&detail::InspectCmpt<Cmpts>), ...);

@@ -1,9 +1,9 @@
-#include <DustEngine/Asset/AssetMngr.h>
-#include <DustEngine/Render/Mesh.h>
+#include <Utopia/Asset/AssetMngr.h>
+#include <Utopia/Render/Mesh.h>
 
 #include <iostream>
 
-using namespace Ubpa::DustEngine;
+using namespace Ubpa::Utopia;
 
 int main() {
 	std::filesystem::path path = "../assets/models/cube.obj";

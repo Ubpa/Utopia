@@ -1,13 +1,13 @@
-#include <DustEngine/Asset/AssetMngr.h>
-#include <DustEngine/Render/Texture2D.h>
-#include <DustEngine/Core/Image.h>
-#include <DustEngine/Render/Material.h>
-#include <DustEngine/Render/HLSLFile.h>
-#include <DustEngine/Render/Shader.h>
+#include <Utopia/Asset/AssetMngr.h>
+#include <Utopia/Render/Texture2D.h>
+#include <Utopia/Core/Image.h>
+#include <Utopia/Render/Material.h>
+#include <Utopia/Render/HLSLFile.h>
+#include <Utopia/Render/Shader.h>
 
 #include <iostream>
 
-using namespace Ubpa::DustEngine;
+using namespace Ubpa::Utopia;
 using namespace Ubpa;
 
 int main() {

@@ -4,5 +4,5 @@ Ubpa_AddTarget(
   INC
     "${PROJECT_SOURCE_DIR}/include/_deps"
   LIB
-    Ubpa::DustEngine__deps_crossguid
+    Ubpa::Utopia__deps_crossguid
 )

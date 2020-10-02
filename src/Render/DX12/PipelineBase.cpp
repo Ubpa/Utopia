@@ -1,12 +1,12 @@
-#include <DustEngine/Render/DX12/PipelineBase.h>
+#include <Utopia/Render/DX12/PipelineBase.h>
 
-#include <DustEngine/Render/Material.h>
-#include <DustEngine/Render/Shader.h>
+#include <Utopia/Render/Material.h>
+#include <Utopia/Render/Shader.h>
 
-#include <DustEngine/Render/DX12/RsrcMngrDX12.h>
-#include <DustEngine/Render/DX12/ShaderCBMngrDX12.h>
+#include <Utopia/Render/DX12/RsrcMngrDX12.h>
+#include <Utopia/Render/DX12/ShaderCBMngrDX12.h>
 
-using namespace Ubpa::DustEngine;
+using namespace Ubpa::Utopia;
 
 PipelineBase::ShaderCBDesc PipelineBase::UpdateShaderCBs(
 	ShaderCBMngrDX12& shaderCBMngr,

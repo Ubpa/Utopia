@@ -1,10 +1,10 @@
-#include <DustEngine/Core/Components/Components.h>
-#include <DustEngine/Core/Systems/Systems.h>
+#include <Utopia/Core/Components/Components.h>
+#include <Utopia/Core/Systems/Systems.h>
 
 #include <iostream>
 
 using namespace Ubpa::UECS;
-using namespace Ubpa::DustEngine;
+using namespace Ubpa::Utopia;
 using namespace Ubpa;
 using namespace std;
 

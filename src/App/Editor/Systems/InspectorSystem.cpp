@@ -7,7 +7,7 @@
 
 #include <_deps/imgui/imgui.h>
 
-using namespace Ubpa::DustEngine;
+using namespace Ubpa::Utopia;
 
 void InspectorSystem::OnUpdate(UECS::Schedule& schedule) {
 	schedule.RegisterCommand([](UECS::World* world) {

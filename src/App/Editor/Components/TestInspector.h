@@ -6,7 +6,7 @@
 
 #include <variant>
 
-namespace Ubpa::DustEngine {
+namespace Ubpa::Utopia {
 	enum class TestEnum {
 		A,
 		B,
@@ -57,53 +57,53 @@ namespace Ubpa::DustEngine {
 }
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::DustEngine::TestEnum>
-	: Ubpa::USRefl::TypeInfoBase<Ubpa::DustEngine::TestEnum>
+struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::TestEnum>
+	: Ubpa::USRefl::TypeInfoBase<Ubpa::Utopia::TestEnum>
 {
 	static constexpr AttrList attrs = {};
 
 	static constexpr FieldList fields = {
-		Field{"A", Ubpa::DustEngine::TestEnum::A},
-		Field{"B", Ubpa::DustEngine::TestEnum::B},
-		Field{"C", Ubpa::DustEngine::TestEnum::C},
+		Field{"A", Ubpa::Utopia::TestEnum::A},
+		Field{"B", Ubpa::Utopia::TestEnum::B},
+		Field{"C", Ubpa::Utopia::TestEnum::C},
 	};
 };
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::DustEngine::TestInspector>
-	: Ubpa::USRefl::TypeInfoBase<Ubpa::DustEngine::TestInspector>
+struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::TestInspector>
+	: Ubpa::USRefl::TypeInfoBase<Ubpa::Utopia::TestInspector>
 {
 	static constexpr AttrList attrs = {};
 
 	static constexpr FieldList fields = {
-		Field{"v_bool", &Ubpa::DustEngine::TestInspector::v_bool},
-		Field{"v_uint8", &Ubpa::DustEngine::TestInspector::v_uint8},
-		Field{"v_uint16", &Ubpa::DustEngine::TestInspector::v_uint16},
-		Field{"v_uint32", &Ubpa::DustEngine::TestInspector::v_uint32},
-		Field{"v_uint64", &Ubpa::DustEngine::TestInspector::v_uint64},
-		Field{"v_int8", &Ubpa::DustEngine::TestInspector::v_int8},
-		Field{"v_int16", &Ubpa::DustEngine::TestInspector::v_int16},
-		Field{"v_int32", &Ubpa::DustEngine::TestInspector::v_int32},
-		Field{"v_int64", &Ubpa::DustEngine::TestInspector::v_int64},
-		Field{"v_float", &Ubpa::DustEngine::TestInspector::v_float},
-		Field{"v_double", &Ubpa::DustEngine::TestInspector::v_double},
-		Field{"v_string", &Ubpa::DustEngine::TestInspector::v_string},
-		Field{"v_entity", &Ubpa::DustEngine::TestInspector::v_entity},
-		Field{"v_array", &Ubpa::DustEngine::TestInspector::v_array},
-		Field{"v_array2", &Ubpa::DustEngine::TestInspector::v_array2},
-		Field{"v_bbox", &Ubpa::DustEngine::TestInspector::v_bbox},
-		Field{"v_vec", &Ubpa::DustEngine::TestInspector::v_vec},
-		Field{"v_rgb", &Ubpa::DustEngine::TestInspector::v_rgb},
-		Field{"v_rgba", &Ubpa::DustEngine::TestInspector::v_rgba},
-		Field{"v_vector", &Ubpa::DustEngine::TestInspector::v_vector},
-		Field{"v_deque", &Ubpa::DustEngine::TestInspector::v_deque},
-		Field{"v_list", &Ubpa::DustEngine::TestInspector::v_list},
-		Field{"v_forward_list", &Ubpa::DustEngine::TestInspector::v_forward_list},
-		Field{"v_map", &Ubpa::DustEngine::TestInspector::v_map},
-		Field{"v_tuple", &Ubpa::DustEngine::TestInspector::v_tuple},
-		Field{"v_pair", &Ubpa::DustEngine::TestInspector::v_pair},
-		Field{"v_variant", &Ubpa::DustEngine::TestInspector::v_variant},
-		Field{"v_enum", &Ubpa::DustEngine::TestInspector::v_enum}
+		Field{"v_bool", &Ubpa::Utopia::TestInspector::v_bool},
+		Field{"v_uint8", &Ubpa::Utopia::TestInspector::v_uint8},
+		Field{"v_uint16", &Ubpa::Utopia::TestInspector::v_uint16},
+		Field{"v_uint32", &Ubpa::Utopia::TestInspector::v_uint32},
+		Field{"v_uint64", &Ubpa::Utopia::TestInspector::v_uint64},
+		Field{"v_int8", &Ubpa::Utopia::TestInspector::v_int8},
+		Field{"v_int16", &Ubpa::Utopia::TestInspector::v_int16},
+		Field{"v_int32", &Ubpa::Utopia::TestInspector::v_int32},
+		Field{"v_int64", &Ubpa::Utopia::TestInspector::v_int64},
+		Field{"v_float", &Ubpa::Utopia::TestInspector::v_float},
+		Field{"v_double", &Ubpa::Utopia::TestInspector::v_double},
+		Field{"v_string", &Ubpa::Utopia::TestInspector::v_string},
+		Field{"v_entity", &Ubpa::Utopia::TestInspector::v_entity},
+		Field{"v_array", &Ubpa::Utopia::TestInspector::v_array},
+		Field{"v_array2", &Ubpa::Utopia::TestInspector::v_array2},
+		Field{"v_bbox", &Ubpa::Utopia::TestInspector::v_bbox},
+		Field{"v_vec", &Ubpa::Utopia::TestInspector::v_vec},
+		Field{"v_rgb", &Ubpa::Utopia::TestInspector::v_rgb},
+		Field{"v_rgba", &Ubpa::Utopia::TestInspector::v_rgba},
+		Field{"v_vector", &Ubpa::Utopia::TestInspector::v_vector},
+		Field{"v_deque", &Ubpa::Utopia::TestInspector::v_deque},
+		Field{"v_list", &Ubpa::Utopia::TestInspector::v_list},
+		Field{"v_forward_list", &Ubpa::Utopia::TestInspector::v_forward_list},
+		Field{"v_map", &Ubpa::Utopia::TestInspector::v_map},
+		Field{"v_tuple", &Ubpa::Utopia::TestInspector::v_tuple},
+		Field{"v_pair", &Ubpa::Utopia::TestInspector::v_pair},
+		Field{"v_variant", &Ubpa::Utopia::TestInspector::v_variant},
+		Field{"v_enum", &Ubpa::Utopia::TestInspector::v_enum}
 	};
 };
 

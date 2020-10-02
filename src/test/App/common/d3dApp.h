@@ -11,7 +11,7 @@
 
 #include "d3dUtil.h"
 
-#include <DustEngine/Core/GameTimer.h>
+#include <Utopia/Core/GameTimer.h>
 
 // Link necessary d3d12 libraries.
 // add lib by cmake

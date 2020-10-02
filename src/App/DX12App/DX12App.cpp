@@ -1,11 +1,11 @@
-#include <DustEngine/App/DX12App/DX12App.h>
+#include <Utopia/App/DX12App/DX12App.h>
 
-#include <DustEngine/Render/DX12/RsrcMngrDX12.h>
+#include <Utopia/Render/DX12/RsrcMngrDX12.h>
 
-#include <DustEngine/Core/GameTimer.h>
+#include <Utopia/Core/GameTimer.h>
 
 using Microsoft::WRL::ComPtr;
-using namespace Ubpa::DustEngine;
+using namespace Ubpa::Utopia;
 using namespace DirectX;
 using namespace std;
 
@@ -23,7 +23,7 @@ DX12App::~DX12App() {
 	if(!swapchainRTVCpuDH.IsNull())
 		Ubpa::UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Free(std::move(swapchainRTVCpuDH));
 
-	Ubpa::DustEngine::RsrcMngrDX12::Instance().Clear();
+	Ubpa::Utopia::RsrcMngrDX12::Instance().Clear();
 	Ubpa::UDX12::DescriptorHeapMngr::Instance().Clear();
 }
 
@@ -36,7 +36,7 @@ LRESULT CALLBACK DX12App::MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
 int DX12App::Run() {
 	MSG msg = { 0 };
 
-	Ubpa::DustEngine::GameTimer::Instance().Reset();
+	Ubpa::Utopia::GameTimer::Instance().Reset();
 
 	while (msg.message != WM_QUIT)
 	{
@@ -46,7 +46,7 @@ int DX12App::Run() {
 			DispatchMessage(&msg);
 		}
 		else { // Otherwise, do animation/game stuff.
-			Ubpa::DustEngine::GameTimer::Instance().Tick();
+			Ubpa::Utopia::GameTimer::Instance().Tick();
 
 			if (!mAppPaused) {
 				CalculateFrameStats();
@@ -172,7 +172,7 @@ bool DX12App::InitDirect3D() {
 		IID_PPV_ARGS(&mFence)));
 
 
-	Ubpa::DustEngine::RsrcMngrDX12::Instance().Init(uDevice.raw.Get());
+	Ubpa::Utopia::RsrcMngrDX12::Instance().Init(uDevice.raw.Get());
 	Ubpa::UDX12::DescriptorHeapMngr::Instance().Init(uDevice.Get(), 16384, 16384, 16384, 16384, 16384);
 
 	frameRsrcMngr = std::make_unique<Ubpa::UDX12::FrameResourceMngr>(NumFrameResources, uDevice.Get());
@@ -312,7 +312,7 @@ void DX12App::CalculateFrameStats() {
 	frameCnt++;
 
 	// Compute averages over one second period.
-	if ((Ubpa::DustEngine::GameTimer::Instance().TotalTime() - timeElapsed) >= 1.0f)
+	if ((Ubpa::Utopia::GameTimer::Instance().TotalTime() - timeElapsed) >= 1.0f)
 	{
 		float fps = (float)frameCnt; // fps = frameCnt / 1
 		float mspf = 1000.0f / fps;

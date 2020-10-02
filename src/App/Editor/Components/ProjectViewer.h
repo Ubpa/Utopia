@@ -2,7 +2,7 @@
 
 #include <_deps/crossguid/guid.hpp>
 
-namespace Ubpa::DustEngine {
+namespace Ubpa::Utopia {
 	struct ProjectViewer {
 		xg::Guid selectedFolder;
 		xg::Guid selectedAsset;

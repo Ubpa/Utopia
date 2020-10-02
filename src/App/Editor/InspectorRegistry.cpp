@@ -5,7 +5,7 @@
 #include <unordered_map>
 #include <functional>
 
-using namespace Ubpa::DustEngine;
+using namespace Ubpa::Utopia;
 
 struct InspectorRegistry::Impl {
 	Visitor<void(void*, InspectContext)> inspector;

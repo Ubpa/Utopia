@@ -5,15 +5,15 @@
 #include <USRefl/USRefl.h>
 
 template<typename T>
-struct Ubpa::USRefl::TypeInfo<Ubpa::DustEngine::LuaArray<T>>
-	: Ubpa::USRefl::TypeInfoBase<Ubpa::DustEngine::LuaArray<T>>
+struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::LuaArray<T>>
+	: Ubpa::USRefl::TypeInfoBase<Ubpa::Utopia::LuaArray<T>>
 {
 	static constexpr AttrList attrs = {};
 
 	static constexpr FieldList fields = {
-		Field{"PushBack", &Ubpa::DustEngine::LuaArray<T>::PushBack},
-		Field{"Data", &Ubpa::DustEngine::LuaArray<T>::Data},
-		Field{"Size", &Ubpa::DustEngine::LuaArray<T>::Size},
+		Field{"PushBack", &Ubpa::Utopia::LuaArray<T>::PushBack},
+		Field{"Data", &Ubpa::Utopia::LuaArray<T>::Data},
+		Field{"Size", &Ubpa::Utopia::LuaArray<T>::Size},
 	};
 };
 

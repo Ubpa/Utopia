@@ -1,6 +1,6 @@
-#include <DustEngine/ScriptSystem/LuaContext.h>
+#include <Utopia/ScriptSystem/LuaContext.h>
 
-#include <DustEngine/ScriptSystem/LuaScriptQueue.h>
+#include <Utopia/ScriptSystem/LuaScriptQueue.h>
 
 #include "Init/InitRender.h"
 #include "Init/InitCore.h"
@@ -17,7 +17,7 @@
 #include <set>
 #include <vector>
 
-using namespace Ubpa::DustEngine;
+using namespace Ubpa::Utopia;
 
 struct LuaContext::Impl {
 	Impl() : main{ Construct() } {}

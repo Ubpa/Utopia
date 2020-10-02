@@ -4,5 +4,5 @@ Ubpa_AddTarget(
   SOURCE
     "${PROJECT_SOURCE_DIR}/assets/scripts/test_00.lua"
   LIB
-    Ubpa::DustEngine_ScriptSystem
+    Ubpa::Utopia_ScriptSystem
 )

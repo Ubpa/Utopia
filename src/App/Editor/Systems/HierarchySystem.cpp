@@ -5,15 +5,15 @@
 #include "../Components/Hierarchy.h"
 #include "../Components/Inspector.h"
 
-#include <DustEngine/Core/Components/Children.h>
-#include <DustEngine/Core/Components/Parent.h>
-#include <DustEngine/Core/Components/Name.h>
+#include <Utopia/Core/Components/Children.h>
+#include <Utopia/Core/Components/Parent.h>
+#include <Utopia/Core/Components/Name.h>
 
 #include <_deps/imgui/imgui.h>
 
-using namespace Ubpa::DustEngine;
+using namespace Ubpa::Utopia;
 
-namespace Ubpa::DustEngine::detail {
+namespace Ubpa::Utopia::detail {
 	bool HierarchyMovable(const UECS::World* w, UECS::Entity dst, UECS::Entity src) {
 		if (dst == src)
 			return false;

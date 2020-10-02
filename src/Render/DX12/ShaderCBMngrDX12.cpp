@@ -1,8 +1,8 @@
-#include <DustEngine/Render/DX12/ShaderCBMngrDX12.h>
+#include <Utopia/Render/DX12/ShaderCBMngrDX12.h>
 
-#include <DustEngine/Render/Shader.h>
+#include <Utopia/Render/Shader.h>
 
-using namespace Ubpa::DustEngine;
+using namespace Ubpa::Utopia;
 
 ShaderCBMngrDX12::~ShaderCBMngrDX12() {
 	for (auto [shaderID, buffer] : bufferMap) {

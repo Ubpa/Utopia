@@ -73,7 +73,7 @@ int D3DApp::Run()
 {
 	MSG msg = {0};
  
-	Ubpa::DustEngine::GameTimer::Instance().Reset();
+	Ubpa::Utopia::GameTimer::Instance().Reset();
 
 	while(msg.message != WM_QUIT)
 	{
@@ -86,7 +86,7 @@ int D3DApp::Run()
 		// Otherwise, do animation/game stuff.
 		else
         {	
-			Ubpa::DustEngine::GameTimer::Instance().Tick();
+			Ubpa::Utopia::GameTimer::Instance().Tick();
 
 			if( !mAppPaused )
 			{
@@ -245,12 +245,12 @@ LRESULT D3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		if( LOWORD(wParam) == WA_INACTIVE )
 		{
 			mAppPaused = true;
-			Ubpa::DustEngine::GameTimer::Instance().Stop();
+			Ubpa::Utopia::GameTimer::Instance().Stop();
 		}
 		else
 		{
 			mAppPaused = false;
-			Ubpa::DustEngine::GameTimer::Instance().Start();
+			Ubpa::Utopia::GameTimer::Instance().Start();
 		}
 		return 0;
 
@@ -315,7 +315,7 @@ LRESULT D3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	case WM_ENTERSIZEMOVE:
 		mAppPaused = true;
 		mResizing  = true;
-		Ubpa::DustEngine::GameTimer::Instance().Stop();
+		Ubpa::Utopia::GameTimer::Instance().Stop();
 		return 0;
 
 	// WM_EXITSIZEMOVE is sent when the user releases the resize bars.
@@ -323,7 +323,7 @@ LRESULT D3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	case WM_EXITSIZEMOVE:
 		mAppPaused = false;
 		mResizing  = false;
-		Ubpa::DustEngine::GameTimer::Instance().Start();
+		Ubpa::Utopia::GameTimer::Instance().Start();
 		OnResize();
 		return 0;
  
@@ -584,7 +584,7 @@ void D3DApp::CalculateFrameStats()
 	frameCnt++;
 
 	// Compute averages over one second period.
-	if( (Ubpa::DustEngine::GameTimer::Instance().TotalTime() - timeElapsed) >= 1.0f )
+	if( (Ubpa::Utopia::GameTimer::Instance().TotalTime() - timeElapsed) >= 1.0f )
 	{
 		float fps = (float)frameCnt; // fps = frameCnt / 1
 		float mspf = 1000.0f / fps;

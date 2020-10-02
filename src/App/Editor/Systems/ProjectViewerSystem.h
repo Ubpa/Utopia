@@ -2,7 +2,7 @@
 
 #include <UECS/World.h>
 
-namespace Ubpa::DustEngine {
+namespace Ubpa::Utopia {
 	struct ProjectViewerSystem {
 		static void OnUpdate(UECS::Schedule&);
 	};

@@ -1,10 +1,10 @@
-#include <DustEngine/Asset/AssetMngr.h>
-#include <DustEngine/Render/Texture2D.h>
-#include <DustEngine/Core/Image.h>
+#include <Utopia/Asset/AssetMngr.h>
+#include <Utopia/Render/Texture2D.h>
+#include <Utopia/Core/Image.h>
 
 #include <iostream>
 
-using namespace Ubpa::DustEngine;
+using namespace Ubpa::Utopia;
 using namespace Ubpa;
 
 int main() {

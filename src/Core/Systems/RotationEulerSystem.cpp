@@ -1,9 +1,9 @@
-#include <DustEngine/Core/Systems/RotationEulerSystem.h>
+#include <Utopia/Core/Systems/RotationEulerSystem.h>
 
-#include <DustEngine/Core/Components/Rotation.h>
-#include <DustEngine/Core/Components/RotationEuler.h>
+#include <Utopia/Core/Components/Rotation.h>
+#include <Utopia/Core/Components/RotationEuler.h>
 
-using namespace Ubpa::DustEngine;
+using namespace Ubpa::Utopia;
 
 void RotationEulerSystem::OnUpdate(UECS::Schedule& schedule) {
 	schedule.RegisterEntityJob([](Rotation* rot, const RotationEuler* rot_euler) {

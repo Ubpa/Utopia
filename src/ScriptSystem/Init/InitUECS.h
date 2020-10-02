@@ -2,6 +2,6 @@
 
 #include <ULuaPP/ULuaPP.h>
 
-namespace Ubpa::DustEngine::detail {
+namespace Ubpa::Utopia::detail {
 	void InitUECS(lua_State* L);
 }

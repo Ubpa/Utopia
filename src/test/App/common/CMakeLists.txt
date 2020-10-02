@@ -2,8 +2,8 @@ Ubpa_AddTarget(
   TEST
   MODE STATIC
   LIB
-    Ubpa::DustEngine_Render
-    Ubpa::DustEngine_Asset
+    Ubpa::Utopia_Render
+    Ubpa::Utopia_Asset
   L_OPTION_INTERFACE
     /SUBSYSTEM:WINDOWS
 )

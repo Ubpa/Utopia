@@ -1,8 +1,8 @@
-#include <DustEngine/Render/ShaderMngr.h>
+#include <Utopia/Render/ShaderMngr.h>
 
-#include <DustEngine/Render/Shader.h>
+#include <Utopia/Render/Shader.h>
 
-using namespace Ubpa::DustEngine;
+using namespace Ubpa::Utopia;
 
 
 void ShaderMngr::Register(Shader* shader) {

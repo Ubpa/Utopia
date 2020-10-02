@@ -2,7 +2,7 @@
 
 #include "details/UECS_AutoRefl/UECS_AutoRefl.h"
 
-void Ubpa::DustEngine::detail::InitUECS(lua_State* L) {
+void Ubpa::Utopia::detail::InitUECS(lua_State* L) {
 	ULuaPP::Register<UECS::AccessMode>(L);
 	ULuaPP::Register<UECS::ArchetypeFilter>(L);
 	ULuaPP::Register<UECS::ChunkView>(L);

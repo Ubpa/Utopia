@@ -1,9 +1,9 @@
-#include <DustEngine/Asset/AssetMngr.h>
-#include <DustEngine/ScriptSystem/LuaScript.h>
+#include <Utopia/Asset/AssetMngr.h>
+#include <Utopia/ScriptSystem/LuaScript.h>
 
 #include <iostream>
 
-using namespace Ubpa::DustEngine;
+using namespace Ubpa::Utopia;
 
 int main() {
 	// Enable run-time memory check for debug builds.

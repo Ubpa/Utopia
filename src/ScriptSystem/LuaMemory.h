@@ -1,6 +1,6 @@
 #pragma once
 
-namespace Ubpa::DustEngine {
+namespace Ubpa::Utopia {
 	class LuaMemory {
 	public:
 		static void* Malloc(size_t size);

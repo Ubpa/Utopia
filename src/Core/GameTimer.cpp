@@ -1,8 +1,8 @@
-#include <DustEngine/Core/GameTimer.h>
+#include <Utopia/Core/GameTimer.h>
 
 #include <windows.h>
 
-using namespace Ubpa::DustEngine;
+using namespace Ubpa::Utopia;
 
 GameTimer::GameTimer()
 : mSecondsPerCount(0.0), mDeltaTime(-1.0), mBaseTime(0), 

@@ -3,7 +3,7 @@
 #include <string_view>
 #include <UECS/Entity.h>
 
-namespace Ubpa::DustEngine {
+namespace Ubpa::Utopia {
 	// Get/Set + Bool / (U)Int[8|16|32|64] / Float / Double / String / Pointer / Entity
 	struct LuaBuffer {
 		void* ptr;

@@ -1,16 +1,16 @@
-#include <DustEngine/Render/DX12/RsrcMngrDX12.h>
+#include <Utopia/Render/DX12/RsrcMngrDX12.h>
 
-#include <DustEngine/Render/Texture2D.h>
-#include <DustEngine/Render/TextureCube.h>
-#include <DustEngine/Core/Image.h>
-#include <DustEngine/Render/HLSLFile.h>
-#include <DustEngine/Render/Shader.h>
-#include <DustEngine/Render/Mesh.h>
+#include <Utopia/Render/Texture2D.h>
+#include <Utopia/Render/TextureCube.h>
+#include <Utopia/Core/Image.h>
+#include <Utopia/Render/HLSLFile.h>
+#include <Utopia/Render/Shader.h>
+#include <Utopia/Render/Mesh.h>
 
 #include <unordered_map>
 #include <iostream>
 
-using namespace Ubpa::DustEngine;
+using namespace Ubpa::Utopia;
 using namespace Ubpa;
 using namespace std;
 
@@ -518,11 +518,11 @@ bool RsrcMngrDX12::RegisterShader(const Shader* shader) {
 	auto RangeTypeMap = [](RootDescriptorType type) {
 		switch (type)
 		{
-		case Ubpa::DustEngine::RootDescriptorType::CBV:
+		case Ubpa::Utopia::RootDescriptorType::CBV:
 			return D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
-		case Ubpa::DustEngine::RootDescriptorType::SRV:
+		case Ubpa::Utopia::RootDescriptorType::SRV:
 			return D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-		case Ubpa::DustEngine::RootDescriptorType::UAV:
+		case Ubpa::Utopia::RootDescriptorType::UAV:
 			return D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
 		default:
 			assert(false);
@@ -559,13 +559,13 @@ bool RsrcMngrDX12::RegisterShader(const Shader* shader) {
 				const RootDescriptor& descriptor = parameter;
 				switch (descriptor.DescriptorType)
 				{
-				case Ubpa::DustEngine::RootDescriptorType::CBV:
+				case Ubpa::Utopia::RootDescriptorType::CBV:
 					rootParamters[i].InitAsConstantBufferView(descriptor.ShaderRegister, descriptor.RegisterSpace);
 					break;
-				case Ubpa::DustEngine::RootDescriptorType::SRV:
+				case Ubpa::Utopia::RootDescriptorType::SRV:
 					rootParamters[i].InitAsShaderResourceView(descriptor.ShaderRegister, descriptor.RegisterSpace);
 					break;
-				case Ubpa::DustEngine::RootDescriptorType::UAV:
+				case Ubpa::Utopia::RootDescriptorType::UAV:
 					rootParamters[i].InitAsUnorderedAccessView(descriptor.ShaderRegister, descriptor.RegisterSpace);
 					break;
 				default:

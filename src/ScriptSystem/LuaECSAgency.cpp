@@ -1,9 +1,9 @@
 #include "LuaECSAgency.h"
 
-#include <DustEngine/ScriptSystem/LuaCtxMngr.h>
-#include <DustEngine/ScriptSystem/LuaContext.h>
+#include <Utopia/ScriptSystem/LuaCtxMngr.h>
+#include <Utopia/ScriptSystem/LuaContext.h>
 
-using namespace Ubpa::DustEngine;
+using namespace Ubpa::Utopia;
 
 const Ubpa::UECS::SystemFunc* LuaECSAgency::RegisterEntityJob(
 	UECS::Schedule* s,

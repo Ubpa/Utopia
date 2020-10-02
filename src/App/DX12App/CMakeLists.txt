@@ -2,9 +2,9 @@ Ubpa_AddTarget(
   TEST
   MODE STATIC
   SOURCE
-    "${PROJECT_SOURCE_DIR}/include/DustEngine/App/DX12App"
+    "${PROJECT_SOURCE_DIR}/include/Utopia/App/DX12App"
   LIB
-    Ubpa::DustEngine_Asset
+    Ubpa::Utopia_Asset
   L_OPTION_INTERFACE
     /SUBSYSTEM:WINDOWS
 )

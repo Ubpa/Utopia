@@ -1,11 +1,11 @@
-#include <DustEngine/Core/Image.h>
+#include <Utopia/Core/Image.h>
 
 #include <UGM/UGM.h>
 
 #include <iostream>
 #include <thread>
 
-using namespace Ubpa::DustEngine;
+using namespace Ubpa::Utopia;
 using namespace Ubpa;
 using namespace std;
 

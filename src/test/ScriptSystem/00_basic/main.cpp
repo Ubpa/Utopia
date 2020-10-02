@@ -1,5 +1,5 @@
-#include <DustEngine/ScriptSystem/LuaCtxMngr.h>
-#include <DustEngine/ScriptSystem/LuaContext.h>
+#include <Utopia/ScriptSystem/LuaCtxMngr.h>
+#include <Utopia/ScriptSystem/LuaContext.h>
 #include <UluaPP/ULuaPP.h>
 #include <UECS/World.h>
 
@@ -11,7 +11,7 @@ int main() {
 	int error;
 	{
 		Ubpa::UECS::World world;
-		auto luaCtx = Ubpa::DustEngine::LuaCtxMngr::Instance().Register(&world);
+		auto luaCtx = Ubpa::Utopia::LuaCtxMngr::Instance().Register(&world);
 		auto L = luaCtx->Main();
 		{
 			sol::state_view lua(L);
@@ -40,7 +40,7 @@ int main() {
 		}
 	}
 
-	Ubpa::DustEngine::LuaCtxMngr::Instance().Clear();
+	Ubpa::Utopia::LuaCtxMngr::Instance().Clear();
 
 	return 0;
 }

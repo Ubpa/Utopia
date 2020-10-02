@@ -3,7 +3,7 @@
 #include <UECS/World.h>
 #include <ULuaPP/ULuaPP.h>
 
-namespace Ubpa::DustEngine {
+namespace Ubpa::Utopia {
 	struct LuaECSAgency {
 		// World, SingletonsView, Entity, size_t index, CmptsView
 		static const UECS::SystemFunc* RegisterEntityJob(

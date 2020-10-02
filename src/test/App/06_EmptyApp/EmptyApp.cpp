@@ -1,10 +1,10 @@
-#include <DustEngine/App/DX12App/DX12App.h>
+#include <Utopia/App/DX12App/DX12App.h>
 
-#include <DustEngine/Core/GameTimer.h>
+#include <Utopia/Core/GameTimer.h>
 
 using Microsoft::WRL::ComPtr;
 
-class TestApp : public Ubpa::DustEngine::DX12App {
+class TestApp : public Ubpa::Utopia::DX12App {
 public:
 	TestApp(HINSTANCE hInstance);
 	~TestApp();
@@ -28,12 +28,12 @@ LRESULT TestApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		if (LOWORD(wParam) == WA_INACTIVE)
 		{
 			mAppPaused = true;
-			Ubpa::DustEngine::GameTimer::Instance().Stop();
+			Ubpa::Utopia::GameTimer::Instance().Stop();
 		}
 		else
 		{
 			mAppPaused = false;
-			Ubpa::DustEngine::GameTimer::Instance().Start();
+			Ubpa::Utopia::GameTimer::Instance().Start();
 		}
 		return 0;
 
@@ -98,7 +98,7 @@ LRESULT TestApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	case WM_ENTERSIZEMOVE:
 		mAppPaused = true;
 		mResizing = true;
-		Ubpa::DustEngine::GameTimer::Instance().Stop();
+		Ubpa::Utopia::GameTimer::Instance().Stop();
 		return 0;
 
 		// WM_EXITSIZEMOVE is sent when the user releases the resize bars.
@@ -106,7 +106,7 @@ LRESULT TestApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	case WM_EXITSIZEMOVE:
 		mAppPaused = false;
 		mResizing = false;
-		Ubpa::DustEngine::GameTimer::Instance().Start();
+		Ubpa::Utopia::GameTimer::Instance().Start();
 		OnResize();
 		return 0;
 

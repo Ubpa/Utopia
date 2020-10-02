@@ -1,13 +1,13 @@
-#include <DustEngine/ScriptSystem/LuaScriptQueueSystem.h>
+#include <Utopia/ScriptSystem/LuaScriptQueueSystem.h>
 
-#include <DustEngine/ScriptSystem/LuaScriptQueue.h>
-#include <DustEngine/ScriptSystem/LuaContext.h>
-#include <DustEngine/ScriptSystem/LuaCtxMngr.h>
-#include <DustEngine/ScriptSystem/LuaScript.h>
+#include <Utopia/ScriptSystem/LuaScriptQueue.h>
+#include <Utopia/ScriptSystem/LuaContext.h>
+#include <Utopia/ScriptSystem/LuaCtxMngr.h>
+#include <Utopia/ScriptSystem/LuaScript.h>
 
 #include <_deps/sol/sol.hpp>
 
-using namespace Ubpa::DustEngine;
+using namespace Ubpa::Utopia;
 using namespace Ubpa::UECS;
 
 void LuaScriptQueueSystem::OnUpdate(Schedule& schedule) {

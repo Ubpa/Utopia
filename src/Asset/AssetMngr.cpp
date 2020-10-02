@@ -1,18 +1,18 @@
-#include <DustEngine/Asset/AssetMngr.h>
+#include <Utopia/Asset/AssetMngr.h>
 
-#include <DustEngine/Asset/Serializer.h>
+#include <Utopia/Asset/Serializer.h>
 
-#include <DustEngine/ScriptSystem/LuaScript.h>
-#include <DustEngine/Render/Mesh.h>
-#include <DustEngine/Render/HLSLFile.h>
-#include <DustEngine/Render/Shader.h>
-#include <DustEngine/Core/Image.h>
-#include <DustEngine/Render/Texture2D.h>
-#include <DustEngine/Render/TextureCube.h>
-#include <DustEngine/Render/Material.h>
-#include <DustEngine/Core/TextAsset.h>
-#include <DustEngine/Core/Scene.h>
-#include <DustEngine/Core/DefaultAsset.h>
+#include <Utopia/ScriptSystem/LuaScript.h>
+#include <Utopia/Render/Mesh.h>
+#include <Utopia/Render/HLSLFile.h>
+#include <Utopia/Render/Shader.h>
+#include <Utopia/Core/Image.h>
+#include <Utopia/Render/Texture2D.h>
+#include <Utopia/Render/TextureCube.h>
+#include <Utopia/Render/Material.h>
+#include <Utopia/Core/TextAsset.h>
+#include <Utopia/Core/Scene.h>
+#include <Utopia/Core/DefaultAsset.h>
 
 #include <_deps/tinyobjloader/tiny_obj_loader.h>
 #ifdef UBPA_DUSTENGINE_USE_ASSIMP
@@ -31,7 +31,7 @@
 #include <memory>
 #include <functional>
 
-using namespace Ubpa::DustEngine;
+using namespace Ubpa::Utopia;
 
 struct AssetMngr::Impl {
 	// asset <-> path <-> guid

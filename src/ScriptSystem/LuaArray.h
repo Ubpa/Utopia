@@ -2,7 +2,7 @@
 
 #include <vector>
 
-namespace Ubpa::DustEngine {
+namespace Ubpa::Utopia {
 	template<typename T>
 	class LuaArray {
 	public:
