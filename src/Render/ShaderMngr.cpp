@@ -6,7 +6,7 @@ using namespace Ubpa::Utopia;
 
 
 void ShaderMngr::Register(Shader* shader) {
-	shaderMap[shader->shaderName] = shader;
+	shaderMap[shader->name] = shader;
 }
 
 Shader* ShaderMngr::Get(std::string_view name) const {

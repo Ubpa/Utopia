@@ -285,8 +285,8 @@ bool TestApp::Initialize() {
 				indent--;
 			}
 		};
-		PrintRefl(RsrcMngrDX12::Instance().GetShaderRefl_vs(shader, 0), shader->shaderName + " vs");
-		PrintRefl(RsrcMngrDX12::Instance().GetShaderRefl_ps(shader, 0), shader->shaderName + " ps");
+		PrintRefl(RsrcMngrDX12::Instance().GetShaderRefl_vs(shader, 0), shader->name + " vs");
+		PrintRefl(RsrcMngrDX12::Instance().GetShaderRefl_ps(shader, 0), shader->name + " ps");
 	};
 	
 	auto geometry = ShaderMngr::Instance().Get("StdPipeline/Geometry");

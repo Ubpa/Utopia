@@ -1,6 +1,6 @@
 #include "StdPipeline.hlsli"
 
-TextureCube  gSkybox            : register(t0);
+TextureCube  gSkybox : register(t0);
 
 static const float3 gPositions[8] =
 {

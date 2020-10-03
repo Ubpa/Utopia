@@ -1,5 +1,7 @@
 #include <Utopia/Asset/AssetMngr.h>
 
+#include "ShaderCompiler/ShaderCompiler.h"
+
 #include <Utopia/Asset/Serializer.h>
 
 #include <Utopia/ScriptSystem/LuaScript.h>
@@ -341,9 +343,11 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path) {
 		return text;
 	}
 	else if (ext == ".shader") {
-		auto json = Impl::LoadText(path);
-		auto shader = new Shader;
-		Serializer::Instance().ToUserType(json, shader);
+		auto shaderText = Impl::LoadText(path);
+		auto [success, rstShader] = ShaderCompiler::Instance().Compile(shaderText);
+		if (!success)
+			return nullptr;
+		auto shader = new Shader{ std::move(rstShader) };
 
 		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ shader });
 		pImpl->asset2path.emplace(shader, path);

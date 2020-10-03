@@ -485,7 +485,7 @@ bool RsrcMngrDX12::RegisterShader(const Shader* shader) {
 			shader->hlslFile->GetText(),
 			macros,
 			pass.vertexName,
-			"vs_" + shader->targetName,
+			"vs_5_0",
 			&d3dInclude
 		);
 		if (!shaderCompileData.passes[i].vsByteCode) {
@@ -496,7 +496,7 @@ bool RsrcMngrDX12::RegisterShader(const Shader* shader) {
 			shader->hlslFile->GetText(),
 			macros,
 			pass.fragmentName,
-			"ps_" + shader->targetName,
+			"ps_5_0",
 			&d3dInclude
 		);
 		if (!shaderCompileData.passes[i].psByteCode) {

@@ -141,7 +141,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::RenderState>
 		Field{"zTest", &Ubpa::Utopia::RenderState::zTest},
 		Field{"zWrite", &Ubpa::Utopia::RenderState::zWrite},
 		Field{"stencilState", &Ubpa::Utopia::RenderState::stencilState},
-		Field{"blendState", &Ubpa::Utopia::RenderState::blendState},
+		Field{"blendStates", &Ubpa::Utopia::RenderState::blendStates},
 		Field{"colorMask", &Ubpa::Utopia::RenderState::colorMask},
 	};
 };

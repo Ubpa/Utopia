@@ -5,9 +5,9 @@
 
 namespace Ubpa::Utopia {
 	enum class RootDescriptorType {
-		CBV,
 		SRV,
 		UAV,
+		CBV,
 	};
 
 	struct DescriptorRange {

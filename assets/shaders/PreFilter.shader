@@ -1,40 +1,9 @@
-{
-    "hlslFile":"18a1fa0d-e09f-4e37-aa62-cafffa02c1ea",
-    "shaderName":"StdPipeline/PreFilter",
-    "passes":[
-        {
-            "vertexName":"VS",
-            "fragmentName":"PS"
-        }
-    ],
-    "targetName":"5_0",
-    "rootParameters":[
-        {
-            "__INDEX":0,
-            "__CONTENT":[
-                {
-                    "RangeType":1,
-                    "NumDescriptors":1,
-                    "BaseShaderRegister":0,
-                    "RegisterSpace":0
-                }
-            ]
-        },
-        {
-            "__INDEX":2,
-            "__CONTENT":{
-                "DescriptorType":0,
-                "ShaderRegister":0,
-                "RegisterSpace":0
-            }
-        },
-        {
-            "__INDEX":2,
-            "__CONTENT":{
-                "DescriptorType":0,
-                "ShaderRegister":1,
-                "RegisterSpace":0
-            }
-        }
-    ]
+Shader "StdPipeline/PreFilter" {
+	HLSL : "18a1fa0d-e09f-4e37-aa62-cafffa02c1ea"
+	RootSignature {
+		SRV[1] : 0
+		CBV : 0
+		CBV : 1
+	}
+	Pass (VS, PS) {}
 }

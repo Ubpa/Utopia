@@ -12,8 +12,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::Shader>
 	
 	static constexpr FieldList fields = {
 		Field{"hlslFile", &Ubpa::Utopia::Shader::hlslFile},
-		Field{"shaderName", &Ubpa::Utopia::Shader::shaderName},
-		Field{"targetName", &Ubpa::Utopia::Shader::targetName},
+		Field{"name", &Ubpa::Utopia::Shader::name},
 		Field{"rootParameters", &Ubpa::Utopia::Shader::rootParameters},
 		Field{"properties", &Ubpa::Utopia::Shader::properties},
 		Field{"passes", &Ubpa::Utopia::Shader::passes},

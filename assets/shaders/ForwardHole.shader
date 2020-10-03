@@ -1,158 +1,43 @@
-{
-    "hlslFile":"c48f7543-e88f-4152-a9b8-1ccc1b4f01a8",
-    "shaderName":"StdPipeline/ForwardHole",
-    "targetName":"5_0",
-    "rootParameters":[
-        {
-            "__INDEX":0,
-            "__CONTENT":[
-                {
-                    "RangeType":1,
-                    "NumDescriptors":1,
-                    "BaseShaderRegister":0,
-                    "RegisterSpace":0
-                }
-            ]
-        },
-        {
-            "__INDEX":0,
-            "__CONTENT":[
-                {
-                    "RangeType":1,
-                    "NumDescriptors":1,
-                    "BaseShaderRegister":1,
-                    "RegisterSpace":0
-                }
-            ]
-        },
-        {
-            "__INDEX":0,
-            "__CONTENT":[
-                {
-                    "RangeType":1,
-                    "NumDescriptors":1,
-                    "BaseShaderRegister":2,
-                    "RegisterSpace":0
-                }
-            ]
-        },
-        {
-            "__INDEX":0,
-            "__CONTENT":[
-                {
-                    "RangeType":1,
-                    "NumDescriptors":1,
-                    "BaseShaderRegister":3,
-                    "RegisterSpace":0
-                }
-            ]
-        },
-        {
-            "__INDEX":0,
-            "__CONTENT":[
-                {
-                    "RangeType":1,
-                    "NumDescriptors":3,
-                    "BaseShaderRegister":4,
-                    "RegisterSpace":0
-                }
-            ]
-        },
-        {
-            "__INDEX":2,
-            "__CONTENT":{
-                "DescriptorType":0,
-                "ShaderRegister":0,
-                "RegisterSpace":0
-            }
-        },
-        {
-            "__INDEX":2,
-            "__CONTENT":{
-                "DescriptorType":0,
-                "ShaderRegister":1,
-                "RegisterSpace":0
-            }
-        },
-        {
-            "__INDEX":2,
-            "__CONTENT":{
-                "DescriptorType":0,
-                "ShaderRegister":2,
-                "RegisterSpace":0
-            }
-        },
-        {
-            "__INDEX":2,
-            "__CONTENT":{
-                "DescriptorType":0,
-                "ShaderRegister":3,
-                "RegisterSpace":0
-            }
-        }
-    ],
-    "properties":{
-        "gAlbedoMap":{
-            "__INDEX":22,
-            "__CONTENT":"1936ed7e-6896-4ace-abd9-5b084fcfb891"
-        },
-        "gMetalnessMap":{
-            "__INDEX":22,
-            "__CONTENT":"1936ed7e-6896-4ace-abd9-5b084fcfb891"
-        },
-        "gNormalMap":{
-            "__INDEX":22,
-            "__CONTENT":"b5e7fb39-fedd-4371-a00a-552a86307db7"
-        },
-        "gRoughnessMap":{
-            "__INDEX":22,
-            "__CONTENT":"1936ed7e-6896-4ace-abd9-5b084fcfb891"
-        },
-        "gAlbedoFactor":{
-            "__INDEX":20,
-            "__CONTENT":[1,1,1]
-        },
-        "gRoughnessFactor":{
-            "__INDEX":3,
-            "__CONTENT":1
-        },
-        "gMetalnessFactor":{
-            "__INDEX":3,
-            "__CONTENT":1
-        }
-    },
-    "passes":[
-        {
-            "vertexName":"HoleVS",
-            "fragmentName":"HolePS",
-            "renderState":{
-                "zWrite":false,
-                "colorMask":[
-                    0
-                ],
-                "stencilState":{
-                    "enable":true,
-                    "ref":1,
-                    "passOp":3
-                }
-            },
-            "tags":{
-                "LightMode":"Forward"
-            }
-        },
-        {
-            "vertexName":"VS",
-            "fragmentName":"PS",
-            "renderState" : {
-                "stencilState":{
-                    "enable":true,
-                    "ref":1,
-                    "func":6
-                }
-            },
-            "tags":{
-                "LightMode":"Forward"
-            }
-        }
-    ]
+Shader "StdPipeline/Forward Hole" {
+	HLSL : "c48f7543-e88f-4152-a9b8-1ccc1b4f01a8"
+	RootSignature {
+		SRV[1] : 0
+		SRV[1] : 1
+		SRV[1] : 2
+		SRV[1] : 3
+		SRV[3] : 4
+		CBV : 0
+		CBV : 1
+		CBV : 2
+		CBV : 3
+	}
+	Properties {
+		gAlbedoMap("albedo", 2D) : White
+		gMetalnessMap("metalness", 2D) : White
+		gRoughnessMap("roughness", 2D) : White
+		gNormalMap("normal map", 2D) : Bump
+		gAlbedoFactor("albedo factor", Color3) : (1, 1, 1)
+		gRoughnessFactor("roughness factor", float) : 1
+		gMetalnessFactor("metalness factor", float) : 1
+	}
+	Pass (HoleVS, HolePS) {
+		Tags {
+			"LightMode" : "Forward"
+		}
+		ZWriteOff
+		ColorMask 0
+		Stencil {
+			Ref 1
+			Pass Replace
+		}
+	}
+	Pass (VS, PS) {
+		Tags {
+			"LightMode" : "Forward"
+		}
+		Stencil {
+			Ref 1
+			Comp NotEqual
+		}
+	}
 }

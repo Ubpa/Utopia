@@ -7,8 +7,8 @@
 
 namespace Ubpa::Utopia {
 	struct ShaderPass {
-		std::string vertexName; // e.g. vert
-		std::string fragmentName; // e.g. frag
+		std::string vertexName;
+		std::string fragmentName;
 		RenderState renderState;
 		std::map<std::string, std::string, std::less<>> tags;
 

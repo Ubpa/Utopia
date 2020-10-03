@@ -266,15 +266,19 @@ void PipelineBase::SetPSODescForRenderState(D3D12_GRAPHICS_PIPELINE_STATE_DESC& 
 	desc.RasterizerState.CullMode = static_cast<D3D12_CULL_MODE>(renderState.cullMode);
 	desc.DepthStencilState.DepthFunc = static_cast<D3D12_COMPARISON_FUNC>(renderState.zTest);
 	desc.DepthStencilState.DepthWriteMask = static_cast<D3D12_DEPTH_WRITE_MASK>(renderState.zWrite);
-	if (renderState.blendState.enable) {
-		desc.BlendState.RenderTarget[0].BlendEnable = TRUE;
-		desc.BlendState.RenderTarget[0].SrcBlend = static_cast<D3D12_BLEND>(renderState.blendState.src);
-		desc.BlendState.RenderTarget[0].DestBlend = static_cast<D3D12_BLEND>(renderState.blendState.dest);
-		desc.BlendState.RenderTarget[0].BlendOp = static_cast<D3D12_BLEND_OP>(renderState.blendState.op);
-		desc.BlendState.RenderTarget[0].SrcBlendAlpha = static_cast<D3D12_BLEND>(renderState.blendState.srcAlpha);
-		desc.BlendState.RenderTarget[0].DestBlendAlpha = static_cast<D3D12_BLEND>(renderState.blendState.destAlpha);
-		desc.BlendState.RenderTarget[0].BlendOpAlpha = static_cast<D3D12_BLEND_OP>(renderState.blendState.opAlpha);
+
+	for (size_t i = 0; i < 8; i++) {
+		if (renderState.blendStates[i].enable) {
+			desc.BlendState.RenderTarget[i].BlendEnable = TRUE;
+			desc.BlendState.RenderTarget[i].SrcBlend = static_cast<D3D12_BLEND>(renderState.blendStates[i].src);
+			desc.BlendState.RenderTarget[i].DestBlend = static_cast<D3D12_BLEND>(renderState.blendStates[i].dest);
+			desc.BlendState.RenderTarget[i].BlendOp = static_cast<D3D12_BLEND_OP>(renderState.blendStates[i].op);
+			desc.BlendState.RenderTarget[i].SrcBlendAlpha = static_cast<D3D12_BLEND>(renderState.blendStates[i].srcAlpha);
+			desc.BlendState.RenderTarget[i].DestBlendAlpha = static_cast<D3D12_BLEND>(renderState.blendStates[i].destAlpha);
+			desc.BlendState.RenderTarget[i].BlendOpAlpha = static_cast<D3D12_BLEND_OP>(renderState.blendStates[i].opAlpha);
+		}
 	}
+	
 	if (renderState.stencilState.enable) {
 		desc.DepthStencilState.StencilEnable = TRUE;
 		desc.DepthStencilState.StencilReadMask = renderState.stencilState.readMask;
