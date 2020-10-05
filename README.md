@@ -10,5 +10,22 @@
 
 # Utopia Game Engine
 
-中文：无境游戏引擎
+[![repo-size](https://img.shields.io/github/languages/code-size/Ubpa/Utopia?style=flat)](https://github.com/Ubpa/Utopia/archive/master.zip) [![license](https://img.shields.io/github/license/Ubpa/Utopia)](LICENSE) 
+
+## Environment
+
+- Windows 10
+- VS 2019
+- DirectX 12
+- CMake 3.18.2 +
+
+## Feature
+
+- DirectX 12
+- ECS ([Utopia](https://github.com/Ubpa/Utopia))
+- Lua
+- Frame Graph
+- ShaderLab
+- [ImGui](https://github.com/ocornut/imgui) 
+- static reflection ([USRefl](https://github.com/Ubpa/USRefl))
 
