@@ -1,9 +1,9 @@
-#include "InspectorSystem.h"
+#include <Utopia/App/Editor/Systems/InspectorSystem.h>
 
-#include "../InspectorRegistry.h"
+#include <Utopia/App/Editor/InspectorRegistry.h>
 
-#include "../Components/Inspector.h"
-#include "../Components/Hierarchy.h"
+#include <Utopia/App/Editor/Components/Inspector.h>
+#include <Utopia/App/Editor/Components/Hierarchy.h>
 
 #include <_deps/imgui/imgui.h>
 

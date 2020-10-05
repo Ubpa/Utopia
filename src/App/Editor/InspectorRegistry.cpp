@@ -1,4 +1,4 @@
-#include "InspectorRegistry.h"
+#include <Utopia/App/Editor/InspectorRegistry.h>
 
 #include <UECS/CmptType.h>
 

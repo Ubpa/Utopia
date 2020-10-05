@@ -1,5 +1,4 @@
 Ubpa_AddTarget(
-  TEST
   MODE STATIC
   SOURCE
     "${PROJECT_SOURCE_DIR}/include/Utopia/App/DX12App"

@@ -1,13 +1,14 @@
-#include "Components/Hierarchy.h"
-#include "Components/Inspector.h"
-#include "Components/ProjectViewer.h"
-#include "Components/TestInspector.h"
+#include <Utopia/App/Editor/Editor.h>
 
-#include "Systems/HierarchySystem.h"
-#include "Systems/InspectorSystem.h"
-#include "Systems/ProjectViewerSystem.h"
+#include <Utopia/App/Editor/Components/Hierarchy.h>
+#include <Utopia/App/Editor/Components/Inspector.h>
+#include <Utopia/App/Editor/Components/ProjectViewer.h>
 
-#include "InspectorRegistry.h"
+#include <Utopia/App/Editor/Systems/HierarchySystem.h>
+#include <Utopia/App/Editor/Systems/InspectorSystem.h>
+#include <Utopia/App/Editor/Systems/ProjectViewerSystem.h>
+
+#include <Utopia/App/Editor/InspectorRegistry.h>
 
 #include <Utopia/App/DX12App/DX12App.h>
 
@@ -43,40 +44,27 @@
 
 #include <ULuaPP/ULuaPP.h>
 
-#include <dxgidebug.h>
-
+using namespace Ubpa::Utopia;
+using namespace Ubpa::UECS;
+using namespace Ubpa;
 using Microsoft::WRL::ComPtr;
 
-class Editor : public Ubpa::Utopia::DX12App {
-public:
-    Editor(HINSTANCE hInstance);
-    ~Editor();
+struct Editor::Impl {
+	Impl(Editor* editor) : pEditor{editor}, curGameWorld { &gameWorld } {}
+	~Impl();
 
-    bool Initialize();
+	Editor* pEditor;
 
-private:
-    void OnResize();
-    virtual void Update() override;
-    virtual void Draw() override;
+	bool Init();
+	void Update();
+	void Draw();
 
-	void OnMouseDown(WPARAM btnState, int x, int y);
-    void OnMouseUp(WPARAM btnState, int x, int y);
-    void OnMouseMove(WPARAM btnState, int x, int y);
-
-	virtual LRESULT MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) override;
-
-	void InitInspectorRegistry();
-	void InitWorld(Ubpa::UECS::World&);
 	void BuildWorld();
-	void LoadTextures();
-	void BuildShaders();
 
-private:
-	float mTheta = 0.4f * Ubpa::PI<float>;
-	float mPhi = 1.3f * Ubpa::PI<float>;
-	float mRadius = 5.0f;
-
-    POINT mLastMousePos;
+	static void InitWorld(Ubpa::UECS::World&);
+	static void InitInspectorRegistry();
+	static void LoadTextures();
+	static void BuildShaders();
 
 	std::unique_ptr<Ubpa::UECS::World> runningGameWorld;
 	Ubpa::UECS::World* curGameWorld;
@@ -85,22 +73,22 @@ private:
 	Ubpa::UECS::World editorWorld;
 
 	void OnGameResize();
-	size_t gameWidth, gameHeight;
-	ImVec2 gamePos;
+	size_t gameWidth{ 0 }, gameHeight{ 0 };
+	ImVec2 gamePos{ 0,0 };
 	ComPtr<ID3D12Resource> gameRT;
 	const DXGI_FORMAT gameRTFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 	Ubpa::UDX12::DescriptorHeapAllocation gameRT_SRV;
 	Ubpa::UDX12::DescriptorHeapAllocation gameRT_RTV;
-	std::unique_ptr<Ubpa::Utopia::PipelineBase> gamePipeline;
+	std::unique_ptr<PipelineBase> gamePipeline;
 
 	void OnSceneResize();
-	size_t sceneWidth, sceneHeight;
-	ImVec2 scenePos;
+	size_t sceneWidth{ 0 }, sceneHeight{ 0 };
+	ImVec2 scenePos{ 0,0 };
 	ComPtr<ID3D12Resource> sceneRT;
 	const DXGI_FORMAT sceneRTFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 	Ubpa::UDX12::DescriptorHeapAllocation sceneRT_SRV;
 	Ubpa::UDX12::DescriptorHeapAllocation sceneRT_RTV;
-	std::unique_ptr<Ubpa::Utopia::PipelineBase> scenePipeline;
+	std::unique_ptr<PipelineBase> scenePipeline;
 
 	bool show_demo_window = true;
 	bool show_another_window = false;
@@ -129,29 +117,29 @@ LRESULT Editor::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	bool imguiWantCaptureMouse = false;
 	bool imguiWantCaptureKeyboard = false;
 
-	if (gameImGuiCtx && sceneImGuiCtx && editorImGuiCtx) {
-		ImGui::SetCurrentContext(gameImGuiCtx);
+	if (pImpl->gameImGuiCtx && pImpl->sceneImGuiCtx && pImpl->editorImGuiCtx) {
+		ImGui::SetCurrentContext(pImpl->gameImGuiCtx);
 		auto& gameIO = ImGui::GetIO();
 		bool gameWantCaptureMouse = gameIO.WantCaptureMouse;
 		bool gameWantCaptureKeyboard = gameIO.WantCaptureKeyboard;
-		ImGui::SetCurrentContext(sceneImGuiCtx);
+		ImGui::SetCurrentContext(pImpl->sceneImGuiCtx);
 		auto& sceneIO = ImGui::GetIO();
 		bool sceneWantCaptureMouse = sceneIO.WantCaptureMouse;
 		bool sceneWantCaptureKeyboard = sceneIO.WantCaptureKeyboard;
-		ImGui::SetCurrentContext(editorImGuiCtx);
+		ImGui::SetCurrentContext(pImpl->editorImGuiCtx);
 		auto& editorIO = ImGui::GetIO();
 		bool editorWantCaptureMouse = editorIO.WantCaptureMouse;
 		bool editorWantCaptureKeyboard = editorIO.WantCaptureKeyboard;
 
-		if (ImGui_ImplWin32_WndProcHandler_Context(gameImGuiCtx, false, false, hwnd, msg, wParam, lParam))
+		if (ImGui_ImplWin32_WndProcHandler_Context(pImpl->gameImGuiCtx, false, false, hwnd, msg, wParam, lParam))
 			return 1;
 
-		if (ImGui_ImplWin32_WndProcHandler_Context(sceneImGuiCtx, gameWantCaptureMouse, gameWantCaptureKeyboard, hwnd, msg, wParam, lParam))
+		if (ImGui_ImplWin32_WndProcHandler_Context(pImpl->sceneImGuiCtx, gameWantCaptureMouse, gameWantCaptureKeyboard, hwnd, msg, wParam, lParam))
 			return 1;
 
 		if (
 			ImGui_ImplWin32_WndProcHandler_Context(
-				editorImGuiCtx,
+				pImpl->editorImGuiCtx,
 				gameWantCaptureMouse || sceneWantCaptureMouse,
 				gameWantCaptureKeyboard || sceneWantCaptureKeyboard,
 				hwnd, msg, wParam, lParam
@@ -168,131 +156,6 @@ LRESULT Editor::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	// - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your editor application.
 	switch (msg)
 	{
-		// WM_ACTIVATE is sent when the window is activated or deactivated.  
-		// We pause the game when the window is deactivated and unpause it 
-		// when it becomes active.  
-	case WM_ACTIVATE:
-		if (LOWORD(wParam) == WA_INACTIVE)
-		{
-			mAppPaused = true;
-			Ubpa::Utopia::GameTimer::Instance().Stop();
-		}
-		else
-		{
-			mAppPaused = false;
-			Ubpa::Utopia::GameTimer::Instance().Start();
-		}
-		return 0;
-
-		// WM_SIZE is sent when the user resizes the window.  
-	case WM_SIZE:
-		// Save the new client area dimensions.
-		mClientWidth = LOWORD(lParam);
-		mClientHeight = HIWORD(lParam);
-		if (!uDevice.IsNull())
-		{
-			if (wParam == SIZE_MINIMIZED)
-			{
-				mAppPaused = true;
-				mMinimized = true;
-				mMaximized = false;
-			}
-			else if (wParam == SIZE_MAXIMIZED)
-			{
-				mAppPaused = false;
-				mMinimized = false;
-				mMaximized = true;
-				OnResize();
-			}
-			else if (wParam == SIZE_RESTORED)
-			{
-
-				// Restoring from minimized state?
-				if (mMinimized)
-				{
-					mAppPaused = false;
-					mMinimized = false;
-					OnResize();
-				}
-
-				// Restoring from maximized state?
-				else if (mMaximized)
-				{
-					mAppPaused = false;
-					mMaximized = false;
-					OnResize();
-				}
-				else if (mResizing)
-				{
-					// If user is dragging the resize bars, we do not resize 
-					// the buffers here because as the user continuously 
-					// drags the resize bars, a stream of WM_SIZE messages are
-					// sent to the window, and it would be pointless (and slow)
-					// to resize for each WM_SIZE message received from dragging
-					// the resize bars.  So instead, we reset after the user is 
-					// done resizing the window and releases the resize bars, which 
-					// sends a WM_EXITSIZEMOVE message.
-				}
-				else // API call such as SetWindowPos or mSwapChain->SetFullscreenState.
-				{
-					OnResize();
-				}
-			}
-		}
-		return 0;
-
-		// WM_EXITSIZEMOVE is sent when the user grabs the resize bars.
-	case WM_ENTERSIZEMOVE:
-		mAppPaused = true;
-		mResizing = true;
-		Ubpa::Utopia::GameTimer::Instance().Stop();
-		return 0;
-
-		// WM_EXITSIZEMOVE is sent when the user releases the resize bars.
-		// Here we reset everything based on the new window dimensions.
-	case WM_EXITSIZEMOVE:
-		mAppPaused = false;
-		mResizing = false;
-		Ubpa::Utopia::GameTimer::Instance().Start();
-		OnResize();
-		return 0;
-
-		// WM_DESTROY is sent when the window is being destroyed.
-	case WM_DESTROY:
-		PostQuitMessage(0);
-		return 0;
-
-		// The WM_MENUCHAR message is sent when a menu is active and the user presses 
-		// a key that does not correspond to any mnemonic or accelerator key. 
-	case WM_MENUCHAR:
-		// Don't beep when we alt-enter.
-		return MAKELRESULT(0, MNC_CLOSE);
-
-		// Catch this message so to prevent the window from becoming too small.
-	case WM_GETMINMAXINFO:
-		((MINMAXINFO*)lParam)->ptMinTrackSize.x = 200;
-		((MINMAXINFO*)lParam)->ptMinTrackSize.y = 200;
-		return 0;
-
-	case WM_LBUTTONDOWN:
-	case WM_MBUTTONDOWN:
-	case WM_RBUTTONDOWN:
-		if (imguiWantCaptureMouse)
-			return 0;
-		OnMouseDown(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
-		return 0;
-	case WM_LBUTTONUP:
-	case WM_MBUTTONUP:
-	case WM_RBUTTONUP:
-		if (imguiWantCaptureMouse)
-			return 0;
-		OnMouseUp(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
-		return 0;
-	case WM_MOUSEMOVE:
-		if (imguiWantCaptureMouse)
-			return 0;
-		OnMouseMove(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
-		return 0;
 	case WM_KEYUP:
 		if (imguiWantCaptureKeyboard)
 			return 0;
@@ -300,51 +163,66 @@ LRESULT Editor::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		{
 			PostQuitMessage(0);
 		}
-
 		return 0;
 	}
 
-	return DefWindowProc(hwnd, msg, wParam, lParam);
-}
-
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd) {
-    // Enable run-time memory check for debug builds.
-#if defined(DEBUG) | defined(_DEBUG)
-    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
-#endif
-	int rst;
-    try {
-        Editor theApp(hInstance);
-        if(!theApp.Initialize())
-            return 1;
-
-		rst = theApp.Run();
-    }
-    catch(Ubpa::UDX12::Util::Exception& e) {
-		MessageBox(nullptr, e.ToString().c_str(), L"HR Failed", MB_OK);
-        rst = 1;
-	}
-
-#ifdef _DEBUG
-	ComPtr<IDXGIDebug> debug;
-	DXGIGetDebugInterface1(0, IID_PPV_ARGS(&debug));
-	debug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_DETAIL);
-#endif // _DEBUG
-
-	return rst;
+	return DX12App::MsgProc(hwnd, msg, wParam, lParam);
 }
 
 Editor::Editor(HINSTANCE hInstance)
-	: DX12App(hInstance), curGameWorld{&gameWorld}
-{
-}
+	: DX12App(hInstance), pImpl{ new Impl{this} }
+{}
 
 Editor::~Editor() {
     if(!uDevice.IsNull())
         FlushCommandQueue();
 
-	Ubpa::Utopia::ImGUIMngr::Instance().Clear();
+	ImGUIMngr::Instance().Clear();
 
+	delete pImpl;
+}
+
+bool Editor::Init() {
+	if (!InitMainWindow())
+		return false;
+
+	if (!InitDirect3D())
+		return false;
+
+	OnResize();
+
+	if (!pImpl->Init())
+		return false;
+
+	FlushCommandQueue();
+
+	return true;
+}
+
+World* Editor::GetGameWorld() {
+	return &pImpl->gameWorld;
+}
+
+World* Editor::GetSceneWorld() {
+	return &pImpl->sceneWorld;
+}
+World* Editor::GetEditorWorld() {
+	return &pImpl->editorWorld;
+}
+
+UECS::World* Editor::GetCurrentGameWorld() {
+	return pImpl->curGameWorld;
+}
+
+void Editor::Update() {
+	pImpl->Update();
+}
+
+void Editor::Draw() {
+	pImpl->Draw();
+}
+
+Editor::Impl::~Impl() {
 	if (!gameRT_SRV.IsNull())
 		Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(gameRT_SRV));
 	if (!gameRT_RTV.IsNull())
@@ -355,22 +233,24 @@ Editor::~Editor() {
 		Ubpa::UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Free(std::move(sceneRT_RTV));
 }
 
-bool Editor::Initialize() {
-	if (!InitMainWindow())
-		return false;
+bool Editor::Impl::Init() {
+	ImGUIMngr::Instance().Init(pEditor->MainWnd(), pEditor->uDevice.Get(), DX12App::NumFrameResources, 3);
+	AssetMngr::Instance().ImportAssetRecursively(L"..\\assets");
+	Impl::InitInspectorRegistry();
 
-	if (!InitDirect3D())
-		return false;
+	RsrcMngrDX12::Instance().GetUpload().Begin();
+	Impl::LoadTextures();
+	Impl::BuildShaders();
+	RsrcMngrDX12::Instance().GetUpload().End(pEditor->uCmdQueue.Get());
 
 	gameRT_SRV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(1);
 	gameRT_RTV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Allocate(1);
 	sceneRT_SRV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(1);
 	sceneRT_RTV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Allocate(1);
 
-	Ubpa::Utopia::ImGUIMngr::Instance().Init(MainWnd(), uDevice.Get(), NumFrameResources, 3);
-	editorImGuiCtx = Ubpa::Utopia::ImGUIMngr::Instance().GetContexts().at(0);
-	gameImGuiCtx = Ubpa::Utopia::ImGUIMngr::Instance().GetContexts().at(1);
-	sceneImGuiCtx = Ubpa::Utopia::ImGUIMngr::Instance().GetContexts().at(2);
+	editorImGuiCtx = ImGUIMngr::Instance().GetContexts().at(0);
+	gameImGuiCtx = ImGUIMngr::Instance().GetContexts().at(1);
+	sceneImGuiCtx = ImGUIMngr::Instance().GetContexts().at(2);
 	ImGui::SetCurrentContext(editorImGuiCtx);
 	ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 	ImGui::GetIO().IniFilename = "imgui_App_Editor_editor.ini";
@@ -380,43 +260,23 @@ bool Editor::Initialize() {
 	ImGui::GetIO().IniFilename = "imgui_App_Editor_scene.ini";
 	ImGui::SetCurrentContext(nullptr);
 
-	Ubpa::Utopia::AssetMngr::Instance().ImportAssetRecursively(L"..\\assets");
-	InitInspectorRegistry();
 	BuildWorld();
 
-	Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload().Begin();
-	LoadTextures();
-	BuildShaders();
-	Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload().End(uCmdQueue.Get());
-
-	//OutputDebugStringA(Ubpa::Utopia::Serializer::Instance().ToJSON(&gameWorld).c_str());
-
-	Ubpa::Utopia::PipelineBase::InitDesc initDesc;
-	initDesc.device = uDevice.Get();
+	PipelineBase::InitDesc initDesc;
+	initDesc.device = pEditor->uDevice.Get();
 	initDesc.rtFormat = gameRTFormat;
-	initDesc.cmdQueue = uCmdQueue.Get();
-	initDesc.numFrame = NumFrameResources;
-	gamePipeline = std::make_unique<Ubpa::Utopia::StdPipeline>(initDesc);
-	scenePipeline = std::make_unique<Ubpa::Utopia::StdPipeline>(initDesc);
+	initDesc.cmdQueue = pEditor->uCmdQueue.Get();
+	initDesc.numFrame = DX12App::NumFrameResources;
+	gamePipeline = std::make_unique<StdPipeline>(initDesc);
+	scenePipeline = std::make_unique<StdPipeline>(initDesc);
 
-	// Do the initial resize code.
-	OnResize();
-
-    // Wait until initialization is complete.
-    FlushCommandQueue();
-
-    return true;
+	return true;
 }
 
-void Editor::OnResize()
-{
-	DX12App::OnResize();
-}
-
-void Editor::OnGameResize() {
+void Editor::Impl::OnGameResize() {
 	Ubpa::rgbaf background = { 0.f,0.f,0.f,1.f };
 	auto rtType = Ubpa::UDX12::FG::RsrcType::RT2D(gameRTFormat, gameWidth, (UINT)gameHeight, background.data());
-	ThrowIfFailed(uDevice->CreateCommittedResource(
+	ThrowIfFailed(pEditor->uDevice->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
 		D3D12_HEAP_FLAG_NONE,
 		&rtType.desc,
@@ -424,8 +284,8 @@ void Editor::OnGameResize() {
 		&rtType.clearValue,
 		IID_PPV_ARGS(gameRT.ReleaseAndGetAddressOf())
 	));
-	uDevice->CreateShaderResourceView(gameRT.Get(), nullptr, gameRT_SRV.GetCpuHandle());
-	uDevice->CreateRenderTargetView(gameRT.Get(), nullptr, gameRT_RTV.GetCpuHandle());
+	pEditor->uDevice->CreateShaderResourceView(gameRT.Get(), nullptr, gameRT_SRV.GetCpuHandle());
+	pEditor->uDevice->CreateRenderTargetView(gameRT.Get(), nullptr, gameRT_RTV.GetCpuHandle());
 
 	assert(gamePipeline);
 	D3D12_VIEWPORT viewport;
@@ -438,10 +298,10 @@ void Editor::OnGameResize() {
 	gamePipeline->Resize(gameWidth, gameHeight, viewport, { 0, 0, (LONG)gameWidth, (LONG)gameHeight });
 }
 
-void Editor::OnSceneResize() {
+void Editor::Impl::OnSceneResize() {
 	Ubpa::rgbaf background = { 0.f,0.f,0.f,1.f };
 	auto rtType = Ubpa::UDX12::FG::RsrcType::RT2D(sceneRTFormat, sceneWidth, (UINT)sceneHeight, background.data());
-	ThrowIfFailed(uDevice->CreateCommittedResource(
+	ThrowIfFailed(pEditor->uDevice->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
 		D3D12_HEAP_FLAG_NONE,
 		&rtType.desc,
@@ -449,8 +309,8 @@ void Editor::OnSceneResize() {
 		&rtType.clearValue,
 		IID_PPV_ARGS(sceneRT.ReleaseAndGetAddressOf())
 	));
-	uDevice->CreateShaderResourceView(sceneRT.Get(), nullptr, sceneRT_SRV.GetCpuHandle());
-	uDevice->CreateRenderTargetView(sceneRT.Get(), nullptr, sceneRT_RTV.GetCpuHandle());
+	pEditor->uDevice->CreateShaderResourceView(sceneRT.Get(), nullptr, sceneRT_SRV.GetCpuHandle());
+	pEditor->uDevice->CreateRenderTargetView(sceneRT.Get(), nullptr, sceneRT_RTV.GetCpuHandle());
 
 	assert(scenePipeline);
 	D3D12_VIEWPORT viewport;
@@ -463,15 +323,15 @@ void Editor::OnSceneResize() {
 	scenePipeline->Resize(sceneWidth, sceneHeight, viewport, { 0, 0, (LONG)sceneWidth, (LONG)sceneHeight });
 }
 
-void Editor::Update() {
+void Editor::Impl::Update() {
 	// Start the Dear ImGui frame
 	ImGui_ImplDX12_NewFrame();
-	ImGui_ImplWin32_NewFrame_Context(editorImGuiCtx, { 0.f, 0.f }, (float)mClientWidth, (float)mClientHeight);
+	ImGui_ImplWin32_NewFrame_Context(editorImGuiCtx, { 0.f, 0.f }, (float)pEditor->mClientWidth, (float)pEditor->mClientHeight);
 	ImGui_ImplWin32_NewFrame_Context(gameImGuiCtx, gamePos, (float)gameWidth, (float)gameHeight);
 	ImGui_ImplWin32_NewFrame_Context(sceneImGuiCtx, scenePos, (float)sceneWidth, (float)sceneHeight);
 	ImGui_ImplWin32_NewFrame_Shared();
 
-	auto& upload = Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload();
+	auto& upload = RsrcMngrDX12::Instance().GetUpload();
 	upload.Begin();
 
 	{ // editor
@@ -538,44 +398,8 @@ void Editor::Update() {
 
 		ImGui::End();
 
-		// 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
-		if (show_demo_window)
-			ImGui::ShowDemoWindow(&show_demo_window);
-
-		// 2. Show a simple window that we create ourselves. We use a Begin/End pair to created a named window.
-		{
-			static float f = 0.0f;
-			static int counter = 0;
-
-			ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
-
-			ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-			ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-			ImGui::Checkbox("Another Window", &show_another_window);
-
-			ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-			//ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
-
-			if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-				counter++;
-			ImGui::SameLine();
-			ImGui::Text("counter = %d", counter);
-
-			ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-			ImGui::End();
-		}
-
-		// 3. Show another simple window.
-		if (show_another_window) {
-			ImGui::Begin("Another Window", &show_another_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-			ImGui::Text("Hello from another window!");
-			if (ImGui::Button("Close Me"))
-				show_another_window = false;
-			ImGui::End();
-		}
-
 		bool isFlush = false;
-		// 4. game window
+		// 1. game window
 		if (ImGui::Begin("Game", nullptr, ImGuiWindowFlags_NoScrollbar)) {
 			auto content_max_minus_local_pos = ImGui::GetContentRegionAvail();
 			auto content_max = ImGui::GetWindowContentRegionMax();
@@ -592,7 +416,7 @@ void Editor::Update() {
 
 				if (!isFlush) {
 					// Flush before changing any resources.
-					FlushCommandQueue();
+					pEditor->FlushCommandQueue();
 					isFlush = true;
 				}
 
@@ -605,7 +429,7 @@ void Editor::Update() {
 		}
 		ImGui::End(); // game window
 
-		// 5. scene window
+		// 2. scene window
 		if (ImGui::Begin("Scene", nullptr, ImGuiWindowFlags_NoScrollbar)) {
 			auto content_max_minus_local_pos = ImGui::GetContentRegionAvail();
 			auto content_max = ImGui::GetWindowContentRegionMax();
@@ -622,7 +446,7 @@ void Editor::Update() {
 
 				if (!isFlush) {
 					// Flush before changing any resources.
-					FlushCommandQueue();
+					pEditor->FlushCommandQueue();
 					isFlush = true;
 				}
 
@@ -635,22 +459,22 @@ void Editor::Update() {
 		}
 		ImGui::End(); // scene window
 
-		// 6.game control
+		// 3.game control
 		if (ImGui::Begin("Game Control", nullptr, ImGuiWindowFlags_NoScrollbar)) {
 			static std::string startStr = "start";
 			if (ImGui::Button(startStr.c_str())) {
 				switch (gameState)
 				{
-				case GameState::NotStart:
+				case Impl::GameState::NotStart:
 					startStr = "stop";
-					gameState = GameState::Starting;
+					gameState = Impl::GameState::Starting;
 					break;
-				case GameState::Running:
+				case Impl::GameState::Running:
 					startStr = "start";
-					gameState = GameState::Stopping;
+					gameState = Impl::GameState::Stopping;
 					break;
-				case GameState::Starting:
-				case GameState::Stopping:
+				case Impl::GameState::Starting:
+				case Impl::GameState::Stopping:
 				default:
 					assert("error" && false);
 					break;
@@ -661,47 +485,47 @@ void Editor::Update() {
 
 		editorWorld.Update();
 	}
-	
+
 	{ // game update
 		ImGui::SetCurrentContext(gameImGuiCtx);
 		ImGui::NewFrame(); // game ctx
 
 		switch (gameState)
 		{
-		case GameState::NotStart:
+		case Impl::GameState::NotStart:
 			gameWorld.Update();
 			break;
-		case GameState::Starting:
+		case Impl::GameState::Starting:
 		{
 			runningGameWorld = std::make_unique<Ubpa::UECS::World>(gameWorld);
-			if (auto hierarchy = editorWorld.entityMngr.GetSingleton<Ubpa::Utopia::Hierarchy>())
+			if (auto hierarchy = editorWorld.entityMngr.GetSingleton<Hierarchy>())
 				hierarchy->world = runningGameWorld.get();
 			curGameWorld = runningGameWorld.get();
-			runningGameWorld->systemMngr.Activate(runningGameWorld->systemMngr.GetIndex<Ubpa::Utopia::LuaScriptQueueSystem>());
-			auto ctx = Ubpa::Utopia::LuaCtxMngr::Instance().Register(runningGameWorld.get());
+			runningGameWorld->systemMngr.Activate(runningGameWorld->systemMngr.GetIndex<LuaScriptQueueSystem>());
+			auto ctx = LuaCtxMngr::Instance().Register(runningGameWorld.get());
 			sol::state_view lua{ ctx->Main() };
 			lua["world"] = runningGameWorld.get();
-			gameState = GameState::Running;
-			Ubpa::Utopia::GameTimer::Instance().Reset();
+			gameState = Impl::GameState::Running;
+			GameTimer::Instance().Reset();
 			// break;
 		}
-		case GameState::Running:
+		case Impl::GameState::Running:
 			runningGameWorld->Update();
 			ImGui::Begin("in game");
 			ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
 			ImGui::End();
 			break;
-		case GameState::Stopping:
+		case Impl::GameState::Stopping:
 		{
 			auto w = runningGameWorld.get();
 			runningGameWorld.reset();
-			if (auto hierarchy = editorWorld.entityMngr.GetSingleton<Ubpa::Utopia::Hierarchy>())
+			if (auto hierarchy = editorWorld.entityMngr.GetSingleton<Hierarchy>())
 				hierarchy->world = &gameWorld;
 			{
-				Ubpa::Utopia::LuaCtxMngr::Instance().Unregister(w);
+				LuaCtxMngr::Instance().Unregister(w);
 			}
 			curGameWorld = &gameWorld;
-			gameState = GameState::NotStart;
+			gameState = Impl::GameState::NotStart;
 			break;
 		}
 		default:
@@ -723,23 +547,23 @@ void Editor::Update() {
 	ImGui::SetCurrentContext(nullptr);
 
 	// update mesh, texture ...
-	GetFrameResourceMngr()->BeginFrame();
+	pEditor->GetFrameResourceMngr()->BeginFrame();
 
-	auto cmdAlloc = GetCurFrameCommandAllocator();
+	auto cmdAlloc = pEditor->GetCurFrameCommandAllocator();
 	cmdAlloc->Reset();
 
-	ThrowIfFailed(uGCmdList->Reset(cmdAlloc, nullptr));
-	auto& deleteBatch = Ubpa::Utopia::RsrcMngrDX12::Instance().GetDeleteBatch();
+	ThrowIfFailed(pEditor->uGCmdList->Reset(cmdAlloc, nullptr));
+	auto& deleteBatch = RsrcMngrDX12::Instance().GetDeleteBatch();
 
 	auto UpdateRenderResource = [&](const Ubpa::UECS::World* w) {
-		w->RunEntityJob([&](const Ubpa::Utopia::MeshFilter* meshFilter, const Ubpa::Utopia::MeshRenderer* meshRenderer) {
+		w->RunEntityJob([&](const MeshFilter* meshFilter, const MeshRenderer* meshRenderer) {
 			if (!meshFilter->mesh || meshRenderer->materials.empty())
 				return;
 
-			Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterMesh(
+			RsrcMngrDX12::Instance().RegisterMesh(
 				upload,
 				deleteBatch,
-				uGCmdList.Get(),
+				pEditor->uGCmdList.Get(),
 				meshFilter->mesh
 			);
 
@@ -747,34 +571,34 @@ void Editor::Update() {
 				if (!material)
 					continue;
 				for (const auto& [name, property] : material->properties) {
-					if (std::holds_alternative<const Ubpa::Utopia::Texture2D*>(property)) {
-						Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTexture2D(
-							Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(),
-							std::get<const Ubpa::Utopia::Texture2D*>(property)
+					if (std::holds_alternative<const Texture2D*>(property)) {
+						RsrcMngrDX12::Instance().RegisterTexture2D(
+							RsrcMngrDX12::Instance().GetUpload(),
+							std::get<const Texture2D*>(property)
 						);
 					}
-					else if (std::holds_alternative<const Ubpa::Utopia::TextureCube*>(property)) {
-						Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTextureCube(
-							Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(),
-							std::get<const Ubpa::Utopia::TextureCube*>(property)
+					else if (std::holds_alternative<const TextureCube*>(property)) {
+						RsrcMngrDX12::Instance().RegisterTextureCube(
+							RsrcMngrDX12::Instance().GetUpload(),
+							std::get<const TextureCube*>(property)
 						);
 					}
 				}
 			}
-		}, false);
+			}, false);
 
-		if (auto skybox = w->entityMngr.GetSingleton<Ubpa::Utopia::Skybox>(); skybox && skybox->material) {
+		if (auto skybox = w->entityMngr.GetSingleton<Skybox>(); skybox && skybox->material) {
 			for (const auto& [name, property] : skybox->material->properties) {
-				if (std::holds_alternative<const Ubpa::Utopia::Texture2D*>(property)) {
-					Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTexture2D(
-						Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(),
-						std::get<const Ubpa::Utopia::Texture2D*>(property)
+				if (std::holds_alternative<const Texture2D*>(property)) {
+					RsrcMngrDX12::Instance().RegisterTexture2D(
+						RsrcMngrDX12::Instance().GetUpload(),
+						std::get<const Texture2D*>(property)
 					);
 				}
-				else if (std::holds_alternative<const Ubpa::Utopia::TextureCube*>(property)) {
-					Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTextureCube(
-						Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(),
-						std::get<const Ubpa::Utopia::TextureCube*>(property)
+				else if (std::holds_alternative<const TextureCube*>(property)) {
+					RsrcMngrDX12::Instance().RegisterTextureCube(
+						RsrcMngrDX12::Instance().GetUpload(),
+						std::get<const TextureCube*>(property)
 					);
 				}
 			}
@@ -784,27 +608,27 @@ void Editor::Update() {
 	UpdateRenderResource(&sceneWorld);
 
 	// commit upload, delete ...
-	upload.End(uCmdQueue.Get());
-	uGCmdList->Close();
-	uCmdQueue.Execute(uGCmdList.Get());
-	deleteBatch.Commit(uDevice.Get(), uCmdQueue.Get());
+	upload.End(pEditor->uCmdQueue.Get());
+	pEditor->uGCmdList->Close();
+	pEditor->uCmdQueue.Execute(pEditor->uGCmdList.Get());
+	deleteBatch.Commit(pEditor->uDevice.Get(), pEditor->uCmdQueue.Get());
 
 	{
-		std::vector<Ubpa::Utopia::PipelineBase::CameraData> gameCameras;
-		Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::CmptAccessType::Of<Ubpa::Utopia::Camera>} };
+		std::vector<PipelineBase::CameraData> gameCameras;
+		Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::CmptAccessType::Of<Camera>} };
 		curGameWorld->RunEntityJob([&](Ubpa::UECS::Entity e) {
 			gameCameras.emplace_back(e, *curGameWorld);
-		}, false, camFilter);
+			}, false, camFilter);
 		assert(gameCameras.size() == 1); // now only support 1 camera
 		gamePipeline->BeginFrame({ curGameWorld }, gameCameras.front());
 	}
 
 	{
-		std::vector<Ubpa::Utopia::PipelineBase::CameraData> sceneCameras;
-		Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::CmptAccessType::Of<Ubpa::Utopia::Camera>} };
+		std::vector<PipelineBase::CameraData> sceneCameras;
+		Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::CmptAccessType::Of<Camera>} };
 		sceneWorld.RunEntityJob([&](Ubpa::UECS::Entity e) {
 			sceneCameras.emplace_back(e, sceneWorld);
-		}, false, camFilter);
+			}, false, camFilter);
 		assert(sceneCameras.size() == 1); // now only support 1 camera
 		scenePipeline->BeginFrame({ curGameWorld, &sceneWorld }, sceneCameras.front());
 	}
@@ -818,20 +642,20 @@ void Editor::Update() {
 	}
 }
 
-void Editor::Draw() {
-	auto cmdAlloc = GetCurFrameCommandAllocator();
-	ThrowIfFailed(uGCmdList->Reset(cmdAlloc, nullptr));
+void Editor::Impl::Draw() {
+	auto cmdAlloc = pEditor->GetCurFrameCommandAllocator();
+	ThrowIfFailed(pEditor->uGCmdList->Reset(cmdAlloc, nullptr));
 
 	{ // game
 		ImGui::SetCurrentContext(gameImGuiCtx);
 		if (gameRT) {
 			gamePipeline->Render(gameRT.Get());
-			uGCmdList.ResourceBarrierTransition(gameRT.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-			uGCmdList->OMSetRenderTargets(1, &gameRT_RTV.GetCpuHandle(), FALSE, NULL);
-			uGCmdList.SetDescriptorHeaps(Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap());
+			pEditor->uGCmdList.ResourceBarrierTransition(gameRT.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+			pEditor->uGCmdList->OMSetRenderTargets(1, &gameRT_RTV.GetCpuHandle(), FALSE, NULL);
+			pEditor->uGCmdList.SetDescriptorHeaps(Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap());
 			ImGui::Render();
-			ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), uGCmdList.Get());
-			uGCmdList.ResourceBarrierTransition(gameRT.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+			ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), pEditor->uGCmdList.Get());
+			pEditor->uGCmdList.ResourceBarrierTransition(gameRT.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 		}
 		else
 			ImGui::EndFrame();
@@ -841,12 +665,12 @@ void Editor::Draw() {
 		ImGui::SetCurrentContext(sceneImGuiCtx);
 		if (sceneRT) {
 			scenePipeline->Render(sceneRT.Get());
-			uGCmdList.ResourceBarrierTransition(sceneRT.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-			uGCmdList->OMSetRenderTargets(1, &sceneRT_RTV.GetCpuHandle(), FALSE, NULL);
-			uGCmdList.SetDescriptorHeaps(Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap());
+			pEditor->uGCmdList.ResourceBarrierTransition(sceneRT.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+			pEditor->uGCmdList->OMSetRenderTargets(1, &sceneRT_RTV.GetCpuHandle(), FALSE, NULL);
+			pEditor->uGCmdList.SetDescriptorHeaps(Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap());
 			ImGui::Render();
-			ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), uGCmdList.Get());
-			uGCmdList.ResourceBarrierTransition(sceneRT.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+			ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), pEditor->uGCmdList.Get());
+			pEditor->uGCmdList.ResourceBarrierTransition(sceneRT.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 		}
 		else
 			ImGui::EndFrame();
@@ -855,213 +679,159 @@ void Editor::Draw() {
 	{ // editor
 		ImGui::SetCurrentContext(editorImGuiCtx);
 
-		uGCmdList.ResourceBarrierTransition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-		uGCmdList->ClearRenderTargetView(CurrentBackBufferView(), DirectX::Colors::Black, 0, NULL);
-		uGCmdList->OMSetRenderTargets(1, &CurrentBackBufferView(), FALSE, NULL);
-		uGCmdList.SetDescriptorHeaps(Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap());
+		pEditor->uGCmdList.ResourceBarrierTransition(pEditor->CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+		pEditor->uGCmdList->ClearRenderTargetView(pEditor->CurrentBackBufferView(), DirectX::Colors::Black, 0, NULL);
+		pEditor->uGCmdList->OMSetRenderTargets(1, &pEditor->CurrentBackBufferView(), FALSE, NULL);
+		pEditor->uGCmdList.SetDescriptorHeaps(Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap());
 		ImGui::Render();
-		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), uGCmdList.Get());
-		uGCmdList.ResourceBarrierTransition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), pEditor->uGCmdList.Get());
+		pEditor->uGCmdList.ResourceBarrierTransition(pEditor->CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 	}
 	
-	uGCmdList->Close();
-	uCmdQueue.Execute(uGCmdList.Get());
+	pEditor->uGCmdList->Close();
+	pEditor->uCmdQueue.Execute(pEditor->uGCmdList.Get());
 
-	SwapBackBuffer();
+	pEditor->SwapBackBuffer();
 
 	gamePipeline->EndFrame();
 	scenePipeline->EndFrame();
-	GetFrameResourceMngr()->EndFrame(uCmdQueue.Get());
+	pEditor->GetFrameResourceMngr()->EndFrame(pEditor->uCmdQueue.Get());
 	ImGui_ImplWin32_EndFrame();
 }
 
-void Editor::OnMouseDown(WPARAM btnState, int x, int y)
-{
-    mLastMousePos.x = x;
-    mLastMousePos.y = y;
-
-    SetCapture(MainWnd());
-}
-
-void Editor::OnMouseUp(WPARAM btnState, int x, int y)
-{
-    ReleaseCapture();
-}
-
-void Editor::OnMouseMove(WPARAM btnState, int x, int y)
-{
-    if((btnState & MK_LBUTTON) != 0)
-    {
-        // Make each pixel correspond to a quarter of a degree.
-        float dx = Ubpa::to_radian(0.25f*static_cast<float>(x - mLastMousePos.x));
-        float dy = Ubpa::to_radian(0.25f*static_cast<float>(y - mLastMousePos.y));
-
-		// Update angles based on input to orbit camera around box.
-		mTheta -= dy;
-		mPhi -= dx;
-
-		// Restrict the angle mPhi.
-		mTheta = std::clamp(mTheta, 0.1f, Ubpa::PI<float> -0.1f);
-    }
-    else if((btnState & MK_RBUTTON) != 0)
-    {
-        // Make each pixel correspond to 0.2 unit in the scene.
-        float dx = 0.05f*static_cast<float>(x - mLastMousePos.x);
-        float dy = 0.05f*static_cast<float>(y - mLastMousePos.y);
-
-        // Update the camera radius based on input.
-        mRadius += dx - dy;
-
-        // Restrict the radius.
-        mRadius = std::clamp(mRadius, 5.0f, 150.0f);
-    }
-
-    mLastMousePos.x = x;
-    mLastMousePos.y = y;
-}
-
-void Editor::InitInspectorRegistry() {
-	Ubpa::Utopia::InspectorRegistry::Instance().RegisterCmpts <
+void Editor::Impl::InitInspectorRegistry() {
+	InspectorRegistry::Instance().RegisterCmpts <
 		// core
-		Ubpa::Utopia::Camera,
-		Ubpa::Utopia::MeshFilter,
-		Ubpa::Utopia::MeshRenderer,
-		Ubpa::Utopia::WorldTime,
-		Ubpa::Utopia::Name,
-		Ubpa::Utopia::Skybox,
-		Ubpa::Utopia::Light,
-		Ubpa::Utopia::Input,
-		Ubpa::Utopia::Roamer,
+		Camera,
+		MeshFilter,
+		MeshRenderer,
+		WorldTime,
+		Name,
+		Skybox,
+		Light,
+		Input,
+		Roamer,
 
 		// transform
-		Ubpa::Utopia::Children,
-		Ubpa::Utopia::LocalToParent,
-		Ubpa::Utopia::LocalToWorld,
-		Ubpa::Utopia::Parent,
-		Ubpa::Utopia::Rotation,
-		Ubpa::Utopia::RotationEuler,
-		Ubpa::Utopia::Scale,
-		Ubpa::Utopia::Translation,
-		Ubpa::Utopia::WorldToLocal,
+		Children,
+		LocalToParent,
+		LocalToWorld,
+		Parent,
+		Rotation,
+		RotationEuler,
+		Scale,
+		Translation,
+		WorldToLocal,
 
-		Ubpa::Utopia::LuaScriptQueue,
-
-		Ubpa::Utopia::TestInspector
+		LuaScriptQueue
 	> ();
-	Ubpa::Utopia::InspectorRegistry::Instance().RegisterAssets <
-		Ubpa::Utopia::Material,
-		Ubpa::Utopia::Shader
+	InspectorRegistry::Instance().RegisterAssets <
+		Material,
+		Shader
 	>();
 }
 
-
-void Editor::InitWorld(Ubpa::UECS::World& w) {
+void Editor::Impl::InitWorld(Ubpa::UECS::World& w) {
 	auto indices = w.systemMngr.Register<
 		// transform
-		Ubpa::Utopia::LocalToParentSystem,
-		Ubpa::Utopia::RotationEulerSystem,
-		Ubpa::Utopia::TRSToLocalToParentSystem,
-		Ubpa::Utopia::TRSToLocalToWorldSystem,
-		Ubpa::Utopia::WorldToLocalSystem,
+		LocalToParentSystem,
+		RotationEulerSystem,
+		TRSToLocalToParentSystem,
+		TRSToLocalToWorldSystem,
+		WorldToLocalSystem,
 
 		// core
-		Ubpa::Utopia::WorldTimeSystem,
-		Ubpa::Utopia::CameraSystem,
-		Ubpa::Utopia::InputSystem,
-		Ubpa::Utopia::RoamerSystem,
+		WorldTimeSystem,
+		CameraSystem,
+		InputSystem,
+		RoamerSystem,
 
 		// editor
-		Ubpa::Utopia::HierarchySystem,
-		Ubpa::Utopia::InspectorSystem,
-		Ubpa::Utopia::ProjectViewerSystem
+		HierarchySystem,
+		InspectorSystem,
+		ProjectViewerSystem
 	>();
 	for (auto idx : indices)
 		w.systemMngr.Activate(idx);
-	w.systemMngr.Register<Ubpa::Utopia::LuaScriptQueueSystem>();
+	w.systemMngr.Register<LuaScriptQueueSystem>();
 
 	w.entityMngr.cmptTraits.Register<
 		// transform
-		Ubpa::Utopia::Children,
-		Ubpa::Utopia::LocalToParent,
-		Ubpa::Utopia::LocalToWorld,
-		Ubpa::Utopia::Parent,
-		Ubpa::Utopia::Rotation,
-		Ubpa::Utopia::RotationEuler,
-		Ubpa::Utopia::Scale,
-		Ubpa::Utopia::Translation,
-		Ubpa::Utopia::WorldToLocal,
+		Children,
+		LocalToParent,
+		LocalToWorld,
+		Parent,
+		Rotation,
+		RotationEuler,
+		Scale,
+		Translation,
+		WorldToLocal,
 
 		// core
-		Ubpa::Utopia::Camera,
-		Ubpa::Utopia::MeshFilter,
-		Ubpa::Utopia::MeshRenderer,
-		Ubpa::Utopia::WorldTime,
-		Ubpa::Utopia::Name,
-		Ubpa::Utopia::Skybox,
-		Ubpa::Utopia::Light,
-		Ubpa::Utopia::Input,
-		Ubpa::Utopia::Roamer,
+		Camera,
+		MeshFilter,
+		MeshRenderer,
+		WorldTime,
+		Name,
+		Skybox,
+		Light,
+		Input,
+		Roamer,
 
 		// script
-		Ubpa::Utopia::LuaScriptQueue,
+		LuaScriptQueue,
 
 		// editor
-		Ubpa::Utopia::Hierarchy,
-		Ubpa::Utopia::Inspector,
-		Ubpa::Utopia::ProjectViewer,
-		Ubpa::Utopia::TestInspector
+		Hierarchy,
+		Inspector,
+		ProjectViewer
 	>();
 }
 
-void Editor::BuildWorld() {
-	Ubpa::Utopia::Serializer::Instance().RegisterComponents <
+void Editor::Impl::BuildWorld() {
+	Serializer::Instance().RegisterComponents <
 		// core
-		Ubpa::Utopia::Camera,
-		Ubpa::Utopia::MeshFilter,
-		Ubpa::Utopia::MeshRenderer,
-		Ubpa::Utopia::WorldTime,
-		Ubpa::Utopia::Name,
-		Ubpa::Utopia::Skybox,
-		Ubpa::Utopia::Light,
-		Ubpa::Utopia::Input,
-		Ubpa::Utopia::Roamer,
+		Camera,
+		MeshFilter,
+		MeshRenderer,
+		WorldTime,
+		Name,
+		Skybox,
+		Light,
+		Input,
+		Roamer,
 
 		// transform
-		Ubpa::Utopia::Children,
-		Ubpa::Utopia::LocalToParent,
-		Ubpa::Utopia::LocalToWorld,
-		Ubpa::Utopia::Parent,
-		Ubpa::Utopia::Rotation,
-		Ubpa::Utopia::RotationEuler,
-		Ubpa::Utopia::Scale,
-		Ubpa::Utopia::Translation,
-		Ubpa::Utopia::WorldToLocal,
+		Children,
+		LocalToParent,
+		LocalToWorld,
+		Parent,
+		Rotation,
+		RotationEuler,
+		Scale,
+		Translation,
+		WorldToLocal,
 
-		Ubpa::Utopia::LuaScriptQueue,
+		LuaScriptQueue,
 
 		// editor
-		Ubpa::Utopia::Hierarchy,
-		Ubpa::Utopia::Inspector,
-		Ubpa::Utopia::ProjectViewer,
-		Ubpa::Utopia::TestInspector
+		Hierarchy,
+		Inspector,
+		ProjectViewer
 	> ();
 
 	{ // game
 		InitWorld(gameWorld);
-		{ // test inspector
-			auto [e, test, name] = gameWorld.entityMngr.Create<Ubpa::Utopia::TestInspector, Ubpa::Utopia::Name>();
-			name->value = "Test Inspector";
-		}
 
-		//OutputDebugStringA(Ubpa::Utopia::Serializer::Instance().ToJSON(&gameWorld).c_str());
-		auto scene = Ubpa::Utopia::AssetMngr::Instance().LoadAsset<Ubpa::Utopia::Scene>(L"..\\assets\\scenes\\Game.scene");
-		Ubpa::Utopia::Serializer::Instance().ToWorld(&gameWorld, scene->GetText());
+		//OutputDebugStringA(Serializer::Instance().ToJSON(&gameWorld).c_str());
+		auto scene = AssetMngr::Instance().LoadAsset<Scene>(L"..\\assets\\scenes\\Game.scene");
+		Serializer::Instance().ToWorld(&gameWorld, scene->GetText());
 		{ // input
-			gameWorld.entityMngr.Create<Ubpa::Utopia::Input>();
+			gameWorld.entityMngr.Create<Input>();
 		}
-		OutputDebugStringA(Ubpa::Utopia::Serializer::Instance().ToJSON(&gameWorld).c_str());
+		OutputDebugStringA(Serializer::Instance().ToJSON(&gameWorld).c_str());
 
-		auto mainLua = Ubpa::Utopia::LuaCtxMngr::Instance().Register(&gameWorld)->Main();
+		auto mainLua = LuaCtxMngr::Instance().Register(&gameWorld)->Main();
 		sol::state_view solLua(mainLua);
 		solLua["world"] = &gameWorld;
 	}
@@ -1070,12 +840,12 @@ void Editor::BuildWorld() {
 		InitWorld(sceneWorld);
 		{ // scene camera
 			auto [e, l2w, w2l, cam, t, rot, roamer] = sceneWorld.entityMngr.Create<
-				Ubpa::Utopia::LocalToWorld,
-				Ubpa::Utopia::WorldToLocal,
-				Ubpa::Utopia::Camera,
-				Ubpa::Utopia::Translation,
-				Ubpa::Utopia::Rotation,
-				Ubpa::Utopia::Roamer
+				LocalToWorld,
+				WorldToLocal,
+				Camera,
+				Translation,
+				Rotation,
+				Roamer
 			>();
 			roamer->reverseFrontBack = true;
 			roamer->reverseLeftRight = true;
@@ -1084,53 +854,53 @@ void Editor::BuildWorld() {
 		}
 
 		{ // hierarchy
-			auto [e, hierarchy] = sceneWorld.entityMngr.Create<Ubpa::Utopia::Hierarchy>();
+			auto [e, hierarchy] = sceneWorld.entityMngr.Create<Hierarchy>();
 			hierarchy->world = &sceneWorld;
 		}
-		sceneWorld.entityMngr.Create<Ubpa::Utopia::WorldTime>();
-		sceneWorld.entityMngr.Create<Ubpa::Utopia::ProjectViewer>();
-		sceneWorld.entityMngr.Create<Ubpa::Utopia::Inspector>();
-		sceneWorld.entityMngr.Create<Ubpa::Utopia::Input>();
+		sceneWorld.entityMngr.Create<WorldTime>();
+		sceneWorld.entityMngr.Create<ProjectViewer>();
+		sceneWorld.entityMngr.Create<Inspector>();
+		sceneWorld.entityMngr.Create<Input>();
 	}
 	
 	{ // editor
 		InitWorld(editorWorld);
 		{ // hierarchy
-			auto [e, hierarchy] = editorWorld.entityMngr.Create<Ubpa::Utopia::Hierarchy>();
+			auto [e, hierarchy] = editorWorld.entityMngr.Create<Hierarchy>();
 			hierarchy->world = &gameWorld;
 		}
-		editorWorld.entityMngr.Create<Ubpa::Utopia::Inspector>();
-		editorWorld.entityMngr.Create<Ubpa::Utopia::ProjectViewer>();
+		editorWorld.entityMngr.Create<Inspector>();
+		editorWorld.entityMngr.Create<ProjectViewer>();
 	}
 }
 
-void Editor::LoadTextures() {
-	auto tex2dGUIDs = Ubpa::Utopia::AssetMngr::Instance().FindAssets(std::wregex{ LR"(\.\.\\assets\\_internal\\.*\.tex2d)" });
+void Editor::Impl::LoadTextures() {
+	auto tex2dGUIDs = AssetMngr::Instance().FindAssets(std::wregex{ LR"(\.\.\\assets\\_internal\\.*\.tex2d)" });
 	for (const auto& guid : tex2dGUIDs) {
-		const auto& path = Ubpa::Utopia::AssetMngr::Instance().GUIDToAssetPath(guid);
-		Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTexture2D(
-			Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(),
-			Ubpa::Utopia::AssetMngr::Instance().LoadAsset<Ubpa::Utopia::Texture2D>(path)
+		const auto& path = AssetMngr::Instance().GUIDToAssetPath(guid);
+		RsrcMngrDX12::Instance().RegisterTexture2D(
+			RsrcMngrDX12::Instance().GetUpload(),
+			AssetMngr::Instance().LoadAsset<Texture2D>(path)
 		);
 	}
 
-	auto texcubeGUIDs = Ubpa::Utopia::AssetMngr::Instance().FindAssets(std::wregex{ LR"(\.\.\\assets\\_internal\\.*\.texcube)" });
+	auto texcubeGUIDs = AssetMngr::Instance().FindAssets(std::wregex{ LR"(\.\.\\assets\\_internal\\.*\.texcube)" });
 	for (const auto& guid : texcubeGUIDs) {
-		const auto& path = Ubpa::Utopia::AssetMngr::Instance().GUIDToAssetPath(guid);
-		Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTextureCube(
-			Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(),
-			Ubpa::Utopia::AssetMngr::Instance().LoadAsset<Ubpa::Utopia::TextureCube>(path)
+		const auto& path = AssetMngr::Instance().GUIDToAssetPath(guid);
+		RsrcMngrDX12::Instance().RegisterTextureCube(
+			RsrcMngrDX12::Instance().GetUpload(),
+			AssetMngr::Instance().LoadAsset<TextureCube>(path)
 		);
 	}
 }
 
-void Editor::BuildShaders() {
-	auto& assetMngr = Ubpa::Utopia::AssetMngr::Instance();
+void Editor::Impl::BuildShaders() {
+	auto& assetMngr = AssetMngr::Instance();
 	auto shaderGUIDs = assetMngr.FindAssets(std::wregex{ LR"(.*\.shader)" });
 	for (const auto& guid : shaderGUIDs) {
 		const auto& path = assetMngr.GUIDToAssetPath(guid);
-		auto shader = assetMngr.LoadAsset<Ubpa::Utopia::Shader>(path);
-		Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterShader(shader);
-		Ubpa::Utopia::ShaderMngr::Instance().Register(shader);
+		auto shader = assetMngr.LoadAsset<Shader>(path);
+		RsrcMngrDX12::Instance().RegisterShader(shader);
+		ShaderMngr::Instance().Register(shader);
 	}
 }

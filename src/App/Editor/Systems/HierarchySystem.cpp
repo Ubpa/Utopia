@@ -1,9 +1,9 @@
-#include "HierarchySystem.h"
+#include <Utopia/App/Editor/Systems/HierarchySystem.h>
 
-#include "../PlayloadType.h"
+#include <Utopia/App/Editor/PlayloadType.h>
 
-#include "../Components/Hierarchy.h"
-#include "../Components/Inspector.h"
+#include <Utopia/App/Editor/Components/Hierarchy.h>
+#include <Utopia/App/Editor/Components/Inspector.h>
 
 #include <Utopia/Core/Components/Children.h>
 #include <Utopia/Core/Components/Parent.h>

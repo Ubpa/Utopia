@@ -1,9 +1,9 @@
-#include "ProjectViewerSystem.h"
+#include <Utopia/App/Editor/Systems/ProjectViewerSystem.h>
 
-#include "../PlayloadType.h"
+#include <Utopia/App/Editor/PlayloadType.h>
 
-#include "../Components/ProjectViewer.h"
-#include "../Components/Inspector.h"
+#include <Utopia/App/Editor/Components/ProjectViewer.h>
+#include <Utopia/App/Editor/Components/Inspector.h>
 
 #include <Utopia/Asset/AssetMngr.h>
 #include <Utopia/Render/Texture2D.h>
