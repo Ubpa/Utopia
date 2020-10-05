@@ -16,7 +16,7 @@ namespace Ubpa::Utopia {
 			bool isParallel
 		);
 
-		// World, SingletonsView, ChunkView
+		// World, SingletonsView, entityBeginIndexInQuery, ChunkView
 		static const UECS::SystemFunc* RegisterChunkJob(
 			UECS::Schedule*,
 			sol::function systemFunc,

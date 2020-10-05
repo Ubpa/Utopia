@@ -550,7 +550,7 @@ void StdPipeline::Impl::UpdateRenderContext(
 			CmptAccessType::Of<Latest<LocalToWorld>>,
 		};
 		for (auto world : worlds) {
-			const_cast<UECS::World*>(world)->RunChunkJob(
+			world->RunChunkJob(
 				[&](ChunkView chunk) {
 					auto meshFilters = chunk.GetCmptArray<MeshFilter>();
 					auto meshRenderers = chunk.GetCmptArray<MeshRenderer>();
@@ -628,7 +628,7 @@ void StdPipeline::Impl::UpdateRenderContext(
 		renderContext.lights.diskLightNum = 0;
 
 		for (auto world : worlds) {
-			const_cast<UECS::World*>(world)->RunEntityJob(
+			world->RunEntityJob(
 				[&](const Light* light) {
 					switch (light->type)
 					{
@@ -667,7 +667,7 @@ void StdPipeline::Impl::UpdateRenderContext(
 		size_t cur_rectLight = 0;
 		size_t cur_diskLight = 0;
 		for (auto world : worlds) {
-			const_cast<UECS::World*>(world)->RunEntityJob(
+			world->RunEntityJob(
 				[&](const Light* light, const LocalToWorld* l2w) {
 					switch (light->type)
 					{

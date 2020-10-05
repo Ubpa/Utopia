@@ -75,7 +75,7 @@ world.entityMngr.cmptTraits:RegisterSize(luaCmptType1, 8)
 world.entityMngr.cmptTraits:RegisterName(luaCmptType1, "Cmpt1")
 
 f = function(schedule)
-  local g = function(w, singletons, chunk)
+  local g = function(w, singletons, beginIdx, chunk)
     local luaCmptType0 = CmptType.new("Cmpt0")
     local luaCmptType1 = CmptType.new("Cmpt1")
     local entityType = CmptType.new("Ubpa::UECS::Entity")

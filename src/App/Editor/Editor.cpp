@@ -731,7 +731,7 @@ void Editor::Update() {
 	ThrowIfFailed(uGCmdList->Reset(cmdAlloc, nullptr));
 	auto& deleteBatch = Ubpa::Utopia::RsrcMngrDX12::Instance().GetDeleteBatch();
 
-	auto UpdateRenderResource = [&](Ubpa::UECS::World* w) {
+	auto UpdateRenderResource = [&](const Ubpa::UECS::World* w) {
 		w->RunEntityJob([&](const Ubpa::Utopia::MeshFilter* meshFilter, const Ubpa::Utopia::MeshRenderer* meshRenderer) {
 			if (!meshFilter->mesh || meshRenderer->materials.empty())
 				return;

@@ -65,22 +65,6 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::World>
 				);
 			}
 		)},
-		Field{"RunJob",
-			Ubpa::DecayLambda(
-			[](
-				Ubpa::UECS::World* world,
-				std::function<void(
-					Ubpa::UECS::World*,
-					Ubpa::UECS::SingletonsView
-				)> func,
-				Ubpa::UECS::SingletonLocator singletonLocator
-			) {
-				world->RunJob(
-					std::move(func),
-					std::move(singletonLocator)
-				);
-			}
-		)}
 	};
 };
 

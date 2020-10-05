@@ -69,13 +69,13 @@ const Ubpa::UECS::SystemFunc* LuaECSAgency::RegisterChunkJob(
 ) {
 	auto bytes = systemFunc.dump();
 	auto sysfunc = s->RegisterChunkJob(
-		[bytes](UECS::World* w, UECS::SingletonsView singletonsView, UECS::ChunkView chunk) {
+		[bytes](UECS::World* w, UECS::SingletonsView singletonsView, size_t entityBeginIndexInQuery, UECS::ChunkView chunk) {
 			auto luaCtx = LuaCtxMngr::Instance().GetContext(w);
 			auto L = luaCtx->Request();
 			{
 				sol::state_view lua(L);
 				sol::function f = lua.load(bytes.as_string_view());
-				f.call(w, singletonsView, chunk);
+				f.call(w, singletonsView, entityBeginIndexInQuery, chunk);
 			}
 			luaCtx->Recycle(L);
 		},
