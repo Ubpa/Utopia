@@ -100,8 +100,6 @@ AssetMngr::AssetMngr()
 	: pImpl{ new Impl }
 {
 	Serializer::Instance().RegisterUserTypes<
-		Shader,
-		ShaderPass,
 		Material
 	>();
 }

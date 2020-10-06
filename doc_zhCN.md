@@ -2,6 +2,12 @@
 
 Utopia 在设计上大体参考了 Unity，熟悉 Untiy 的朋友应该能很快上手。
 
+## 使用
+
+运行 Utopia_test_App_Editor 即可启动 Editor
+
+你可以在该项目中添加组件和系统来扩展功能
+
 ## 问题
 
 Utopia 还处于快速开发中，因此其功能在易用性上还是有一定欠缺的。
@@ -254,6 +260,7 @@ digraph G {
 }
 gravizo_mask_fg
 </details>
+
 > 椭圆的是 pass，矩形的是 resource，绿边是读，红边是写，橙色边代表 move（仅起到换名作用）
 >
 > 一个资源，生命期为 move in -> write -> multi-read -> move out

@@ -15,6 +15,7 @@ namespace Ubpa::Utopia {
 
 		void Register(Shader*);
 		Shader* Get(std::string_view name) const;
+		const std::map<std::string, Shader*, std::less<>> GetShaderMap() const noexcept { return shaderMap; }
 
 	private:
 		ShaderMngr() = default;
