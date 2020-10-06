@@ -26,6 +26,123 @@ Utopia 还处于快速开发中，因此其功能在易用性上还是有一定�
 
 ECS 的编写方式，参考 [UECS](https://github.com/Ubpa/UECS) 的使用示例和源码注释，也可以看看 Unity 的 [ECS 文档](https://docs.unity3d.com/Packages/com.unity.entities@0.14/manual/index.html)了解大致思路
 
+目前的 ECS 图如下
+
+![Alt text](https://g.gravizo.com/source/gravizo_mask_ecs?https%3A%2F%2Fraw.githubusercontent.com%2FUbpa%2FUtopia%2Fmaster%2Fdoc_zhCN.md)
+
+<details>  
+<summary>ECS graphviz source code</summary>
+gravizo_mask_ecs
+digraph G {
+  node [
+    fontcolor = "white"
+    fontname = "consolas"
+    style = "filled"
+  ]
+  subgraph "Component Nodes" {
+    node [
+      color = "#6597AD"
+      shape = "ellipse"
+    ]
+    "struct Ubpa::Utopia::LocalToParent"
+    "struct Ubpa::Utopia::Children"
+    "struct Ubpa::Utopia::Rotation"
+    "struct Ubpa::Utopia::Roamer"
+    "struct Ubpa::Utopia::LocalToWorld"
+    "struct Ubpa::Utopia::WorldToLocal"
+    "struct Ubpa::Utopia::Parent"
+    "struct Ubpa::Utopia::RotationEuler"
+    "struct Ubpa::Utopia::Scale"
+    "struct Ubpa::Utopia::Translation"
+    "struct Ubpa::Utopia::Camera"
+  }
+  subgraph "Singleton Nodes" {
+    node [
+      color = "#BFB500"
+      shape = "ellipse"
+    ]
+    "struct Ubpa::Utopia::WorldTime"
+    "struct Ubpa::Utopia::Input"
+  }
+  subgraph "System Function Nodes" {
+    node [
+      color = "#F79646"
+      shape = "box"
+    ]
+    "WorldTimeSystem"
+    "LocalToParentSystem"
+    "WorldToLocalSystem"
+    "RotationEulerSystem"
+    "TRSToLocalToParentSystem"
+    "TRSToWorldToLocalSystem"
+    "CameraSystem"
+    "InputSystem"
+    "RoamerSystem"
+  }
+  subgraph "LastFrame Edges" {
+    edge [ color = "#60C5F1" ]
+  }
+  subgraph "Write Edges" {
+    edge [ color = "#F47378" ]
+    "TRSToLocalToParentSystem" -> "struct Ubpa::Utopia::LocalToParent"
+    "WorldTimeSystem" -> "struct Ubpa::Utopia::WorldTime"
+    "CameraSystem" -> "struct Ubpa::Utopia::Camera"
+    "LocalToParentSystem" -> "struct Ubpa::Utopia::LocalToWorld"
+    "WorldToLocalSystem" -> "struct Ubpa::Utopia::WorldToLocal"
+    "RotationEulerSystem" -> "struct Ubpa::Utopia::Rotation"
+    "TRSToWorldToLocalSystem" -> "struct Ubpa::Utopia::LocalToWorld"
+    "InputSystem" -> "struct Ubpa::Utopia::Input"
+    "RoamerSystem" -> "struct Ubpa::Utopia::Translation"
+    "RoamerSystem" -> "struct Ubpa::Utopia::Rotation"
+  }
+  subgraph "Latest Edges" {
+    edge [ color = "#6BD089" ]
+    "struct Ubpa::Utopia::Translation" -> "TRSToLocalToParentSystem"
+    "struct Ubpa::Utopia::Children" -> "LocalToParentSystem"
+    "struct Ubpa::Utopia::LocalToWorld" -> "WorldToLocalSystem"
+    "struct Ubpa::Utopia::RotationEuler" -> "RotationEulerSystem"
+    "struct Ubpa::Utopia::Scale" -> "TRSToLocalToParentSystem"
+    "struct Ubpa::Utopia::Rotation" -> "TRSToLocalToParentSystem"
+    "struct Ubpa::Utopia::Scale" -> "TRSToWorldToLocalSystem"
+    "struct Ubpa::Utopia::Translation" -> "TRSToWorldToLocalSystem"
+    "struct Ubpa::Utopia::Rotation" -> "TRSToWorldToLocalSystem"
+    "struct Ubpa::Utopia::Roamer" -> "RoamerSystem"
+    "struct Ubpa::Utopia::WorldTime" -> "RoamerSystem"
+    "struct Ubpa::Utopia::Input" -> "RoamerSystem"
+  }
+  subgraph "Order Edges" {
+    edge [ color = "#00A2E8" ]
+    "TRSToLocalToParentSystem" -> "LocalToParentSystem"
+    "TRSToWorldToLocalSystem" -> "LocalToParentSystem"
+  }
+  subgraph "All Edges" {
+    edge [
+      arrowhead = "crow"
+      color = "#C785C8"
+      style = "dashed"
+    ]
+  }
+  subgraph "Any Edges" {
+    edge [
+      arrowhead = "diamond"
+      color = "#C785C8"
+      style = "dashed"
+    ]
+  }
+  subgraph "None Edges" {
+    edge [
+      arrowhead = "odot"
+      color = "#C785C8"
+      style = "dashed"
+    ]
+    "LocalToParentSystem" -> "struct Ubpa::Utopia::Parent"
+    "TRSToWorldToLocalSystem" -> "struct Ubpa::Utopia::LocalToParent"
+  }
+  node [ color=".0 .0 .0" ];
+}
+gravizo_mask_ecs
+</details>
+
 ## ImGui
 
 Utopia 使用了 ImGui 作为 UI 框架，并且为每一个 world 都实现了一套 imgui 的 context，用户可以在 ECS 的同步点（`World::AddCommand()`）处实现对 UI 的处理（未来可能将 UI 逻辑放到 Job System 中执行，通过一个ECS 的“写组件”机制实现，一方面避免了写冲突，另一方面可以跟其他 job 并行）
@@ -63,7 +180,7 @@ Utopia 目前支持的资产分以下几种
 ![Alt text](https://g.gravizo.com/source/gravizo_mask_fg?https%3A%2F%2Fraw.githubusercontent.com%2FUbpa%2FUtopia%2Fmaster%2Fdoc_zhCN.md)
 
 <details>  
-<summary></summary>
+<summary>Frame Graph graphviz source code</summary>
 gravizo_mask_fg
 digraph G {
   node [
@@ -137,8 +254,6 @@ digraph G {
 }
 gravizo_mask_fg
 </details>
-
-
 > 椭圆的是 pass，矩形的是 resource，绿边是读，红边是写，橙色边代表 move（仅起到换名作用）
 >
 > 一个资源，生命期为 move in -> write -> multi-read -> move out
