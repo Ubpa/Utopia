@@ -7,9 +7,11 @@
 
 #include <Utopia/Asset/AssetMngr.h>
 #include <Utopia/Render/Texture2D.h>
+#include <Utopia/Render/Material.h>
 #include <Utopia/Render/DX12/RsrcMngrDX12.h>
 
 #include <_deps/imgui/imgui.h>
+#include <_deps/imgui/misc/cpp/imgui_stdlib.h>
 
 using namespace Ubpa::Utopia;
 
@@ -140,103 +142,93 @@ namespace Ubpa::Utopia::detail {
 		ImVec2 button_sz(64, 64);
 		float window_visible_x2 = ImGui::GetWindowPos().x + ImGui::GetWindowContentRegionMax().x;
 		UINT idx = 0;
-		// pass 1 : folder
-		for (const auto& child : children) {
-			const auto& path = AssetMngr::Instance().GUIDToAssetPath(child);
-			if (!std::filesystem::is_directory(path))
-				continue;
-			ImGui::PushID(idx);
-			auto name = path.filename();
 
-			ImGui::BeginGroup();
-			{
-				ImVec4 tint = viewer->selectedAsset == child ? ImVec4{ 0.65f, 0.65f, 0.65f, 1.f } : ImVec4{ 1,1,1,1 };
-				if (ImGui::ImageButton(ImTextureID(folderID.ptr), button_sz, { 0,0 }, { 1,1 }, 0, style.Colors[ImGuiCol_WindowBg], tint)) {
-					viewer->selectedAsset = child;
-					if (inspector && !inspector->lock) {
-						inspector->mode = Inspector::Mode::Asset;
-						inspector->asset = child;
-					}
-				}
-				if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
-					viewer->selectedFolder = child;
-				
-				auto nameStr = name.string();
-				if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID)) {
-					ImGui::SetDragDropPayload(PlayloadType::GUID, &child, sizeof(xg::Guid));
-					ImGui::ImageButton(ImTextureID(folderID.ptr), { 32,32 });
-					ImGui::Text(nameStr.c_str());
-					ImGui::EndDragDropSource();
-				}
-				NameShrink(nameStr, 8);
-				ImGui::Text(nameStr.c_str());
-			}
-			ImGui::EndGroup();
+		// folder first
+		std::vector<xg::Guid> childQueue;
+		childQueue.reserve(children.size());
 
-			float last_x = ImGui::GetItemRectMax().x;
-			float next_x = last_x + style.ItemSpacing.x + button_sz.x;
-			if (idx + 1 < children.size() && next_x < window_visible_x2)
-				ImGui::SameLine();
-
-			idx++;
-			ImGui::PopID();
-		}
-		// pass 2 : files
 		for (const auto& child : children) {
 			const auto& path = AssetMngr::Instance().GUIDToAssetPath(child);
 			if (std::filesystem::is_directory(path))
-				continue;
-			ImGui::PushID(idx);
-			auto name = path.stem();
+				childQueue.push_back(child);
+		}
+		for (const auto& child : children) {
+			const auto& path = AssetMngr::Instance().GUIDToAssetPath(child);
+			if (!std::filesystem::is_directory(path))
+				childQueue.push_back(child);
+		}
+
+		for (const auto& child : childQueue) {
+			const auto& path = AssetMngr::Instance().GUIDToAssetPath(child);
+			const bool isDir = std::filesystem::is_directory(path);
+			ImGui::PushID(reinterpret_cast<const void* const &>(child.bytes()));
 			auto ext = path.extension();
+			auto name = path.stem();
 
 			ImGui::BeginGroup();
 			{
 				ImVec4 tint = viewer->selectedAsset == child ? ImVec4{ 0.65f, 0.65f, 0.65f, 1.f } : ImVec4{ 1,1,1,1 };
 				UINT64 id;
-				if (ext == ".lua")
-					id = codeID.ptr;
-				else if (
-					ext == ".png"
-					|| ext == ".jpg"
-					|| ext == ".bmp"
-					|| ext == ".hdr"
-					|| ext == ".tga"
-				) {
-					id = imageID.ptr;
+				if (!isDir) {
+					if (ext == ".lua")
+						id = codeID.ptr;
+					else if (
+						ext == ".png"
+						|| ext == ".jpg"
+						|| ext == ".bmp"
+						|| ext == ".hdr"
+						|| ext == ".tga"
+						) {
+						id = imageID.ptr;
+					}
+					else if (ext == ".tex2d") {
+						auto tex2d = AssetMngr::Instance().LoadAsset<Texture2D>(path);
+						Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTexture2D(
+							Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(),
+							tex2d
+						);
+						id = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(tex2d).ptr;
+					}
+					else if (ext == ".mat")
+						id = materialID.ptr;
+					else if (ext == ".shader")
+						id = shaderID.ptr;
+					else if (ext == ".hlsl")
+						id = hlslID.ptr;
+					else if (ext == ".scene")
+						id = sceneID.ptr;
+					else if (
+						ext == ".obj"
+						|| ext == ".ply" && AssetMngr::Instance().IsSupported("ply")
+						) {
+						id = modelID.ptr;
+					}
+					else if (ext == ".texcube")
+						id = texcubeID.ptr;
+					else
+						id = fileID.ptr;
 				}
-				else if (ext == ".tex2d") {
-					auto tex2d = AssetMngr::Instance().LoadAsset<Texture2D>(path);
-					Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTexture2D(
-						Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(),
-						tex2d
-					);
-					id = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(tex2d).ptr;
-				}
-				else if (ext == ".mat")
-					id = materialID.ptr;
-				else if (ext == ".shader")
-					id = shaderID.ptr;
-				else if (ext == ".hlsl")
-					id = hlslID.ptr;
-				else if (ext == ".scene")
-					id = sceneID.ptr;
-				else if (
-					ext == ".obj"
-					|| ext == ".ply" && AssetMngr::Instance().IsSupported("ply")
-				) {
-					id = modelID.ptr;
-				}
-				else if (ext == ".texcube")
-					id = texcubeID.ptr;
 				else
-					id = fileID.ptr;
+					id = folderID.ptr;
+				
 				if (ImGui::ImageButton(ImTextureID(id), button_sz, { 0,0 }, { 1,1 }, 0, style.Colors[ImGuiCol_WindowBg], tint)) {
 					viewer->selectedAsset = child;
+					viewer->isRenaming = false;
 					if (inspector && !inspector->lock) {
 						inspector->mode = Inspector::Mode::Asset;
 						inspector->asset = child;
 					}
+				}
+				if (ImGui::IsItemHovered()) {
+					viewer->hoveredAsset = child;
+					if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
+						viewer->selectedAsset = child;
+						viewer->isRenaming = false;
+					}
+				}
+				if (isDir && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+					viewer->selectedFolder = child;
+					viewer->isRenaming = false;
 				}
 				auto nameStr = name.string();
 				if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID)) {
@@ -245,8 +237,24 @@ namespace Ubpa::Utopia::detail {
 					ImGui::Text(nameStr.c_str());
 					ImGui::EndDragDropSource();
 				}
-				NameShrink(nameStr, 9);
-				ImGui::Text(nameStr.c_str());
+				if (viewer->selectedAsset == child && viewer->isRenaming) {
+					ImGui::SetNextItemWidth(64.f);
+					if (ImGui::InputText("", &viewer->rename, ImGuiInputTextFlags_EnterReturnsTrue)) {
+						viewer->isRenaming = false;
+						if (!viewer->rename.empty()) {
+							std::filesystem::path newpath = path.parent_path().wstring()
+								+ L"\\"
+								+ std::filesystem::path(viewer->rename).wstring()
+								+ ext.wstring();
+							if (!std::filesystem::exists(newpath) && AssetMngr::Instance().MoveAsset(path, newpath))
+								nameStr = viewer->rename;
+						}
+					}
+				}
+				else {
+					NameShrink(nameStr, 9);
+					ImGui::Text(nameStr.c_str());
+				}
 			}
 			ImGui::EndGroup();
 
@@ -268,13 +276,49 @@ void ProjectViewerSystem::OnUpdate(UECS::Schedule& schedule) {
 
 		if (!viewer)
 			return;
+
+		viewer->hoveredAsset = xg::Guid{};
 		
 		if (ImGui::Begin("Project"))
 			detail::ProjectViewerSystemPrintChildren(viewer, xg::Guid{});
 		ImGui::End();
 
-		if (ImGui::Begin("Folder"))
+		if (ImGui::Begin("Folder")) {
 			detail::ProjectViewerSystemPrintFolder(inspector, viewer);
+			if (ImGui::IsWindowHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+				if (viewer->hoveredAsset.isValid())
+					ImGui::OpenPopup("Folder_Item_Popup");
+				else
+					ImGui::OpenPopup("Folder_Popup");
+			}
+			if (ImGui::BeginPopup("Folder_Item_Popup")) {
+				if (ImGui::MenuItem("Rename")) {
+					viewer->isRenaming = true;
+					viewer->rename = AssetMngr::Instance().GUIDToAssetPath(viewer->selectedAsset).stem().string();
+				}
+				/*if (ImGui::MenuItem("Delete")) {
+					const auto& path = AssetMngr::Instance().GUIDToAssetPath(viewer->selectedAsset);
+					AssetMngr::Instance().DeleteAsset(path);
+					viewer->selectedAsset = xg::Guid{};
+				}*/
+				ImGui::EndPopup();
+			}
+			if (ImGui::BeginPopup("Folder_Popup")) {
+				if (ImGui::MenuItem("Create Material")) {
+					const auto& folderPath = AssetMngr::Instance().GUIDToAssetPath(viewer->selectedFolder);
+					auto wstr = folderPath.wstring();
+					std::filesystem::path newPath;
+					const auto& tree = AssetMngr::Instance().GetAssetTree();
+					size_t i = 0;
+					do {
+						newPath = wstr + L"\\" + L"new file (" + std::to_wstring(i) + L").mat";
+						i++;
+					} while (std::filesystem::exists(newPath));
+					AssetMngr::Instance().CreateAsset(new Material, newPath);
+				}
+				ImGui::EndPopup();
+			}
+		}
 		ImGui::End();
 	});
 }

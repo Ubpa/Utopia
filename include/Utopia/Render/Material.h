@@ -9,7 +9,7 @@ namespace Ubpa::Utopia {
 	struct Shader;
 
 	struct Material {
-		const Shader* shader;
+		const Shader* shader{ nullptr };
 		std::map<std::string, ShaderProperty, std::less<>> properties;
 	};
 }

@@ -605,6 +605,69 @@ void AssetMngr::ReserializeAsset(const std::filesystem::path& path) {
 		assert(false && "not support");
 }
 
+bool AssetMngr::MoveAsset(const std::filesystem::path& src, const std::filesystem::path& dst) {
+	auto iter_begin = pImpl->path2assert.lower_bound(src);
+	auto iter_end = pImpl->path2assert.upper_bound(src);
+	if (iter_begin == iter_end)
+		return false;
+	if (std::filesystem::exists(dst))
+		return false;
+	auto target = pImpl->path2guid.find(src);
+	auto guid = target->second;
+	if (GetAssetTree().find(guid) != GetAssetTree().end())
+		return false; // TODO
+	try {
+		std::filesystem::rename(src, dst);
+		std::filesystem::rename(src.wstring() + L".meta", dst.wstring() + L".meta");
+	}
+	catch (...) {
+		return false;
+	}
+	std::vector<Impl::Asset> assets;
+	for (auto iter = iter_begin; iter != iter_end; ++iter)
+		assets.push_back(std::move(iter->second));
+
+	pImpl->guid2path.at(guid) = dst;
+	pImpl->path2guid.erase(target);
+	pImpl->path2guid.emplace(dst, guid);
+
+	for (const auto& asset : assets)
+		pImpl->asset2path.at(asset.ptr.get()) = dst;
+
+	pImpl->path2assert.erase(src);
+	for (auto& asset : assets)
+		pImpl->path2assert.emplace(dst, std::move(asset));
+	
+	return true;
+}
+
+//bool AssetMngr::DeleteAsset(const std::filesystem::path& path) {
+//	auto iter_begin = pImpl->path2assert.lower_bound(path);
+//	auto iter_end = pImpl->path2assert.upper_bound(path);
+//	if (iter_begin == iter_end)
+//		return false;
+//
+//	auto target = pImpl->path2guid.find(path);
+//	auto guid = target->second;
+//	if (GetAssetTree().find(guid) != GetAssetTree().end())
+//		return false; // TODO
+//
+//	if (std::filesystem::remove(path))
+//		return false;
+//
+//	std::filesystem::remove(path.wstring() + L".meta");
+//
+//	pImpl->guid2path.erase(guid);
+//	pImpl->path2guid.erase(target);
+//
+//	for (auto iter = iter_begin; iter != iter_end; ++iter)
+//		pImpl->asset2path.erase(iter->second.ptr.get());
+//
+//	pImpl->path2assert.erase(path);
+//
+//	return true;
+//}
+
 // ========================
 
 std::string AssetMngr::Impl::LoadText(const std::filesystem::path& path) {

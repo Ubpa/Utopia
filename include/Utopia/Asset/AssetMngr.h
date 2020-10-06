@@ -85,6 +85,10 @@ namespace Ubpa::Utopia {
 
 		void ReserializeAsset(const std::filesystem::path& path);
 
+		bool MoveAsset(const std::filesystem::path& src, const std::filesystem::path& dst);
+
+		//bool DeleteAsset(const std::filesystem::path& path);
+
 		// e.g. obj, lua
 		bool IsSupported(std::string_view extension) const noexcept;
 

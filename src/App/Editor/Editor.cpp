@@ -911,8 +911,14 @@ void Editor::Impl::BuildShaders() {
 void Editor::Impl::InspectMaterial(Material* material, InspectorRegistry::InspectContext ctx) {
 	ImGui::Text("(*)");
 	ImGui::SameLine();
-	if (ImGui::Button(material->shader->name.c_str()))
-		ImGui::OpenPopup("Meterial_Shader_Seletor");
+	if (material->shader) {
+		if (ImGui::Button(material->shader->name.c_str()))
+			ImGui::OpenPopup("Meterial_Shader_Seletor");
+	}
+	else {
+		if (ImGui::Button("nullptr"))
+			ImGui::OpenPopup("Meterial_Shader_Seletor");
+	}
 	if (ImGui::BeginDragDropTarget()) {
 		if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(PlayloadType::GUID)) {
 			IM_ASSERT(payload->DataSize == sizeof(xg::Guid));
@@ -927,7 +933,10 @@ void Editor::Impl::InspectMaterial(Material* material, InspectorRegistry::Inspec
 		ImGui::EndDragDropTarget();
 	}
 	if (ImGui::BeginPopup("Meterial_Shader_Seletor")) {
-		ImGui::PushID((void*)material->shader->GetInstanceID());
+		if (material->shader)
+			ImGui::PushID((void*)material->shader->GetInstanceID());
+		else
+			ImGui::PushID(0);
 		// Helper class to easy setup a text filter.
 		// You may want to implement a more feature-full filtering scheme in your own application.
 		static ImGuiTextFilter filter;

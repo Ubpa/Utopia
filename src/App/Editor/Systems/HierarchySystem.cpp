@@ -116,7 +116,7 @@ void HierarchySystem::OnUpdate(UECS::Schedule& schedule) {
 			return;
 
 		if (ImGui::Begin("Hierarchy")) {
-			if (ImGui::IsMouseReleased(ImGuiMouseButton_Right) && ImGui::IsWindowHovered())
+			if (ImGui::IsWindowHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
 				ImGui::OpenPopup("Hierarchy_popup");
 
 			if (ImGui::BeginPopup("Hierarchy_popup")) {
