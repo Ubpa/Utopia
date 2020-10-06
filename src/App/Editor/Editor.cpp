@@ -955,9 +955,15 @@ void Editor::Impl::InspectMaterial(Material* material, InspectorRegistry::Inspec
 	ImGui::SameLine();
 	ImGui::Text("shader");
 
-	USRefl::TypeInfo<Material>::ForEachVarOf(*material, [ctx](auto field, auto& var) {
+	bool changed = false;
+	USRefl::TypeInfo<Material>::ForEachVarOf(*material, [ctx, &changed](auto field, auto& var) {
 		if (field.name == "shader")
 			return;
-		detail::InspectVar(field, var, ctx);
+		if (detail::InspectVar1(field, var, ctx))
+			changed = true;
 	});
+	if (changed) {
+		const auto& path = AssetMngr::Instance().GetAssetPath(material);
+		AssetMngr::Instance().ReserializeAsset(path);
+	}
 }

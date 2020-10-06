@@ -3,23 +3,25 @@
 - [x] shader management (get by name)
 - [x] serialize
 - [ ] dynamic image/texture
-- [ ] asset inspector (mix with component inspector)
+- [x] asset inspector (mix with component inspector)
 - [ ] drag from outside to project/folder viewer
 - [ ] asset create/delete/search/edit (after asset inspector)
-- [ ] IO (mouse, keyboard) component
-- [ ] fix warnings
-- [ ] complex container inspect
+- [x] IO (mouse, keyboard) component
+- [x] fix warnings
+- [x] complex container inspect
   - [x] vector, deque, list, forwarad_list
-  - [ ] set, map
-- [ ] euler rotation component / system
+  - [x] set, map
+- [x] euler rotation component / system
 - [ ] improve image API
-- [ ] editor roamer
+- [x] editor roamer
 - [ ] imporove inspector UI
+  - [ ] tex2d
 - [ ] improve pipeline
-- [ ] enum inspect
-- [ ] 用 std::begin 等替代 traits
+- [x] enum inspect
+- [ ] use std::begin to replace traits
+- [ ] click an asset in the inspector, and locate it in project & floder window
 
 ## Bugs
 
-- [ ] close when running game
+- [x] close when running game
 

@@ -52,6 +52,8 @@ namespace Ubpa::Utopia::detail {
 
 	template<typename Field, typename Value>
 	void InspectVar(Field field, Value& var, InspectorRegistry::InspectContext ctx);
+	template<typename Field, typename Value>
+	bool InspectVar1(Field field, Value& var, InspectorRegistry::InspectContext ctx);
 
 	template<typename Cmpt>
 	void InspectCmpt(Cmpt* cmpt, InspectorRegistry::InspectContext ctx) {
@@ -260,6 +262,26 @@ namespace Ubpa::Utopia::detail {
 	template<typename Field, typename Variant, size_t... Ns>
 	void InspectVariant(Field field, Variant& var, std::index_sequence<Ns...>, InspectorRegistry::InspectContext ctx) {
 		(InspectVariantAt<Ns>(field, var, var.index(), ctx), ...);
+	}
+
+	template<size_t Idx, typename Field, typename Variant>
+	bool InspectVariantAt1(bool& changed, Field field, Variant& var, size_t idx, InspectorRegistry::InspectContext ctx) {
+		if (idx != Idx)
+			return false;
+
+		using Value = std::variant_alternative_t<Idx, Variant>;
+		if (InspectVar1(field, std::get<Value>(var), ctx))
+			changed = true;
+
+		return true;
+	}
+
+	// TODO : stop
+	template<typename Field, typename Variant, size_t... Ns>
+	bool InspectVariant1(Field field, Variant& var, std::index_sequence<Ns...>, InspectorRegistry::InspectContext ctx) {
+		bool changed = false;
+		(InspectVariantAt1<Ns>(changed, field, var, var.index(), ctx), ...);
+		return changed;
 	}
 
 	template<typename Field, typename Value>
@@ -482,6 +504,259 @@ namespace Ubpa::Utopia::detail {
 		}
 		else {
 			InspectUserType(field, &var, ctx);
+		}
+	}
+
+	// return ture if something change
+	template<typename Field, typename Value>
+	bool InspectVar1(Field field, Value& var, InspectorRegistry::InspectContext ctx) {
+		//static_assert(!std::is_const_v<Value>);
+		if constexpr (std::is_scalar_v<Value>
+		|| std::is_same_v<Value, std::string>
+		|| std::is_same_v<Value, UECS::Entity>
+		|| ArrayTraits<Value>::isArray && ValNTraits<Value>::isValN
+		)
+		{
+			Value orig = var;
+			if constexpr (std::is_same_v<Value, bool>)
+				ImGui::Checkbox(field.name.data(), &var);
+			else if constexpr (std::is_same_v<Value, uint8_t>)
+				ImGui::DragScalar(field.name.data(), ImGuiDataType_U8, &var, 1.f);
+			else if constexpr (std::is_same_v<Value, uint16_t>)
+				ImGui::DragScalar(field.name.data(), ImGuiDataType_U16, &var, 1.f);
+			else if constexpr (std::is_same_v<Value, uint32_t>)
+				ImGui::DragScalar(field.name.data(), ImGuiDataType_U32, &var, 1.f);
+			else if constexpr (std::is_same_v<Value, uint64_t>)
+				ImGui::DragScalar(field.name.data(), ImGuiDataType_U64, &var, 1.f);
+			else if constexpr (std::is_same_v<Value, int8_t>)
+				ImGui::DragScalar(field.name.data(), ImGuiDataType_S8, &var, 1.f);
+			else if constexpr (std::is_same_v<Value, int16_t>)
+				ImGui::DragScalar(field.name.data(), ImGuiDataType_S16, &var, 1.f);
+			else if constexpr (std::is_same_v<Value, int32_t>)
+				ImGui::DragScalar(field.name.data(), ImGuiDataType_S32, &var, 1.f);
+			else if constexpr (std::is_same_v<Value, int64_t>)
+				ImGui::DragScalar(field.name.data(), ImGuiDataType_S64, &var, 1.f);
+			else if constexpr (std::is_same_v<Value, float>)
+				ImGui::DragFloat(field.name.data(), &var, 0.001f);
+			else if constexpr (std::is_same_v<Value, double>)
+				ImGui::DragScalar(field.name.data(), ImGuiDataType_Double, &var, 0.001f);
+			else if constexpr (std::is_same_v<Value, std::string>)
+				ImGui::InputText(field.name.data(), &var);
+			else if constexpr (std::is_same_v<Value, UECS::Entity>) {
+				ImGui::Text("(*)", var.Idx());
+				ImGui::SameLine();
+				if (var.Valid()) {
+					if (auto name = ctx.world->entityMngr.Get<Name>(var))
+						ImGui::Button(name->value.c_str());
+					else {
+						std::string str = std::string("Entity (") + std::to_string(var.Idx()) + ")";
+						ImGui::Button(str.c_str());
+					}
+				}
+				else
+					ImGui::Button("None (Entity)");
+				if (ImGui::BeginDragDropTarget()) {
+					if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(PlayloadType::ENTITY)) {
+						IM_ASSERT(payload->DataSize == sizeof(UECS::Entity));
+						const auto& payload_e = *(UECS::Entity*)payload->Data;
+						var = payload_e;
+					}
+					ImGui::EndDragDropTarget();
+				}
+				ImGui::SameLine();
+				ImGui::Text(field.name.data());
+			}
+			else if constexpr (std::is_enum_v<Value>) {
+				if constexpr (HasDefinition<USRefl::TypeInfo<Value>>::value) {
+					std::string_view cur;
+					USRefl::TypeInfo<Value>::fields.FindIf([&](auto field) {
+						if (field.value == var) {
+							cur = field.name;
+							return true;
+						}
+						return false;
+						});
+
+					if (ImGui::BeginCombo(field.name.data(), cur.data())) {
+						USRefl::TypeInfo<Value>::fields.ForEach([&](auto field) {
+							bool isSelected = field.value == var;
+							if (ImGui::Selectable(field.name.data(), isSelected))
+								var = field.value;
+
+							if (isSelected)
+								ImGui::SetItemDefaultFocus();
+
+							});
+						ImGui::EndCombo();
+					}
+				}
+				else
+					InspectVar(field, static_cast<std::underlying_type_t<Value>&>(var), ctx);
+			}
+			else if constexpr (std::is_pointer_v<Value>) {
+				using Type = std::remove_pointer_t<Value>;
+				ImGui::Text("(*)");
+				ImGui::SameLine();
+				// button
+				if (var) {
+					const auto& path = AssetMngr::Instance().GetAssetPath(var);
+					if (!path.empty()) {
+						auto name = path.stem().string();
+						ImGui::Button(name.c_str());
+					}
+					else
+						ImGui::Button("UNKNOW");
+				}
+				else
+					ImGui::Button("nullptr");
+
+				if (ImGui::BeginDragDropTarget()) {
+					if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(PlayloadType::GUID)) {
+						IM_ASSERT(payload->DataSize == sizeof(xg::Guid));
+						const auto& payload_guid = *(const xg::Guid*)payload->Data;
+						const auto& path = AssetMngr::Instance().GUIDToAssetPath(payload_guid);
+						assert(!path.empty());
+						if (auto asset = AssetMngr::Instance().LoadAsset<std::decay_t<Type>>(path))
+							var = asset;
+					}
+					ImGui::EndDragDropTarget();
+				}
+
+				ImGui::SameLine();
+				ImGui::Text(field.name.data());
+			}
+			else if constexpr (ArrayTraits<Value>::isArray && ValNTraits<Value>::isValN) {
+				auto data = ArrayTraits_Data(var);
+				constexpr auto N = ArrayTraits<Value>::size;
+
+				if constexpr (ColorTraits<Value>::isColor) {
+					constexpr ImGuiColorEditFlags flags =
+						ImGuiColorEditFlags_Float
+						| ImGuiColorEditFlags_HDR
+						| ImGuiColorEditFlags_AlphaPreview;
+
+					if constexpr (N == 3)
+						ImGui::ColorEdit3(field.name.data(), data, flags);
+					else // N == 4
+						ImGui::ColorEdit4(field.name.data(), data, flags);
+				}
+				else {
+					using ElemType = ArrayTraits_ValueType<Value>;
+					if constexpr (std::is_same_v<ElemType, uint8_t>)
+						ImGui::DragScalarN(field.name.data(), ImGuiDataType_U8, data, N, 1.f);
+					else if constexpr (std::is_same_v<ElemType, uint16_t>)
+						ImGui::DragScalarN(field.name.data(), ImGuiDataType_U16, data, N, 1.f);
+					else if constexpr (std::is_same_v<ElemType, uint32_t>)
+						ImGui::DragScalarN(field.name.data(), ImGuiDataType_U32, data, N, 1.f);
+					else if constexpr (std::is_same_v<ElemType, uint64_t>)
+						ImGui::DragScalarN(field.name.data(), ImGuiDataType_U64, data, N, 1.f);
+					else if constexpr (std::is_same_v<ElemType, int8_t>)
+						ImGui::DragScalarN(field.name.data(), ImGuiDataType_S8, data, N, 1.f);
+					else if constexpr (std::is_same_v<ElemType, int16_t>)
+						ImGui::DragScalarN(field.name.data(), ImGuiDataType_S16, data, N, 1.f);
+					else if constexpr (std::is_same_v<ElemType, int32_t>)
+						ImGui::DragScalarN(field.name.data(), ImGuiDataType_S32, data, N, 1.f);
+					else if constexpr (std::is_same_v<ElemType, int64_t>)
+						ImGui::DragScalarN(field.name.data(), ImGuiDataType_S64, data, N, 1.f);
+					else if constexpr (std::is_same_v<ElemType, float>)
+						ImGui::DragScalarN(field.name.data(), ImGuiDataType_Float, data, N, 0.001f);
+					else if constexpr (std::is_same_v<ElemType, double>)
+						ImGui::DragScalarN(field.name.data(), ImGuiDataType_Double, data, N, 0.001f);
+				}
+			}
+			else
+				static_assert(false);
+			return orig != var;
+		}
+		else if constexpr (ArrayTraits<Value>::isArray
+		|| TupleTraits<Value>::isTuple
+		|| MapTraits<Value>::isMap
+		|| OrderContainerTraits<Value>::isOrderContainer)
+		{
+			bool changed = false;
+			if constexpr (ArrayTraits<Value>::isArray) {
+				static_assert(!ValNTraits<Value>::isValN);
+				if (ImGui::TreeNode(field.name.data())) {
+					ImGui::PushID(field.name.data());
+					for (size_t i = 0; i < ArrayTraits<Value>::size; i++) {
+						auto str = std::to_string(i);
+						if (InspectVar1(USRefl::Field{ std::string_view{str}, (void*)0 }, ArrayTraits_Get(var, i), ctx))
+							changed = true;
+					}
+					ImGui::PopID();
+					ImGui::TreePop();
+				}
+			}
+			else if constexpr (TupleTraits<Value>::isTuple) {
+				if (ImGui::TreeNode(field.name.data())) {
+					ImGui::PushID(field.name.data());
+					USTL::tuple_for_each(var, [ctx, idx = 0](auto& ele) mutable {
+						auto str = std::to_string(idx++);
+						if (InspectVar1(USRefl::Field{ std::string_view{str}, (void*)0 }, ele, ctx))
+							changed = true;
+					});
+					ImGui::PopID();
+					ImGui::TreePop();
+				}
+			}
+			else if constexpr (MapTraits<Value>::isMap) {
+				if (ImGui::TreeNode(field.name.data())) {
+					ImGui::PushID(field.name.data());
+					auto iter_begin = MapTraits_Begin(var);
+					auto iter_end = MapTraits_End(var);
+					for (auto iter = iter_begin; iter != iter_end; ++iter) {
+						auto& [key, mapped] = *iter;
+						if constexpr (std::is_same_v<std::decay_t<decltype(key)>, std::string>) {
+							if (InspectVar1(USRefl::Field{ std::string_view{key}, (void*)0 }, mapped, ctx))
+								changed = true;
+						}
+						else {
+							auto name = std::to_string(key);
+							if (InspectVar1(USRefl::Field{ std::string_view{name}, (void*)0 }, mapped, ctx))
+								changed = true;
+						}
+					}
+					ImGui::PopID();
+					ImGui::TreePop();
+				}
+			}
+			else if constexpr (OrderContainerTraits<Value>::isOrderContainer) {
+				if (ImGui::TreeNode(field.name.data())) {
+					ImGui::PushID(field.name.data());
+
+					if constexpr (OrderContainerTraits<Value>::isResizable) {
+						size_t origSize = OrderContainerTraits_Size(var);
+						size_t size = origSize;
+						static constexpr ImU64 u64_one = 1;
+						ImGui::InputScalar("size", ImGuiDataType_U64, &size, &u64_one);
+						if (size != origSize) {
+							OrderContainerTraits_Resize(var, size);
+							changed = true;
+						}
+					}
+
+					auto iter_begin = OrderContainerTraits_Begin(var);
+					auto iter_end = OrderContainerTraits_End(var);
+					size_t idx = 0;
+					for (auto iter = iter_begin; iter != iter_end; ++iter) {
+						auto name = std::to_string(idx++);
+						if (InspectVar1(USRefl::Field{ std::string_view{name}, (void*)0 }, *iter, ctx))
+							changed = true;
+					}
+					ImGui::PopID();
+					ImGui::TreePop();
+				}
+			}
+			else
+				static_assert(false);
+			return changed;
+		}
+		else if constexpr (is_instance_of_v<Value, std::variant>)
+			return InspectVariant1(field, var, std::make_index_sequence<std::variant_size_v<Value>>{}, ctx);
+		else {
+			Value orig;
+			InspectUserType(field, &var, ctx);
+			return orig != var;
 		}
 	}
 }
