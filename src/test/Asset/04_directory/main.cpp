@@ -13,7 +13,7 @@ int main() {
 
 	AssetMngr::Instance().ImportAssetRecursively(L"..\\assets");
 	auto dir = AssetMngr::Instance().LoadAsset(L"..\\assets\\shaders");
-	std::cout << AssetMngr::Instance().GetAssetPath(dir) << std::endl;
+	std::cout << AssetMngr::Instance().GetAssetPath(*dir) << std::endl;
 
 	auto shaderGUIDs = AssetMngr::Instance().FindAssets(std::wregex{ LR"(.*\.shader)" });
 	for (const auto& guid : shaderGUIDs) {

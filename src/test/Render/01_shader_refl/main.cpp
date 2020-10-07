@@ -103,7 +103,7 @@ bool TestApp::Init() {
 		ShaderMngr::Instance().Register(shader);
 	}
 
-	auto PrintShader = [](Shader* shader) {
+	auto PrintShader = [](const Shader& shader) {
 		RsrcMngrDX12::Instance().RegisterShader(shader);
 		auto PrintRefl = [](ID3D12ShaderReflection* refl, const std::string& name) {
 			D3D12_SHADER_DESC shaderDesc;
@@ -180,14 +180,14 @@ bool TestApp::Init() {
 				indent--;
 			}
 		};
-		PrintRefl(RsrcMngrDX12::Instance().GetShaderRefl_vs(shader, 0), shader->name + " vs");
-		PrintRefl(RsrcMngrDX12::Instance().GetShaderRefl_ps(shader, 0), shader->name + " ps");
+		PrintRefl(RsrcMngrDX12::Instance().GetShaderRefl_vs(shader, 0), shader.name + " vs");
+		PrintRefl(RsrcMngrDX12::Instance().GetShaderRefl_ps(shader, 0), shader.name + " ps");
 	};
 	
 	auto geometry = ShaderMngr::Instance().Get("StdPipeline/Geometry");
 	auto deferLighting = ShaderMngr::Instance().Get("StdPipeline/Defer Lighting");
-	PrintShader(geometry);
-	PrintShader(deferLighting);
+	PrintShader(*geometry);
+	PrintShader(*deferLighting);
 
 	return true;
 }

@@ -40,7 +40,7 @@ struct A {
 	double v_double;
 	std::string v_string;
 	Entity v_entity{ Entity::Invalid() };
-	const HLSLFile* v_hlslFile;
+	std::shared_ptr<HLSLFile> v_hlslFile;
 	std::array<int, 3> v_array;
 	std::array<std::array<float, 2>, 3> v_array2;
 	bboxf3 v_bbox;
@@ -163,7 +163,7 @@ int main() {
 	a->v_double = { 0.2 };
 	a->v_string = { "hello world" };
 	a->v_entity = e0;
-	a->v_hlslFile = AssetMngr::Instance().LoadAsset<HLSLFile>("../assets/shaders/Default.hlsl");
+	a->v_hlslFile = AssetMngr::Instance().LoadAsset<HLSLFile>("../assets/shaders/Geometry.hlsl");
 	a->v_array = { 1,2,3 };
 	a->v_array2 = { { {1,2},{3,4},{5,6} } };
 	a->v_bbox = { {1,2,3},{4,5,6} };

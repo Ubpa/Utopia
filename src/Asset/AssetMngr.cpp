@@ -356,8 +356,6 @@ std::shared_ptr<Object> AssetMngr::LoadAsset(const std::filesystem::path& path) 
 		auto imgTarget = pImpl->guid2path.find(guid);
 		auto tex2d = std::make_shared<Texture2D>();
 		tex2d->image = imgTarget != pImpl->guid2path.end() ? LoadAsset<Image>(imgTarget->second) : nullptr;
-		tex2d->wrapMode = static_cast<Texture2D::WrapMode>(tex2dJSON["wrapMode"].GetUint());
-		tex2d->filterMode = static_cast<Texture2D::FilterMode>(tex2dJSON["filterMode"].GetUint());
 		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ tex2d });
 		pImpl->assetID2path.emplace(tex2d->GetInstanceID(), path);
 		return tex2d;
@@ -524,10 +522,6 @@ bool AssetMngr::CreateAsset(std::shared_ptr<Object> ptr, const std::filesystem::
 		writer.StartObject();
 		writer.Key("image");
 		writer.String(guid.str());
-		writer.Key("wrapMode");
-		writer.Uint(static_cast<unsigned int>(tex2d->wrapMode));
-		writer.Key("filterMode");
-		writer.Uint(static_cast<unsigned int>(tex2d->filterMode));
 		writer.EndObject();
 
 		auto dirPath = path.parent_path();

@@ -163,7 +163,7 @@ bool WorldApp::Initialize() {
 			upload,
 			deleteBatch,
 			uGCmdList.Get(),
-			meshFilter->mesh
+			*meshFilter->mesh
 		);
 	}, false);
 
@@ -221,23 +221,23 @@ void WorldApp::Update()
 			upload,
 			deleteBatch,
 			uGCmdList.Get(),
-			meshFilter->mesh
+			*meshFilter->mesh
 		);
 
 		for (const auto& material : meshRenderer->materials) {
 			if (!material)
 				continue;
 			for (const auto& [name, property] : material->properties) {
-				if (std::holds_alternative<const Ubpa::Utopia::Texture2D*>(property)) {
+				if (std::holds_alternative<std::shared_ptr<const Ubpa::Utopia::Texture2D>>(property)) {
 					Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTexture2D(
 						Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(),
-						std::get<const Ubpa::Utopia::Texture2D*>(property)
+						*std::get<std::shared_ptr<const Ubpa::Utopia::Texture2D>>(property)
 					);
 				}
-				else if (std::holds_alternative<const Ubpa::Utopia::TextureCube*>(property)) {
+				else if (std::holds_alternative<std::shared_ptr<const Ubpa::Utopia::TextureCube>>(property)) {
 					Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTextureCube(
 						Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(),
-						std::get<const Ubpa::Utopia::TextureCube*>(property)
+						*std::get<std::shared_ptr<const Ubpa::Utopia::TextureCube>>(property)
 					);
 				}
 			}
@@ -246,16 +246,16 @@ void WorldApp::Update()
 
 	if (auto skybox = world.entityMngr.GetSingleton<Ubpa::Utopia::Skybox>(); skybox && skybox->material) {
 		for (const auto& [name, property] : skybox->material->properties) {
-			if (std::holds_alternative<const Ubpa::Utopia::Texture2D*>(property)) {
+			if (std::holds_alternative<std::shared_ptr<const Ubpa::Utopia::Texture2D>>(property)) {
 				Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTexture2D(
 					Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(),
-					std::get<const Ubpa::Utopia::Texture2D*>(property)
+					*std::get<std::shared_ptr<const Ubpa::Utopia::Texture2D>>(property)
 				);
 			}
-			else if (std::holds_alternative<const Ubpa::Utopia::TextureCube*>(property)) {
+			else if (std::holds_alternative<std::shared_ptr<const Ubpa::Utopia::TextureCube>>(property)) {
 				Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTextureCube(
 					Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(),
-					std::get<const Ubpa::Utopia::TextureCube*>(property)
+					*std::get<std::shared_ptr<const Ubpa::Utopia::TextureCube>>(property)
 				);
 			}
 		}
@@ -406,7 +406,7 @@ void WorldApp::LoadTextures() {
 		const auto& path = Ubpa::Utopia::AssetMngr::Instance().GUIDToAssetPath(guid);
 		Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTexture2D(
 			Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(),
-			Ubpa::Utopia::AssetMngr::Instance().LoadAsset<Ubpa::Utopia::Texture2D>(path)
+			*Ubpa::Utopia::AssetMngr::Instance().LoadAsset<Ubpa::Utopia::Texture2D>(path)
 		);
 	}
 
@@ -415,7 +415,7 @@ void WorldApp::LoadTextures() {
 		const auto& path = Ubpa::Utopia::AssetMngr::Instance().GUIDToAssetPath(guid);
 		Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTextureCube(
 			Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(),
-			Ubpa::Utopia::AssetMngr::Instance().LoadAsset<Ubpa::Utopia::TextureCube>(path)
+			*Ubpa::Utopia::AssetMngr::Instance().LoadAsset<Ubpa::Utopia::TextureCube>(path)
 		);
 	}
 }
@@ -426,7 +426,7 @@ void WorldApp::BuildShaders() {
 	for (const auto& guid : shaderGUIDs) {
 		const auto& path = assetMngr.GUIDToAssetPath(guid);
 		auto shader = assetMngr.LoadAsset<Ubpa::Utopia::Shader>(path);
-		Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterShader(shader);
+		Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterShader(*shader);
 		Ubpa::Utopia::ShaderMngr::Instance().Register(shader);
 	}
 }
