@@ -269,3 +269,12 @@ gravizo_mask_fg
 
 Utopia 提供了类 ShaderLab 的声明语言（文件后缀为 shader），你可以在里边提供多个 pass，每个 pass 通过 LightMode 来决定其在 pipeline 的位置（Deferred 表示处于 Defer Lighting，Froward 表示处于 Forward），然后可以用 Queue 指定其在 pipeline pass 内的渲染顺序（0-2499 为非透明物体，2500以上为透明物体，同 queue 则从后往前绘制）
 
+## Log
+
+我们支持使用 log 来帮助开发者进行调试，我们采用了开源库 [spdlog](https://github.com/gabime/spdlog)，使用简单，使用方法可参考
+
+- [spdlog 官方文档](https://github.com/gabime/spdlog) 
+- 示例项目 [test/_deps/spdlog/example](src/test/_deps/spdlog/example.cpp) 
+
+
+

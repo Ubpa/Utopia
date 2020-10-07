@@ -13,7 +13,7 @@ Ubpa_AddTarget(
     "${PROJECT_SOURCE_DIR}/include/_deps/spdlog"
   DEFINE
     SPDLOG_COMPILED_LIB
-  INC_PRIVATE
+  INC
     "${PROJECT_SOURCE_DIR}/include/_deps"
   LIB
     Threads::Threads

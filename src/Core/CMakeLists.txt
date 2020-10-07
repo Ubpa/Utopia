@@ -51,6 +51,7 @@ Ubpa_AddTarget(
     Ubpa::UECS_core
     Ubpa::UDX12_core
     Ubpa::Utopia__deps_imgui
+    Ubpa::Utopia__deps_spdlog
   DEFINE
     NOMINMAX
 )

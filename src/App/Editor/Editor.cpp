@@ -7,6 +7,7 @@
 #include <Utopia/App/Editor/Systems/HierarchySystem.h>
 #include <Utopia/App/Editor/Systems/InspectorSystem.h>
 #include <Utopia/App/Editor/Systems/ProjectViewerSystem.h>
+#include <Utopia/App/Editor/Systems/LoggerSystem.h>
 
 #include <Utopia/App/Editor/InspectorRegistry.h>
 
@@ -36,6 +37,9 @@
 #include <_deps/imgui/imgui.h>
 #include <_deps/imgui/imgui_impl_win32.h>
 #include <_deps/imgui/imgui_impl_dx12.h>
+
+#include <Utopia/Core/StringsSink.h>
+#include <spdlog/spdlog.h>
 
 #include <Utopia/ScriptSystem/LuaContext.h>
 #include <Utopia/ScriptSystem/LuaCtxMngr.h>
@@ -238,6 +242,7 @@ Editor::Impl::~Impl() {
 
 bool Editor::Impl::Init() {
 	ImGUIMngr::Instance().Init(pEditor->MainWnd(), pEditor->uDevice.Get(), DX12App::NumFrameResources, 3);
+	
 	AssetMngr::Instance().ImportAssetRecursively(L"..\\assets");
 	InitInspectorRegistry();
 
@@ -262,6 +267,9 @@ bool Editor::Impl::Init() {
 	ImGui::SetCurrentContext(sceneImGuiCtx);
 	ImGui::GetIO().IniFilename = "imgui_App_Editor_scene.ini";
 	ImGui::SetCurrentContext(nullptr);
+
+	auto logger = spdlog::synchronous_factory::create<StringsSink>("logger");
+	spdlog::details::registry::instance().set_default_logger(logger);
 
 	BuildWorld();
 
@@ -874,6 +882,8 @@ void Editor::Impl::BuildWorld() {
 		}
 		editorWorld.entityMngr.Create<Inspector>();
 		editorWorld.entityMngr.Create<ProjectViewer>();
+		auto [logSys] = editorWorld.systemMngr.Register<LoggerSystem>();
+		editorWorld.systemMngr.Activate(logSys);
 	}
 }
 
