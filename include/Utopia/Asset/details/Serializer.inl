@@ -2,6 +2,7 @@
 
 #include "../../Core/Traits.h"
 #include "../AssetMngr.h"
+#include "../../Core/Object.h"
 
 #include <variant>
 
@@ -84,9 +85,25 @@ namespace Ubpa::Utopia::detail {
 			if (var == nullptr)
 				ctx.writer.Null();
 			else {
-				auto& assetMngr = AssetMngr::Instance();
-				if (assetMngr.Contains(var))
-					ctx.writer.String(assetMngr.AssetPathToGUID(assetMngr.GetAssetPath(var)).str());
+				assert("not support" && false);
+				ctx.writer.Null();
+			}
+		}
+		else if constexpr (is_instance_of_v<Value, std::shared_ptr>) {
+			using Element = typename Value::element_type;
+			if (var == nullptr)
+				ctx.writer.Null();
+			else {
+				if constexpr (std::is_base_of_v<Object, Element>) {
+					auto& assetMngr = AssetMngr::Instance();
+					const auto& path = assetMngr.GetAssetPath(*var);
+					if (path.empty()) {
+						ctx.writer.Null();
+						return;
+					}
+
+					ctx.writer.String(assetMngr.AssetPathToGUID(path).str());
+				}
 				else {
 					assert("not support" && false);
 					ctx.writer.Null();
@@ -142,7 +159,7 @@ namespace Ubpa::Utopia::detail {
 			}, var);
 			ctx.writer.EndArray();
 		}
-		else if constexpr (Ubpa::is_instance_of_v<Value, std::variant>) {
+		else if constexpr (is_instance_of_v<Value, std::variant>) {
 			constexpr size_t N = std::variant_size_v<Value>;
 			WriteVariant(var, std::make_index_sequence<N>{}, ctx);
 		}
@@ -185,15 +202,6 @@ namespace Ubpa::Utopia::detail {
 					if (target == jsonObject.MemberEnd())
 						return;
 					
-					/*if constexpr (std::is_array_v<std::remove_reference_t<decltype(var)>>) {
-						using Value = std::remove_pointer_t<std::decay_t<decltype(var)>>;
-						static constexpr size_t N = sizeof(decltype(var)) / sizeof(Value);
-						auto rst = ReadVar<std::array<Value, N>>(target->value, ctx);
-						for (size_t i = 0; i < N; i++)
-							var[i] = rst[i];
-					}
-					else
-						ReadVar(var, target->value, ctx);*/
 					ReadVar(var, target->value, ctx);
 				}
 			);
@@ -240,11 +248,20 @@ namespace Ubpa::Utopia::detail {
 			if (jsonValueField.IsNull())
 				var = nullptr;
 			else {
-				using Asset = std::remove_const_t<std::remove_pointer_t<Value>>;
-				std::string guid = jsonValueField.GetString();
-				const auto& path = AssetMngr::Instance().GUIDToAssetPath(xg::Guid{ guid });
+				assert("not support" && false);
+			}
+		}
+		else if constexpr (is_instance_of_v<Value, std::shared_ptr>) {
+			if (jsonValueField.IsNull())
+				var = nullptr;
+			else if (jsonValueField.IsString()) {
+				using Asset = typename Value::element_type;
+				std::string guid_str = jsonValueField.GetString();
+				const auto& path = AssetMngr::Instance().GUIDToAssetPath(xg::Guid{ guid_str });
 				var = AssetMngr::Instance().LoadAsset<Asset>(path);
 			}
+			else
+				assert("not support" && false);
 		}
 		else if constexpr (std::is_same_v<Value, UECS::Entity>) {
 			auto index = jsonValueField.GetUint64();
@@ -297,7 +314,7 @@ namespace Ubpa::Utopia::detail {
 				(ReadVar(elements, arr[i++], ctx), ...);
 			}, var);
 		}
-		else if constexpr (Ubpa::is_instance_of_v<Value, std::variant>) {
+		else if constexpr (is_instance_of_v<Value, std::variant>) {
 			constexpr size_t N = std::variant_size_v<Value>;
 			ReadVariant(var, std::make_index_sequence<N>{}, jsonValueField, ctx);
 		}

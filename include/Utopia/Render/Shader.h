@@ -1,6 +1,6 @@
 #pragma once
 
-#include "RenderRsrcObject.h"
+#include "../Core/Object.h"
 #include "ShaderPass.h"
 #include "ShaderProperty.h"
 #include "RootParameter.h"
@@ -12,8 +12,8 @@
 namespace Ubpa::Utopia {
 	class HLSLFile;
 
-	struct Shader : RenderRsrcObject {
-		const HLSLFile* hlslFile{ nullptr };
+	struct Shader : Object {
+		std::shared_ptr<const HLSLFile> hlslFile;
 		std::string name; // e.g. a/b/c/d
 		std::vector<RootParameter> rootParameters;
 		std::map<std::string, ShaderProperty, std::less<>> properties;

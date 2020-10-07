@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Texture.h"
+#include <memory>
 
 namespace Ubpa::Utopia {
 	class Image;
@@ -9,7 +10,7 @@ namespace Ubpa::Utopia {
 		enum class WrapMode { Clamp, Repeat, Mirror };
 		enum class FilterMode { Point, Bilinear };
 
-		const Image* image;
+		std::shared_ptr<const Image> image;
 		WrapMode wrapMode{ WrapMode::Repeat };
 		FilterMode filterMode{ FilterMode::Bilinear };
 	};

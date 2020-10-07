@@ -32,7 +32,7 @@ void InspectorSystem::OnUpdate(UECS::Schedule& schedule) {
 				ImGui::Checkbox("lock", &inspector->lock);
 				ImGui::Separator();
 				if (InspectorRegistry::Instance().IsRegisteredAsset(typeinfo))
-					InspectorRegistry::Instance().Inspect(typeinfo, asset);
+					InspectorRegistry::Instance().Inspect(typeinfo, asset.get());
 			}
 			ImGui::End();
 			break;

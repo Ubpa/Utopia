@@ -10,8 +10,11 @@
 #include <regex>
 #include <map>
 #include <set>
+#include <memory>
 
 namespace Ubpa::Utopia {
+	class Object;
+
 	// ref: https://docs.unity3d.com/ScriptReference/AssetDatabase.html
 	// asset: a file stored in hard disk
 	// support
@@ -40,33 +43,33 @@ namespace Ubpa::Utopia {
 		xg::Guid AssetPathToGUID(const std::filesystem::path& path) const;
 
 		// unique
-		bool CreateAsset(void* ptr, const std::filesystem::path& path);
+		bool CreateAsset(std::shared_ptr<Object> obj, const std::filesystem::path& path);
 		template<typename Asset>
-		bool CreateAsset(Asset* ptr, const std::filesystem::path& path);
+		bool CreateAsset(std::shared_ptr<Asset> ptr, const std::filesystem::path& path);
 		// copy
 		template<typename Asset>
 		bool CreateAsset(Asset&& asset, const std::filesystem::path& path);
 
-		bool Contains(const void* ptr) const;
+		bool Contains(const Object& obj) const;
 
 		std::vector<xg::Guid> FindAssets(const std::wregex& matchRegex) const;
 
-		// if ptr is not an asset, return empty path
-		const std::filesystem::path& GetAssetPath(const void* ptr) const;
+		const std::filesystem::path& GetAssetPath(const Object& obj) const;
 
 		// empty xg::Guid is root
 		const std::map<xg::Guid, std::set<xg::Guid>>& GetAssetTree() const;
 
+		// get first asset type
 		const std::type_info& GetAssetType(const std::filesystem::path&) const;
 
 		// gets the corresponding asset path for the supplied guid, or an empty path if the GUID can't be found.
 		const std::filesystem::path& GUIDToAssetPath(const xg::Guid&) const;
 
 		// if not loaded, return nullptr
-		void* GUIDToAsset(const xg::Guid&) const;
-		void* GUIDToAsset(const xg::Guid&, const std::type_info&) const;
+		std::shared_ptr<Object> GUIDToAsset(const xg::Guid&) const;
+		std::shared_ptr<Object> GUIDToAsset(const xg::Guid&, const std::type_info&) const;
 		template<typename T>
-		T* GUIDToAsset(const xg::Guid&) const;
+		std::shared_ptr<T> GUIDToAsset(const xg::Guid&) const;
 
 		// import asset at path (relative)
 		// * generate meta
@@ -76,12 +79,12 @@ namespace Ubpa::Utopia {
 		void ImportAssetRecursively(const std::filesystem::path& directory);
 
 		// load first asset at path
-		void* LoadAsset(const std::filesystem::path& path);
+		std::shared_ptr<Object> LoadAsset(const std::filesystem::path& path);
 		// returns the first asset object of type at given path
-		void* LoadAsset(const std::filesystem::path& path, const std::type_info&);
+		std::shared_ptr<Object> LoadAsset(const std::filesystem::path& path, const std::type_info&);
 		// returns the first asset object of type at given path
 		template<typename T>
-		T* LoadAsset(const std::filesystem::path& path);
+		std::shared_ptr<T> LoadAsset(const std::filesystem::path& path);
 
 		void ReserializeAsset(const std::filesystem::path& path);
 

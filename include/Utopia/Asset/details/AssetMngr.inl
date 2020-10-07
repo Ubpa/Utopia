@@ -2,25 +2,25 @@
 
 namespace Ubpa::Utopia {
 	template<typename Asset>
-	bool AssetMngr::CreateAsset(Asset* ptr, const std::filesystem::path& path) {
-		static_assert(!std::is_pointer_v<std::decay_t<Asset>>);
-		return  CreateAsset((void*)ptr, path);
+	bool AssetMngr::CreateAsset(std::shared_ptr<Asset> ptr, const std::filesystem::path& path) {
+		static_assert(std::is_base_of_v<Object, Asset>);
+		return  CreateAsset(std::static_pointer_cast<Object>(std::move(ptr)), path);
 	}
 
 	template<typename Asset>
 	bool AssetMngr::CreateAsset(Asset&& asset, const std::filesystem::path& path) {
-		static_assert(!std::is_pointer_v<std::decay_t<Asset>>);
-		return CreateAsset((void*)new std::decay_t<Asset>(std::forward<Asset>(asset)), path);
+		using RawAsset = std::remove_reference_t<Asset>;
+		return CreateAsset(std::make_shared<RawAsset>(std::forward<Asset>(asset)), path);
 	}
 
 	template<typename T>
-	T* AssetMngr::LoadAsset(const std::filesystem::path& path) {
-		void* ptr = LoadAsset(path, typeid(std::decay_t<T>));
-		return reinterpret_cast<T*>(ptr);
+	std::shared_ptr<T> AssetMngr::LoadAsset(const std::filesystem::path& path) {
+		static_assert(std::is_base_of_v<Object, T>);
+		return std::static_pointer_cast<T>(LoadAsset(path, typeid(T)));
 	}
 
 	template<typename T>
-	T* AssetMngr::GUIDToAsset(const xg::Guid& guid) const {
+	std::shared_ptr<T> AssetMngr::GUIDToAsset(const xg::Guid& guid) const {
 		void* ptr = GUIDToAsset(guid, typeid(std::decay_t<T>));
 		return reinterpret_cast<T*>(ptr);
 	}

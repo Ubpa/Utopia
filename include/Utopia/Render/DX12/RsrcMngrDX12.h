@@ -26,12 +26,12 @@ namespace Ubpa::Utopia {
 
 		RsrcMngrDX12& RegisterTexture2D(
 			DirectX::ResourceUploadBatch& upload,
-			const Texture2D* tex2D
+			const Texture2D& tex2D
 		);
 
 		RsrcMngrDX12& RegisterTextureCube(
 			DirectX::ResourceUploadBatch& upload,
-			const TextureCube* texcube
+			const TextureCube& texcube
 		);
 		// [sync]
 		// - (maybe) construct resized upload buffer
@@ -44,27 +44,27 @@ namespace Ubpa::Utopia {
 			DirectX::ResourceUploadBatch& upload,
 			UDX12::ResourceDeleteBatch& deleteBatch,
 			ID3D12GraphicsCommandList* cmdList,
-			Mesh* mesh
+			Mesh& mesh
 		);
 		
-		bool RegisterShader(const Shader* shader);
+		bool RegisterShader(const Shader& shader);
 
-		const ID3DBlob* GetShaderByteCode_vs(const Shader* shader, size_t passIdx) const;
-		const ID3DBlob* GetShaderByteCode_ps(const Shader* shader, size_t passIdx) const;
-		ID3D12ShaderReflection* GetShaderRefl_vs(const Shader* shader, size_t passIdx) const;
-		ID3D12ShaderReflection* GetShaderRefl_ps(const Shader* shader, size_t passIdx) const;
-		ID3D12RootSignature* GetShaderRootSignature(const Shader* shader) const;
+		const ID3DBlob* GetShaderByteCode_vs(const Shader& shader, size_t passIdx) const;
+		const ID3DBlob* GetShaderByteCode_ps(const Shader& shader, size_t passIdx) const;
+		ID3D12ShaderReflection* GetShaderRefl_vs(const Shader& shader, size_t passIdx) const;
+		ID3D12ShaderReflection* GetShaderRefl_ps(const Shader& shader, size_t passIdx) const;
+		ID3D12RootSignature* GetShaderRootSignature(const Shader& shader) const;
 
 		size_t RegisterPSO(const D3D12_GRAPHICS_PIPELINE_STATE_DESC* desc);
 
-		D3D12_CPU_DESCRIPTOR_HANDLE GetTexture2DSrvCpuHandle(const Texture2D* tex2D) const;
-		D3D12_GPU_DESCRIPTOR_HANDLE GetTexture2DSrvGpuHandle(const Texture2D* tex2D) const;
-		D3D12_CPU_DESCRIPTOR_HANDLE GetTextureCubeSrvCpuHandle(const TextureCube* texcube) const;
-		D3D12_GPU_DESCRIPTOR_HANDLE GetTextureCubeSrvGpuHandle(const TextureCube* texcube) const;
-		ID3D12Resource* GetTexture2DResource(const Texture2D* tex2D) const;
-		ID3D12Resource* GetTextureCubeResource(const TextureCube* texcube) const;
+		D3D12_CPU_DESCRIPTOR_HANDLE GetTexture2DSrvCpuHandle(const Texture2D& tex2D) const;
+		D3D12_GPU_DESCRIPTOR_HANDLE GetTexture2DSrvGpuHandle(const Texture2D& tex2D) const;
+		D3D12_CPU_DESCRIPTOR_HANDLE GetTextureCubeSrvCpuHandle(const TextureCube& texcube) const;
+		D3D12_GPU_DESCRIPTOR_HANDLE GetTextureCubeSrvGpuHandle(const TextureCube& texcube) const;
+		ID3D12Resource* GetTexture2DResource(const Texture2D& tex2D) const;
+		ID3D12Resource* GetTextureCubeResource(const TextureCube& texcube) const;
 
-		UDX12::MeshGPUBuffer& GetMeshGPUBuffer(const Mesh* mesh) const;
+		UDX12::MeshGPUBuffer& GetMeshGPUBuffer(const Mesh& mesh) const;
 
 		ID3D12PipelineState* GetPSO(size_t id) const;
 

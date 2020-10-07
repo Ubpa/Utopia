@@ -567,23 +567,23 @@ void Editor::Impl::Update() {
 				upload,
 				deleteBatch,
 				pEditor->uGCmdList.Get(),
-				meshFilter->mesh
+				*meshFilter->mesh
 			);
 
 			for (const auto& material : meshRenderer->materials) {
 				if (!material)
 					continue;
 				for (const auto& [name, property] : material->properties) {
-					if (std::holds_alternative<const Texture2D*>(property)) {
+					if (std::holds_alternative<std::shared_ptr<const Texture2D>>(property)) {
 						RsrcMngrDX12::Instance().RegisterTexture2D(
 							RsrcMngrDX12::Instance().GetUpload(),
-							std::get<const Texture2D*>(property)
+							*std::get<std::shared_ptr<const Texture2D>>(property)
 						);
 					}
-					else if (std::holds_alternative<const TextureCube*>(property)) {
+					else if (std::holds_alternative<std::shared_ptr<const TextureCube>>(property)) {
 						RsrcMngrDX12::Instance().RegisterTextureCube(
 							RsrcMngrDX12::Instance().GetUpload(),
-							std::get<const TextureCube*>(property)
+							*std::get<std::shared_ptr<const TextureCube>>(property)
 						);
 					}
 				}
@@ -592,16 +592,16 @@ void Editor::Impl::Update() {
 
 		if (auto skybox = w->entityMngr.GetSingleton<Skybox>(); skybox && skybox->material) {
 			for (const auto& [name, property] : skybox->material->properties) {
-				if (std::holds_alternative<const Texture2D*>(property)) {
+				if (std::holds_alternative<std::shared_ptr<const Texture2D>>(property)) {
 					RsrcMngrDX12::Instance().RegisterTexture2D(
 						RsrcMngrDX12::Instance().GetUpload(),
-						std::get<const Texture2D*>(property)
+						*std::get<std::shared_ptr<const Texture2D>>(property)
 					);
 				}
-				else if (std::holds_alternative<const TextureCube*>(property)) {
+				else if (std::holds_alternative<std::shared_ptr<const TextureCube>>(property)) {
 					RsrcMngrDX12::Instance().RegisterTextureCube(
 						RsrcMngrDX12::Instance().GetUpload(),
-						std::get<const TextureCube*>(property)
+						*std::get<std::shared_ptr<const TextureCube>>(property)
 					);
 				}
 			}
@@ -883,7 +883,7 @@ void Editor::Impl::LoadTextures() {
 		const auto& path = AssetMngr::Instance().GUIDToAssetPath(guid);
 		RsrcMngrDX12::Instance().RegisterTexture2D(
 			RsrcMngrDX12::Instance().GetUpload(),
-			AssetMngr::Instance().LoadAsset<Texture2D>(path)
+			*AssetMngr::Instance().LoadAsset<Texture2D>(path)
 		);
 	}
 
@@ -892,7 +892,7 @@ void Editor::Impl::LoadTextures() {
 		const auto& path = AssetMngr::Instance().GUIDToAssetPath(guid);
 		RsrcMngrDX12::Instance().RegisterTextureCube(
 			RsrcMngrDX12::Instance().GetUpload(),
-			AssetMngr::Instance().LoadAsset<TextureCube>(path)
+			*AssetMngr::Instance().LoadAsset<TextureCube>(path)
 		);
 	}
 }
@@ -903,7 +903,7 @@ void Editor::Impl::BuildShaders() {
 	for (const auto& guid : shaderGUIDs) {
 		const auto& path = assetMngr.GUIDToAssetPath(guid);
 		auto shader = assetMngr.LoadAsset<Shader>(path);
-		RsrcMngrDX12::Instance().RegisterShader(shader);
+		RsrcMngrDX12::Instance().RegisterShader(*shader);
 		ShaderMngr::Instance().Register(shader);
 	}
 }
@@ -942,16 +942,18 @@ void Editor::Impl::InspectMaterial(Material* material, InspectorRegistry::Inspec
 		static ImGuiTextFilter filter;
 		filter.Draw();
 		int ID = 0;
+		ShaderMngr::Instance().Refresh();
 		size_t N = ShaderMngr::Instance().GetShaderMap().size();
 		for (const auto& [name, shader] : ShaderMngr::Instance().GetShaderMap()) {
-			if (shader != material->shader && filter.PassFilter(name.c_str())) {
+			auto shader_s = shader.lock();
+			if (shader_s != material->shader && filter.PassFilter(name.c_str())) {
 				ImGui::PushID(ID);
 				ImGui::PushStyleColor(ImGuiCol_Button, (ImVec4)ImColor::HSV(ID / float(N), 0.6f, 0.6f));
 				ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImVec4)ImColor::HSV(ID / float(N), 0.7f, 0.7f));
 				ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImVec4)ImColor::HSV(ID / float(N), 0.8f, 0.8f));
 				if (ImGui::Button(name.c_str())) {
-					material->shader = shader;
-					material->properties = shader->properties;
+					material->shader = shader_s;
+					material->properties = shader_s->properties;
 				}
 				ImGui::PopStyleColor(3);
 				ImGui::PopID();
@@ -972,7 +974,7 @@ void Editor::Impl::InspectMaterial(Material* material, InspectorRegistry::Inspec
 			changed = true;
 	});
 	if (changed) {
-		const auto& path = AssetMngr::Instance().GetAssetPath(material);
+		const auto& path = AssetMngr::Instance().GetAssetPath(*material);
 		AssetMngr::Instance().ReserializeAsset(path);
 	}
 }

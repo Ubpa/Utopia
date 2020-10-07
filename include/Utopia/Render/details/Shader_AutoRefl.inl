@@ -6,7 +6,7 @@
 
 template<>
 struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::Shader>
-	: Ubpa::USRefl::TypeInfoBase<Ubpa::Utopia::Shader, Base<Ubpa::Utopia::RenderRsrcObject>>
+	: Ubpa::USRefl::TypeInfoBase<Ubpa::Utopia::Shader, Base<Ubpa::Utopia::Object>>
 {
 	static constexpr AttrList attrs = {};
 	

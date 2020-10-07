@@ -5,10 +5,12 @@
 
 #include <UDP/Basic/Read.h>
 
+#include "Object.h"
+
 #include <string>
 
 namespace Ubpa::Utopia {
-	class Image {
+	class Image : public Object {
 	public:
 		Read<Image, float*> data{ nullptr };
 		Read<Image, size_t> width{ static_cast<size_t>(0) };

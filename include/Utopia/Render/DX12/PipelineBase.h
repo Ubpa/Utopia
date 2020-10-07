@@ -66,11 +66,11 @@ namespace Ubpa::Utopia {
 
 			size_t materialCBSize{ 0 };
 			std::map<size_t, size_t> offsetMap; // register index -> local offset
-			std::unordered_map<const Material*, size_t> indexMap;
+			std::unordered_map<size_t, size_t> indexMap; // material ID -> index
 		};
 		static ShaderCBDesc UpdateShaderCBs(
 			ShaderCBMngrDX12& shaderCBMngr,
-			const Shader* shader,
+			const Shader& shader,
 			const std::unordered_set<const Material*>& materials,
 			const std::set<std::string_view>& commonCBs
 		);
@@ -78,7 +78,7 @@ namespace Ubpa::Utopia {
 			ID3D12GraphicsCommandList* cmdList,
 			ShaderCBMngrDX12& shaderCBMngr,
 			const ShaderCBDesc& shaderCBDescconst,
-			const Material* material,
+			const Material& material,
 			const std::map<std::string_view, D3D12_GPU_VIRTUAL_ADDRESS>& commonCBs,
 			const std::map<std::string_view, D3D12_GPU_DESCRIPTOR_HANDLE>& commonSRVs
 		);

@@ -363,13 +363,14 @@ namespace Ubpa::Utopia::detail {
 				InspectVar(field, static_cast<std::underlying_type_t<Value>&>(var), ctx);
 			}
 		}
-		else if constexpr (std::is_pointer_v<Value>) {
-			using Type = std::remove_pointer_t<Value>;
+		else if constexpr (is_instance_of_v<Value, std::shared_ptr>) {
+			using Element = typename Value::element_type;
+			static_assert(std::is_base_of_v<Object, Element>);
 			ImGui::Text("(*)");
 			ImGui::SameLine();
 			// button
 			if (var) {
-				const auto& path = AssetMngr::Instance().GetAssetPath(var);
+				const auto& path = AssetMngr::Instance().GetAssetPath(*var);
 				if (!path.empty()) {
 					auto name = path.stem().string();
 					ImGui::Button(name.c_str());
@@ -386,7 +387,7 @@ namespace Ubpa::Utopia::detail {
 					const auto& payload_guid = *(const xg::Guid*)payload->Data;
 					const auto& path = AssetMngr::Instance().GUIDToAssetPath(payload_guid);
 					assert(!path.empty());
-					if (auto asset = AssetMngr::Instance().LoadAsset<std::decay_t<Type>>(path))
+					if (auto asset = AssetMngr::Instance().LoadAsset<Element>(path))
 						var = asset;
 				}
 				ImGui::EndDragDropTarget();
@@ -514,6 +515,7 @@ namespace Ubpa::Utopia::detail {
 		if constexpr (std::is_scalar_v<Value>
 		|| std::is_same_v<Value, std::string>
 		|| std::is_same_v<Value, UECS::Entity>
+		|| is_instance_of_v<Value, std::shared_ptr>
 		|| ArrayTraits<Value>::isArray && ValNTraits<Value>::isValN
 		)
 		{
@@ -593,13 +595,14 @@ namespace Ubpa::Utopia::detail {
 				else
 					InspectVar(field, static_cast<std::underlying_type_t<Value>&>(var), ctx);
 			}
-			else if constexpr (std::is_pointer_v<Value>) {
-				using Type = std::remove_pointer_t<Value>;
+			else if constexpr (is_instance_of_v<Value, std::shared_ptr>) {
+				using Element = typename Value::element_type;
+				static_assert(std::is_base_of_v<Object, Element>);
 				ImGui::Text("(*)");
 				ImGui::SameLine();
 				// button
 				if (var) {
-					const auto& path = AssetMngr::Instance().GetAssetPath(var);
+					const auto& path = AssetMngr::Instance().GetAssetPath(*var);
 					if (!path.empty()) {
 						auto name = path.stem().string();
 						ImGui::Button(name.c_str());
@@ -616,7 +619,7 @@ namespace Ubpa::Utopia::detail {
 						const auto& payload_guid = *(const xg::Guid*)payload->Data;
 						const auto& path = AssetMngr::Instance().GUIDToAssetPath(payload_guid);
 						assert(!path.empty());
-						if (auto asset = AssetMngr::Instance().LoadAsset<std::decay_t<Type>>(path))
+						if (auto asset = AssetMngr::Instance().LoadAsset<Element>(path))
 							var = asset;
 					}
 					ImGui::EndDragDropTarget();

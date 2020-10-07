@@ -5,7 +5,7 @@
 namespace Ubpa::Utopia {
 	// singleton
 	struct Skybox {
-		const Material* material;
+		std::shared_ptr<Material> material;
 	};
 }
 

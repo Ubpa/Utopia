@@ -212,9 +212,9 @@ UDX12::ResourceDeleteBatch& RsrcMngrDX12::GetDeleteBatch() const {
 
 RsrcMngrDX12& RsrcMngrDX12::RegisterTexture2D(
 	DirectX::ResourceUploadBatch& upload,
-	const Texture2D* tex2D)
+	const Texture2D& tex2D)
 {
-	auto target = pImpl->texture2DMap.find(tex2D->GetInstanceID());
+	auto target = pImpl->texture2DMap.find(tex2D.GetInstanceID());
 	if (target != pImpl->texture2DMap.end())
 		return *this;
 
@@ -230,16 +230,16 @@ RsrcMngrDX12& RsrcMngrDX12::RegisterTexture2D(
 	};
 
 	D3D12_SUBRESOURCE_DATA data;
-	data.pData = tex2D->image->data;
-	data.RowPitch = tex2D->image->width * tex2D->image->channel * sizeof(float);
-	data.SlicePitch = tex2D->image->height* data.RowPitch; // this field is useless for texture 2d
+	data.pData = tex2D.image->data;
+	data.RowPitch = tex2D.image->width * tex2D.image->channel * sizeof(float);
+	data.SlicePitch = tex2D.image->height* data.RowPitch; // this field is useless for texture 2d
 
 	DirectX::CreateTextureFromMemory(
 		pImpl->device,
 		upload,
-		tex2D->image->width.get(),
-		tex2D->image->height.get(),
-		channelMap[tex2D->image->channel - 1],
+		tex2D.image->width.get(),
+		tex2D.image->height.get(),
+		channelMap[tex2D.image->channel - 1],
 		data,
 		&tex.resource
 	);
@@ -250,16 +250,16 @@ RsrcMngrDX12& RsrcMngrDX12::RegisterTexture2D(
 		tex.allocationSRV.GetCpuHandle(static_cast<uint32_t>(0))
 	);
 
-	pImpl->texture2DMap.emplace_hint(target, std::make_pair(tex2D->GetInstanceID(), move(tex)));
+	pImpl->texture2DMap.emplace_hint(target, std::make_pair(tex2D.GetInstanceID(), move(tex)));
 
 	return *this;
 }
 
 RsrcMngrDX12& RsrcMngrDX12::RegisterTextureCube(
 	DirectX::ResourceUploadBatch& upload,
-	const TextureCube* texcube
+	const TextureCube& texcube
 ) {
-	auto target = pImpl->textureCubeMap.find(texcube->GetInstanceID());
+	auto target = pImpl->textureCubeMap.find(texcube.GetInstanceID());
 	if (target != pImpl->textureCubeMap.end())
 		return *this;
 
@@ -274,15 +274,15 @@ RsrcMngrDX12& RsrcMngrDX12::RegisterTextureCube(
 		DXGI_FORMAT::DXGI_FORMAT_R32G32B32A32_FLOAT,
 	};
 
-	size_t w = texcube->images->front()->width;
-	size_t h = texcube->images->front()->height;
-	size_t c = texcube->images->front()->channel;
+	size_t w = texcube.images->front()->width;
+	size_t h = texcube.images->front()->height;
+	size_t c = texcube.images->front()->channel;
 
 	std::array<D3D12_SUBRESOURCE_DATA, 6> datas;
 	for (size_t i = 0; i < datas.size(); i++) {
-		datas[i].pData = texcube->images[i]->data;
-		datas[i].RowPitch = texcube->images[i]->width * texcube->images[i]->channel * sizeof(float);
-		datas[i].SlicePitch = texcube->images[i]->height * datas[i].RowPitch; // this field is useless for texture 2d
+		datas[i].pData = texcube.images[i]->data;
+		datas[i].RowPitch = texcube.images[i]->width * texcube.images[i]->channel * sizeof(float);
+		datas[i].SlicePitch = texcube.images[i]->height * datas[i].RowPitch; // this field is useless for texture 2d
 	}
 
 	UDX12::Util::CreateTexture2DArrayFromMemory(
@@ -300,14 +300,14 @@ RsrcMngrDX12& RsrcMngrDX12::RegisterTextureCube(
 		tex.allocationSRV.GetCpuHandle(static_cast<uint32_t>(0))
 	);
 
-	pImpl->textureCubeMap.emplace_hint(target, std::make_pair(texcube->GetInstanceID(), move(tex)));
+	pImpl->textureCubeMap.emplace_hint(target, std::make_pair(texcube.GetInstanceID(), move(tex)));
 
 	return *this;
 }
 
 //RsrcMngrDX12& RsrcMngrDX12::RegisterTexture2DArray(
 //	DirectX::ResourceUploadBatch& upload,
-//	size_t id, const Texture2D** tex2Ds, size_t num)
+//	size_t id, const Texture2D&* tex2Ds, size_t num)
 //{
 //	Impl::Texture tex;
 //	tex.resources.resize(num);
@@ -349,56 +349,56 @@ RsrcMngrDX12& RsrcMngrDX12::RegisterTextureCube(
 //	return *this;
 //}
 
-D3D12_CPU_DESCRIPTOR_HANDLE RsrcMngrDX12::GetTexture2DSrvCpuHandle(const Texture2D* tex2D) const {
-	return pImpl->texture2DMap.find(tex2D->GetInstanceID())->second.allocationSRV.GetCpuHandle(0);
+D3D12_CPU_DESCRIPTOR_HANDLE RsrcMngrDX12::GetTexture2DSrvCpuHandle(const Texture2D& tex2D) const {
+	return pImpl->texture2DMap.find(tex2D.GetInstanceID())->second.allocationSRV.GetCpuHandle(0);
 }
-D3D12_GPU_DESCRIPTOR_HANDLE RsrcMngrDX12::GetTexture2DSrvGpuHandle(const Texture2D* tex2D) const {
-	return pImpl->texture2DMap.find(tex2D->GetInstanceID())->second.allocationSRV.GetGpuHandle(0);
+D3D12_GPU_DESCRIPTOR_HANDLE RsrcMngrDX12::GetTexture2DSrvGpuHandle(const Texture2D& tex2D) const {
+	return pImpl->texture2DMap.find(tex2D.GetInstanceID())->second.allocationSRV.GetGpuHandle(0);
 }
-ID3D12Resource* RsrcMngrDX12::GetTexture2DResource(const Texture2D* tex2D) const {
-	return pImpl->texture2DMap.find(tex2D->GetInstanceID())->second.resource;
+ID3D12Resource* RsrcMngrDX12::GetTexture2DResource(const Texture2D& tex2D) const {
+	return pImpl->texture2DMap.find(tex2D.GetInstanceID())->second.resource;
 }
-D3D12_CPU_DESCRIPTOR_HANDLE RsrcMngrDX12::GetTextureCubeSrvCpuHandle(const TextureCube* texCube) const {
-	return pImpl->textureCubeMap.find(texCube->GetInstanceID())->second.allocationSRV.GetCpuHandle(0);
+D3D12_CPU_DESCRIPTOR_HANDLE RsrcMngrDX12::GetTextureCubeSrvCpuHandle(const TextureCube& texCube) const {
+	return pImpl->textureCubeMap.find(texCube.GetInstanceID())->second.allocationSRV.GetCpuHandle(0);
 }
-D3D12_GPU_DESCRIPTOR_HANDLE RsrcMngrDX12::GetTextureCubeSrvGpuHandle(const TextureCube* texCube) const {
-	return pImpl->textureCubeMap.find(texCube->GetInstanceID())->second.allocationSRV.GetGpuHandle(0);
+D3D12_GPU_DESCRIPTOR_HANDLE RsrcMngrDX12::GetTextureCubeSrvGpuHandle(const TextureCube& texCube) const {
+	return pImpl->textureCubeMap.find(texCube.GetInstanceID())->second.allocationSRV.GetGpuHandle(0);
 }
-ID3D12Resource* RsrcMngrDX12::GetTextureCubeResource(const TextureCube* texCube) const {
-	return pImpl->textureCubeMap.find(texCube->GetInstanceID())->second.resource;
+ID3D12Resource* RsrcMngrDX12::GetTextureCubeResource(const TextureCube& texCube) const {
+	return pImpl->textureCubeMap.find(texCube.GetInstanceID())->second.resource;
 }
 
-//UDX12::DescriptorHeapAllocation& RsrcMngrDX12::GetTextureRtvs(const Texture2D* tex2D) const {
-//	return pImpl->textureMap.find(tex2D->GetInstanceID())->second.allocationRTV;
+//UDX12::DescriptorHeapAllocation& RsrcMngrDX12::GetTextureRtvs(const Texture2D& tex2D) const {
+//	return pImpl->textureMap.find(tex2D.GetInstanceID())->second.allocationRTV;
 //}
 
 UDX12::MeshGPUBuffer& RsrcMngrDX12::RegisterMesh(
 	DirectX::ResourceUploadBatch& upload,
 	UDX12::ResourceDeleteBatch& deleteBatch,
 	ID3D12GraphicsCommandList* cmdList,
-	Mesh* mesh
+	Mesh& mesh
 ) {
-	auto target = pImpl->meshMap.find(mesh->GetInstanceID());
+	auto target = pImpl->meshMap.find(mesh.GetInstanceID());
 	if (target == pImpl->meshMap.end()) {
-		if (mesh->IsDirty())
-			mesh->UpdateVertexBuffer();
+		if (mesh.IsDirty())
+			mesh.UpdateVertexBuffer();
 
-		auto vb_data = mesh->GetVertexBufferData();
-		auto vb_count = (UINT)mesh->GetVertexBufferVertexCount();
-		auto vb_stride = (UINT)mesh->GetVertexBufferVertexStride();
-		auto ib_data = mesh->GetIndices().data();
-		auto ib_count = (UINT)mesh->GetIndices().size();
+		auto vb_data = mesh.GetVertexBufferData();
+		auto vb_count = (UINT)mesh.GetVertexBufferVertexCount();
+		auto vb_stride = (UINT)mesh.GetVertexBufferVertexStride();
+		auto ib_data = mesh.GetIndices().data();
+		auto ib_count = (UINT)mesh.GetIndices().size();
 		auto ib_format = DXGI_FORMAT_R32_UINT;
 
-		if (mesh->IsEditable()) {
+		if (mesh.IsEditable()) {
 			auto [iter, success] = pImpl->meshMap.try_emplace(
-				mesh->GetInstanceID(),
+				mesh.GetInstanceID(),
 				pImpl->device, cmdList,
-				mesh->GetVertexBufferData(),
-				(UINT)mesh->GetVertexBufferVertexCount(),
-				(UINT)mesh->GetVertexBufferVertexStride(),
-				mesh->GetIndices().data(),
-				(UINT)mesh->GetIndices().size(),
+				mesh.GetVertexBufferData(),
+				(UINT)mesh.GetVertexBufferVertexCount(),
+				(UINT)mesh.GetVertexBufferVertexStride(),
+				mesh.GetIndices().data(),
+				(UINT)mesh.GetIndices().size(),
 				DXGI_FORMAT_R32_UINT
 			);
 			assert(success);
@@ -406,13 +406,13 @@ UDX12::MeshGPUBuffer& RsrcMngrDX12::RegisterMesh(
 		}
 		else {
 			auto [iter, success] = pImpl->meshMap.try_emplace(
-				mesh->GetInstanceID(),
+				mesh.GetInstanceID(),
 				pImpl->device, upload,
-				mesh->GetVertexBufferData(),
-				(UINT)mesh->GetVertexBufferVertexCount(),
-				(UINT)mesh->GetVertexBufferVertexStride(),
-				mesh->GetIndices().data(),
-				(UINT)mesh->GetIndices().size(),
+				mesh.GetVertexBufferData(),
+				(UINT)mesh.GetVertexBufferVertexCount(),
+				(UINT)mesh.GetVertexBufferVertexStride(),
+				mesh.GetIndices().data(),
+				(UINT)mesh.GetIndices().size(),
 				DXGI_FORMAT_R32_UINT
 			);
 			assert(success);
@@ -422,16 +422,16 @@ UDX12::MeshGPUBuffer& RsrcMngrDX12::RegisterMesh(
 	else {
 		auto& meshGpuBuffer = target->second;
 		if (!meshGpuBuffer.IsStatic()) {
-			if (mesh->IsEditable()) {
-				if (mesh->IsDirty()) {
-					mesh->UpdateVertexBuffer();
+			if (mesh.IsEditable()) {
+				if (mesh.IsDirty()) {
+					mesh.UpdateVertexBuffer();
 					meshGpuBuffer.Update(
 						pImpl->device, cmdList,
-						mesh->GetVertexBufferData(),
-						(UINT)mesh->GetVertexBufferVertexCount(),
-						(UINT)mesh->GetVertexBufferVertexStride(),
-						mesh->GetIndices().data(),
-						(UINT)mesh->GetIndices().size(),
+						mesh.GetVertexBufferData(),
+						(UINT)mesh.GetVertexBufferVertexCount(),
+						(UINT)mesh.GetVertexBufferVertexStride(),
+						mesh.GetIndices().data(),
+						(UINT)mesh.GetIndices().size(),
 						DXGI_FORMAT_R32_UINT
 					);
 				}
@@ -439,15 +439,15 @@ UDX12::MeshGPUBuffer& RsrcMngrDX12::RegisterMesh(
 				//	;// do nothing
 			}
 			else {
-				if (mesh->IsDirty()) {
+				if (mesh.IsDirty()) {
 					meshGpuBuffer.UpdateAndConvertToStatic(
 						deleteBatch,
 						pImpl->device, cmdList,
-						mesh->GetVertexBufferData(),
-						(UINT)mesh->GetVertexBufferVertexCount(),
-						(UINT)mesh->GetVertexBufferVertexStride(),
-						mesh->GetIndices().data(),
-						(UINT)mesh->GetIndices().size(),
+						mesh.GetVertexBufferData(),
+						(UINT)mesh.GetVertexBufferVertexCount(),
+						(UINT)mesh.GetVertexBufferVertexStride(),
+						mesh.GetIndices().data(),
+						(UINT)mesh.GetIndices().size(),
 						DXGI_FORMAT_R32_UINT
 					);
 				}
@@ -456,51 +456,51 @@ UDX12::MeshGPUBuffer& RsrcMngrDX12::RegisterMesh(
 			}
 		}
 		else
-			assert(!mesh->IsEditable() && !mesh->IsDirty());
+			assert(!mesh.IsEditable() && !mesh.IsDirty());
 
 		return meshGpuBuffer;
 	}
-	return pImpl->meshMap.find(mesh->GetInstanceID())->second;
+	return pImpl->meshMap.find(mesh.GetInstanceID())->second;
 }
 
-UDX12::MeshGPUBuffer& RsrcMngrDX12::GetMeshGPUBuffer(const Mesh* mesh) const {
-	return pImpl->meshMap.find(mesh->GetInstanceID())->second;
+UDX12::MeshGPUBuffer& RsrcMngrDX12::GetMeshGPUBuffer(const Mesh& mesh) const {
+	return pImpl->meshMap.find(mesh.GetInstanceID())->second;
 }
 
-bool RsrcMngrDX12::RegisterShader(const Shader* shader) {
-	auto target = pImpl->shaderMap.find(shader->GetInstanceID());
+bool RsrcMngrDX12::RegisterShader(const Shader& shader) {
+	auto target = pImpl->shaderMap.find(shader.GetInstanceID());
 	if (target != pImpl->shaderMap.end())
 		return true;
 
 	D3D_SHADER_MACRO macros[] = {
 		{nullptr, nullptr}
 	};
-	Ubpa::UDX12::D3DInclude d3dInclude{ shader->hlslFile->GetLocalDir(), "../" };
-	auto& shaderCompileData = pImpl->shaderMap[shader->GetInstanceID()];
-	shaderCompileData.passes.resize(shader->passes.size());
-	for (size_t i = 0; i < shader->passes.size(); i++) {
-		const auto& pass = shader->passes[i];
+	Ubpa::UDX12::D3DInclude d3dInclude{ shader.hlslFile->GetLocalDir(), "../" };
+	auto& shaderCompileData = pImpl->shaderMap[shader.GetInstanceID()];
+	shaderCompileData.passes.resize(shader.passes.size());
+	for (size_t i = 0; i < shader.passes.size(); i++) {
+		const auto& pass = shader.passes[i];
 		Impl::ShaderCompileData::PassData passdata;
 		shaderCompileData.passes[i].vsByteCode = UDX12::Util::CompileShader(
-			shader->hlslFile->GetText(),
+			shader.hlslFile->GetText(),
 			macros,
 			pass.vertexName,
 			"vs_5_0",
 			&d3dInclude
 		);
 		if (!shaderCompileData.passes[i].vsByteCode) {
-			pImpl->shaderMap.erase(shader->GetInstanceID());
+			pImpl->shaderMap.erase(shader.GetInstanceID());
 			return false;
 		}
 		shaderCompileData.passes[i].psByteCode = UDX12::Util::CompileShader(
-			shader->hlslFile->GetText(),
+			shader.hlslFile->GetText(),
 			macros,
 			pass.fragmentName,
 			"ps_5_0",
 			&d3dInclude
 		);
 		if (!shaderCompileData.passes[i].psByteCode) {
-			pImpl->shaderMap.erase(shader->GetInstanceID());
+			pImpl->shaderMap.erase(shader.GetInstanceID());
 			return false;
 		}
 		ThrowIfFailed(D3DReflect(
@@ -530,7 +530,7 @@ bool RsrcMngrDX12::RegisterShader(const Shader* shader) {
 		}
 	};
 
-	size_t N = shader->rootParameters.size();
+	size_t N = shader.rootParameters.size();
 	if (N == 0)
 		return true;
 	std::vector<CD3DX12_ROOT_PARAMETER> rootParamters(N);
@@ -575,7 +575,7 @@ bool RsrcMngrDX12::RegisterShader(const Shader* shader) {
 			}
 			else
 				static_assert(false);
-		}, shader->rootParameters[i]);
+		}, shader.rootParameters[i]);
 	}
 
 	const auto samplers = GetStaticSamplers();
@@ -596,7 +596,7 @@ bool RsrcMngrDX12::RegisterShader(const Shader* shader) {
 	{
 		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
 		errorBlob->Release();
-		pImpl->shaderMap.erase(shader->GetInstanceID());
+		pImpl->shaderMap.erase(shader.GetInstanceID());
 		return false;
 	}
 	ThrowIfFailed(hr);
@@ -613,24 +613,24 @@ bool RsrcMngrDX12::RegisterShader(const Shader* shader) {
 	return true;
 }
 
-const ID3DBlob* RsrcMngrDX12::GetShaderByteCode_vs(const Shader* shader, size_t passIdx) const {
-	return pImpl->shaderMap.at(shader->GetInstanceID()).passes[passIdx].vsByteCode.Get();
+const ID3DBlob* RsrcMngrDX12::GetShaderByteCode_vs(const Shader& shader, size_t passIdx) const {
+	return pImpl->shaderMap.at(shader.GetInstanceID()).passes[passIdx].vsByteCode.Get();
 }
 
-const ID3DBlob* RsrcMngrDX12::GetShaderByteCode_ps(const Shader* shader, size_t passIdx) const {
-	return pImpl->shaderMap.at(shader->GetInstanceID()).passes[passIdx].psByteCode.Get();
+const ID3DBlob* RsrcMngrDX12::GetShaderByteCode_ps(const Shader& shader, size_t passIdx) const {
+	return pImpl->shaderMap.at(shader.GetInstanceID()).passes[passIdx].psByteCode.Get();
 }
 
-ID3D12ShaderReflection* RsrcMngrDX12::GetShaderRefl_vs(const Shader* shader, size_t passIdx) const {
-	return pImpl->shaderMap.at(shader->GetInstanceID()).passes[passIdx].vsRefl.Get();
+ID3D12ShaderReflection* RsrcMngrDX12::GetShaderRefl_vs(const Shader& shader, size_t passIdx) const {
+	return pImpl->shaderMap.at(shader.GetInstanceID()).passes[passIdx].vsRefl.Get();
 }
 
-ID3D12ShaderReflection* RsrcMngrDX12::GetShaderRefl_ps(const Shader* shader, size_t passIdx) const {
-	return pImpl->shaderMap.at(shader->GetInstanceID()).passes[passIdx].psRefl.Get();
+ID3D12ShaderReflection* RsrcMngrDX12::GetShaderRefl_ps(const Shader& shader, size_t passIdx) const {
+	return pImpl->shaderMap.at(shader.GetInstanceID()).passes[passIdx].psRefl.Get();
 }
 
-ID3D12RootSignature* RsrcMngrDX12::GetShaderRootSignature(const Shader* shader) const {
-	return pImpl->shaderMap.at(shader->GetInstanceID()).rootSignature.Get();
+ID3D12RootSignature* RsrcMngrDX12::GetShaderRootSignature(const Shader& shader) const {
+	return pImpl->shaderMap.at(shader.GetInstanceID()).rootSignature.Get();
 }
 
 //RsrcMngrDX12& RsrcMngrDX12::RegisterRenderTexture2D(size_t id, UINT width, UINT height, DXGI_FORMAT format) {

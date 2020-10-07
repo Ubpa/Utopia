@@ -3,9 +3,10 @@
 #include <atomic>
 
 namespace Ubpa::Utopia {
-	class RenderRsrcObject {
+	class Object {
 	public:
-		RenderRsrcObject() : id{ curID++ } {}
+		Object() noexcept : id{ curID++ } {}
+		virtual ~Object() noexcept {}
 		size_t GetInstanceID() const noexcept { return id; }
 	private:
 		const size_t id;
@@ -13,4 +14,4 @@ namespace Ubpa::Utopia {
 	};
 }
 
-#include "details/RenderRsrcObject_AutoRefl.inl"
+#include "details/Object_AutoRefl.inl"

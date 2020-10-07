@@ -2,6 +2,7 @@
 
 #include <map>
 #include <string>
+#include <memory>
 
 namespace Ubpa::Utopia {
 	struct Shader;
@@ -13,12 +14,14 @@ namespace Ubpa::Utopia {
 			return instance;
 		}
 
-		void Register(Shader*);
-		Shader* Get(std::string_view name) const;
-		const std::map<std::string, Shader*, std::less<>> GetShaderMap() const noexcept { return shaderMap; }
+		void Register(std::shared_ptr<Shader>);
+		std::shared_ptr<Shader> Get(std::string_view name) const;
+		const std::map<std::string, std::weak_ptr<Shader>, std::less<>> GetShaderMap() const noexcept { return shaderMap; }
+		// clear expired weak_ptr
+		void Refresh();
 
 	private:
 		ShaderMngr() = default;
-		std::map<std::string, Shader*, std::less<>> shaderMap;
+		std::map<std::string, std::weak_ptr<Shader>, std::less<>> shaderMap;
 	};
 }

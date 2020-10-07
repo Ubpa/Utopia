@@ -1,9 +1,11 @@
 #pragma once
 
+#include "../Core/Object.h"
+
 #include <string>
 
 namespace Ubpa::Utopia {
-	class HLSLFile {
+	class HLSLFile : public Object {
 	public:
 		HLSLFile(std::string text, std::string localDir)
 			: text{ std::move(text) }, localDir{ std::move(localDir) }{}

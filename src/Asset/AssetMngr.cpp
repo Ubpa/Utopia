@@ -36,37 +36,23 @@
 using namespace Ubpa::Utopia;
 
 struct AssetMngr::Impl {
-	// asset <-> path <-> guid
+	// N asset <-> path <-> guid
 	
 	struct Asset {
-		xg::Guid localID;
-		std::unique_ptr<void, std::function<void(void*)>> ptr;
-		const std::type_info& typeinfo;
-
-		template<typename T>
-		static std::function<void(void*)> DefaultDeletor() noexcept {
-			return [](void* p) {
-				delete (T*)p;
-			};
+		//xg::Guid localID;
+		std::shared_ptr<Object> ptr;
+		const std::type_info& GetTypeInfo() const noexcept {
+			return typeid(*ptr);
 		}
-
 		template<typename T>
-		Asset(T* p)
-			:
-			ptr{ p, DefaultDeletor<T>() },
-			typeinfo{ typeid(std::decay_t<T>) }
-		{}
-
-		template<typename T>
-		Asset(xg::Guid localID, T* p)
-			:
-			localID{ localID },
-			ptr { p, DefaultDeletor<T>() },
-			typeinfo{ typeid(std::decay_t<T>) }
-		{}
+		Asset(std::shared_ptr<T> ptr)
+			: ptr{ std::static_pointer_cast<Object>(std::move(ptr)) }
+		{
+			static_assert(std::is_base_of_v<Object, T>);
+		}
 	};
 
-	std::unordered_map<const void*, std::filesystem::path> asset2path;
+	std::unordered_map<size_t, std::filesystem::path> assetID2path;
 	std::multimap<std::filesystem::path, Asset> path2assert;
 
 	std::map<std::filesystem::path, xg::Guid> path2guid;
@@ -83,10 +69,10 @@ struct AssetMngr::Impl {
 		std::vector<pointf2> uv;
 		std::vector<SubMeshDescriptor> submeshes;
 	};
-	static Mesh* BuildMesh(MeshContext ctx);
-	static Mesh* LoadObj(const std::filesystem::path& path);
+	static std::shared_ptr<Mesh> BuildMesh(MeshContext ctx);
+	static std::shared_ptr<Mesh> LoadObj(const std::filesystem::path& path);
 #ifdef UBPA_DUSTENGINE_USE_ASSIMP
-	static Mesh* AssimpLoadMesh(const std::filesystem::path& path);
+	static std::shared_ptr<Mesh> AssimpLoadMesh(const std::filesystem::path& path);
 	static void AssimpLoadNode(AssetMngr::Impl::MeshContext& ctx, const aiNode* node, const aiScene* scene);
 	static void AssimpLoadMesh(AssetMngr::Impl::MeshContext& ctx, const aiMesh* mesh, const aiScene* scene);
 #endif // UBPA_DUSTENGINE_USE_ASSIMP
@@ -149,7 +135,7 @@ bool AssetMngr::IsSupported(std::string_view ext) const noexcept {
 }
 
 void AssetMngr::Clear() {
-	pImpl->asset2path.clear();
+	pImpl->assetID2path.clear();
 	pImpl->path2assert.clear();
 	pImpl->path2guid.clear();
 	pImpl->guid2path.clear();
@@ -165,8 +151,8 @@ xg::Guid AssetMngr::AssetPathToGUID(const std::filesystem::path& path) const {
 	return target == pImpl->path2guid.end() ? xg::Guid{} : target->second;
 }
 
-bool AssetMngr::Contains(const void* ptr) const {
-	return pImpl->asset2path.find(ptr) != pImpl->asset2path.end();
+bool AssetMngr::Contains(const Object& obj) const {
+	return pImpl->assetID2path.find(obj.GetInstanceID()) != pImpl->assetID2path.end();
 }
 
 std::vector<xg::Guid> AssetMngr::FindAssets(const std::wregex& matchRegex) const {
@@ -178,10 +164,10 @@ std::vector<xg::Guid> AssetMngr::FindAssets(const std::wregex& matchRegex) const
 	return rst;
 }
 
-const std::filesystem::path& AssetMngr::GetAssetPath(const void* ptr) const {
+const std::filesystem::path& AssetMngr::GetAssetPath(const Object& obj) const {
 	static const std::filesystem::path ERROR;
-	auto target = pImpl->asset2path.find(ptr);
-	return target == pImpl->asset2path.end() ? ERROR : target->second;
+	auto target = pImpl->assetID2path.find(obj.GetInstanceID());
+	return target == pImpl->assetID2path.end() ? ERROR : target->second;
 }
 
 const std::map<xg::Guid, std::set<xg::Guid>>& AssetMngr::GetAssetTree() const {
@@ -194,7 +180,7 @@ const std::type_info& AssetMngr::GetAssetType(const std::filesystem::path& path)
 	if (target == pImpl->path2assert.end())
 		return ERROR;
 
-	return target->second.typeinfo;
+	return typeid(*target->second.ptr);
 }
 
 const std::filesystem::path& AssetMngr::GUIDToAssetPath(const xg::Guid& guid) const {
@@ -203,15 +189,15 @@ const std::filesystem::path& AssetMngr::GUIDToAssetPath(const xg::Guid& guid) co
 	return target == pImpl->guid2path.end() ? ERROR : target->second;
 }
 
-void* AssetMngr::GUIDToAsset(const xg::Guid& guid) const {
+std::shared_ptr<Object> AssetMngr::GUIDToAsset(const xg::Guid& guid) const {
 	const auto& path = GUIDToAssetPath(guid);
 	if (path.empty())
 		return nullptr;
 
-	return pImpl->path2assert.find(path)->second.ptr.get();
+	return pImpl->path2assert.find(path)->second.ptr;
 }
 
-void* AssetMngr::GUIDToAsset(const xg::Guid& guid, const std::type_info& type) const {
+std::shared_ptr<Object> AssetMngr::GUIDToAsset(const xg::Guid& guid, const std::type_info& type) const {
 	const auto& path = GUIDToAssetPath(guid);
 	if (path.empty())
 		return nullptr;
@@ -219,8 +205,8 @@ void* AssetMngr::GUIDToAsset(const xg::Guid& guid, const std::type_info& type) c
 	auto iter_begin = pImpl->path2assert.lower_bound(path);
 	auto iter_end = pImpl->path2assert.upper_bound(path);
 	for (auto iter = iter_begin; iter != iter_end; ++iter) {
-		if (iter->second.typeinfo == type)
-			return iter->second.ptr.get();
+		if (iter->second.GetTypeInfo() == type)
+			return iter->second.ptr;
 	}
 
 	return nullptr;
@@ -289,55 +275,55 @@ void AssetMngr::ImportAssetRecursively(const std::filesystem::path& directory) {
 	}
 }
 
-void* AssetMngr::LoadAsset(const std::filesystem::path& path) {
+std::shared_ptr<Object> AssetMngr::LoadAsset(const std::filesystem::path& path) {
 	ImportAsset(path);
 	auto target = pImpl->path2assert.find(path);
 	if (target != pImpl->path2assert.end())
-		return target->second.ptr.get();
-	const auto ext = path.extension();
+		return target->second.ptr;
+	const auto ext = path.extension().string();
 	if (ext == ".lua") {
 		auto str = Impl::LoadText(path);
-		auto lua = new LuaScript(std::move(str));
+		auto lua = std::make_shared<LuaScript>(std::move(str));
 		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ lua });
-		pImpl->asset2path.emplace(lua, path);
-		return lua;
+		pImpl->assetID2path.emplace(lua->GetInstanceID(), path);
+		return std::static_pointer_cast<Object>(lua);
 	}
 	else if (ext == ".obj") {
 		auto mesh = Impl::LoadObj(path);
 		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ mesh });
-		pImpl->asset2path.emplace(mesh, path);
+		pImpl->assetID2path.emplace(mesh->GetInstanceID(), path);
 		return mesh;
 	}
 #ifdef UBPA_DUSTENGINE_USE_ASSIMP
 	else if (ext == ".ply") {
 		auto mesh = Impl::AssimpLoadMesh(path);
 		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ mesh });
-		pImpl->asset2path.emplace(mesh, path);
+		pImpl->assetID2path.emplace(mesh->GetInstanceID(), path);
 		return mesh;
 	}
 #endif // UBPA_DUSTENGINE_USE_ASSIMP
 	else if (ext == ".hlsl") {
 		auto str = Impl::LoadText(path);
-		auto hlsl = new HLSLFile(std::move(str), path.parent_path().string());
+		auto hlsl = std::make_shared<HLSLFile>(std::move(str), path.parent_path().string());
 		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ hlsl });
-		pImpl->asset2path.emplace(hlsl, path);
-		return hlsl;
+		pImpl->assetID2path.emplace(hlsl->GetInstanceID(), path);
+		return std::static_pointer_cast<Object>(hlsl);
 	}
 	else if (ext == ".scene") {
 		auto str = Impl::LoadText(path);
-		auto scene = new Scene(std::move(str));
+		auto scene = std::make_shared<Scene>(std::move(str));
 		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ scene });
-		pImpl->asset2path.emplace(scene, path);
-		return scene;
+		pImpl->assetID2path.emplace(scene->GetInstanceID(), path);
+		return std::static_pointer_cast<Object>(scene);
 	}
 	else if (
 		ext == ".txt"
 		|| ext == ".json"
 	) {
 		auto str = Impl::LoadText(path);
-		auto text = new TextAsset(std::move(str));
+		auto text = std::make_shared<TextAsset>(std::move(str));
 		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ text });
-		pImpl->asset2path.emplace(text, path);
+		pImpl->assetID2path.emplace(text->GetInstanceID(), path);
 		return text;
 	}
 	else if (ext == ".shader") {
@@ -345,10 +331,10 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path) {
 		auto [success, rstShader] = ShaderCompiler::Instance().Compile(shaderText);
 		if (!success)
 			return nullptr;
-		auto shader = new Shader{ std::move(rstShader) };
+		auto shader = std::make_shared<Shader>(std::move(rstShader));
 
 		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ shader });
-		pImpl->asset2path.emplace(shader, path);
+		pImpl->assetID2path.emplace(shader->GetInstanceID(), path);
 		return shader;
 	}
 	else if (
@@ -358,9 +344,9 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path) {
 		|| ext == ".hdr"
 		|| ext == ".tga"
 	) {
-		auto img = new Image(path.string());
+		auto img = std::make_shared<Image>(path.string());
 		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ img });
-		pImpl->asset2path.emplace(img, path);
+		pImpl->assetID2path.emplace(img->GetInstanceID(), path);
 		return img;
 	}
 	else if (ext == ".tex2d") {
@@ -368,39 +354,39 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path) {
 		auto guidstr = tex2dJSON["image"].GetString();
 		xg::Guid guid{ guidstr };
 		auto imgTarget = pImpl->guid2path.find(guid);
-		auto tex2d = new Texture2D;
+		auto tex2d = std::make_shared<Texture2D>();
 		tex2d->image = imgTarget != pImpl->guid2path.end() ? LoadAsset<Image>(imgTarget->second) : nullptr;
 		tex2d->wrapMode = static_cast<Texture2D::WrapMode>(tex2dJSON["wrapMode"].GetUint());
 		tex2d->filterMode = static_cast<Texture2D::FilterMode>(tex2dJSON["filterMode"].GetUint());
 		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ tex2d });
-		pImpl->asset2path.emplace(tex2d, path);
+		pImpl->assetID2path.emplace(tex2d->GetInstanceID(), path);
 		return tex2d;
 	}
 	else if (ext == ".texcube") {
 		auto texcubeJSON = Impl::LoadJSON(path);
 		auto mode = static_cast<TextureCube::SourceMode>(texcubeJSON["mode"].GetInt());
-		TextureCube* texcube;
+		std::shared_ptr<TextureCube> texcube;
 		switch (mode)
 		{
 		case TextureCube::SourceMode::SixSidedImages: {
 			auto imageArr = texcubeJSON["images"].GetArray();
-			std::array<const Image*, 6> images;
+			std::array<std::shared_ptr<const Image>, 6> images;
 			for (size_t i = 0; i < 6; i++) {
 				auto guidstr = imageArr[rapidjson::SizeType(i)].GetString();
 				xg::Guid guid{ guidstr };
 				auto imgTarget = pImpl->guid2path.find(guid);
 				images[i] = imgTarget != pImpl->guid2path.end() ? LoadAsset<Image>(imgTarget->second) : nullptr;
 			}
-			texcube = new TextureCube{ images };
+			texcube = std::make_shared<TextureCube>(images);
 			break;
 		}
 		case TextureCube::SourceMode::EquirectangularMap: {
-			const Image* equirectangularMap;
+			std::shared_ptr<const Image> equirectangularMap;
 			auto guidstr = texcubeJSON["equirectangularMap"].GetString();
 			xg::Guid guid{ guidstr };
 			auto imgTarget = pImpl->guid2path.find(guid);
 			equirectangularMap = imgTarget != pImpl->guid2path.end() ? LoadAsset<Image>(imgTarget->second) : nullptr;
-			texcube = new TextureCube{ equirectangularMap };
+			texcube = std::make_shared<TextureCube>(equirectangularMap);
 			break;
 		}
 		default:
@@ -408,29 +394,27 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path) {
 			break;
 		}
 		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ texcube });
-		pImpl->asset2path.emplace(texcube, path);
+		pImpl->assetID2path.emplace(texcube->GetInstanceID(), path);
 		return texcube;
 	}
 	else if (ext == ".mat") {
 		auto materialJSON = Impl::LoadText(path);
-		auto material = new Material;
-		if (!Serializer::Instance().ToUserType(materialJSON, material)) {
-			delete material;
+		auto material = std::make_shared<Material>();
+		if (!Serializer::Instance().ToUserType(materialJSON, material.get()))
 			return nullptr;
-		}
 		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ material });
-		pImpl->asset2path.emplace(material, path);
+		pImpl->assetID2path.emplace(material->GetInstanceID(), path);
 		return material;
 	}
 	else {
-		auto defaultAsset = new DefaultAsset;
+		auto defaultAsset = std::make_shared<DefaultAsset>();
 		pImpl->path2assert.emplace_hint(target, path, Impl::Asset{ defaultAsset });
-		pImpl->asset2path.emplace(defaultAsset, path);
+		pImpl->assetID2path.emplace(defaultAsset->GetInstanceID(), path);
 		return defaultAsset;
 	}
 }
 
-void* AssetMngr::LoadAsset(const std::filesystem::path& path, const std::type_info& typeinfo) {
+std::shared_ptr<Object> AssetMngr::LoadAsset(const std::filesystem::path& path, const std::type_info& typeinfo) {
 	ImportAsset(path);
 	const auto ext = path.extension();
 	if (ext == ".lua") {
@@ -504,15 +488,17 @@ void* AssetMngr::LoadAsset(const std::filesystem::path& path, const std::type_in
 	}
 }
 
-bool AssetMngr::CreateAsset(void* ptr, const std::filesystem::path& path) {
+bool AssetMngr::CreateAsset(std::shared_ptr<Object> ptr, const std::filesystem::path& path) {
 	if (std::filesystem::exists(path))
 		return false;
-	const auto ext = path.extension();
+	const auto ext = path.extension().string();
 	if (ext == ".shader") {
-		auto shader = reinterpret_cast<Shader*>(ptr);
-		auto guid = AssetPathToGUID(GetAssetPath(shader->hlslFile));
+		auto shader = std::dynamic_pointer_cast<Shader>(ptr);
+		if (!shader)
+			return false;
+		auto guid = AssetPathToGUID(GetAssetPath(*shader->hlslFile));
 		
-		auto json = Serializer::Instance().ToJSON(shader);
+		auto json = Serializer::Instance().ToJSON(shader.get());
 
 		auto dirPath = path.parent_path();
 		if (!std::filesystem::is_directory(dirPath))
@@ -526,11 +512,13 @@ bool AssetMngr::CreateAsset(void* ptr, const std::filesystem::path& path) {
 		ImportAsset(path);
 
 		pImpl->path2assert.emplace(path, Impl::Asset{ shader });
-		pImpl->asset2path.emplace(shader, path);
+		pImpl->assetID2path.emplace(shader->GetInstanceID(), path);
 	}
 	else if (ext == ".tex2d") {
-		auto tex2d = reinterpret_cast<Texture2D*>(ptr);
-		auto guid = AssetPathToGUID(GetAssetPath(tex2d->image));
+		auto tex2d = std::dynamic_pointer_cast<Texture2D>(ptr);
+		if (!tex2d)
+			return false;
+		auto guid = AssetPathToGUID(GetAssetPath(*tex2d->image));
 		rapidjson::StringBuffer sb;
 		rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
 		writer.StartObject();
@@ -554,12 +542,13 @@ bool AssetMngr::CreateAsset(void* ptr, const std::filesystem::path& path) {
 		ImportAsset(path);
 
 		pImpl->path2assert.emplace(path, Impl::Asset{ tex2d });
-		pImpl->asset2path.emplace(tex2d, path);
+		pImpl->assetID2path.emplace(tex2d->GetInstanceID(), path);
 	}
 	else if (ext == ".mat") {
-		auto material = reinterpret_cast<Material*>(ptr);
-		
-		auto materialJSON = Serializer::Instance().ToJSON(material);
+		auto material = std::dynamic_pointer_cast<Material>(ptr);
+		if (!material)
+			return false;
+		auto materialJSON = Serializer::Instance().ToJSON(material.get());
 
 		auto dirPath = path.parent_path();
 		if (!std::filesystem::is_directory(dirPath))
@@ -573,7 +562,7 @@ bool AssetMngr::CreateAsset(void* ptr, const std::filesystem::path& path) {
 		ImportAsset(path);
 
 		pImpl->path2assert.emplace(path, Impl::Asset{ material });
-		pImpl->asset2path.emplace(material, path);
+		pImpl->assetID2path.emplace(material->GetInstanceID(), path);
 	}
 	else {
 		assert("not support" && false);
@@ -590,7 +579,7 @@ void AssetMngr::ReserializeAsset(const std::filesystem::path& path) {
 	if (ext == ".mat") {
 		auto material = LoadAsset<Material>(path);
 
-		auto materialJSON = Serializer::Instance().ToJSON(material);
+		auto materialJSON = Serializer::Instance().ToJSON(material.get());
 
 		auto dirPath = path.parent_path();
 		if (!std::filesystem::is_directory(dirPath))
@@ -632,7 +621,7 @@ bool AssetMngr::MoveAsset(const std::filesystem::path& src, const std::filesyste
 	pImpl->path2guid.emplace(dst, guid);
 
 	for (const auto& asset : assets)
-		pImpl->asset2path.at(asset.ptr.get()) = dst;
+		pImpl->assetID2path.at(asset.ptr->GetInstanceID()) = dst;
 
 	pImpl->path2assert.erase(src);
 	for (auto& asset : assets)
@@ -661,7 +650,7 @@ bool AssetMngr::MoveAsset(const std::filesystem::path& src, const std::filesyste
 //	pImpl->path2guid.erase(target);
 //
 //	for (auto iter = iter_begin; iter != iter_end; ++iter)
-//		pImpl->asset2path.erase(iter->second.ptr.get());
+//		pImpl->assetID2path.erase(iter->second.ptr.get());
 //
 //	pImpl->path2assert.erase(path);
 //
@@ -695,8 +684,8 @@ rapidjson::Document AssetMngr::Impl::LoadJSON(const std::filesystem::path& metap
 }
 
 
-Mesh* AssetMngr::Impl::BuildMesh(MeshContext ctx) {
-	auto mesh = new Mesh;
+std::shared_ptr<Mesh> AssetMngr::Impl::BuildMesh(MeshContext ctx) {
+	auto mesh = std::make_shared<Mesh>();
 	mesh->SetPositions(std::move(ctx.positions));
 	mesh->SetColors(std::move(ctx.colors));
 	mesh->SetNormals(std::move(ctx.normals));
@@ -720,7 +709,7 @@ Mesh* AssetMngr::Impl::BuildMesh(MeshContext ctx) {
 	return mesh;
 }
 
-Mesh* AssetMngr::Impl::LoadObj(const std::filesystem::path& path) {
+std::shared_ptr<Mesh> AssetMngr::Impl::LoadObj(const std::filesystem::path& path) {
 	tinyobj::ObjReader reader;
 
 	bool success = reader.ParseFromFile(path.string());
@@ -872,7 +861,7 @@ void AssetMngr::Impl::AssimpLoadMesh(MeshContext& ctx, const aiMesh* mesh, const
 	}
 }
 
-Mesh* AssetMngr::Impl::AssimpLoadMesh(const std::filesystem::path& path) {
+std::shared_ptr<Mesh> AssetMngr::Impl::AssimpLoadMesh(const std::filesystem::path& path) {
 	Assimp::Importer importer;
 	const aiScene* scene = importer.ReadFile(path.string(), aiProcess_JoinIdenticalVertices | aiProcess_FlipUVs | aiProcess_Triangulate);
 	

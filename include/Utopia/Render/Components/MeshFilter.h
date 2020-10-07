@@ -2,11 +2,9 @@
 
 #include "../Mesh.h"
 
-#include <vector>
-
 namespace Ubpa::Utopia {
 	struct MeshFilter {
-		Mesh* mesh{ nullptr };
+		std::shared_ptr<Mesh> mesh;
 	};
 }
 

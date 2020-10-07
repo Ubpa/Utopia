@@ -1,14 +1,14 @@
 #pragma once
 
 #include "SubMeshDescriptor.h"
-#include "RenderRsrcObject.h"
+#include "../Core/Object.h"
 
 #include <UGM/UGM.h>
 
 #include <vector>
 
 namespace Ubpa::Utopia {
-	class Mesh : public RenderRsrcObject {
+	class Mesh : public Object {
 	public:
 		Mesh(bool isEditable = true) : isEditable{ isEditable } {}
 

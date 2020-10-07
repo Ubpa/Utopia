@@ -12,10 +12,10 @@ namespace Ubpa::Utopia {
 	struct RenderObject {
 		UECS::Entity entity;
 
-		const Material* material{ nullptr };
+		std::shared_ptr<const Material> material;
 		size_t passIdx{ static_cast<size_t>(-1) };
 
-		const Mesh* mesh{ nullptr };
+		std::shared_ptr<const Mesh> mesh;
 		size_t submeshIdx{ static_cast<size_t>(-1) };
 
 		vecf3 translation{ 0.f };
