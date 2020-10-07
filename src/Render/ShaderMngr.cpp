@@ -22,7 +22,7 @@ void ShaderMngr::Refresh() {
 	while (iter != shaderMap.end()) {
 		auto iter_copy = iter;
 		++iter;
-		if (iter->second.expired())
+		if (iter_copy->second.expired())
 			shaderMap.erase(iter);
 	}
 }

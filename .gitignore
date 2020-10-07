@@ -3,6 +3,7 @@ build/
 lib/
 .vs/
 _deps/
+bin/logs/
 
 *Config.h
 

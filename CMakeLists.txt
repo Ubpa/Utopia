@@ -30,6 +30,12 @@ Ubpa_DownloadZip(
   SHA256 E57BA9CD40CA2113BEF0BC1864C3B8BC0B9A97C39F50DA02AAF251CE0A168F0C
 )
 
+Ubpa_DownloadZip(
+  https://cdn.jsdelivr.net/gh/Ubpa/UData@master/Utopia/spdlog/spdlog_1_8_1.zip
+  spdlog_1_8_1.zip
+  SHA256 2898A66A808A92C546BC5C173423BB5EA84BA0278A897D6F03DCFC1A6F98D866
+)
+
 Ubpa_AddSubDirsRec(include)
 Ubpa_AddSubDirsRec(src)
 

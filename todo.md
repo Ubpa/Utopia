@@ -20,6 +20,7 @@
 - [x] enum inspect
 - [ ] use std::begin to replace traits
 - [ ] click an asset in the inspector, and locate it in project & floder window
+- [ ] log
 
 ## Bugs
 
