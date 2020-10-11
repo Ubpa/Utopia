@@ -14,7 +14,7 @@ Ubpa_AddDep(URapidJSON 0.0.2)
 Ubpa_AddDep(USTL       0.1.2)
 Ubpa_AddDep(UDP        0.7.2)
 Ubpa_AddDep(UGM        0.6.12)
-Ubpa_AddDep(ULuaPP     0.1.7)
+Ubpa_AddDep(ULuaPP     0.1.8)
 Ubpa_AddDep(UECS       0.13.2)
 Ubpa_AddDep(UDX12      0.0.10)
 

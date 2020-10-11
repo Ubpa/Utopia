@@ -6,7 +6,7 @@
 
 namespace Ubpa::Utopia {
 	struct MeshRenderer {
-		std::vector<std::shared_ptr<Material>> materials;
+		std::vector<std::shared_ptr<Material> > materials;
 	};
 }
 
