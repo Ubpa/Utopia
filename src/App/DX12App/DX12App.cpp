@@ -264,8 +264,10 @@ bool DX12App::InitDirect3D() {
 	// Enable the D3D12 debug layer.
 	{
 		ComPtr<ID3D12Debug> debugController;
-		ThrowIfFailed(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)));
-		debugController->EnableDebugLayer();
+		//ThrowIfFailed(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)));
+		D3D12GetDebugInterface(IID_PPV_ARGS(&debugController));
+		if (debugController)
+			debugController->EnableDebugLayer();
 	}
 #endif
 
