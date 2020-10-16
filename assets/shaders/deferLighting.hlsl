@@ -1,4 +1,4 @@
-#define STD_PIEPELINE_ENABLE_LTC
+#define STD_PIPELINE_ENABLE_LTC
 #include "StdPipeline.hlsli"
 
 #include "PBR.hlsli"
@@ -72,7 +72,6 @@ float4 PS(VertexOut pin) : SV_Target
 	float alpha = roughness * roughness;
 	float3 V = normalize(gEyePosW - posW);
 	float3 F0 = MetalWorkflow_F0(albedo, metalness);
-	float3 FrR = SchlickFrR(V, N, F0, roughness);
 	
 	uint offset = 0u;
 	uint i;
@@ -152,15 +151,14 @@ float4 PS(VertexOut pin) : SV_Target
 		float3 p2 = gLights[i].position + halfHeightVec + halfWidthVec;
 		float3 p3 = gLights[i].position + halfHeightVec - halfWidthVec;
 
-		float3 spec = LTC_Spec(N, V, posW, F0, roughness, p0, p1, p2, p3);
+		float3 spec = LTC_Rect_Spec(N, V, posW, F0, roughness, p0, p1, p2, p3);
 		float3 diffuse = (1 - metalness) * albedo * (1 - F0)
-			* LTC_Diffuse(N, V, posW, roughness, p0, p1, p2, p3);
+			* LTC_Rect_Diffuse(N, V, posW, roughness, p0, p1, p2, p3);
 
 		Lo += (spec + diffuse) / (2 * PI) * gLights[i].color;
-		//Lo += spec * gLights[i].color;
-		//Lo += diffuse * gLights[i].color;
 	}
 	
+	float3 FrR = SchlickFrR(V, N, F0, roughness);
 	float3 kS = FrR;
 	float3 kD = (1 - metalness) * (float3(1, 1, 1) - kS);
 	

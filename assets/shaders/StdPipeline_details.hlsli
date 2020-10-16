@@ -3,12 +3,12 @@
 
 #ifdef STD_PIEPELINE_ENABLE_LTC
 
-static const float LUT_SIZE = 64.0;
-static const float LUT_SCALE = (LUT_SIZE - 1.0) / LUT_SIZE;
-static const float LUT_BIAS = 0.5 / LUT_SIZE;
+static const float _LTC_LUT_SIZE  = 64.0;
+static const float _LTC_LUT_SCALE = (_LTC_LUT_SIZE - 1.0) / _LTC_LUT_SIZE;
+static const float _LTC_LUT_BIAS  = 0.5 / _LTC_LUT_SIZE;
 
 float2 _LTC_CorrectUV(float2 uv) {
-    return uv * LUT_SCALE + LUT_BIAS;
+    return uv * _LTC_LUT_SCALE + _LTC_LUT_BIAS;
 }
 
 // _LTC_GetInvM_GGX, _LTC_GetNF_GGX
@@ -26,11 +26,11 @@ float _LTC_GetSphere(float NoF, float lenF);
 /* GGX inv M */                                                      \
 float3x3 _LTC_GetInvM_GGX(float2 uv) {                               \
     float4 t1 = StdPipeline_LTC0.Sample(gSamplerLinearWrap, uv);     \
-    return float3x3(\
-        t1.x, 0, t1.y,\
-           0, 1,    0,\
-        t1.z, 0, t1.w\
-    ); \
+    return float3x3(                                                 \
+        t1.x, 0, t1.z,                                               \
+           0, 1,    0,                                               \
+        t1.y, 0, t1.w                                                \
+    );                                                               \
 }                                                                    \
                                                                      \
 /* GGX norm, Fresnel */                                              \
@@ -42,7 +42,7 @@ float2 _LTC_GetNF_GGX(float2 uv) {                                   \
 /* projected solid angle of a spherical cap */                       \
 /* clipped to the horizon */                                         \
 float _LTC_GetSphere(float NoF, float lenF) {                        \
-    float2 uv = float2(NoF * 0.5 + 0.5, 1 - lenF);                   \
+    float2 uv = float2(NoF * 0.5 + 0.5, lenF);                       \
     uv = _LTC_CorrectUV(uv);                                         \
     return lenF * StdPipeline_LTC1.Sample(gSamplerLinearWrap, uv).w; \
 }
@@ -174,7 +174,7 @@ uint _LTC_ClipQuadToHorizon(inout float3 L[5]) {
     return n;
 }
 
-float _LTC_Evaluate(float3 N, float3 V, float3 P, float3x3 invM,
+float _LTC_Rect_Evaluate(float3 N, float3 V, float3 P, float3x3 invM,
     float3 p0, float3 p1, float3 p2, float3 p3
 ) {
     // construct orthonormal basis around N
@@ -182,16 +182,16 @@ float _LTC_Evaluate(float3 N, float3 V, float3 P, float3x3 invM,
     T1 = normalize(V - N * dot(V, N));
     T2 = cross(N, T1);
     // rotate area light in (T1, T2, N) basis
-    invM = mul(transpose(float3x3(T1, T2, N)), invM);
+    invM = mul(invM, float3x3(T1, T2, N));
     // polygon
     float3 L[5];
-    L[0] = mul(p0 - P, invM);
-    L[1] = mul(p1 - P, invM);
-    L[2] = mul(p2 - P, invM);
-    L[3] = mul(p3 - P, invM);
+    L[0] = mul(invM, p0 - P);
+    L[1] = mul(invM, p1 - P);
+    L[2] = mul(invM, p2 - P);
+    L[3] = mul(invM, p3 - P);
     // integrate
     float sum = 0.0;
-#if 0  // sphere approximation
+#ifdef STD_PIPELINE_LTC_RECT_SPHEXE_APPROX // sphere approximation
     float3 dir = p0.xyz - P;
     float3 lightNormal = cross(p1 - p0, p3 - p0);
     bool behind = dot(dir, lightNormal) > 0.0;
@@ -199,7 +199,7 @@ float _LTC_Evaluate(float3 N, float3 V, float3 P, float3x3 invM,
     L[1] = normalize(L[1]);
     L[2] = normalize(L[2]);
     L[3] = normalize(L[3]);
-    float3 vsum = float3(0.0);
+    float3 vsum = float3(0, 0, 0);
     vsum += _LTC_IntegrateEdgeVec(L[1], L[0]);
     vsum += _LTC_IntegrateEdgeVec(L[2], L[1]);
     vsum += _LTC_IntegrateEdgeVec(L[3], L[2]);
@@ -234,7 +234,7 @@ float _LTC_Evaluate(float3 N, float3 V, float3 P, float3x3 invM,
     return sum;
 }
 
-float3 LTC_Spec(float3 N, float3 V, float3 P, float3 F0, float roughness,
+float3 LTC_Rect_Spec(float3 N, float3 V, float3 P, float3 F0, float roughness,
     float3 p0, float3 p1, float3 p2, float3 p3
 ) {
     float NoV = saturate(dot(N, V));
@@ -242,11 +242,11 @@ float3 LTC_Spec(float3 N, float3 V, float3 P, float3 F0, float roughness,
     float3x3 invM = _LTC_GetInvM_GGX(uv);
     float2 nf = _LTC_GetNF_GGX(uv);
     float3 Fr = F0 * nf.x + (1 - F0) * nf.y;
-    float spec = _LTC_Evaluate(N, V, P, invM, p0, p1, p2, p3);
+    float spec = _LTC_Rect_Evaluate(N, V, P, invM, p0, p1, p2, p3);
     return Fr * spec;
 }
 
-float3 LTC_Diffuse(float3 N, float3 V, float3 P, float roughness,
+float3 LTC_Rect_Diffuse(float3 N, float3 V, float3 P, float roughness,
     float3 p0, float3 p1, float3 p2, float3 p3
 ) {
     float3x3 invM = float3x3(
@@ -254,7 +254,7 @@ float3 LTC_Diffuse(float3 N, float3 V, float3 P, float roughness,
         0, 1, 0,
         0, 0, 1
     );
-    return _LTC_Evaluate(N, V, P, invM, p0, p1, p2, p3);
+    return _LTC_Rect_Evaluate(N, V, P, invM, p0, p1, p2, p3);
 }
 
 #endif // STD_PIEPELINE_ENABLE_LTC
