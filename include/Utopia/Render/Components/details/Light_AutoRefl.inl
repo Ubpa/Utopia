@@ -32,7 +32,6 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::Light>
         Field{"range", &Ubpa::Utopia::Light::range},
         Field{"width", &Ubpa::Utopia::Light::width},
         Field{"height", &Ubpa::Utopia::Light::height},
-        Field{"radius", &Ubpa::Utopia::Light::radius},
         Field{"innerSpotAngle", &Ubpa::Utopia::Light::innerSpotAngle},
         Field{"outerSpotAngle", &Ubpa::Utopia::Light::outerSpotAngle},
     };

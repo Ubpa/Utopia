@@ -70,8 +70,10 @@ cbuffer StdPipeline_cbPerCamera : register(b##x) \
 // color
 // position
 // dir
+// horizontal
 // range
-// radius : f0
+// width  : f0
+// height : f1
 
 #define STD_PIPELINE_CB_LIGHT_ARRAY(x)            \
 struct Light {                                    \

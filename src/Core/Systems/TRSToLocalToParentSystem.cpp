@@ -28,7 +28,7 @@ void TRSToLocalToParentSystem::OnUpdate(UECS::Schedule& schedule) {
 		bool containsT = chunkT != nullptr;
 		bool containsR = chunkR != nullptr;
 		bool containsS = chunkS != nullptr || chunkNUS != nullptr;
-		assert(containsT || containsR && containsS);
+		assert(containsT || containsR || containsS);
 
 		for (size_t i = 0; i < chunk.EntityNum(); i++) {
 			scalef3 s = chunkS ? chunkS[i].value : 1.f;

@@ -157,6 +157,24 @@ float4 PS(VertexOut pin) : SV_Target
 
 		Lo += (spec + diffuse) / (2 * PI) * gLights[i].color;
 	}
+	offset += gRectLightNum;
+	for (i = offset; i < offset + gDiskLightNum; i++) {
+		float3 up = cross(gLights[i].dir, gLights[i].horizontal);
+
+		float3 halfWidthVec = gLights[i].horizontal * gLights[i].f0 / 2;
+		float3 halfHeightVec = up * gLights[i].f1 / 2;
+
+		float3 p0 = gLights[i].position - halfHeightVec - halfWidthVec;
+		float3 p1 = gLights[i].position - halfHeightVec + halfWidthVec;
+		float3 p2 = gLights[i].position + halfHeightVec + halfWidthVec;
+		//float3 p3 = gLights[i].position + halfHeightVec - halfWidthVec;
+
+		float3 spec = LTC_Disk_Spec(N, V, posW, F0, roughness, p0, p1, p2);
+		float3 diffuse = (1 - metalness) * albedo * (1 - F0)
+			* LTC_Disk_Diffuse(N, V, posW, roughness, p0, p1, p2);
+
+		Lo += (spec + diffuse) / (2 * PI) * gLights[i].color;
+	}
 	
 	float3 FrR = SchlickFrR(V, N, F0, roughness);
 	float3 kS = FrR;

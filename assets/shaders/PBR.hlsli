@@ -1,8 +1,7 @@
 #ifndef PBR_HLSLI
 #define PBR_HLSLI
 
-#define PI 3.1415926
-#define EPSILON 0.000001
+#include "Constants.hlsli"
 
 float3 MetalWorkflow_F0(float3 albedo, float metalness) {
 	float reflectance = 0.04;
