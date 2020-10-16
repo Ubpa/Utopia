@@ -167,18 +167,18 @@ bool WorldApp::Initialize() {
 		);
 	}, false);
 
-	// commit upload, delete ...
-	upload.End(uCmdQueue.raw.Get());
-	uGCmdList->Close();
-	uCmdQueue.Execute(uGCmdList.raw.Get());
-	deleteBatch.Commit(uDevice.raw.Get(), uCmdQueue.raw.Get());
-
 	Ubpa::Utopia::PipelineBase::InitDesc initDesc;
 	initDesc.device = uDevice.raw.Get();
 	initDesc.rtFormat = mBackBufferFormat;
 	initDesc.cmdQueue = uCmdQueue.raw.Get();
 	initDesc.numFrame = gNumFrameResources;
-	pipeline = std::make_unique<Ubpa::Utopia::StdPipeline>(initDesc);
+	pipeline = std::make_unique<Ubpa::Utopia::StdPipeline>(upload, initDesc);
+
+	// commit upload, delete ...
+	upload.End(uCmdQueue.raw.Get());
+	uGCmdList->Close();
+	uCmdQueue.Execute(uGCmdList.raw.Get());
+	deleteBatch.Commit(uDevice.raw.Get(), uCmdQueue.raw.Get());
 
 	// Do the initial resize code.
 	OnResize();

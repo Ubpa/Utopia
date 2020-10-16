@@ -352,14 +352,14 @@ bool ImGUIApp::Initialize()
 	LoadTextures();
 	BuildShaders();
 	BuildMaterials();
-	Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload().End(uCmdQueue.raw.Get());
 
 	Ubpa::Utopia::PipelineBase::InitDesc initDesc;
 	initDesc.device = uDevice.raw.Get();
 	initDesc.rtFormat = mBackBufferFormat;
 	initDesc.cmdQueue = uCmdQueue.raw.Get();
 	initDesc.numFrame = gNumFrameResources;
-	pipeline = std::make_unique<Ubpa::Utopia::StdPipeline>(initDesc);
+	pipeline = std::make_unique<Ubpa::Utopia::StdPipeline>(Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(), initDesc);
+	Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload().End(uCmdQueue.raw.Get());
 
 	// Do the initial resize code.
 	OnResize();

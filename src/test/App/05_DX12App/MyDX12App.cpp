@@ -203,14 +203,14 @@ bool MyDX12App::Init() {
 	LoadTextures();
 	BuildShaders();
 	BuildMaterials();
-	Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload().End(uCmdQueue.Get());
 
 	Ubpa::Utopia::PipelineBase::InitDesc initDesc;
 	initDesc.device = uDevice.Get();
 	initDesc.rtFormat = GetBackBufferFormat();
 	initDesc.cmdQueue = uCmdQueue.Get();
 	initDesc.numFrame = NumFrameResources;
-	pipeline = std::make_unique<Ubpa::Utopia::StdPipeline>(initDesc);
+	pipeline = std::make_unique<Ubpa::Utopia::StdPipeline>(Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(), initDesc);
+	Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload().End(uCmdQueue.Get());
 
 	// Do the initial resize code.
 	OnResize();
