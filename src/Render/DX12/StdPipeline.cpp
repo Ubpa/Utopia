@@ -713,7 +713,7 @@ void StdPipeline::Impl::UpdateRenderContext(
 					case LightType::Spot:
 						renderContext.lights.lights[cur_spotLight].color = light->color * light->intensity;
 						renderContext.lights.lights[cur_spotLight].position = l2w->value * pointf3{ 0.f };
-						renderContext.lights.lights[cur_spotLight].dir = (l2w->value * vecf3{ 0,0,1 }).normalize();
+						renderContext.lights.lights[cur_spotLight].dir = (l2w->value * vecf3{ 0,1,0 }).normalize();
 						renderContext.lights.lights[cur_spotLight].range = light->range;
 						renderContext.lights.lights[cur_spotLight].*
 							ShaderLight::Spot::pCosHalfInnerSpotAngle = std::cos(to_radian(light->innerSpotAngle) / 2.f);
@@ -724,7 +724,7 @@ void StdPipeline::Impl::UpdateRenderContext(
 					case LightType::Rect:
 						renderContext.lights.lights[cur_rectLight].color = light->color * light->intensity;
 						renderContext.lights.lights[cur_rectLight].position = l2w->value * pointf3{ 0.f };
-						renderContext.lights.lights[cur_rectLight].dir = (l2w->value * vecf3{ 0,0,1 }).normalize();
+						renderContext.lights.lights[cur_rectLight].dir = (l2w->value * vecf3{ 0,1,0 }).normalize();
 						renderContext.lights.lights[cur_rectLight].horizontal = (l2w->value * vecf3{ 1,0,0 }).normalize();
 						renderContext.lights.lights[cur_rectLight].range = light->range;
 						renderContext.lights.lights[cur_rectLight].*
@@ -736,7 +736,7 @@ void StdPipeline::Impl::UpdateRenderContext(
 					case LightType::Disk:
 						renderContext.lights.lights[cur_diskLight].color = light->color * light->intensity;
 						renderContext.lights.lights[cur_diskLight].position = l2w->value * pointf3{ 0.f };
-						renderContext.lights.lights[cur_diskLight].dir = (l2w->value * vecf3{ 0,0,1 }).normalize();
+						renderContext.lights.lights[cur_diskLight].dir = (l2w->value * vecf3{ 0,1,0 }).normalize();
 						renderContext.lights.lights[cur_diskLight].range = light->range;
 						renderContext.lights.lights[cur_diskLight].*
 							ShaderLight::Disk::pRadius = light->radius;

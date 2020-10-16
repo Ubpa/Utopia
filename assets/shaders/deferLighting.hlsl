@@ -46,7 +46,7 @@ float4 PS(VertexOut pin) : SV_Target
 {
     float4 data0 = gbuffer0.Sample(gSamplerPointWrap, pin.TexC);
     float4 data1 = gbuffer1.Sample(gSamplerPointWrap, pin.TexC);
-    //float4 data2 = gbuffer2.Sample(gSamplerPointWrap, pin.TexC);
+    float4 data2 = gbuffer2.Sample(gSamplerPointWrap, pin.TexC);
     
 	float depth = gDepthStencil.Sample(gSamplerPointWrap, pin.TexC).r;
 	float4 posHC = float4(
@@ -59,6 +59,7 @@ float4 PS(VertexOut pin) : SV_Target
 	float3 posW = posHW.xyz / posHW.w;
 	
 	float3 albedo = data0.xyz;
+	float3 emission = data2.xyz;
 	float roughness = data0.w;
 	
 	float3 N = data1.xyz;
@@ -173,6 +174,8 @@ float4 PS(VertexOut pin) : SV_Target
 	float3 specular = prefilterColor * (F0 * scale_bias.x + scale_bias.y);
 	
 	Lo += kD * diffuse + specular;
+
+	Lo += emission;
 	
     return float4(Lo, 1.0f);
 }

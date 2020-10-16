@@ -3,10 +3,11 @@
 #include "LuaScript.h"
 
 #include <vector>
+#include <memory>
 
 namespace Ubpa::Utopia {
 	struct LuaScriptQueue {
-		std::vector<const LuaScript*> value;
+		std::vector<std::shared_ptr<LuaScript> > value;
 	};
 }
 

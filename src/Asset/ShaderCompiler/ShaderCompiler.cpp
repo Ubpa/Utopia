@@ -395,7 +395,7 @@ struct ShaderCompiler::Impl {
 				auto name = ctx->default_texture_2d()->getText();
 				if (name == "White")
 					guid = xg::Guid{ "1936ed7e-6896-4ace-abd9-5b084fcfb891" };
-				else if (name == "Balck")
+				else if (name == "Black")
 					guid = xg::Guid{ "ece48884-cc0d-4288-be5e-c58a6d2ea187" };
 				else if (name == "Bump")
 					guid = xg::Guid{ "b5e7fb39-fedd-4371-a00a-552a86307db7" };
