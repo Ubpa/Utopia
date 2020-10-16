@@ -29,6 +29,8 @@ namespace Ubpa::Utopia {
 			const Texture2D& tex2D
 		);
 
+		RsrcMngrDX12& UnregisterTexture2D(const Texture2D& tex2D);
+
 		RsrcMngrDX12& RegisterTextureCube(
 			DirectX::ResourceUploadBatch& upload,
 			const TextureCube& texcube

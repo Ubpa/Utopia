@@ -4,6 +4,7 @@ Shader "StdPipeline/Defer Lighting" {
 		SRV[3] : 0
 		SRV[1] : 3
 		SRV[3] : 4
+		SRV[2] : 7
 		CBV : 0
 		CBV : 1
 	}

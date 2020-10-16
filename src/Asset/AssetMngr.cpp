@@ -677,7 +677,6 @@ rapidjson::Document AssetMngr::Impl::LoadJSON(const std::filesystem::path& metap
 	return doc;
 }
 
-
 std::shared_ptr<Mesh> AssetMngr::Impl::BuildMesh(MeshContext ctx) {
 	auto mesh = std::make_shared<Mesh>();
 	mesh->SetPositions(std::move(ctx.positions));

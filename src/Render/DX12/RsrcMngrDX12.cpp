@@ -255,6 +255,16 @@ RsrcMngrDX12& RsrcMngrDX12::RegisterTexture2D(
 	return *this;
 }
 
+RsrcMngrDX12& RsrcMngrDX12::UnregisterTexture2D(const Texture2D& tex2D) {
+	if (auto target = pImpl->texture2DMap.find(tex2D.GetInstanceID()); target == pImpl->texture2DMap.end()) {
+		auto& tex = target->second;
+		UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(move(tex.allocationSRV));
+		tex.resource->Release();
+		pImpl->texture2DMap.erase(target);
+	}
+	return *this;
+}
+
 RsrcMngrDX12& RsrcMngrDX12::RegisterTextureCube(
 	DirectX::ResourceUploadBatch& upload,
 	const TextureCube& texcube

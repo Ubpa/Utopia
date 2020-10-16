@@ -5,7 +5,7 @@ Texture2D gAlbedoMap    : register(t0);
 Texture2D gRoughnessMap : register(t1);
 Texture2D gMetalnessMap : register(t2);
 Texture2D gNormalMap    : register(t3);
-STD_PIPELINE_SR_IBL(4); // cover 3 register
+STD_PIPELINE_SR3_IBL(4);
 
 STD_PIPELINE_CB_PER_OBJECT(0);
 

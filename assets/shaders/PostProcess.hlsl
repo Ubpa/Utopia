@@ -34,7 +34,7 @@ float4 PS(VertexOut pin) : SV_Target
     float4 color = gImage.Sample(gSamplerLinearWrap, pin.TexC);
 	
 	// HDR tonemapping
-	// color.rgb = color.rgb / (float3(1.0f, 1.0f, 1.0f) + color.rgb);
+	color.rgb = color.rgb / (float3(1.0f, 1.0f, 1.0f) + color.rgb);
 	
 	// gamma
 	float x = 1.0f/2.2f;
