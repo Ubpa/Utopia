@@ -3,6 +3,7 @@
 #include <Utopia/Core/Components/LocalToWorld.h>
 #include <Utopia/Core/Components/Rotation.h>
 #include <Utopia/Core/Components/Scale.h>
+#include <Utopia/Core/Components/NonUniformScale.h>
 #include <Utopia/Core/Components/Translation.h>
 
 using namespace Ubpa::Utopia;
@@ -14,6 +15,7 @@ void TRSToLocalToWorldSystem::OnUpdate(UECS::Schedule& schedule) {
 		UECS::CmptAccessType::Of<UECS::Latest<Translation>>,
 		UECS::CmptAccessType::Of<UECS::Latest<Rotation>>,
 		UECS::CmptAccessType::Of<UECS::Latest<Scale>>,
+		UECS::CmptAccessType::Of<UECS::Latest<NonUniformScale>>,
 	};
 
 	schedule.RegisterChunkJob([](UECS::ChunkView chunk) {
@@ -21,43 +23,33 @@ void TRSToLocalToWorldSystem::OnUpdate(UECS::Schedule& schedule) {
 		auto chunkT = chunk.GetCmptArray<Translation>();
 		auto chunkR = chunk.GetCmptArray<Rotation>();
 		auto chunkS = chunk.GetCmptArray<Scale>();
+		auto chunkNUS = chunk.GetCmptArray<NonUniformScale>();
 
 		bool containsT = chunkT != nullptr;
 		bool containsR = chunkR != nullptr;
-		bool containsS = chunkS != nullptr;
+		bool containsS = chunkS != nullptr || chunkNUS != nullptr;
+		assert(containsT || containsR && containsS);
 
 		for (size_t i = 0; i < chunk.EntityNum(); i++) {
-			// 000
-			if (!containsT && !containsR && !containsS) {
-				assert(false);
+			scalef3 s = chunkS ? chunkS[i].value : 1.f;
+			if (chunkNUS)
+				s *= chunkNUS[i].value;
+
+			// 00
+			if (!containsT && !containsR) {
+				chunkL2W[i].value = transformf{ s };
 			}
-			// 001
-			else if (!containsT && !containsR && containsS) {
-				chunkL2W[i].value = transformf{ chunkS[i].value };
+			// 01
+			else if (!containsT && containsR) {
+				chunkL2W[i].value = transformf{ chunkR[i].value, s };
 			}
-			// 010
-			else if (!containsT && containsR && !containsS) {
-				chunkL2W[i].value = transformf{ chunkR[i].value };
+			// 10
+			else if (containsT && !containsR) {
+				chunkL2W[i].value = transformf{ chunkT[i].value, s };
 			}
-			// 011
-			else if (!containsT && containsR && containsS) {
-				chunkL2W[i].value = transformf{ chunkR[i].value, chunkS[i].value };
-			}
-			// 100
-			else if (containsT && !containsR && !containsS) {
-				chunkL2W[i].value = transformf{ chunkT[i].value };
-			}
-			// 101
-			else if (containsT && !containsR && containsS) {
-				chunkL2W[i].value = transformf{ chunkT[i].value, scalef3{chunkS[i].value} };
-			}
-			// 110
-			else if (containsT && containsR && !containsS) {
-				chunkL2W[i].value = transformf{ chunkT[i].value, chunkR[i].value };
-			}
-			// 111
-			else/* if (containsT && containsR && containsS)*/ {
-				chunkL2W[i].value = transformf{ chunkT[i].value, chunkR[i].value, scalef3{chunkS[i].value} };
+			// 11
+			else /*if (containsT && containsR)*/ {
+				chunkL2W[i].value = transformf{ chunkT[i].value, chunkR[i].value, s };
 			}
 		}
 	}, SystemFuncName, filter);

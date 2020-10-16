@@ -10,6 +10,7 @@
 #include "Rotation.h"
 #include "RotationEuler.h"
 #include "Scale.h"
+#include "NonUniformScale.h"
 #include "Translation.h"
 #include "WorldTime.h"
 #include "WorldToLocal.h"

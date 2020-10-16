@@ -463,6 +463,7 @@ void GameStarter::BuildWorld() {
 		Ubpa::Utopia::Rotation,
 		Ubpa::Utopia::RotationEuler,
 		Ubpa::Utopia::Scale,
+		Ubpa::Utopia::NonUniformScale,
 		Ubpa::Utopia::Translation,
 		Ubpa::Utopia::WorldToLocal
 	>();
@@ -506,6 +507,7 @@ void GameStarter::BuildWorld() {
 		Ubpa::Utopia::Rotation,
 		Ubpa::Utopia::RotationEuler,
 		Ubpa::Utopia::Scale,
+		Ubpa::Utopia::NonUniformScale,
 		Ubpa::Utopia::Translation,
 		Ubpa::Utopia::WorldToLocal
 	>();

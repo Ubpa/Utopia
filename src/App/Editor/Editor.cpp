@@ -730,6 +730,7 @@ void Editor::Impl::InitInspectorRegistry() {
 		Rotation,
 		RotationEuler,
 		Scale,
+		NonUniformScale,
 		Translation,
 		WorldToLocal,
 
@@ -774,6 +775,7 @@ void Editor::Impl::InitWorld(Ubpa::UECS::World& w) {
 		Rotation,
 		RotationEuler,
 		Scale,
+		NonUniformScale,
 		Translation,
 		WorldToLocal,
 
@@ -819,6 +821,7 @@ void Editor::Impl::BuildWorld() {
 		Rotation,
 		RotationEuler,
 		Scale,
+		NonUniformScale,
 		Translation,
 		WorldToLocal,
 
