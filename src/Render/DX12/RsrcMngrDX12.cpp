@@ -244,9 +244,10 @@ RsrcMngrDX12& RsrcMngrDX12::RegisterTexture2D(
 		&tex.resource
 	);
 
+	const auto tex2DSRVDesc = UDX12::Desc::SRV::Tex2D(tex.resource->GetDesc().Format);
 	pImpl->device->CreateShaderResourceView(
 		tex.resource,
-		&UDX12::Desc::SRV::Tex2D(tex.resource->GetDesc().Format),
+		&tex2DSRVDesc,
 		tex.allocationSRV.GetCpuHandle(static_cast<uint32_t>(0))
 	);
 
@@ -304,9 +305,10 @@ RsrcMngrDX12& RsrcMngrDX12::RegisterTextureCube(
 		&tex.resource
 	);
 
+	const auto texCubeSRVDesc = UDX12::Desc::SRV::TexCube(tex.resource->GetDesc().Format);
 	pImpl->device->CreateShaderResourceView(
 		tex.resource,
-		&UDX12::Desc::SRV::TexCube(tex.resource->GetDesc().Format),
+		&texCubeSRVDesc,
 		tex.allocationSRV.GetCpuHandle(static_cast<uint32_t>(0))
 	);
 

@@ -23,7 +23,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::EntityMngr>
         },
 		Field{"Detach", &Ubpa::UECS::EntityMngr::Detach},
         Field{"Have", &Ubpa::UECS::EntityMngr::Have},
-		Field{"Get", &Ubpa::UECS::EntityMngr::Get},
+		Field{"Get", static_cast<Ubpa::UECS::CmptPtr(Ubpa::UECS::EntityMngr::*)(Ubpa::UECS::Entity, Ubpa::UECS::CmptType)const>(&Ubpa::UECS::EntityMngr::Get)},
         Field{"Components", &Ubpa::UECS::EntityMngr::Components},
         Field{"Exist", &Ubpa::UECS::EntityMngr::Exist},
 		Field{"Destroy", &Ubpa::UECS::EntityMngr::Destroy},
