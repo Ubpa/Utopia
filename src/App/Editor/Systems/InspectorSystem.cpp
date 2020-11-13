@@ -92,8 +92,10 @@ void InspectorSystem::OnUpdate(UECS::Schedule& schedule) {
 								ImGui::PushStyleColor(ImGuiCol_Button, (ImVec4)ImColor::HSV(ID / float(N), 0.6f, 0.6f));
 								ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImVec4)ImColor::HSV(ID / float(N), 0.7f, 0.7f));
 								ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImVec4)ImColor::HSV(ID / float(N), 0.8f, 0.8f));
-								if (ImGui::Button(name.data()))
-									hierarchy->world->entityMngr.Detach(inspector->entity, &cmpt.Type(), 1);
+								if (ImGui::Button(name.data())) {
+									const auto cmptType = cmpt.Type();
+									hierarchy->world->entityMngr.Detach(inspector->entity, &cmptType, 1);
+								}
 								ImGui::PopStyleColor(3);
 								ImGui::PopID();
 							}
@@ -105,8 +107,10 @@ void InspectorSystem::OnUpdate(UECS::Schedule& schedule) {
 								ImGui::PushStyleColor(ImGuiCol_Button, (ImVec4)ImColor::HSV(ID / float(N), 0.6f, 0.6f));
 								ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImVec4)ImColor::HSV(ID / float(N), 0.7f, 0.7f));
 								ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImVec4)ImColor::HSV(ID / float(N), 0.8f, 0.8f));
-								if (ImGui::Button(name.c_str()))
-									hierarchy->world->entityMngr.Detach(inspector->entity, &cmpt.Type(), 1);
+								if (ImGui::Button(name.c_str())) {
+									const auto cmptType = cmpt.Type();
+									hierarchy->world->entityMngr.Detach(inspector->entity, &cmptType, 1);
+								}
 								ImGui::PopStyleColor(3);
 								ImGui::PopID();
 							}

@@ -196,8 +196,9 @@ void D3DApp::OnResize()
     optClear.Format = mDepthStencilFormat;
     optClear.DepthStencil.Depth = 1.0f;
     optClear.DepthStencil.Stencil = 0;
+	const auto defaultHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
     ThrowIfFailed(uDevice->CreateCommittedResource(
-        &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+        &defaultHeapProp,
 		D3D12_HEAP_FLAG_NONE,
         &depthStencilDesc,
 		D3D12_RESOURCE_STATE_COMMON,
@@ -213,8 +214,8 @@ void D3DApp::OnResize()
     uDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), &dsvDesc, DepthStencilView());
 
     // Transition the resource from its initial state to be used as a depth buffer.
-	uGCmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mDepthStencilBuffer.Get(),
-		D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_DEPTH_WRITE));
+	DirectX::TransitionResource(uGCmdList.Get(), mDepthStencilBuffer.Get(),
+		D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 	
     // Execute the resize commands.
     ThrowIfFailed(uGCmdList->Close());

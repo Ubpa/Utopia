@@ -287,8 +287,9 @@ bool Editor::Impl::Init() {
 void Editor::Impl::OnGameResize() {
 	Ubpa::rgbaf background = { 0.f,0.f,0.f,1.f };
 	auto rtType = Ubpa::UDX12::FG::RsrcType::RT2D(gameRTFormat, gameWidth, (UINT)gameHeight, background.data());
+	const auto defaultHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
 	ThrowIfFailed(pEditor->uDevice->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+		&defaultHeapProp,
 		D3D12_HEAP_FLAG_NONE,
 		&rtType.desc,
 		D3D12_RESOURCE_STATE_PRESENT,
@@ -312,8 +313,9 @@ void Editor::Impl::OnGameResize() {
 void Editor::Impl::OnSceneResize() {
 	Ubpa::rgbaf background = { 0.f,0.f,0.f,1.f };
 	auto rtType = Ubpa::UDX12::FG::RsrcType::RT2D(sceneRTFormat, sceneWidth, (UINT)sceneHeight, background.data());
+	const auto defaultHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
 	ThrowIfFailed(pEditor->uDevice->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+		&defaultHeapProp,
 		D3D12_HEAP_FLAG_NONE,
 		&rtType.desc,
 		D3D12_RESOURCE_STATE_PRESENT,
@@ -662,7 +664,8 @@ void Editor::Impl::Draw() {
 		if (gameRT) {
 			gamePipeline->Render(gameRT.Get());
 			pEditor->uGCmdList.ResourceBarrierTransition(gameRT.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-			pEditor->uGCmdList->OMSetRenderTargets(1, &gameRT_RTV.GetCpuHandle(), FALSE, NULL);
+			const auto gameRTHandle = gameRT_RTV.GetCpuHandle();
+			pEditor->uGCmdList->OMSetRenderTargets(1, &gameRTHandle, FALSE, NULL);
 			pEditor->uGCmdList.SetDescriptorHeaps(Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap());
 			ImGui::Render();
 			ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), pEditor->uGCmdList.Get());
@@ -677,7 +680,8 @@ void Editor::Impl::Draw() {
 		if (sceneRT) {
 			scenePipeline->Render(sceneRT.Get());
 			pEditor->uGCmdList.ResourceBarrierTransition(sceneRT.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-			pEditor->uGCmdList->OMSetRenderTargets(1, &sceneRT_RTV.GetCpuHandle(), FALSE, NULL);
+			const auto sceneRTHandle = sceneRT_RTV.GetCpuHandle();
+			pEditor->uGCmdList->OMSetRenderTargets(1, &sceneRTHandle, FALSE, NULL);
 			pEditor->uGCmdList.SetDescriptorHeaps(Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap());
 			ImGui::Render();
 			ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), pEditor->uGCmdList.Get());
@@ -692,7 +696,8 @@ void Editor::Impl::Draw() {
 
 		pEditor->uGCmdList.ResourceBarrierTransition(pEditor->CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 		pEditor->uGCmdList->ClearRenderTargetView(pEditor->CurrentBackBufferView(), DirectX::Colors::Black, 0, NULL);
-		pEditor->uGCmdList->OMSetRenderTargets(1, &pEditor->CurrentBackBufferView(), FALSE, NULL);
+		const auto curBack = pEditor->CurrentBackBufferView();
+		pEditor->uGCmdList->OMSetRenderTargets(1, &curBack, FALSE, NULL);
 		pEditor->uGCmdList.SetDescriptorHeaps(Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap());
 		ImGui::Render();
 		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), pEditor->uGCmdList.Get());
