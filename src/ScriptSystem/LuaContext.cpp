@@ -88,25 +88,28 @@ void LuaContext::Clear() {
 }
 
 class LuaArray_CmptType : public LuaArray<Ubpa::UECS::CmptType> {};
-template<>
-struct Ubpa::USRefl::TypeInfo<LuaArray_CmptType>
-	: Ubpa::USRefl::TypeInfoBase<LuaArray_CmptType, Base<LuaArray<Ubpa::UECS::CmptType>>>
-{
-	static constexpr AttrList attrs = {};
+class LuaArray_CmptAccessType : public LuaArray<Ubpa::UECS::CmptAccessType> {};
 
-	static constexpr FieldList fields = {
-	};
+template<>
+struct Ubpa::USRefl::TypeInfo<LuaArray_CmptType> :
+	TypeInfoBase<LuaArray_CmptType, Base<LuaArray<Ubpa::UECS::CmptType>>>
+{
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+	static constexpr char name[18] = "LuaArray_CmptType";
+#endif
+	static constexpr AttrList attrs = {};
+	static constexpr FieldList fields = {};
 };
 
-class LuaArray_CmptAccessType : public LuaArray<Ubpa::UECS::CmptAccessType> {};
 template<>
-struct Ubpa::USRefl::TypeInfo<LuaArray_CmptAccessType>
-	: Ubpa::USRefl::TypeInfoBase<LuaArray_CmptAccessType, Base<LuaArray<Ubpa::UECS::CmptAccessType>>>
+struct Ubpa::USRefl::TypeInfo<LuaArray_CmptAccessType> :
+	TypeInfoBase<LuaArray_CmptAccessType, Base<LuaArray<Ubpa::UECS::CmptAccessType>>>
 {
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+	static constexpr char name[24] = "LuaArray_CmptAccessType";
+#endif
 	static constexpr AttrList attrs = {};
-
-	static constexpr FieldList fields = {
-	};
+	static constexpr FieldList fields = {};
 };
 
 lua_State* LuaContext::Impl::Construct() {

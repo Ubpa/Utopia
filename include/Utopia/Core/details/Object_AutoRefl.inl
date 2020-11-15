@@ -5,14 +5,17 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::Object>
-	: Ubpa::USRefl::TypeInfoBase<Ubpa::Utopia::Object>
+struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::Object> :
+    TypeInfoBase<Ubpa::Utopia::Object>
 {
-	static constexpr AttrList attrs = {};
-
-	static constexpr FieldList fields = {
-		Field{Name::constructor, WrapConstructor<Ubpa::Utopia::Object()>()},
-		Field{"GetInstanceID", &Ubpa::Utopia::Object::GetInstanceID},
-	};
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[21] = "Ubpa::Utopia::Object";
+#endif
+    static constexpr AttrList attrs = {};
+    static constexpr FieldList fields = {
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type()>()},
+        Field {TSTR(UMeta::destructor), WrapDestructor<Type>()},
+        Field {TSTR("GetInstanceID"), &Type::GetInstanceID},
+    };
 };
 

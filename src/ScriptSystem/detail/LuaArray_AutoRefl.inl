@@ -5,15 +5,19 @@
 #include <USRefl/USRefl.h>
 
 template<typename T>
-struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::LuaArray<T>>
-	: Ubpa::USRefl::TypeInfoBase<Ubpa::Utopia::LuaArray<T>>
+struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::LuaArray<T>> :
+    TypeInfoBase<Ubpa::Utopia::LuaArray<T>>
 {
-	static constexpr AttrList attrs = {};
-
-	static constexpr FieldList fields = {
-		Field{"PushBack", &Ubpa::Utopia::LuaArray<T>::PushBack},
-		Field{"Data", &Ubpa::Utopia::LuaArray<T>::Data},
-		Field{"Size", &Ubpa::Utopia::LuaArray<T>::Size},
-	};
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    // [!] all instance types have the same name
+    static constexpr char name[23] = "Ubpa::Utopia::LuaArray";
+#endif
+    static constexpr AttrList attrs = {};
+    static constexpr FieldList fields = {
+        Field {TSTR("PushBack"), &Ubpa::Utopia::LuaArray<T>::PushBack},
+        Field {TSTR("Data"), &Ubpa::Utopia::LuaArray<T>::Data},
+        Field {TSTR("Size"), &Ubpa::Utopia::LuaArray<T>::Size},
+        Field {TSTR("ToConstSpan"), &Ubpa::Utopia::LuaArray<T>::ToConstSpan},
+    };
 };
 

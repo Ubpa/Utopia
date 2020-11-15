@@ -5,13 +5,17 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::RotationEuler>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::Utopia::RotationEuler>
+struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::RotationEuler> :
+    TypeInfoBase<Ubpa::Utopia::RotationEuler>
 {
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[28] = "Ubpa::Utopia::RotationEuler";
+#endif
     static constexpr AttrList attrs = {};
-
     static constexpr FieldList fields = {
-        Field{"value", &Ubpa::Utopia::RotationEuler::value},
+        Field {TSTR("value"), &Type::value, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->eulerf{ return { 0.f }; }},
+        }},
     };
 };
 

@@ -5,13 +5,17 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::Scale>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::Utopia::Scale>
+struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::Scale> :
+    TypeInfoBase<Ubpa::Utopia::Scale>
 {
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[20] = "Ubpa::Utopia::Scale";
+#endif
     static constexpr AttrList attrs = {};
-
     static constexpr FieldList fields = {
-        Field{"value", &Ubpa::Utopia::Scale::value},
+        Field {TSTR("value"), &Type::value, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->float{ return { 1.f }; }},
+        }},
     };
 };
 

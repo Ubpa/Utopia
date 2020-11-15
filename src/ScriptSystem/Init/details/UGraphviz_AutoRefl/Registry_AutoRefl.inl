@@ -5,34 +5,30 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::UGraphviz::Registry>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::UGraphviz::Registry>
+struct Ubpa::USRefl::TypeInfo<Ubpa::UGraphviz::Registry> :
+    TypeInfoBase<Ubpa::UGraphviz::Registry>
 {
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[26] = "Ubpa::UGraphviz::Registry";
+#endif
     static constexpr AttrList attrs = {};
-
     static constexpr FieldList fields = {
-        Field{Name::constructor, WrapConstructor<Ubpa::UGraphviz::Registry()>()},
-        Field{"GetNodes", &Ubpa::UGraphviz::Registry::GetNodes},
-        Field{"GetEdges", &Ubpa::UGraphviz::Registry::GetEdges},
-        Field{"GetNodeAttrs", &Ubpa::UGraphviz::Registry::GetNodeAttrs},
-        Field{"GetEdgeAttrs", &Ubpa::UGraphviz::Registry::GetEdgeAttrs},
-        Field{"IsRegisteredNode", &Ubpa::UGraphviz::Registry::IsRegisteredNode},
-        Field{"IsRegisteredEdge",
-            static_cast<bool(Ubpa::UGraphviz::Registry::*)(size_t, size_t)const>
-            (&Ubpa::UGraphviz::Registry::IsRegisteredEdge)
-        },
-        Field{"IsRegisteredEdge",
-            static_cast<bool(Ubpa::UGraphviz::Registry::*)(std::string_view, std::string_view)const>
-            (&Ubpa::UGraphviz::Registry::IsRegisteredEdge)
-        },
-        Field{"GetNodeIndex", &Ubpa::UGraphviz::Registry::GetNodeIndex},
-        Field{"GetEdgeIndex", &Ubpa::UGraphviz::Registry::GetEdgeIndex},
-        Field{"RegisterNode", &Ubpa::UGraphviz::Registry::RegisterNode},
-        Field{"RegisterEdge", &Ubpa::UGraphviz::Registry::RegisterEdge},
-        Field{"RegisterNodeAttr", &Ubpa::UGraphviz::Registry::RegisterNodeAttr},
-        Field{"RegisterEdgeAttr", &Ubpa::UGraphviz::Registry::RegisterEdgeAttr},
-        Field{"DeregisterNodeAttr", &Ubpa::UGraphviz::Registry::DeregisterNodeAttr},
-        Field{"DeregisterEdgeAttr", &Ubpa::UGraphviz::Registry::DeregisterEdgeAttr},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type()>()},
+        Field {TSTR("GetNodes"), &Type::GetNodes},
+        Field {TSTR("GetEdges"), &Type::GetEdges},
+        Field {TSTR("GetNodeAttrs"), &Type::GetNodeAttrs},
+        Field {TSTR("GetEdgeAttrs"), &Type::GetEdgeAttrs},
+        Field {TSTR("IsRegisteredNode"), &Type::IsRegisteredNode},
+        Field {TSTR("IsRegisteredEdge"), static_cast<bool(Type::*)(size_t, size_t)const>(&Type::IsRegisteredEdge)},
+        Field {TSTR("IsRegisteredEdge"), static_cast<bool(Type::*)(std::string_view, std::string_view)const>(&Type::IsRegisteredEdge)},
+        Field {TSTR("GetNodeIndex"), &Type::GetNodeIndex},
+        Field {TSTR("GetEdgeIndex"), &Type::GetEdgeIndex},
+        Field {TSTR("RegisterNode"), &Type::RegisterNode},
+        Field {TSTR("RegisterEdge"), &Type::RegisterEdge},
+        Field {TSTR("RegisterNodeAttr"), &Type::RegisterNodeAttr},
+        Field {TSTR("RegisterEdgeAttr"), &Type::RegisterEdgeAttr},
+        Field {TSTR("DeregisterNodeAttr"), &Type::DeregisterNodeAttr},
+        Field {TSTR("DeregisterEdgeAttr"), &Type::DeregisterEdgeAttr},
     };
 };
 

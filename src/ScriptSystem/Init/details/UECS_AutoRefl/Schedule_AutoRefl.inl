@@ -5,17 +5,23 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::Schedule>
-	: Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::Schedule>
+struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::Schedule> :
+    TypeInfoBase<Ubpa::UECS::Schedule>
 {
-	static constexpr AttrList attrs = {};
-	
-	static constexpr FieldList fields = {
-		Field{"Order", &Ubpa::UECS::Schedule::Order},
-		Field{"LockFilter", &Ubpa::UECS::Schedule::LockFilter},
-		Field{"InsertNone", &Ubpa::UECS::Schedule::InsertNone},
-		Field{"EraseNone", &Ubpa::UECS::Schedule::EraseNone},
-		Field{"RegisterCommand", &Ubpa::UECS::Schedule::RegisterCommand},
-	};
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[21] = "Ubpa::UECS::Schedule";
+#endif
+    static constexpr AttrList attrs = {};
+    static constexpr FieldList fields = {
+        Field {TSTR("RegisterCommand"), &Type::RegisterCommand, AttrList {
+            Attr {TSTR(UMeta::default_functions), std::tuple {
+                [](Type* __this, std::function<void(UECS::World*)> command) { return __this->RegisterCommand(std::forward<std::function<void(UECS::World*)>>(command)); }
+            }},
+        }},
+        Field {TSTR("Order"), &Type::Order},
+        Field {TSTR("LockFilter"), &Type::LockFilter},
+        Field {TSTR("InsertNone"), &Type::InsertNone},
+        Field {TSTR("EraseNone"), &Type::EraseNone},
+    };
 };
 

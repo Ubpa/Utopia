@@ -5,19 +5,20 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::ChunkView>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::ChunkView>
+struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::ChunkView> :
+    TypeInfoBase<Ubpa::UECS::ChunkView>
 {
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[22] = "Ubpa::UECS::ChunkView";
+#endif
     static constexpr AttrList attrs = {};
-
     static constexpr FieldList fields = {
-        Field{Name::constructor, WrapConstructor<Ubpa::UECS::ChunkView(Ubpa::UECS::Archetype*, size_t)>()},
-        Field{"Contains", &Ubpa::UECS::ChunkView::Contains},
-		Field{"GetCmptArray",
-			static_cast<void* (Ubpa::UECS::ChunkView::*)(Ubpa::UECS::CmptType)const>(&Ubpa::UECS::ChunkView::GetCmptArray)
-        },
-		Field{"GetEntityArray", &Ubpa::UECS::ChunkView::GetEntityArray},
-        Field{"EntityNum", &Ubpa::UECS::ChunkView::EntityNum},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type(UECS::Archetype*, size_t)>()},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type()>()},
+        Field {TSTR("Contains"), &Type::Contains},
+        Field {TSTR("EntityNum"), &Type::EntityNum},
+        Field {TSTR("GetCmptArray"), static_cast<void* (Type::*)(UECS::CmptType)const>(&Type::GetCmptArray)},
+        Field {TSTR("GetEntityArray"), &Type::GetEntityArray},
     };
 };
 

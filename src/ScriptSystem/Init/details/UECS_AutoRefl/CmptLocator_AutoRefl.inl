@@ -5,17 +5,21 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::CmptLocator>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::CmptLocator>
+struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::CmptLocator> :
+    TypeInfoBase<Ubpa::UECS::CmptLocator>
 {
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[24] = "Ubpa::UECS::CmptLocator";
+#endif
     static constexpr AttrList attrs = {};
-
     static constexpr FieldList fields = {
-        Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptLocator(const Ubpa::UECS::CmptAccessType *, size_t)>()},
-        Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptLocator()>()},
-        Field{"HashCode", &Ubpa::UECS::CmptLocator::HashCode},
-        Field{"CmptAccessTypes", &Ubpa::UECS::CmptLocator::CmptAccessTypes},
-        Field{"operator==", &Ubpa::UECS::CmptLocator::operator==},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type(Span<const UECS::CmptAccessType>)>()},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type(UECS::CmptAccessTypeSet)>()},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type()>()},
+        Field {TSTR("HashCode"), &Type::HashCode},
+        Field {TSTR("CmptAccessTypes"), &Type::CmptAccessTypes},
+        Field {TSTR("operator=="), &Type::operator==},
+        Field {TSTR("HasWriteCmptType"), &Type::HasWriteCmptType},
     };
 };
 

@@ -5,17 +5,19 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::Shader>
-	: Ubpa::USRefl::TypeInfoBase<Ubpa::Utopia::Shader, Base<Ubpa::Utopia::Object>>
+struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::Shader> :
+    TypeInfoBase<Ubpa::Utopia::Shader, Base<Ubpa::Utopia::Object>>
 {
-	static constexpr AttrList attrs = {};
-	
-	static constexpr FieldList fields = {
-		Field{"hlslFile", &Ubpa::Utopia::Shader::hlslFile},
-		Field{"name", &Ubpa::Utopia::Shader::name},
-		Field{"rootParameters", &Ubpa::Utopia::Shader::rootParameters},
-		Field{"properties", &Ubpa::Utopia::Shader::properties},
-		Field{"passes", &Ubpa::Utopia::Shader::passes},
-	};
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[21] = "Ubpa::Utopia::Shader";
+#endif
+    static constexpr AttrList attrs = {};
+    static constexpr FieldList fields = {
+        Field {TSTR("hlslFile"), &Type::hlslFile},
+        Field {TSTR("name"), &Type::name},
+        Field {TSTR("rootParameters"), &Type::rootParameters},
+        Field {TSTR("properties"), &Type::properties},
+        Field {TSTR("passes"), &Type::passes},
+    };
 };
 

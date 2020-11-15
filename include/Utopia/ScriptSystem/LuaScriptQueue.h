@@ -7,7 +7,7 @@
 
 namespace Ubpa::Utopia {
 	struct LuaScriptQueue {
-		std::vector<std::shared_ptr<LuaScript> > value;
+		std::vector<std::shared_ptr<LuaScript>> value;
 	};
 }
 

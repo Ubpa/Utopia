@@ -5,16 +5,17 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::SingletonsView>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::SingletonsView>
+struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::SingletonsView> :
+    TypeInfoBase<Ubpa::UECS::SingletonsView>
 {
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[27] = "Ubpa::UECS::SingletonsView";
+#endif
     static constexpr AttrList attrs = {};
-
     static constexpr FieldList fields = {
-        Field{Name::constructor, WrapConstructor<Ubpa::UECS::SingletonsView(const Ubpa::UECS::CmptAccessPtr *, size_t)>()},
-        Field{"GetSingleton", &Ubpa::UECS::SingletonsView::GetSingleton},
-        Field{"Singletons", &Ubpa::UECS::SingletonsView::Singletons},
-        Field{"NumberOfSingletons", &Ubpa::UECS::SingletonsView::NumberOfSingletons},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type(Span<const UECS::CmptAccessPtr>)>()},
+        Field {TSTR("GetSingleton"), &Type::GetSingleton},
+        Field {TSTR("Singletons"), &Type::Singletons},
     };
 };
 

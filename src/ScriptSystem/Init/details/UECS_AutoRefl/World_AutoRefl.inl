@@ -6,22 +6,30 @@
 #include <UTemplate/Func.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::World>
-	: Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::World>
+struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::World> :
+	TypeInfoBase<Ubpa::UECS::World>
 {
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+	static constexpr char name[18] = "Ubpa::UECS::World";
+#endif
 	static constexpr AttrList attrs = {};
-
 	static constexpr FieldList fields = {
-		Field{Name::constructor, WrapConstructor<Ubpa::UECS::World()>()},
-		Field{Name::constructor, WrapConstructor<Ubpa::UECS::World(const Ubpa::UECS::World&)>()},
-		Field{"entityMngr", &Ubpa::UECS::World::entityMngr},
-		Field{"systemMngr", &Ubpa::UECS::World::systemMngr},
-		Field{"Update", &Ubpa::UECS::World::Update},
-		Field{"DumpUpdateJobGraph", &Ubpa::UECS::World::DumpUpdateJobGraph},
-		Field{"GenUpdateFrameGraph", &Ubpa::UECS::World::GenUpdateFrameGraph},
-		Field{"AddCommand", &Ubpa::UECS::World::AddCommand},
-		//Field{"Accept", &Ubpa::UECS::World::Accept},
-		Field{"RunEntityJob", Ubpa::DecayLambda(
+		Field {TSTR(UMeta::constructor), WrapConstructor<Type()>()},
+		Field {TSTR(UMeta::constructor), WrapConstructor<Type(const UECS::World&)>()},
+		Field {TSTR(UMeta::constructor), WrapConstructor<Type(UECS::World&&)>()},
+		Field {TSTR(UMeta::destructor), WrapDestructor<Type>()},
+		Field {TSTR("systemMngr"), &Type::systemMngr},
+		Field {TSTR("entityMngr"), &Type::entityMngr},
+		Field {TSTR("Update"), &Type::Update},
+		Field {TSTR("AddCommand"), &Type::AddCommand, AttrList {
+			Attr {TSTR(UMeta::default_functions), std::tuple {
+				[](Type* __this, std::function<void()> command) { return __this->AddCommand(std::forward<std::function<void()>>(command)); }
+			}},
+		}},
+		Field {TSTR("DumpUpdateJobGraph"), &Type::DumpUpdateJobGraph},
+		Field {TSTR("GenUpdateFrameGraph"), &Type::GenUpdateFrameGraph},
+		Field {TSTR("Accept"), &Type::Accept},
+		Field {TSTR("RunEntityJob"), Ubpa::DecayLambda(
 			[](
 				Ubpa::UECS::World* world,
 				std::function<void(
@@ -45,7 +53,7 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::World>
 				);
 			}
 		)},
-		Field{"RunChunkJob", Ubpa::DecayLambda(
+		Field {TSTR("RunChunkJob"), Ubpa::DecayLambda(
 			[](
 				Ubpa::UECS::World* world,
 				std::function<void(
@@ -67,4 +75,3 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::World>
 		)},
 	};
 };
-

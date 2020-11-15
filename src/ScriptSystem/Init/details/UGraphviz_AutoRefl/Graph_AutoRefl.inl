@@ -5,18 +5,23 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::UGraphviz::Graph>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::UGraphviz::Graph, Base<Ubpa::UGraphviz::Subgraph>>
+struct Ubpa::USRefl::TypeInfo<Ubpa::UGraphviz::Graph> :
+    TypeInfoBase<Ubpa::UGraphviz::Graph, Base<UGraphviz::Subgraph>>
 {
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[23] = "Ubpa::UGraphviz::Graph";
+#endif
     static constexpr AttrList attrs = {};
-
     static constexpr FieldList fields = {
-        Field{Name::constructor, WrapConstructor<Ubpa::UGraphviz::Graph(std::string, bool)>()},
-        Field{Name::destructor, WrapDestructor<Ubpa::UGraphviz::Graph>()},
-		//Field{Name::constructor, WrapConstructor<Ubpa::UGraphviz::Graph(Ubpa::UGraphviz::Graph &&)>()},
-		//Field{"operator=", &Ubpa::UGraphviz::Graph::operator=},
-        Field{"Dump", &Ubpa::UGraphviz::Graph::Dump},
-        Field{"IsDigraph", &Ubpa::UGraphviz::Graph::IsDigraph},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type(std::string, bool)>(), AttrList {
+            Attr {TSTR(UMeta::default_functions), std::tuple {
+                WrapConstructor<Type(std::string)>()
+            }},
+        }},
+        Field {TSTR(UMeta::destructor), WrapDestructor<Type>()},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type(UGraphviz::Graph&&)>()},
+        Field {TSTR("Dump"), &Type::Dump},
+        Field {TSTR("IsDigraph"), &Type::IsDigraph},
     };
 };
 

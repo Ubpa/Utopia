@@ -10,15 +10,18 @@ struct Type {
 };
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Type>
-	: Ubpa::USRefl::TypeInfoBase<Type>
+struct Ubpa::USRefl::TypeInfo<Type> :
+	TypeInfoBase<Type>
 {
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+	static constexpr char name[5] = "Type";
+#endif
 	static constexpr AttrList attrs = {};
-
 	static constexpr FieldList fields = {
-		Field{"data", &Type::data},
+		Field {TSTR("data"), &Type::data},
 	};
 };
+
 
 int main() {
 	// Enable run-time memory check for debug builds.

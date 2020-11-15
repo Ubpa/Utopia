@@ -5,13 +5,17 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::LocalToWorld>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::Utopia::LocalToWorld>
+struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::LocalToWorld> :
+    TypeInfoBase<Ubpa::Utopia::LocalToWorld>
 {
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[27] = "Ubpa::Utopia::LocalToWorld";
+#endif
     static constexpr AttrList attrs = {};
-
     static constexpr FieldList fields = {
-        Field{"value", &Ubpa::Utopia::LocalToWorld::value},
+        Field {TSTR("value"), &Type::value, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->transformf{ return { transformf::eye() }; }},
+        }},
     };
 };
 

@@ -5,15 +5,19 @@
 
 namespace Ubpa::Utopia {
 	struct LuaECSAgency {
+		// World, SingletonsView
+		static std::function<void(UECS::Schedule&)> SafeOnUpdate(sol::function onUpdate);
+
 		// World, SingletonsView, Entity, size_t index, CmptsView
 		static const UECS::SystemFunc* RegisterEntityJob(
 			UECS::Schedule*,
 			sol::function systemFunc,
 			std::string name,
-			UECS::ArchetypeFilter,
-			UECS::CmptLocator,
-			UECS::SingletonLocator,
-			bool isParallel
+			bool isParallel = true,
+			UECS::ArchetypeFilter = {},
+			UECS::CmptLocator = {},
+			UECS::SingletonLocator = {},
+			UECS::RandomAccessor = {}
 		);
 
 		// World, SingletonsView, entityBeginIndexInQuery, ChunkView
@@ -21,9 +25,10 @@ namespace Ubpa::Utopia {
 			UECS::Schedule*,
 			sol::function systemFunc,
 			std::string name,
-			UECS::ArchetypeFilter,
-			UECS::SingletonLocator,
-			bool isParallel
+			UECS::ArchetypeFilter = {},
+			bool isParallel = true,
+			UECS::SingletonLocator = {},
+			UECS::RandomAccessor = {}
 		);
 
 		// World, SingletonsView
@@ -31,7 +36,8 @@ namespace Ubpa::Utopia {
 			UECS::Schedule*,
 			sol::function systemFunc,
 			std::string name,
-			UECS::SingletonLocator
+			UECS::SingletonLocator = {},
+			UECS::RandomAccessor = {}
 		);
 	};
 }

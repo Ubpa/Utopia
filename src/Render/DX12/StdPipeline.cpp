@@ -270,14 +270,16 @@ void StdPipeline::Impl::BuildTextures(DirectX::ResourceUploadBatch& upload) {
 	ltcHandles = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(2);
 	auto ltc0 = RsrcMngrDX12::Instance().GetTexture2DResource(ltcTexes[0]);
 	auto ltc1 = RsrcMngrDX12::Instance().GetTexture2DResource(ltcTexes[1]);
+	const auto ltc0SRVDesc = UDX12::Desc::SRV::Tex2D(ltc0->GetDesc().Format);
+	const auto ltc1SRVDesc = UDX12::Desc::SRV::Tex2D(ltc1->GetDesc().Format);
 	initDesc.device->CreateShaderResourceView(
 		ltc0,
-		&UDX12::Desc::SRV::Tex2D(ltc0->GetDesc().Format),
+		&ltc0SRVDesc,
 		ltcHandles.GetCpuHandle(static_cast<uint32_t>(0))
 	);
 	initDesc.device->CreateShaderResourceView(
 		ltc1,
-		&UDX12::Desc::SRV::Tex2D(ltc1->GetDesc().Format),
+		&ltc1SRVDesc,
 		ltcHandles.GetCpuHandle(static_cast<uint32_t>(1))
 	);
 
@@ -635,7 +637,7 @@ void StdPipeline::Impl::UpdateRenderContext(
 							continue;
 						RenderContext::EntityData data;
 						data.l2w = L2Ws[i].value;
-						data.w2l = W2Ls ? W2Ls[i].value : L2Ws[i].value.inverse();
+						data.w2l = !W2Ls.empty() ? W2Ls[i].value : L2Ws[i].value.inverse();
 						renderContext.entity2data.emplace_hint(target, std::pair{ obj.entity.Idx(), data });
 					}
 				},
@@ -665,19 +667,19 @@ void StdPipeline::Impl::UpdateRenderContext(
 				[&](const Light* light) {
 					switch (light->type)
 					{
-					case LightType::Directional:
+					case Light::Type::Directional:
 						renderContext.lights.diectionalLightNum++;
 						break;
-					case LightType::Point:
+					case Light::Type::Point:
 						renderContext.lights.pointLightNum++;
 						break;
-					case LightType::Spot:
+					case Light::Type::Spot:
 						renderContext.lights.spotLightNum++;
 						break;
-					case LightType::Rect:
+					case Light::Type::Rect:
 						renderContext.lights.rectLightNum++;
 						break;
-					case LightType::Disk:
+					case Light::Type::Disk:
 						renderContext.lights.diskLightNum++;
 						break;
 					default:
@@ -705,18 +707,18 @@ void StdPipeline::Impl::UpdateRenderContext(
 				[&](const Light* light, const LocalToWorld* l2w) {
 					switch (light->type)
 					{
-					case LightType::Directional:
+					case Light::Type::Directional:
 						renderContext.lights.lights[cur_diectionalLight].color = light->color * light->intensity;
 						renderContext.lights.lights[cur_diectionalLight].dir = (l2w->value * vecf3{ 0,0,1 }).safe_normalize();
 						cur_diectionalLight++;
 						break;
-					case LightType::Point:
+					case Light::Type::Point:
 						renderContext.lights.lights[cur_pointLight].color = light->color * light->intensity;
 						renderContext.lights.lights[cur_pointLight].position = l2w->value * pointf3{ 0.f };
 						renderContext.lights.lights[cur_pointLight].range = light->range;
 						cur_pointLight++;
 						break;
-					case LightType::Spot:
+					case Light::Type::Spot:
 						renderContext.lights.lights[cur_spotLight].color = light->color * light->intensity;
 						renderContext.lights.lights[cur_spotLight].position = l2w->value * pointf3{ 0.f };
 						renderContext.lights.lights[cur_spotLight].dir = (l2w->value * vecf3{ 0,1,0 }).safe_normalize();
@@ -727,7 +729,7 @@ void StdPipeline::Impl::UpdateRenderContext(
 							ShaderLight::Spot::pCosHalfOuterSpotAngle = std::cos(to_radian(light->outerSpotAngle) / 2.f);
 						cur_spotLight++;
 						break;
-					case LightType::Rect:
+					case Light::Type::Rect:
 						renderContext.lights.lights[cur_rectLight].color = light->color * light->intensity;
 						renderContext.lights.lights[cur_rectLight].position = l2w->value * pointf3{ 0.f };
 						renderContext.lights.lights[cur_rectLight].dir = (l2w->value * vecf3{ 0,1,0 }).safe_normalize();
@@ -739,7 +741,7 @@ void StdPipeline::Impl::UpdateRenderContext(
 							ShaderLight::Rect::pHeight = light->height;
 						cur_rectLight++;
 						break;
-					case LightType::Disk:
+					case Light::Type::Disk:
 						renderContext.lights.lights[cur_diskLight].color = light->color * light->intensity;
 						renderContext.lights.lights[cur_diskLight].position = l2w->value * pointf3{ 0.f };
 						renderContext.lights.lights[cur_diskLight].dir = (l2w->value * vecf3{ 0,1,0 }).safe_normalize();

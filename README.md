@@ -22,7 +22,7 @@
 ## Feature
 
 - DirectX 12
-- ECS ([Utopia](https://github.com/Ubpa/Utopia))
+- ECS ([UECS](https://github.com/Ubpa/UECS))
 - Lua
 - Frame Graph
 - ShaderLab

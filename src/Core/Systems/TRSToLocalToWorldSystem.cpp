@@ -25,32 +25,28 @@ void TRSToLocalToWorldSystem::OnUpdate(UECS::Schedule& schedule) {
 		auto chunkS = chunk.GetCmptArray<Scale>();
 		auto chunkNUS = chunk.GetCmptArray<NonUniformScale>();
 
-		bool containsT = chunkT != nullptr;
-		bool containsR = chunkR != nullptr;
-		bool containsS = chunkS != nullptr || chunkNUS != nullptr;
+		bool containsT = !chunkT.empty();
+		bool containsR = !chunkR.empty();
+		bool containsS = !chunkS.empty() || !chunkNUS.empty();
 		assert(containsT || containsR || containsS);
 
 		for (size_t i = 0; i < chunk.EntityNum(); i++) {
-			scalef3 s = chunkS ? chunkS[i].value : 1.f;
-			if (chunkNUS)
+			scalef3 s = !chunkS.empty() ? chunkS[i].value : 1.f;
+			if (!chunkNUS.empty())
 				s *= chunkNUS[i].value;
 
 			// 00
-			if (!containsT && !containsR) {
+			if (!containsT && !containsR)
 				chunkL2W[i].value = transformf{ s };
-			}
 			// 01
-			else if (!containsT && containsR) {
+			else if (!containsT && containsR)
 				chunkL2W[i].value = transformf{ chunkR[i].value, s };
-			}
 			// 10
-			else if (containsT && !containsR) {
+			else if (containsT && !containsR)
 				chunkL2W[i].value = transformf{ chunkT[i].value, s };
-			}
 			// 11
-			else /*if (containsT && containsR)*/ {
+			else // if (containsT && containsR)
 				chunkL2W[i].value = transformf{ chunkT[i].value, chunkR[i].value, s };
-			}
 		}
 	}, SystemFuncName, filter);
 }

@@ -5,17 +5,20 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::ArchetypeFilter>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::ArchetypeFilter>
+struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::ArchetypeFilter> :
+    TypeInfoBase<Ubpa::UECS::ArchetypeFilter>
 {
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[28] = "Ubpa::UECS::ArchetypeFilter";
+#endif
     static constexpr AttrList attrs = {};
-
     static constexpr FieldList fields = {
-        Field{"all", &Ubpa::UECS::ArchetypeFilter::all},
-        Field{"any", &Ubpa::UECS::ArchetypeFilter::any},
-        Field{"none", &Ubpa::UECS::ArchetypeFilter::none},
-        Field{"HashCode", &Ubpa::UECS::ArchetypeFilter::HashCode},
-        Field{"operator==", &Ubpa::UECS::ArchetypeFilter::operator==},
+        Field {TSTR("all"), &Type::all},
+        Field {TSTR("any"), &Type::any},
+        Field {TSTR("none"), &Type::none},
+        Field {TSTR("HashCode"), &Type::HashCode},
+        Field {TSTR("HaveWriteCmptType"), &Type::HaveWriteCmptType},
+        Field {TSTR("operator=="), &Type::operator==},
     };
 };
 

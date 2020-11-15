@@ -5,29 +5,30 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::Camera>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::Utopia::Camera>
+struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::Camera> :
+    TypeInfoBase<Ubpa::Utopia::Camera>
 {
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[21] = "Ubpa::Utopia::Camera";
+#endif
     static constexpr AttrList attrs = {};
-
     static constexpr FieldList fields = {
-        Field{"aspect", &Ubpa::Utopia::Camera::aspect},
-        Field{"fov", &Ubpa::Utopia::Camera::fov,
-            AttrList{
-                Attr{"interval", std::pair{1.f,179.f}},
-            }
-        },
-        Field{"clippingPlaneMin", &Ubpa::Utopia::Camera::clippingPlaneMin,
-            AttrList{
-                Attr{"min", 0.1f},
-            }
-        },
-        Field{"clippingPlaneMax", &Ubpa::Utopia::Camera::clippingPlaneMax,
-            AttrList{
-                Attr{"min", 0.1f},
-            }
-        },
-        Field{"prjectionMatrix", &Ubpa::Utopia::Camera::prjectionMatrix},
+        Field {TSTR("aspect"), &Type::aspect, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->float{ return { 16.f / 9.f }; }},
+        }},
+        Field {TSTR("fov"), &Type::fov, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->float{ return { 60.f }; }},
+            Attr {TSTR("interval"), std::pair{1.f,179.f}},
+        }},
+        Field {TSTR("clippingPlaneMin"), &Type::clippingPlaneMin, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->float{ return { 0.3f }; }},
+            Attr {TSTR("min"), 0.1f},
+        }},
+        Field {TSTR("clippingPlaneMax"), &Type::clippingPlaneMax, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->float{ return { 1000.f }; }},
+            Attr {TSTR("min"), 0.1f},
+        }},
+        Field {TSTR("prjectionMatrix"), &Type::prjectionMatrix},
     };
 };
 

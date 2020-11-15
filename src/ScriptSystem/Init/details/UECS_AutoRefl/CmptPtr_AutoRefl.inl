@@ -5,37 +5,42 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::CmptPtr>
-	: Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::CmptPtr>
+struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::CmptPtr> :
+    TypeInfoBase<Ubpa::UECS::CmptPtr>
 {
-	static constexpr AttrList attrs = {};
-
-	static constexpr FieldList fields = {
-		Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptPtr(Ubpa::UECS::CmptType, void*)>()},
-		Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptPtr()>()},
-		Field{"Ptr", &Ubpa::UECS::CmptPtr::Ptr},
-		Field{"Type", &Ubpa::UECS::CmptPtr::Type},
-		Field{"Invalid", &Ubpa::UECS::CmptPtr::Invalid},
-		Field{"Valid", &Ubpa::UECS::CmptPtr::Valid},
-	};
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[20] = "Ubpa::UECS::CmptPtr";
+#endif
+    static constexpr AttrList attrs = {};
+    static constexpr FieldList fields = {
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type(UECS::CmptType, void*)>()},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type()>()},
+        Field {TSTR("Ptr"), &Type::Ptr},
+        Field {TSTR("Type"), &Type::Type},
+        Field {TSTR("Invalid"), &Type::Invalid},
+        Field {TSTR("Valid"), &Type::Valid},
+    };
 };
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::CmptAccessPtr>
-	: Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::CmptAccessPtr>
+struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::CmptAccessPtr> :
+    TypeInfoBase<Ubpa::UECS::CmptAccessPtr>
 {
-	static constexpr AttrList attrs = {};
-
-	static constexpr FieldList fields = {
-		Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptAccessPtr(Ubpa::UECS::CmptType, void*, Ubpa::UECS::AccessMode)>()},
-		Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptAccessPtr(Ubpa::UECS::CmptAccessType, void*)>()},
-		Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptAccessPtr(Ubpa::UECS::CmptPtr, Ubpa::UECS::AccessMode)>()},
-		Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptAccessPtr(Ubpa::UECS::CmptPtr)>()},
-		Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptAccessPtr()>()},
-		Field{"Ptr", &Ubpa::UECS::CmptAccessPtr::Ptr},
-		Field{"AccessType", &Ubpa::UECS::CmptAccessPtr::AccessType},
-		Field{"Invalid", &Ubpa::UECS::CmptAccessPtr::Invalid},
-		Field{"Valid", &Ubpa::UECS::CmptAccessPtr::Valid},
-	};
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[26] = "Ubpa::UECS::CmptAccessPtr";
+#endif
+    static constexpr AttrList attrs = {};
+    static constexpr FieldList fields = {
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type(UECS::CmptType, void*, UECS::AccessMode)>()},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type(UECS::CmptAccessType, void*)>()},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type(UECS::CmptPtr, UECS::AccessMode)>()},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type(UECS::CmptPtr)>()},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type()>()},
+        Field {TSTR("operatorCmptPtr"), &Type::operator UECS::CmptPtr},
+        Field {TSTR("Ptr"), &Type::Ptr},
+        Field {TSTR("AccessType"), &Type::AccessType},
+        Field {TSTR("Invalid"), &Type::Invalid},
+        Field {TSTR("Valid"), &Type::Valid},
+    };
 };
 

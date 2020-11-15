@@ -5,38 +5,41 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::EntityMngr>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::EntityMngr>
+struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::EntityMngr> :
+    TypeInfoBase<Ubpa::UECS::EntityMngr>
 {
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[23] = "Ubpa::UECS::EntityMngr";
+#endif
     static constexpr AttrList attrs = {};
-
-	static constexpr FieldList fields = {
-		Field{Name::constructor, Ubpa::USRefl::WrapConstructor<Ubpa::UECS::EntityMngr()>()},
-		Field{Name::constructor, Ubpa::USRefl::WrapConstructor<Ubpa::UECS::EntityMngr(const Ubpa::UECS::EntityMngr&)>()},
-		Field{"cmptTraits", &Ubpa::UECS::EntityMngr::cmptTraits},
-        Field{"Create",
-            static_cast<Ubpa::UECS::Entity(Ubpa::UECS::EntityMngr::*)(const Ubpa::UECS::CmptType*, size_t)> (&Ubpa::UECS::EntityMngr::Create),
-        },
-        Field{"Instantiate", &Ubpa::UECS::EntityMngr::Instantiate},
-        Field{"Attach",
-            static_cast<void(Ubpa::UECS::EntityMngr::*)(Ubpa::UECS::Entity, const Ubpa::UECS::CmptType*, size_t)> (&Ubpa::UECS::EntityMngr::Attach),
-        },
-		Field{"Detach", &Ubpa::UECS::EntityMngr::Detach},
-        Field{"Have", &Ubpa::UECS::EntityMngr::Have},
-		Field{"Get", static_cast<Ubpa::UECS::CmptPtr(Ubpa::UECS::EntityMngr::*)(Ubpa::UECS::Entity, Ubpa::UECS::CmptType)const>(&Ubpa::UECS::EntityMngr::Get)},
-        Field{"Components", &Ubpa::UECS::EntityMngr::Components},
-        Field{"Exist", &Ubpa::UECS::EntityMngr::Exist},
-		Field{"Destroy", &Ubpa::UECS::EntityMngr::Destroy},
-		Field{"TotalEntityNum", &Ubpa::UECS::EntityMngr::TotalEntityNum},
-		Field{"EntityNum", &Ubpa::UECS::EntityMngr::EntityNum},
-		Field{"GetEntityFreeEntries", &Ubpa::UECS::EntityMngr::GetEntityFreeEntries},
-		Field{"GetEntityVersion", &Ubpa::UECS::EntityMngr::GetEntityVersion},
-		Field{"LocateSingletons", &Ubpa::UECS::EntityMngr::LocateSingletons},
-		Field{"IsSingleton", &Ubpa::UECS::EntityMngr::IsSingleton},
-		Field{"GetSingletonEntity", &Ubpa::UECS::EntityMngr::GetSingletonEntity},
-		Field{"GetSingleton",
-            static_cast<Ubpa::UECS::CmptPtr(Ubpa::UECS::EntityMngr::*)(Ubpa::UECS::CmptType)const>(&Ubpa::UECS::EntityMngr::GetSingleton),
-		},
-        Field{"Accept", &Ubpa::UECS::EntityMngr::Accept},
+    static constexpr FieldList fields = {
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type()>()},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type(const UECS::EntityMngr&)>()},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type(UECS::EntityMngr&&)>()},
+        Field {TSTR(UMeta::destructor), WrapDestructor<Type>()},
+        Field {TSTR("cmptTraits"), &Type::cmptTraits},
+        Field {TSTR("Create"), static_cast<UECS::Entity(Type::*)(Span<const UECS::CmptType>)>(&Type::Create)},
+        Field {TSTR("Create"), static_cast<UECS::Entity(Type::*)(UECS::CmptType)>(&Type::Create)},
+        Field {TSTR("Instantiate"), &Type::Instantiate},
+        Field {TSTR("Attach"), static_cast<void(Type::*)(UECS::Entity, Span<const UECS::CmptType>)>(&Type::Attach)},
+        Field {TSTR("Attach"), static_cast<void(Type::*)(UECS::Entity, UECS::CmptType)>(&Type::Attach)},
+        Field {TSTR("Detach"), static_cast<void(Type::*)(UECS::Entity, Span<const UECS::CmptType>)>(&Type::Detach)},
+        Field {TSTR("Detach"), static_cast<void(Type::*)(UECS::Entity, UECS::CmptType)>(&Type::Detach)},
+        Field {TSTR("Have"), static_cast<bool(Type::*)(UECS::Entity, UECS::CmptType)const>(&Type::Have)},
+        Field {TSTR("Get"), static_cast<UECS::CmptPtr(Type::*)(UECS::Entity, UECS::CmptType)const>(&Type::Get)},
+        Field {TSTR("Components"), &Type::Components},
+        Field {TSTR("Exist"), &Type::Exist},
+        Field {TSTR("Destroy"), &Type::Destroy},
+        Field {TSTR("TotalEntityNum"), &Type::TotalEntityNum},
+        Field {TSTR("EntityNum"), &Type::EntityNum},
+        Field {TSTR("GetEntityFreeEntries"), &Type::GetEntityFreeEntries},
+        Field {TSTR("GetEntityVersion"), &Type::GetEntityVersion},
+        Field {TSTR("IsSingleton"), &Type::IsSingleton},
+        Field {TSTR("GetSingletonEntity"), &Type::GetSingletonEntity},
+        Field {TSTR("GetSingleton"), static_cast<UECS::CmptPtr(Type::*)(UECS::CmptType)const>(&Type::GetSingleton)},
+        Field {TSTR("GetCmptArray"), static_cast<std::vector<UECS::CmptPtr>(Type::*)(const UECS::ArchetypeFilter&, UECS::CmptType)const>(&Type::GetCmptArray)},
+        Field {TSTR("GetEntityArray"), &Type::GetEntityArray},
+        Field {TSTR("Accept"), &Type::Accept},
     };
 };
+

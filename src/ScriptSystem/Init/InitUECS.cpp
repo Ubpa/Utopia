@@ -20,5 +20,6 @@ void Ubpa::Utopia::detail::InitUECS(lua_State* L) {
 	ULuaPP::Register<UECS::SingletonLocator>(L);
 	ULuaPP::Register<UECS::SingletonsView>(L);
 	ULuaPP::Register<UECS::SystemMngr>(L);
+	ULuaPP::Register<UECS::SystemTraits>(L);
 	ULuaPP::Register<UECS::World>(L);
 }

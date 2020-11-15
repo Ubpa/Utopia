@@ -5,13 +5,15 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::MeshFilter>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::Utopia::MeshFilter>
+struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::MeshFilter> :
+    TypeInfoBase<Ubpa::Utopia::MeshFilter>
 {
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[25] = "Ubpa::Utopia::MeshFilter";
+#endif
     static constexpr AttrList attrs = {};
-
     static constexpr FieldList fields = {
-        Field{"mesh", &Ubpa::Utopia::MeshFilter::mesh},
+        Field {TSTR("mesh"), &Type::mesh},
     };
 };
 

@@ -4,6 +4,7 @@
 #include <Utopia/ScriptSystem/LuaContext.h>
 #include <Utopia/ScriptSystem/LuaCtxMngr.h>
 #include <Utopia/ScriptSystem/LuaScript.h>
+#include <_deps/spdlog/spdlog.h>
 
 #include <_deps/sol/sol.hpp>
 
@@ -20,7 +21,11 @@ void LuaScriptQueueSystem::OnUpdate(Schedule& schedule) {
 		for (auto script : scripts->value) {
 			if (!script)
 				continue;
-			lua.safe_script(script->GetText());
+			auto rst = lua.safe_script(script->GetText());
+			if (!rst.valid()) {
+				sol::error err = rst;
+				spdlog::error(err.what());
+			}
 		}
 		scripts->value.clear();
 	});

@@ -63,7 +63,7 @@ struct AnimateMeshSystem {
 			if (time->elapsedTime < 10.f)
 				return;
 
-			w->systemMngr.Deactivate(w->systemMngr.GetIndex<AnimateMeshSystem>());
+			w->systemMngr.Deactivate(w->systemMngr.systemTraits.GetID(Ubpa::UECS::SystemTraits::StaticNameof<AnimateMeshSystem>()));
 		});
 	}
 };
@@ -447,7 +447,7 @@ void MyDX12App::UpdateCamera()
 }
 
 void MyDX12App::BuildWorld() {
-	auto indices = world.systemMngr.Register<
+	auto systemIDs = world.systemMngr.systemTraits.Register<
 		Ubpa::Utopia::CameraSystem,
 		Ubpa::Utopia::LocalToParentSystem,
 		Ubpa::Utopia::RotationEulerSystem,
@@ -457,8 +457,8 @@ void MyDX12App::BuildWorld() {
 		Ubpa::Utopia::WorldTimeSystem,
 		AnimateMeshSystem
 	>();
-	for (auto idx : indices)
-		world.systemMngr.Activate(idx);
+	for (auto ID : systemIDs)
+		world.systemMngr.Activate(ID);
 
 	{ // skybox
 		auto [e, skybox] = world.entityMngr.Create<Ubpa::Utopia::Skybox>();

@@ -5,32 +5,34 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::Input>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::Utopia::Input>
+struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::Input> :
+    TypeInfoBase<Ubpa::Utopia::Input>
 {
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[20] = "Ubpa::Utopia::Input";
+#endif
     static constexpr AttrList attrs = {};
-
     static constexpr FieldList fields = {
-        Field{"DisplaySize", &Ubpa::Utopia::Input::DisplaySize},
-        Field{"MousePos", &Ubpa::Utopia::Input::MousePos},
-        Field{"MouseDown", &Ubpa::Utopia::Input::MouseDown},
-        Field{"MouseWheel", &Ubpa::Utopia::Input::MouseWheel},
-        Field{"MouseWheelH", &Ubpa::Utopia::Input::MouseWheelH},
-        Field{"KeyCtrl", &Ubpa::Utopia::Input::KeyCtrl},
-        Field{"KeyShift", &Ubpa::Utopia::Input::KeyShift},
-        Field{"KeyAlt", &Ubpa::Utopia::Input::KeyAlt},
-        Field{"KeySuper", &Ubpa::Utopia::Input::KeySuper},
-        Field{"KeysDown", &Ubpa::Utopia::Input::KeysDown},
-        Field{"MouseInDisplay", &Ubpa::Utopia::Input::MouseInDisplay},
-        Field{"MouseInDisplayPre", &Ubpa::Utopia::Input::MouseInDisplayPre},
-        Field{"MouseClicked", &Ubpa::Utopia::Input::MouseClicked},
-        Field{"MousePosPrev", &Ubpa::Utopia::Input::MousePosPrev},
-        Field{"MouseDelta", &Ubpa::Utopia::Input::MouseDelta},
-        Field{"MouseClickedPos", &Ubpa::Utopia::Input::MouseClickedPos},
-        Field{"MouseDoubleClicked", &Ubpa::Utopia::Input::MouseDoubleClicked},
-        Field{"MouseReleased", &Ubpa::Utopia::Input::MouseReleased},
-        Field{"MouseDownDuration", &Ubpa::Utopia::Input::MouseDownDuration},
-        Field{"KeysDownDuration", &Ubpa::Utopia::Input::KeysDownDuration},
+        Field {TSTR("DisplaySize"), &Type::DisplaySize},
+        Field {TSTR("MousePos"), &Type::MousePos},
+        Field {TSTR("MouseDown"), &Type::MouseDown},
+        Field {TSTR("MouseWheel"), &Type::MouseWheel},
+        Field {TSTR("MouseWheelH"), &Type::MouseWheelH},
+        Field {TSTR("KeyCtrl"), &Type::KeyCtrl},
+        Field {TSTR("KeyShift"), &Type::KeyShift},
+        Field {TSTR("KeyAlt"), &Type::KeyAlt},
+        Field {TSTR("KeySuper"), &Type::KeySuper},
+        Field {TSTR("KeysDown"), &Type::KeysDown},
+        Field {TSTR("MouseInDisplay"), &Type::MouseInDisplay},
+        Field {TSTR("MouseInDisplayPre"), &Type::MouseInDisplayPre},
+        Field {TSTR("MouseClicked"), &Type::MouseClicked},
+        Field {TSTR("MousePosPrev"), &Type::MousePosPrev},
+        Field {TSTR("MouseDelta"), &Type::MouseDelta},
+        Field {TSTR("MouseClickedPos"), &Type::MouseClickedPos},
+        Field {TSTR("MouseDoubleClicked"), &Type::MouseDoubleClicked},
+        Field {TSTR("MouseReleased"), &Type::MouseReleased},
+        Field {TSTR("MouseDownDuration"), &Type::MouseDownDuration},
+        Field {TSTR("KeysDownDuration"), &Type::KeysDownDuration},
     };
 };
 

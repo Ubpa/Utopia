@@ -5,55 +5,73 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::CmptType>
-	: Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::CmptType>
+struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::CmptType> :
+    TypeInfoBase<Ubpa::UECS::CmptType>
 {
-	static constexpr AttrList attrs = {};
-
-	static constexpr FieldList fields = {
-		Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptType(size_t)>()},
-		Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptType(std::string_view)>()},
-		Field{"HashCode", &Ubpa::UECS::CmptType::HashCode},
-		Field{"Invalid", &Ubpa::UECS::CmptType::Invalid},
-		Field{"Valid", &Ubpa::UECS::CmptType::Valid},
-		Field{"operator<", &Ubpa::UECS::CmptType::operator<},
-		Field{"operator<=", &Ubpa::UECS::CmptType::operator<=},
-		Field{"operator>", &Ubpa::UECS::CmptType::operator>},
-		Field{"operator>=", &Ubpa::UECS::CmptType::operator>=},
-		Field{"operator==", &Ubpa::UECS::CmptType::operator==},
-		Field{"operator!=", &Ubpa::UECS::CmptType::operator!=},
-	};
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[21] = "Ubpa::UECS::CmptType";
+#endif
+    static constexpr AttrList attrs = {};
+    static constexpr FieldList fields = {
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type(size_t)>()},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type(std::string_view)>()},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type()>()},
+        Field {TSTR("HashCode"), &Type::HashCode},
+        Field {TSTR("Invalid"), &Type::Invalid},
+        Field {TSTR("Valid"), &Type::Valid},
+        Field {TSTR("Is"), static_cast<bool(Type::*)(std::string_view)const noexcept>(&Type::Is)},
+        Field {TSTR("operator<"), &Type::operator<},
+        Field {TSTR("operator<="), &Type::operator<=},
+        Field {TSTR("operator>"), &Type::operator>},
+        Field {TSTR("operator>="), &Type::operator>=},
+        Field {TSTR("operator=="), &Type::operator==},
+        Field {TSTR("operator!="), &Type::operator!=},
+    };
 };
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::CmptAccessType>
-	: Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::CmptAccessType>
+struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::CmptAccessType> :
+    TypeInfoBase<Ubpa::UECS::CmptAccessType>
 {
-	static constexpr AttrList attrs = {};
-
-	static constexpr FieldList fields = {
-		Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptAccessType(size_t, Ubpa::UECS::AccessMode)>()},
-		Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptAccessType(std::string_view, Ubpa::UECS::AccessMode)>()},
-		Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptAccessType(Ubpa::UECS::CmptType, Ubpa::UECS::AccessMode)>()},
-		Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptAccessType(Ubpa::UECS::CmptType)>()},
-		Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptAccessType()>()},
-		Field{"HashCode", &Ubpa::UECS::CmptAccessType::HashCode},
-		Field{"GetCmptType", &Ubpa::UECS::CmptAccessType::GetCmptType},
-		Field{"GetAccessMode", &Ubpa::UECS::CmptAccessType::GetAccessMode},
-		Field{"Invalid", &Ubpa::UECS::CmptAccessType::Invalid},
-		Field{"Valid", &Ubpa::UECS::CmptAccessType::Valid},
-		Field{"operator<", static_cast<bool(Ubpa::UECS::CmptAccessType::*)(const Ubpa::UECS::CmptAccessType&)const noexcept>(&Ubpa::UECS::CmptAccessType::operator<)},
-		Field{"operator<=", static_cast<bool(Ubpa::UECS::CmptAccessType::*)(const Ubpa::UECS::CmptAccessType&)const noexcept>(&Ubpa::UECS::CmptAccessType::operator<=)},
-		Field{"operator>", static_cast<bool(Ubpa::UECS::CmptAccessType::*)(const Ubpa::UECS::CmptAccessType&)const noexcept>(&Ubpa::UECS::CmptAccessType::operator>)},
-		Field{"operator>=", static_cast<bool(Ubpa::UECS::CmptAccessType::*)(const Ubpa::UECS::CmptAccessType&)const noexcept>(&Ubpa::UECS::CmptAccessType::operator>=)},
-		Field{"operator==", static_cast<bool(Ubpa::UECS::CmptAccessType::*)(const Ubpa::UECS::CmptAccessType&)const noexcept>(&Ubpa::UECS::CmptAccessType::operator==)},
-		Field{"operator!=", static_cast<bool(Ubpa::UECS::CmptAccessType::*)(const Ubpa::UECS::CmptAccessType&)const noexcept>(&Ubpa::UECS::CmptAccessType::operator!=)},
-		Field{"operator<", static_cast<bool(Ubpa::UECS::CmptAccessType::*)(const Ubpa::UECS::CmptType&)const noexcept>(&Ubpa::UECS::CmptAccessType::operator<)},
-		Field{"operator<=", static_cast<bool(Ubpa::UECS::CmptAccessType::*)(const Ubpa::UECS::CmptType&)const noexcept>(&Ubpa::UECS::CmptAccessType::operator<=)},
-		Field{"operator>", static_cast<bool(Ubpa::UECS::CmptAccessType::*)(const Ubpa::UECS::CmptType&)const noexcept>(&Ubpa::UECS::CmptAccessType::operator>)},
-		Field{"operator>=", static_cast<bool(Ubpa::UECS::CmptAccessType::*)(const Ubpa::UECS::CmptType&)const noexcept>(&Ubpa::UECS::CmptAccessType::operator>=)},
-		Field{"operator==", static_cast<bool(Ubpa::UECS::CmptAccessType::*)(const Ubpa::UECS::CmptType&)const noexcept>(&Ubpa::UECS::CmptAccessType::operator==)},
-		Field{"operator!=", static_cast<bool(Ubpa::UECS::CmptAccessType::*)(const Ubpa::UECS::CmptType&)const noexcept>(&Ubpa::UECS::CmptAccessType::operator!=)},
-	};
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[27] = "Ubpa::UECS::CmptAccessType";
+#endif
+    static constexpr AttrList attrs = {};
+    static constexpr FieldList fields = {
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type(size_t, UECS::AccessMode)>(), AttrList {
+            Attr {TSTR(UMeta::default_functions), std::tuple {
+                WrapConstructor<Type(size_t)>()
+            }},
+        }},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type(std::string_view, UECS::AccessMode)>(), AttrList {
+            Attr {TSTR(UMeta::default_functions), std::tuple {
+                WrapConstructor<Type(std::string_view)>()
+            }},
+        }},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type(UECS::CmptType, UECS::AccessMode)>(), AttrList {
+            Attr {TSTR(UMeta::default_functions), std::tuple {
+                WrapConstructor<Type(UECS::CmptType)>()
+            }},
+        }},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type()>()},
+        Field {TSTR("HashCode"), &Type::HashCode},
+        Field {TSTR("GetCmptType"), &Type::GetCmptType},
+        Field {TSTR("GetAccessMode"), &Type::GetAccessMode},
+        Field {TSTR("operatorCmptType"), &Type::operator UECS::CmptType},
+        Field {TSTR("Invalid"), &Type::Invalid},
+        Field {TSTR("Valid"), &Type::Valid},
+        Field {TSTR("operator<"), static_cast<bool(Type::*)(const UECS::CmptAccessType&)const noexcept>(&Type::operator<)},
+        Field {TSTR("operator<="), static_cast<bool(Type::*)(const UECS::CmptAccessType&)const noexcept>(&Type::operator<=)},
+        Field {TSTR("operator>"), static_cast<bool(Type::*)(const UECS::CmptAccessType&)const noexcept>(&Type::operator>)},
+        Field {TSTR("operator>="), static_cast<bool(Type::*)(const UECS::CmptAccessType&)const noexcept>(&Type::operator>=)},
+        Field {TSTR("operator=="), static_cast<bool(Type::*)(const UECS::CmptAccessType&)const noexcept>(&Type::operator==)},
+        Field {TSTR("operator!="), static_cast<bool(Type::*)(const UECS::CmptAccessType&)const noexcept>(&Type::operator!=)},
+        Field {TSTR("operator<"), static_cast<bool(Type::*)(const UECS::CmptType&)const noexcept>(&Type::operator<)},
+        Field {TSTR("operator<="), static_cast<bool(Type::*)(const UECS::CmptType&)const noexcept>(&Type::operator<=)},
+        Field {TSTR("operator>"), static_cast<bool(Type::*)(const UECS::CmptType&)const noexcept>(&Type::operator>)},
+        Field {TSTR("operator>="), static_cast<bool(Type::*)(const UECS::CmptType&)const noexcept>(&Type::operator>=)},
+        Field {TSTR("operator=="), static_cast<bool(Type::*)(const UECS::CmptType&)const noexcept>(&Type::operator==)},
+        Field {TSTR("operator!="), static_cast<bool(Type::*)(const UECS::CmptType&)const noexcept>(&Type::operator!=)},
+    };
 };
 

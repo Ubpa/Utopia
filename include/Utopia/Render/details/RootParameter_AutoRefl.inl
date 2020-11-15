@@ -5,55 +5,75 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::RootDescriptorType>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::Utopia::RootDescriptorType>
+struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::RootDescriptorType> :
+    TypeInfoBase<Ubpa::Utopia::RootDescriptorType>
 {
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[33] = "Ubpa::Utopia::RootDescriptorType";
+#endif
     static constexpr AttrList attrs = {};
-
     static constexpr FieldList fields = {
-        Field{"CBV", Ubpa::Utopia::RootDescriptorType::CBV},
-        Field{"SRV", Ubpa::Utopia::RootDescriptorType::SRV},
-        Field{"UAV", Ubpa::Utopia::RootDescriptorType::UAV},
+        Field {TSTR("SRV"), Type::SRV},
+        Field {TSTR("UAV"), Type::UAV},
+        Field {TSTR("CBV"), Type::CBV},
     };
 };
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::DescriptorRange>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::Utopia::DescriptorRange>
+struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::DescriptorRange> :
+    TypeInfoBase<Ubpa::Utopia::DescriptorRange>
 {
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[30] = "Ubpa::Utopia::DescriptorRange";
+#endif
     static constexpr AttrList attrs = {};
-
     static constexpr FieldList fields = {
-        Field{"RangeType", &Ubpa::Utopia::DescriptorRange::RangeType},
-        Field{"NumDescriptors", &Ubpa::Utopia::DescriptorRange::NumDescriptors},
-        Field{"BaseShaderRegister", &Ubpa::Utopia::DescriptorRange::BaseShaderRegister},
-        Field{"RegisterSpace", &Ubpa::Utopia::DescriptorRange::RegisterSpace},
+        Field {TSTR("RangeType"), &Type::RangeType},
+        Field {TSTR("NumDescriptors"), &Type::NumDescriptors},
+        Field {TSTR("BaseShaderRegister"), &Type::BaseShaderRegister},
+        Field {TSTR("RegisterSpace"), &Type::RegisterSpace},
+        Field {TSTR("Init"), &Type::Init, AttrList {
+            Attr {TSTR(UMeta::default_functions), std::tuple {
+                [](Type* __this, Ubpa::Utopia::RootDescriptorType RangeType, unsigned int NumDescriptors, unsigned int BaseShaderRegister) { return __this->Init(std::forward<Ubpa::Utopia::RootDescriptorType>(RangeType), std::forward<unsigned int>(NumDescriptors), std::forward<unsigned int>(BaseShaderRegister)); }
+            }},
+        }},
     };
 };
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::RootConstants>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::Utopia::RootConstants>
+struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::RootConstants> :
+    TypeInfoBase<Ubpa::Utopia::RootConstants>
 {
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[28] = "Ubpa::Utopia::RootConstants";
+#endif
     static constexpr AttrList attrs = {};
-
     static constexpr FieldList fields = {
-        Field{"ShaderRegister", &Ubpa::Utopia::RootConstants::ShaderRegister},
-        Field{"RegisterSpace", &Ubpa::Utopia::RootConstants::RegisterSpace},
-        Field{"Num32BitValues", &Ubpa::Utopia::RootConstants::Num32BitValues},
+        Field {TSTR("ShaderRegister"), &Type::ShaderRegister},
+        Field {TSTR("RegisterSpace"), &Type::RegisterSpace},
+        Field {TSTR("Num32BitValues"), &Type::Num32BitValues},
     };
 };
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::RootDescriptor>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::Utopia::RootDescriptor>
+struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::RootDescriptor> :
+    TypeInfoBase<Ubpa::Utopia::RootDescriptor>
 {
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[29] = "Ubpa::Utopia::RootDescriptor";
+#endif
     static constexpr AttrList attrs = {};
-
     static constexpr FieldList fields = {
-        Field{"DescriptorType", &Ubpa::Utopia::RootDescriptor::DescriptorType},
-        Field{"ShaderRegister", &Ubpa::Utopia::RootDescriptor::ShaderRegister},
-        Field{"RegisterSpace", &Ubpa::Utopia::RootDescriptor::RegisterSpace},
+        Field {TSTR("DescriptorType"), &Type::DescriptorType},
+        Field {TSTR("ShaderRegister"), &Type::ShaderRegister},
+        Field {TSTR("RegisterSpace"), &Type::RegisterSpace, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->unsigned int { return { 0 }; }},
+        }},
+        Field {TSTR("Init"), &Type::Init, AttrList {
+            Attr {TSTR(UMeta::default_functions), std::tuple {
+                [](Type* __this, Ubpa::Utopia::RootDescriptorType DescriptorType, unsigned int ShaderRegister) { return __this->Init(std::forward<Ubpa::Utopia::RootDescriptorType>(DescriptorType), std::forward<unsigned int>(ShaderRegister)); }
+            }},
+        }},
     };
 };
 

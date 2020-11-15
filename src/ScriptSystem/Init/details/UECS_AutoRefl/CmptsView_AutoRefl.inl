@@ -5,16 +5,18 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::CmptsView>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::CmptsView>
+struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::CmptsView> :
+    TypeInfoBase<Ubpa::UECS::CmptsView>
 {
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[22] = "Ubpa::UECS::CmptsView";
+#endif
     static constexpr AttrList attrs = {};
-
     static constexpr FieldList fields = {
-        Field{Name::constructor, WrapConstructor<Ubpa::UECS::CmptsView(const Ubpa::UECS::CmptAccessPtr *, size_t)>()},
-        Field{"GetCmpt", &Ubpa::UECS::CmptsView::GetCmpt},
-        Field{"Components", &Ubpa::UECS::CmptsView::Components},
-        Field{"NumberOfComponents", &Ubpa::UECS::CmptsView::NumberOfComponents},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type()>()},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type(Span<const UECS::CmptAccessPtr>)>()},
+        Field {TSTR("GetCmpt"), &Type::GetCmpt},
+        Field {TSTR("Components"), &Type::Components},
     };
 };
 

@@ -5,61 +5,51 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::LuaBuffer>
-	: Ubpa::USRefl::TypeInfoBase<Ubpa::Utopia::LuaBuffer>
+struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::LuaBuffer> :
+    TypeInfoBase<Ubpa::Utopia::LuaBuffer>
 {
-	static constexpr AttrList attrs = {};
-
-	static constexpr FieldList fields = {
-		Field{"ptr", &Ubpa::Utopia::LuaBuffer::ptr},
-		Field{"size", &Ubpa::Utopia::LuaBuffer::size},
-		Field{Name::constructor, WrapConstructor<Ubpa::Utopia::LuaBuffer()>()},
-		Field{Name::constructor, WrapConstructor<Ubpa::Utopia::LuaBuffer(void*, uint64_t)>()},
-		Field{Name::constructor, WrapConstructor<Ubpa::Utopia::LuaBuffer(UECS::Entity*, size_t)>()},
-		Field{"GetEntity", &Ubpa::Utopia::LuaBuffer::GetEntity},
-		Field{"SetEntity", &Ubpa::Utopia::LuaBuffer::SetEntity},
-		Field{"GetPointer", &Ubpa::Utopia::LuaBuffer::GetPointer},
-		Field{"SetPointer", &Ubpa::Utopia::LuaBuffer::SetPointer},
-		Field{"GetBuffer",
-			static_cast<Ubpa::Utopia::LuaBuffer(Ubpa::Utopia::LuaBuffer::*)(size_t)const>
-			(&Ubpa::Utopia::LuaBuffer::GetBuffer)
-		},
-		Field{"SetBuffer",
-			static_cast<void(Ubpa::Utopia::LuaBuffer::*)(size_t, Ubpa::Utopia::LuaBuffer)>
-			(&Ubpa::Utopia::LuaBuffer::SetBuffer),
-		},
-		Field{"GetBuffer",
-			static_cast<Ubpa::Utopia::LuaBuffer(Ubpa::Utopia::LuaBuffer::*)(size_t, uint64_t)const>
-			(&Ubpa::Utopia::LuaBuffer::GetBuffer),
-		},
-		Field{"SetBuffer",
-			static_cast<void(Ubpa::Utopia::LuaBuffer::*)(size_t, void*, size_t)>
-			(&Ubpa::Utopia::LuaBuffer::SetBuffer),
-		},
-		Field{"GetBool", &Ubpa::Utopia::LuaBuffer::GetBool},
-		Field{"SetBool", &Ubpa::Utopia::LuaBuffer::SetBool},
-		Field{"GetInt8", &Ubpa::Utopia::LuaBuffer::GetInt8},
-		Field{"SetInt8", &Ubpa::Utopia::LuaBuffer::SetInt8},
-		Field{"GetInt16", &Ubpa::Utopia::LuaBuffer::GetInt16},
-		Field{"SetInt16", &Ubpa::Utopia::LuaBuffer::SetInt16},
-		Field{"GetInt32", &Ubpa::Utopia::LuaBuffer::GetInt32},
-		Field{"SetInt32", &Ubpa::Utopia::LuaBuffer::SetInt32},
-		Field{"GetInt64", &Ubpa::Utopia::LuaBuffer::GetInt64},
-		Field{"SetInt64", &Ubpa::Utopia::LuaBuffer::SetInt64},
-		Field{"GetUInt8", &Ubpa::Utopia::LuaBuffer::GetUInt8},
-		Field{"SetUInt8", &Ubpa::Utopia::LuaBuffer::SetUInt8},
-		Field{"GetUInt16", &Ubpa::Utopia::LuaBuffer::GetUInt16},
-		Field{"SetUInt16", &Ubpa::Utopia::LuaBuffer::SetUInt16},
-		Field{"GetUInt32", &Ubpa::Utopia::LuaBuffer::GetUInt32},
-		Field{"SetUInt32", &Ubpa::Utopia::LuaBuffer::SetUInt32},
-		Field{"GetUInt64", &Ubpa::Utopia::LuaBuffer::GetUInt64},
-		Field{"SetUInt64", &Ubpa::Utopia::LuaBuffer::SetUInt64},
-		Field{"GetFloat", &Ubpa::Utopia::LuaBuffer::GetFloat},
-		Field{"SetFloat", &Ubpa::Utopia::LuaBuffer::SetFloat},
-		Field{"GetDouble", &Ubpa::Utopia::LuaBuffer::GetDouble},
-		Field{"SetDouble", &Ubpa::Utopia::LuaBuffer::SetDouble},
-		Field{"GetCString", &Ubpa::Utopia::LuaBuffer::GetCString},
-		Field{"SetCString", &Ubpa::Utopia::LuaBuffer::SetCString},
-	};
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[24] = "Ubpa::Utopia::LuaBuffer";
+#endif
+    static constexpr AttrList attrs = {};
+    static constexpr FieldList fields = {
+        Field {TSTR("ptr"), &Type::ptr},
+        Field {TSTR("size"), &Type::size},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type()>()},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type(void*, uint64_t)>()},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type(UECS::Entity*, size_t)>()},
+        Field {TSTR("GetEntity"), &Type::GetEntity},
+        Field {TSTR("SetEntity"), &Type::SetEntity},
+        Field {TSTR("GetPointer"), &Type::GetPointer},
+        Field {TSTR("SetPointer"), &Type::SetPointer},
+        Field {TSTR("GetBuffer"), static_cast<Utopia::LuaBuffer(Type::*)(size_t)const>(&Type::GetBuffer)},
+        Field {TSTR("SetBuffer"), static_cast<void(Type::*)(size_t, Utopia::LuaBuffer)>(&Type::SetBuffer)},
+        Field {TSTR("GetBuffer"), static_cast<Utopia::LuaBuffer(Type::*)(size_t, uint64_t)const>(&Type::GetBuffer)},
+        Field {TSTR("SetBuffer"), static_cast<void(Type::*)(size_t, void*, size_t)>(&Type::SetBuffer)},
+        Field {TSTR("GetBool"), &Type::GetBool},
+        Field {TSTR("SetBool"), &Type::SetBool},
+        Field {TSTR("GetInt8"), &Type::GetInt8},
+        Field {TSTR("SetInt8"), &Type::SetInt8},
+        Field {TSTR("GetInt16"), &Type::GetInt16},
+        Field {TSTR("SetInt16"), &Type::SetInt16},
+        Field {TSTR("GetInt32"), &Type::GetInt32},
+        Field {TSTR("SetInt32"), &Type::SetInt32},
+        Field {TSTR("GetInt64"), &Type::GetInt64},
+        Field {TSTR("SetInt64"), &Type::SetInt64},
+        Field {TSTR("GetUInt8"), &Type::GetUInt8},
+        Field {TSTR("SetUInt8"), &Type::SetUInt8},
+        Field {TSTR("GetUInt16"), &Type::GetUInt16},
+        Field {TSTR("SetUInt16"), &Type::SetUInt16},
+        Field {TSTR("GetUInt32"), &Type::GetUInt32},
+        Field {TSTR("SetUInt32"), &Type::SetUInt32},
+        Field {TSTR("GetUInt64"), &Type::GetUInt64},
+        Field {TSTR("SetUInt64"), &Type::SetUInt64},
+        Field {TSTR("GetFloat"), &Type::GetFloat},
+        Field {TSTR("SetFloat"), &Type::SetFloat},
+        Field {TSTR("GetDouble"), &Type::GetDouble},
+        Field {TSTR("SetDouble"), &Type::SetDouble},
+        Field {TSTR("GetCString"), &Type::GetCString},
+        Field {TSTR("SetCString"), &Type::SetCString},
+    };
 };
 

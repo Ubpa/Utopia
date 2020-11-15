@@ -5,17 +5,29 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::Roamer>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::Utopia::Roamer>
+struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::Roamer> :
+    TypeInfoBase<Ubpa::Utopia::Roamer>
 {
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[21] = "Ubpa::Utopia::Roamer";
+#endif
     static constexpr AttrList attrs = {};
-
     static constexpr FieldList fields = {
-        Field{"moveSpeed", &Ubpa::Utopia::Roamer::moveSpeed},
-        Field{"rotateSpeed", &Ubpa::Utopia::Roamer::rotateSpeed},
-        Field{"reverseUpDown", &Ubpa::Utopia::Roamer::reverseUpDown},
-        Field{"reverseLeftRight", &Ubpa::Utopia::Roamer::reverseLeftRight},
-        Field{"reverseFrontBack", &Ubpa::Utopia::Roamer::reverseFrontBack},
+        Field {TSTR("moveSpeed"), &Type::moveSpeed, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->float{ return { 1.f }; }},
+        }},
+        Field {TSTR("rotateSpeed"), &Type::rotateSpeed, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->float{ return { 1.f }; }},
+        }},
+        Field {TSTR("reverseUpDown"), &Type::reverseUpDown, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->bool{ return { false }; }},
+        }},
+        Field {TSTR("reverseLeftRight"), &Type::reverseLeftRight, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->bool{ return { false }; }},
+        }},
+        Field {TSTR("reverseFrontBack"), &Type::reverseFrontBack, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->bool{ return { false }; }},
+        }},
     };
 };
 

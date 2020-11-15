@@ -5,13 +5,15 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::LuaScriptQueue>
-	: Ubpa::USRefl::TypeInfoBase<Ubpa::Utopia::LuaScriptQueue>
+struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::LuaScriptQueue> :
+    TypeInfoBase<Ubpa::Utopia::LuaScriptQueue>
 {
-	static constexpr AttrList attrs = {};
-
-	static constexpr FieldList fields = {
-		Field{"value", &Ubpa::Utopia::LuaScriptQueue::value},
-	};
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[29] = "Ubpa::Utopia::LuaScriptQueue";
+#endif
+    static constexpr AttrList attrs = {};
+    static constexpr FieldList fields = {
+        Field {TSTR("value"), &Type::value},
+    };
 };
 

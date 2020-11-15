@@ -68,64 +68,71 @@ struct A {
 };
 
 template<>
-struct Ubpa::USRefl::TypeInfo<A>
-	: Ubpa::USRefl::TypeInfoBase<A>
+struct Ubpa::USRefl::TypeInfo<UserType1> :
+	TypeInfoBase<UserType1>
 {
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+	static constexpr char name[10] = "UserType1";
+#endif
 	static constexpr AttrList attrs = {};
-
 	static constexpr FieldList fields = {
-		Field{"v_bool", &A::v_bool},
-		Field{"v_uint8", &A::v_uint8},
-		Field{"v_uint16", &A::v_uint16},
-		Field{"v_uint32", &A::v_uint32},
-		Field{"v_uint64", &A::v_uint64},
-		Field{"v_int8", &A::v_int8},
-		Field{"v_int16", &A::v_int16},
-		Field{"v_int32", &A::v_int32},
-		Field{"v_int64", &A::v_int64},
-		Field{"v_nullptr", &A::v_nullptr},
-		Field{"v_float", &A::v_float},
-		Field{"v_double", &A::v_double},
-		Field{"v_string", &A::v_string},
-		Field{"v_entity", &A::v_entity},
-		Field{"v_hlslFile", &A::v_hlslFile},
-		Field{"v_array", &A::v_array},
-		Field{"v_array2", &A::v_array2},
-		Field{"v_bbox", &A::v_bbox},
-		Field{"v_vec", &A::v_vec},
-		Field{"v_vector", &A::v_vector},
-		Field{"v_deque", &A::v_deque},
-		Field{"v_forward_list", &A::v_forward_list},
-		Field{"v_list", &A::v_list},
-		Field{"v_set", &A::v_set},
-		Field{"v_multiset", &A::v_multiset},
-		Field{"v_unordered_set", &A::v_unordered_set},
-		Field{"v_unordered_multiset", &A::v_unordered_multiset},
-		Field{"v_map", &A::v_map},
-		Field{"v_multimap", &A::v_multimap},
-		Field{"v_unordered_map", &A::v_unordered_map},
-		Field{"v_unordered_multimap", &A::v_unordered_multimap},
-		Field{"v_tuple", &A::v_tuple},
-		Field{"v_pair", &A::v_pair},
-		Field{"v_vector_entity", &A::v_vector_entity},
-		Field{"v_usertype0", &A::v_usertype0},
-		Field{"v_usertype1", &A::v_usertype1},
-		Field{"v_variant0", &A::v_variant0},
-		Field{"v_variant1", &A::v_variant1},
-		Field{"v_enum", &A::v_enum},
+		Field {TSTR("usertype0"), &Type::usertype0},
 	};
 };
 
 template<>
-struct Ubpa::USRefl::TypeInfo<UserType1>
-	: Ubpa::USRefl::TypeInfoBase<UserType1>
+struct Ubpa::USRefl::TypeInfo<A> :
+	TypeInfoBase<A>
 {
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+	static constexpr char name[2] = "A";
+#endif
 	static constexpr AttrList attrs = {};
-
 	static constexpr FieldList fields = {
-		Field{"usertype0", &UserType1::usertype0},
+		Field {TSTR("v_bool"), &Type::v_bool},
+		Field {TSTR("v_uint8"), &Type::v_uint8},
+		Field {TSTR("v_uint16"), &Type::v_uint16},
+		Field {TSTR("v_uint32"), &Type::v_uint32},
+		Field {TSTR("v_uint64"), &Type::v_uint64},
+		Field {TSTR("v_int8"), &Type::v_int8},
+		Field {TSTR("v_int16"), &Type::v_int16},
+		Field {TSTR("v_int32"), &Type::v_int32},
+		Field {TSTR("v_int64"), &Type::v_int64},
+		Field {TSTR("v_nullptr"), &Type::v_nullptr},
+		Field {TSTR("v_float"), &Type::v_float},
+		Field {TSTR("v_double"), &Type::v_double},
+		Field {TSTR("v_string"), &Type::v_string},
+		Field {TSTR("v_entity"), &Type::v_entity, AttrList {
+			Attr {TSTR(UMeta::initializer), []()->Entity { return { Entity::Invalid() }; }},
+		}},
+		Field {TSTR("v_hlslFile"), &Type::v_hlslFile},
+		Field {TSTR("v_array"), &Type::v_array},
+		Field {TSTR("v_array2"), &Type::v_array2},
+		Field {TSTR("v_bbox"), &Type::v_bbox},
+		Field {TSTR("v_vec"), &Type::v_vec},
+		Field {TSTR("v_vector"), &Type::v_vector},
+		Field {TSTR("v_deque"), &Type::v_deque},
+		Field {TSTR("v_forward_list"), &Type::v_forward_list},
+		Field {TSTR("v_list"), &Type::v_list},
+		Field {TSTR("v_set"), &Type::v_set},
+		Field {TSTR("v_multiset"), &Type::v_multiset},
+		Field {TSTR("v_unordered_set"), &Type::v_unordered_set},
+		Field {TSTR("v_unordered_multiset"), &Type::v_unordered_multiset},
+		Field {TSTR("v_map"), &Type::v_map},
+		Field {TSTR("v_multimap"), &Type::v_multimap},
+		Field {TSTR("v_unordered_map"), &Type::v_unordered_map},
+		Field {TSTR("v_unordered_multimap"), &Type::v_unordered_multimap},
+		Field {TSTR("v_tuple"), &Type::v_tuple},
+		Field {TSTR("v_pair"), &Type::v_pair},
+		Field {TSTR("v_vector_entity"), &Type::v_vector_entity},
+		Field {TSTR("v_usertype0"), &Type::v_usertype0},
+		Field {TSTR("v_usertype1"), &Type::v_usertype1},
+		Field {TSTR("v_variant0"), &Type::v_variant0},
+		Field {TSTR("v_variant1"), &Type::v_variant1},
+		Field {TSTR("v_enum"), &Type::v_enum},
 	};
 };
+
 
 int main() {
 	// Enable run-time memory check for debug builds.

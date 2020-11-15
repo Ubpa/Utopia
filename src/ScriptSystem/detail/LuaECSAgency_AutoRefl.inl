@@ -5,15 +5,38 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::LuaECSAgency>
-	: Ubpa::USRefl::TypeInfoBase<Ubpa::Utopia::LuaECSAgency>
+struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::LuaECSAgency> :
+    TypeInfoBase<Ubpa::Utopia::LuaECSAgency>
 {
-	static constexpr AttrList attrs = {};
-
-	static constexpr FieldList fields = {
-		Field{"RegisterEntityJob", &Ubpa::Utopia::LuaECSAgency::RegisterEntityJob},
-		Field{"RegisterChunkJob", &Ubpa::Utopia::LuaECSAgency::RegisterChunkJob},
-		Field{"RegisterJob", &Ubpa::Utopia::LuaECSAgency::RegisterJob},
-	};
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[27] = "Ubpa::Utopia::LuaECSAgency";
+#endif
+    static constexpr AttrList attrs = {};
+    static constexpr FieldList fields = {
+        Field {TSTR("SafeOnUpdate"), &Type::SafeOnUpdate},
+        Field {TSTR("RegisterEntityJob"), &Type::RegisterEntityJob, AttrList {
+            Attr {TSTR(UMeta::default_functions), std::tuple {
+                [](UECS::Schedule* _0, sol::function systemFunc, std::string name, bool isParallel, UECS::ArchetypeFilter _1, UECS::CmptLocator _2, UECS::SingletonLocator _3) { return Type::RegisterEntityJob(std::forward<UECS::Schedule*>(_0), std::forward<sol::function>(systemFunc), std::forward<std::string>(name), std::forward<bool>(isParallel), std::forward<UECS::ArchetypeFilter>(_1), std::forward<UECS::CmptLocator>(_2), std::forward<UECS::SingletonLocator>(_3)); },
+                [](UECS::Schedule* _0, sol::function systemFunc, std::string name, bool isParallel, UECS::ArchetypeFilter _1, UECS::CmptLocator _2) { return Type::RegisterEntityJob(std::forward<UECS::Schedule*>(_0), std::forward<sol::function>(systemFunc), std::forward<std::string>(name), std::forward<bool>(isParallel), std::forward<UECS::ArchetypeFilter>(_1), std::forward<UECS::CmptLocator>(_2)); },
+                [](UECS::Schedule* _0, sol::function systemFunc, std::string name, bool isParallel, UECS::ArchetypeFilter _1) { return Type::RegisterEntityJob(std::forward<UECS::Schedule*>(_0), std::forward<sol::function>(systemFunc), std::forward<std::string>(name), std::forward<bool>(isParallel), std::forward<UECS::ArchetypeFilter>(_1)); },
+                [](UECS::Schedule* _0, sol::function systemFunc, std::string name, bool isParallel) { return Type::RegisterEntityJob(std::forward<UECS::Schedule*>(_0), std::forward<sol::function>(systemFunc), std::forward<std::string>(name), std::forward<bool>(isParallel)); },
+                [](UECS::Schedule* _0, sol::function systemFunc, std::string name) { return Type::RegisterEntityJob(std::forward<UECS::Schedule*>(_0), std::forward<sol::function>(systemFunc), std::forward<std::string>(name)); }
+            }},
+        }},
+        Field {TSTR("RegisterChunkJob"), &Type::RegisterChunkJob, AttrList {
+            Attr {TSTR(UMeta::default_functions), std::tuple {
+                [](UECS::Schedule* _0, sol::function systemFunc, std::string name, UECS::ArchetypeFilter _1, bool isParallel, UECS::SingletonLocator _2) { return Type::RegisterChunkJob(std::forward<UECS::Schedule*>(_0), std::forward<sol::function>(systemFunc), std::forward<std::string>(name), std::forward<UECS::ArchetypeFilter>(_1), std::forward<bool>(isParallel), std::forward<UECS::SingletonLocator>(_2)); },
+                [](UECS::Schedule* _0, sol::function systemFunc, std::string name, UECS::ArchetypeFilter _1, bool isParallel) { return Type::RegisterChunkJob(std::forward<UECS::Schedule*>(_0), std::forward<sol::function>(systemFunc), std::forward<std::string>(name), std::forward<UECS::ArchetypeFilter>(_1), std::forward<bool>(isParallel)); },
+                [](UECS::Schedule* _0, sol::function systemFunc, std::string name, UECS::ArchetypeFilter _1) { return Type::RegisterChunkJob(std::forward<UECS::Schedule*>(_0), std::forward<sol::function>(systemFunc), std::forward<std::string>(name), std::forward<UECS::ArchetypeFilter>(_1)); },
+                [](UECS::Schedule* _0, sol::function systemFunc, std::string name) { return Type::RegisterChunkJob(std::forward<UECS::Schedule*>(_0), std::forward<sol::function>(systemFunc), std::forward<std::string>(name)); }
+            }},
+        }},
+        Field {TSTR("RegisterJob"), &Type::RegisterJob, AttrList {
+            Attr {TSTR(UMeta::default_functions), std::tuple {
+                [](UECS::Schedule* _0, sol::function systemFunc, std::string name, UECS::SingletonLocator _1) { return Type::RegisterJob(std::forward<UECS::Schedule*>(_0), std::forward<sol::function>(systemFunc), std::forward<std::string>(name), std::forward<UECS::SingletonLocator>(_1)); },
+                [](UECS::Schedule* _0, sol::function systemFunc, std::string name) { return Type::RegisterJob(std::forward<UECS::Schedule*>(_0), std::forward<sol::function>(systemFunc), std::forward<std::string>(name)); }
+            }},
+        }},
+    };
 };
 

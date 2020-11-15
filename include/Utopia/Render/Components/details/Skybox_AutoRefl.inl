@@ -5,13 +5,15 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::Skybox>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::Utopia::Skybox>
+struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::Skybox> :
+    TypeInfoBase<Ubpa::Utopia::Skybox>
 {
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[21] = "Ubpa::Utopia::Skybox";
+#endif
     static constexpr AttrList attrs = {};
-
     static constexpr FieldList fields = {
-        Field{"material", &Ubpa::Utopia::Skybox::material},
+        Field {TSTR("material"), &Type::material},
     };
 };
 

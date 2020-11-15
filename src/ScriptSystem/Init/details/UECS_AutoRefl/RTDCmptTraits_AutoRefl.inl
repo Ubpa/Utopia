@@ -5,45 +5,41 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::RTDCmptTraits>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::RTDCmptTraits>
+struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::RTDCmptTraits> :
+    TypeInfoBase<Ubpa::UECS::RTDCmptTraits>
 {
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[26] = "Ubpa::UECS::RTDCmptTraits";
+#endif
     static constexpr AttrList attrs = {};
-
     static constexpr FieldList fields = {
-        Field{"DefaultAlignment", &Ubpa::UECS::RTDCmptTraits::DefaultAlignment},
-		Field{"Clear", &Ubpa::UECS::RTDCmptTraits::Clear},
-
-        Field{"RegisterSize", &Ubpa::UECS::RTDCmptTraits::RegisterSize},
-        Field{"RegisterAlignment", &Ubpa::UECS::RTDCmptTraits::RegisterAlignment},
-        Field{"RegisterDefaultConstructor", &Ubpa::UECS::RTDCmptTraits::RegisterDefaultConstructor},
-        Field{"RegisterCopyConstructor", &Ubpa::UECS::RTDCmptTraits::RegisterCopyConstructor},
-        Field{"RegisterMoveConstructor", &Ubpa::UECS::RTDCmptTraits::RegisterMoveConstructor},
-		Field{"RegisterMoveAssignment", &Ubpa::UECS::RTDCmptTraits::RegisterMoveAssignment},
-        Field{"RegisterDestructor", &Ubpa::UECS::RTDCmptTraits::RegisterDestructor},
-		Field{"RegisterName", &Ubpa::UECS::RTDCmptTraits::RegisterName},
-
-        Field{"GetSizeofs", &Ubpa::UECS::RTDCmptTraits::GetSizeofs},
-        Field{"GetAlignments", &Ubpa::UECS::RTDCmptTraits::GetAlignments},
-        Field{"GetDefaultConstructors", &Ubpa::UECS::RTDCmptTraits::GetDefaultConstructors},
-        Field{"GetCopyConstructors", &Ubpa::UECS::RTDCmptTraits::GetCopyConstructors},
-        Field{"GetMoveConstructors", &Ubpa::UECS::RTDCmptTraits::GetMoveConstructors},
-        Field{"GetMoveAssignments", &Ubpa::UECS::RTDCmptTraits::GetMoveAssignments},
-        Field{"GetDestructors", &Ubpa::UECS::RTDCmptTraits::GetDestructors},
-        Field{"GetNames", &Ubpa::UECS::RTDCmptTraits::GetNames},
-
-        Field{"Sizeof", &Ubpa::UECS::RTDCmptTraits::Sizeof},
-        Field{"Alignof", &Ubpa::UECS::RTDCmptTraits::Alignof},
-        Field{"CopyConstruct", &Ubpa::UECS::RTDCmptTraits::CopyConstruct},
-        Field{"MoveConstruct", &Ubpa::UECS::RTDCmptTraits::MoveConstruct},
-		Field{"MoveAssign", &Ubpa::UECS::RTDCmptTraits::MoveAssign},
-        Field{"Destruct", &Ubpa::UECS::RTDCmptTraits::Destruct},
-        Field{"Nameof", &Ubpa::UECS::RTDCmptTraits::Nameof},
-
-        Field{"Deregister",
-            static_cast<Ubpa::UECS::RTDCmptTraits&(Ubpa::UECS::RTDCmptTraits::*)(Ubpa::UECS::CmptType)noexcept>
-            (&Ubpa::UECS::RTDCmptTraits::Deregister),
-        },
+        Field {TSTR("DefaultAlignment"), &Type::DefaultAlignment},
+        Field {TSTR("Clear"), &Type::Clear},
+        Field {TSTR("RegisterSize"), &Type::RegisterSize},
+        Field {TSTR("RegisterAlignment"), &Type::RegisterAlignment},
+        Field {TSTR("RegisterDefaultConstructor"), &Type::RegisterDefaultConstructor},
+        Field {TSTR("RegisterCopyConstructor"), &Type::RegisterCopyConstructor},
+        Field {TSTR("RegisterMoveConstructor"), &Type::RegisterMoveConstructor},
+        Field {TSTR("RegisterMoveAssignment"), &Type::RegisterMoveAssignment},
+        Field {TSTR("RegisterDestructor"), &Type::RegisterDestructor},
+        Field {TSTR("RegisterName"), &Type::RegisterName},
+        Field {TSTR("GetSizeofs"), &Type::GetSizeofs},
+        Field {TSTR("GetAlignments"), &Type::GetAlignments},
+        Field {TSTR("GetDefaultConstructors"), &Type::GetDefaultConstructors},
+        Field {TSTR("GetCopyConstructors"), &Type::GetCopyConstructors},
+        Field {TSTR("GetMoveConstructors"), &Type::GetMoveConstructors},
+        Field {TSTR("GetMoveAssignments"), &Type::GetMoveAssignments},
+        Field {TSTR("GetDestructors"), &Type::GetDestructors},
+        Field {TSTR("GetNames"), &Type::GetNames},
+        Field {TSTR("Sizeof"), &Type::Sizeof},
+        Field {TSTR("Alignof"), &Type::Alignof},
+        Field {TSTR("DefaultConstruct"), &Type::DefaultConstruct},
+        Field {TSTR("CopyConstruct"), &Type::CopyConstruct},
+        Field {TSTR("MoveConstruct"), &Type::MoveConstruct},
+        Field {TSTR("MoveAssign"), &Type::MoveAssign},
+        Field {TSTR("Destruct"), &Type::Destruct},
+        Field {TSTR("Nameof"), &Type::Nameof},
+        Field {TSTR("Deregister"), static_cast<UECS::RTDCmptTraits&(Type::*)(UECS::CmptType)noexcept>(&Type::Deregister)},
     };
 };
 

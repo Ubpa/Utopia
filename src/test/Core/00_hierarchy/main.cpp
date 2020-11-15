@@ -35,7 +35,7 @@ int main() {
 		WorldToLocal
 	>();
 
-	auto indices = w.systemMngr.Register<
+	auto systemIDs = w.systemMngr.systemTraits.Register<
 		PrintSystem,
 		LocalToParentSystem,
 		RotationEulerSystem,
@@ -43,7 +43,7 @@ int main() {
 		TRSToLocalToWorldSystem,
 		WorldToLocalSystem
 	>();
-	for (auto idx : indices)
+	for (auto idx : systemIDs)
 		w.systemMngr.Activate(idx);
 
 	auto [r_e, r_c, r_l2w, r_t] = w.entityMngr.Create<
@@ -78,4 +78,5 @@ int main() {
 	w.Update();
 
 	cout << w.GenUpdateFrameGraph().Dump() << endl;
+	cout << w.DumpUpdateJobGraph() << endl;
 }

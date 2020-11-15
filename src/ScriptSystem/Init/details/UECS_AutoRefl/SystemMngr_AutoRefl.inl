@@ -5,27 +5,27 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::SystemMngr>
-	: Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::SystemMngr>
+struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::SystemMngr> :
+    TypeInfoBase<Ubpa::UECS::SystemMngr>
 {
-	static constexpr AttrList attrs = {};
-
-	static constexpr FieldList fields = {
-		Field{Name::constructor, WrapConstructor<Ubpa::UECS::SystemMngr()>()},
-		Field{Name::constructor, WrapConstructor<Ubpa::UECS::SystemMngr(Ubpa::UECS::SystemMngr&)>()},
-		Field{"GetSystems", &Ubpa::UECS::SystemMngr::GetSystems},
-		Field{"GetActiveSystemIndices", &Ubpa::UECS::SystemMngr::GetActiveSystemIndices},
-		Field{"GetNameToIndexMap", &Ubpa::UECS::SystemMngr::GetNameToIndexMap},
-		Field{"GetIndex", static_cast<size_t(Ubpa::UECS::SystemMngr::*)(std::string_view) const>(&Ubpa::UECS::SystemMngr::GetIndex)},
-		Field{"Clear", &Ubpa::UECS::SystemMngr::Clear},
-		Field{"Register",
-			static_cast<size_t(Ubpa::UECS::SystemMngr::*)(std::string, Ubpa::UECS::SystemMngr::Func)>
-			(&Ubpa::UECS::SystemMngr::Register)
-		},
-		Field{"Unregister", static_cast<void(Ubpa::UECS::SystemMngr::*)(size_t)>(&Ubpa::UECS::SystemMngr::Unregister)},
-		Field{"Unregister", static_cast<void(Ubpa::UECS::SystemMngr::*)(std::string_view)>(&Ubpa::UECS::SystemMngr::Unregister)},
-		Field{"Activate", &Ubpa::UECS::SystemMngr::Activate},
-		Field{"Deactivate", &Ubpa::UECS::SystemMngr::Deactivate},
-	};
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[23] = "Ubpa::UECS::SystemMngr";
+#endif
+    static constexpr AttrList attrs = {};
+    static constexpr FieldList fields = {
+        Field {TSTR("systemTraits"), &Type::systemTraits},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type(UECS::World*)>()},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type(const UECS::SystemMngr&, UECS::World*)>()},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type(UECS::SystemMngr&&, UECS::World*)>()},
+        Field {TSTR(UMeta::destructor), WrapDestructor<Type>()},
+        Field {TSTR("Create"), &Type::Create},
+        Field {TSTR("Activate"), &Type::Activate},
+        Field {TSTR("Deactivate"), &Type::Deactivate},
+        Field {TSTR("Destroy"), &Type::Destroy},
+        Field {TSTR("IsAlive"), &Type::IsAlive},
+        Field {TSTR("IsActive"), &Type::IsActive},
+        Field {TSTR("GetAliveSystemIDs"), &Type::GetAliveSystemIDs},
+        Field {TSTR("GetActiveSystemsIDs"), &Type::GetActiveSystemsIDs},
+    };
 };
 

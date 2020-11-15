@@ -15,6 +15,7 @@ set(components
   Input
   LocalToParent
   LocalToWorld
+  Name
   Parent
   Roamer
   Rotation

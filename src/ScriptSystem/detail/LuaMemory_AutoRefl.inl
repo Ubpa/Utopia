@@ -5,18 +5,20 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::LuaMemory>
-	: Ubpa::USRefl::TypeInfoBase<Ubpa::Utopia::LuaMemory>
+struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::LuaMemory> :
+    TypeInfoBase<Ubpa::Utopia::LuaMemory>
 {
-	static constexpr AttrList attrs = {};
-
-	static constexpr FieldList fields = {
-		Field{"Malloc", &Ubpa::Utopia::LuaMemory::Malloc},
-		Field{"Free", &Ubpa::Utopia::LuaMemory::Free},
-		Field{"Offset", &Ubpa::Utopia::LuaMemory::Offset},
-		Field{"Copy", &Ubpa::Utopia::LuaMemory::Copy},
-		Field{"Set", &Ubpa::Utopia::LuaMemory::Set},
-		Field{"StrCpy", &Ubpa::Utopia::LuaMemory::StrCpy},
-	};
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[24] = "Ubpa::Utopia::LuaMemory";
+#endif
+    static constexpr AttrList attrs = {};
+    static constexpr FieldList fields = {
+        Field {TSTR("Malloc"), &Type::Malloc},
+        Field {TSTR("Free"), &Type::Free},
+        Field {TSTR("Offset"), &Type::Offset},
+        Field {TSTR("Copy"), &Type::Copy},
+        Field {TSTR("Set"), &Type::Set},
+        Field {TSTR("StrCpy"), &Type::StrCpy},
+    };
 };
 

@@ -5,13 +5,15 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::Name>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::Utopia::Name>
+struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::Name> :
+    TypeInfoBase<Ubpa::Utopia::Name>
 {
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[19] = "Ubpa::Utopia::Name";
+#endif
     static constexpr AttrList attrs = {};
-
     static constexpr FieldList fields = {
-        Field{"value", &Ubpa::Utopia::Name::value},
+        Field {TSTR("value"), &Type::value},
     };
 };
 

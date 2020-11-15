@@ -5,15 +5,19 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::SingletonLocator>
-    : Ubpa::USRefl::TypeInfoBase<Ubpa::UECS::SingletonLocator>
+struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::SingletonLocator> :
+    TypeInfoBase<Ubpa::UECS::SingletonLocator>
 {
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[29] = "Ubpa::UECS::SingletonLocator";
+#endif
     static constexpr AttrList attrs = {};
-
     static constexpr FieldList fields = {
-        Field{Name::constructor, WrapConstructor<Ubpa::UECS::SingletonLocator(const Ubpa::UECS::CmptAccessType *, size_t)>()},
-        Field{Name::constructor, WrapConstructor<Ubpa::UECS::SingletonLocator()>()},
-        Field{"SingletonTypes", &Ubpa::UECS::SingletonLocator::SingletonTypes},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type(std::set<UECS::CmptAccessType>)>()},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type(Span<const UECS::CmptAccessType>)>()},
+        Field {TSTR(UMeta::constructor), WrapConstructor<Type()>()},
+        Field {TSTR("SingletonTypes"), &Type::SingletonTypes},
+        Field {TSTR("HasWriteSingletonType"), &Type::HasWriteSingletonType},
     };
 };
 

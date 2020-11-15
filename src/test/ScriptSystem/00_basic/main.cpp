@@ -16,16 +16,20 @@ int main() {
 		{
 			sol::state_view lua(L);
 			lua["world"] = &world;
-			lua.script_file("../assets/scripts/test_00.lua");
+			auto rst = lua.script_file("../assets/scripts/test_00.lua");
+			if (!rst.valid()) {
+				sol::error err = rst;
+				std::cerr << err.what() << std::endl;
+			}
 		}
 
 		auto cmptType0 = Ubpa::UECS::CmptType{ "Cmpt0" };
 		auto cmptType1 = Ubpa::UECS::CmptType{ "Cmpt1" };
 		std::array cmptTypes = { cmptType0, cmptType1 };
-		auto e0 = world.entityMngr.Create(cmptTypes.data(), cmptTypes.size());
-		auto e1 = world.entityMngr.Create(cmptTypes.data(), cmptTypes.size());
-		auto e2 = world.entityMngr.Create(&cmptType0, 1);
-		world.entityMngr.Detach(e0, &cmptType0, 1);
+		auto e0 = world.entityMngr.Create(cmptTypes);
+		auto e1 = world.entityMngr.Create(cmptTypes);
+		auto e2 = world.entityMngr.Create(cmptType0);
+		world.entityMngr.Detach(e0, cmptType0);
 
 		world.Update();
 		std::cout << world.DumpUpdateJobGraph() << std::endl;

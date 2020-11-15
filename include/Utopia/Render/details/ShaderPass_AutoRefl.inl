@@ -5,17 +5,38 @@
 #include <USRefl/USRefl.h>
 
 template<>
-struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::ShaderPass>
-	: Ubpa::USRefl::TypeInfoBase<Ubpa::Utopia::ShaderPass>
+struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::ShaderPass::Queue> :
+    TypeInfoBase<Ubpa::Utopia::ShaderPass::Queue>
 {
-	static constexpr AttrList attrs = {};
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[32] = "Ubpa::Utopia::ShaderPass::Queue";
+#endif
+    static constexpr AttrList attrs = {};
+    static constexpr FieldList fields = {
+        Field {TSTR("Background"), Type::Background},
+        Field {TSTR("Geometry"), Type::Geometry},
+        Field {TSTR("AlphaTest"), Type::AlphaTest},
+        Field {TSTR("Transparent"), Type::Transparent},
+        Field {TSTR("Overlay"), Type::Overlay},
+    };
+};
 
-	static constexpr FieldList fields = { 
-		Field{"vertexName", &Ubpa::Utopia::ShaderPass::vertexName},
-		Field{"fragmentName", &Ubpa::Utopia::ShaderPass::fragmentName},
-		Field{"renderState", &Ubpa::Utopia::ShaderPass::renderState},
-		Field{"tags", &Ubpa::Utopia::ShaderPass::tags},
-		Field{"queue", &Ubpa::Utopia::ShaderPass::queue},
-	};
+template<>
+struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::ShaderPass> :
+    TypeInfoBase<Ubpa::Utopia::ShaderPass>
+{
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[25] = "Ubpa::Utopia::ShaderPass";
+#endif
+    static constexpr AttrList attrs = {};
+    static constexpr FieldList fields = {
+        Field {TSTR("vertexName"), &Type::vertexName},
+        Field {TSTR("fragmentName"), &Type::fragmentName},
+        Field {TSTR("renderState"), &Type::renderState},
+        Field {TSTR("tags"), &Type::tags},
+        Field {TSTR("queue"), &Type::queue, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->size_t { return { 2000 }; }},
+        }},
+    };
 };
 
