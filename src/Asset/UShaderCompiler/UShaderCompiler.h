@@ -3,18 +3,18 @@
 #include <Utopia/Render/Shader.h>
 
 namespace Ubpa::Utopia {
-    class ShaderCompiler {
+    class UShaderCompiler {
     public:
-        static ShaderCompiler& Instance() noexcept {
-            static ShaderCompiler instance;
+        static UShaderCompiler& Instance() noexcept {
+            static UShaderCompiler instance;
             return instance;
         }
 
         std::tuple<bool, Shader> Compile(std::string_view ushader);
 
 	private:
-        ShaderCompiler();
-        ~ShaderCompiler();
+        UShaderCompiler();
+        ~UShaderCompiler();
         
         struct Impl;
         Impl* pImpl;

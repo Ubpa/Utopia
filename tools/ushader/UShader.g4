@@ -1,4 +1,4 @@
-grammar Shader;
+grammar UShader;
 
 shader : 'Shader' shader_name '{' hlsl root_signature property_block? pass+ '}';
 
@@ -129,7 +129,8 @@ pass_statement
 tags : 'Tags' '{' tag+ '}';
 tag : StringLiteral ':' StringLiteral;
 render_state_setup
-	: cull
+	: fill
+	| cull
 	| ztest
 	| zwrite_off
 	| blend
@@ -137,6 +138,7 @@ render_state_setup
 	| color_mask
 	| stencil
 	;
+fill : 'Fill' FillMode;
 cull : 'Cull' CullMode;
 ztest : 'ZTest' Comparator;
 zwrite_off : 'ZWriteOff';
@@ -244,6 +246,11 @@ Comparator
 BooleanLiteral
 	: 'false'
 	| 'true'
+	;
+
+FillMode
+	: 'Wireframe'
+	| 'Solid'
 	;
 
 CullMode

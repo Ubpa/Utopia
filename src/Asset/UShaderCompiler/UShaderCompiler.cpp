@@ -1,8 +1,8 @@
-#include "ShaderCompiler.h"
+#include "UShaderCompiler.h"
 
-#include "_deps/ShaderBaseVisitor.h"
-#include "_deps/ShaderLexer.h"
-#include "_deps/ShaderParser.h"
+#include "_deps/UShaderBaseVisitor.h"
+#include "_deps/UShaderLexer.h"
+#include "_deps/UShaderParser.h"
 
 #include <Utopia/Asset/AssetMngr.h>
 #include <Utopia/Render/HLSLFile.h>
@@ -11,17 +11,17 @@
 
 using namespace Ubpa::Utopia;
 
-struct ShaderCompiler::Impl {
-	class ShaderCompilerInstance : private details::ShaderBaseVisitor {
+struct UShaderCompiler::Impl {
+	class UShaderCompilerInstance : private details::UShaderBaseVisitor {
 	public:
 		std::tuple<bool, Shader> Compile(std::string_view ushader) {
 			success = true;
 			curPass = nullptr;
 
 			antlr4::ANTLRInputStream input(ushader.data());
-			details::ShaderLexer lexer(&input);
+			details::UShaderLexer lexer(&input);
 			antlr4::CommonTokenStream tokens(&lexer);
-			details::ShaderParser parser(&tokens);
+			details::UShaderParser parser(&tokens);
 
 			Shader shader = visitShader(parser.shader());
 
@@ -53,7 +53,7 @@ struct ShaderCompiler::Impl {
 			return sv;
 		}
 
-		virtual antlrcpp::Any visitShader(details::ShaderParser::ShaderContext* ctx) override {
+		virtual antlrcpp::Any visitShader(details::UShaderParser::ShaderContext* ctx) override {
 			const Shader ERROR;
 
 			Shader shader;
@@ -109,7 +109,7 @@ struct ShaderCompiler::Impl {
 			return std::move(shader);
 		}
 
-		virtual antlrcpp::Any visitRoot_signature(details::ShaderParser::Root_signatureContext* ctx) override {
+		virtual antlrcpp::Any visitRoot_signature(details::UShaderParser::Root_signatureContext* ctx) override {
 			const std::vector<RootParameter> ERROR;
 			std::vector<RootParameter> rst;
 			for (auto paramCtx : ctx->root_parameter()) {
@@ -155,7 +155,7 @@ struct ShaderCompiler::Impl {
 			return rst;
 		}
 
-		virtual antlrcpp::Any visitProperty_block(details::ShaderParser::Property_blockContext* ctx) override {
+		virtual antlrcpp::Any visitProperty_block(details::UShaderParser::Property_blockContext* ctx) override {
 			const std::map<std::string, ShaderProperty, std::less<>> ERROR;
 
 			std::map<std::string, ShaderProperty, std::less<>> rst;
@@ -168,69 +168,69 @@ struct ShaderCompiler::Impl {
 			return rst;
 		}
 
-		virtual antlrcpp::Any visitVal_bool(details::ShaderParser::Val_boolContext* ctx) override {
+		virtual antlrcpp::Any visitVal_bool(details::UShaderParser::Val_boolContext* ctx) override {
 			if (ctx->getText() == "true")
 				return true;
 			else
 				return false;
 		}
 
-		virtual antlrcpp::Any visitVal_int(details::ShaderParser::Val_intContext* ctx) override {
+		virtual antlrcpp::Any visitVal_int(details::UShaderParser::Val_intContext* ctx) override {
 			int rst = std::stoi(ctx->IntegerLiteral()->getText(), nullptr, 0);
 			if (ctx->Sign() && ctx->Sign()->getText() == "-")
 				rst = -rst;
 			return rst;
 		}
 
-		virtual antlrcpp::Any visitVal_uint(details::ShaderParser::Val_uintContext* ctx) override {
+		virtual antlrcpp::Any visitVal_uint(details::UShaderParser::Val_uintContext* ctx) override {
 			return static_cast<unsigned int>(std::stoull(ctx->getText(), nullptr, 0));
 		}
 
-		virtual antlrcpp::Any visitVal_float(details::ShaderParser::Val_floatContext* ctx) override {
+		virtual antlrcpp::Any visitVal_float(details::UShaderParser::Val_floatContext* ctx) override {
 			float rst = std::stof(ctx->IntegerLiteral()->getText());
 			if (ctx->Sign() && ctx->Sign()->getText() == "-")
 				rst = -rst;
 			return rst;
 		}
 
-		virtual antlrcpp::Any visitVal_double(details::ShaderParser::Val_doubleContext* ctx) override {
+		virtual antlrcpp::Any visitVal_double(details::UShaderParser::Val_doubleContext* ctx) override {
 			double rst = std::stod(ctx->IntegerLiteral()->getText());
 			if (ctx->Sign() && ctx->Sign()->getText() == "-")
 				rst = -rst;
 			return rst;
 		}
 
-		virtual antlrcpp::Any visitProperty_bool(details::ShaderParser::Property_boolContext* ctx) override {
+		virtual antlrcpp::Any visitProperty_bool(details::UShaderParser::Property_boolContext* ctx) override {
 			auto name = ctx->property_name()->getText();
 			bool rst = ctx->val_bool()->accept(this);
 			return std::pair{ name, ShaderProperty{rst} };
 		}
 
-		virtual antlrcpp::Any visitProperty_int(details::ShaderParser::Property_intContext* ctx) override {
+		virtual antlrcpp::Any visitProperty_int(details::UShaderParser::Property_intContext* ctx) override {
 			auto name = ctx->property_name()->getText();
 			int rst = ctx->val_int()->accept(this);
 			return std::pair{ name, ShaderProperty{rst} };
 		}
 
-		virtual antlrcpp::Any visitProperty_uint(details::ShaderParser::Property_uintContext* ctx) override {
+		virtual antlrcpp::Any visitProperty_uint(details::UShaderParser::Property_uintContext* ctx) override {
 			auto name = ctx->property_name()->getText();
 			unsigned rst = ctx->val_uint()->accept(this);
 			return std::pair{ name, ShaderProperty{rst} };
 		}
 
-		virtual antlrcpp::Any visitProperty_float(details::ShaderParser::Property_floatContext* ctx) override {
+		virtual antlrcpp::Any visitProperty_float(details::UShaderParser::Property_floatContext* ctx) override {
 			auto name = ctx->property_name()->getText();
 			float rst = std::stof(ctx->val_float()->getText());
 			return std::pair{ name, ShaderProperty{rst} };
 		}
 
-		virtual antlrcpp::Any visitProperty_double(details::ShaderParser::Property_doubleContext* ctx) override {
+		virtual antlrcpp::Any visitProperty_double(details::UShaderParser::Property_doubleContext* ctx) override {
 			auto name = ctx->property_name()->getText();
 			double rst = ctx->val_double()->accept(this);
 			return std::pair{ name, ShaderProperty{rst} };
 		}
 
-		virtual antlrcpp::Any visitProperty_bool2(details::ShaderParser::Property_bool2Context* ctx) override {
+		virtual antlrcpp::Any visitProperty_bool2(details::UShaderParser::Property_bool2Context* ctx) override {
 			auto name = ctx->property_name()->getText();
 			val<bool, 2> rst{
 				ctx->val_bool2()->val_bool(0)->accept(this).as<bool>(),
@@ -239,7 +239,7 @@ struct ShaderCompiler::Impl {
 			return std::pair{ name, rst };
 		}
 
-		virtual antlrcpp::Any visitProperty_bool3(details::ShaderParser::Property_bool3Context* ctx) override {
+		virtual antlrcpp::Any visitProperty_bool3(details::UShaderParser::Property_bool3Context* ctx) override {
 			auto name = ctx->property_name()->getText();
 			val<bool, 3> rst{
 				ctx->val_bool3()->val_bool(0)->accept(this).as<bool>(),
@@ -249,7 +249,7 @@ struct ShaderCompiler::Impl {
 			return std::pair{ name, rst };
 		}
 
-		virtual antlrcpp::Any visitProperty_bool4(details::ShaderParser::Property_bool4Context* ctx) override {
+		virtual antlrcpp::Any visitProperty_bool4(details::UShaderParser::Property_bool4Context* ctx) override {
 			auto name = ctx->property_name()->getText();
 			val<bool, 4> rst{
 				ctx->val_bool4()->val_bool(0)->accept(this).as<bool>(),
@@ -260,7 +260,7 @@ struct ShaderCompiler::Impl {
 			return std::pair{ name, rst };
 		}
 
-		virtual antlrcpp::Any visitProperty_int2(details::ShaderParser::Property_int2Context* ctx) override {
+		virtual antlrcpp::Any visitProperty_int2(details::UShaderParser::Property_int2Context* ctx) override {
 			auto name = ctx->property_name()->getText();
 			vali2 rst{
 				ctx->val_int2()->val_int(0)->accept(this).as<int>(),
@@ -269,7 +269,7 @@ struct ShaderCompiler::Impl {
 			return std::pair{ name, ShaderProperty{rst} };
 		}
 
-		virtual antlrcpp::Any visitProperty_int3(details::ShaderParser::Property_int3Context* ctx) override {
+		virtual antlrcpp::Any visitProperty_int3(details::UShaderParser::Property_int3Context* ctx) override {
 			auto name = ctx->property_name()->getText();
 			vali3 rst{
 				ctx->val_int3()->val_int(0)->accept(this).as<int>(),
@@ -279,7 +279,7 @@ struct ShaderCompiler::Impl {
 			return std::pair{ name, ShaderProperty{rst} };
 		}
 
-		virtual antlrcpp::Any visitProperty_int4(details::ShaderParser::Property_int4Context* ctx) override {
+		virtual antlrcpp::Any visitProperty_int4(details::UShaderParser::Property_int4Context* ctx) override {
 			auto name = ctx->property_name()->getText();
 			vali4 rst{
 				ctx->val_int4()->val_int(0)->accept(this).as<int>(),
@@ -290,7 +290,7 @@ struct ShaderCompiler::Impl {
 			return std::pair{ name, ShaderProperty{rst} };
 		}
 
-		virtual antlrcpp::Any visitProperty_uint2(details::ShaderParser::Property_uint2Context* ctx) override {
+		virtual antlrcpp::Any visitProperty_uint2(details::UShaderParser::Property_uint2Context* ctx) override {
 			auto name = ctx->property_name()->getText();
 			vali2 rst{
 				ctx->val_uint2()->val_uint(0)->accept(this).as<unsigned>(),
@@ -299,7 +299,7 @@ struct ShaderCompiler::Impl {
 			return std::pair{ name, ShaderProperty{rst} };
 		}
 
-		virtual antlrcpp::Any visitProperty_uint3(details::ShaderParser::Property_uint3Context* ctx) override {
+		virtual antlrcpp::Any visitProperty_uint3(details::UShaderParser::Property_uint3Context* ctx) override {
 			auto name = ctx->property_name()->getText();
 			vali3 rst{
 				ctx->val_uint3()->val_uint(0)->accept(this).as<unsigned>(),
@@ -309,7 +309,7 @@ struct ShaderCompiler::Impl {
 			return std::pair{ name, ShaderProperty{rst} };
 		}
 
-		virtual antlrcpp::Any visitProperty_uint4(details::ShaderParser::Property_uint4Context* ctx) override {
+		virtual antlrcpp::Any visitProperty_uint4(details::UShaderParser::Property_uint4Context* ctx) override {
 			auto name = ctx->property_name()->getText();
 			vali4 rst{
 				ctx->val_uint4()->val_uint(0)->accept(this).as<unsigned>(),
@@ -320,7 +320,7 @@ struct ShaderCompiler::Impl {
 			return std::pair{ name, ShaderProperty{rst} };
 		}
 
-		virtual antlrcpp::Any visitProperty_float2(details::ShaderParser::Property_float2Context* ctx) override {
+		virtual antlrcpp::Any visitProperty_float2(details::UShaderParser::Property_float2Context* ctx) override {
 			auto name = ctx->property_name()->getText();
 			valf2 rst{
 				std::stof(ctx->val_float2()->val_float(0)->getText()),
@@ -329,7 +329,7 @@ struct ShaderCompiler::Impl {
 			return std::pair{ name, ShaderProperty{rst} };
 		}
 
-		virtual antlrcpp::Any visitProperty_float3(details::ShaderParser::Property_float3Context* ctx) override {
+		virtual antlrcpp::Any visitProperty_float3(details::UShaderParser::Property_float3Context* ctx) override {
 			auto name = ctx->property_name()->getText();
 			valf3 rst{
 				std::stof(ctx->val_float3()->val_float(0)->getText()),
@@ -339,7 +339,7 @@ struct ShaderCompiler::Impl {
 			return std::pair{ name, ShaderProperty{rst} };
 		}
 
-		virtual antlrcpp::Any visitProperty_float4(details::ShaderParser::Property_float4Context* ctx) override {
+		virtual antlrcpp::Any visitProperty_float4(details::UShaderParser::Property_float4Context* ctx) override {
 			auto name = ctx->property_name()->getText();
 			valf4 rst{
 				std::stof(ctx->val_float4()->val_float(0)->getText()),
@@ -350,7 +350,7 @@ struct ShaderCompiler::Impl {
 			return std::pair{ name, ShaderProperty{rst} };
 		}
 
-		virtual antlrcpp::Any visitProperty_double2(details::ShaderParser::Property_double2Context* ctx) override {
+		virtual antlrcpp::Any visitProperty_double2(details::UShaderParser::Property_double2Context* ctx) override {
 			auto name = ctx->property_name()->getText();
 			valf2 rst{
 				std::stod(ctx->val_double2()->val_double(0)->getText()),
@@ -359,7 +359,7 @@ struct ShaderCompiler::Impl {
 			return std::pair{ name, ShaderProperty{rst} };
 		}
 
-		virtual antlrcpp::Any visitProperty_double3(details::ShaderParser::Property_double3Context* ctx) override {
+		virtual antlrcpp::Any visitProperty_double3(details::UShaderParser::Property_double3Context* ctx) override {
 			auto name = ctx->property_name()->getText();
 			valf3 rst{
 				std::stod(ctx->val_double3()->val_double(0)->getText()),
@@ -369,7 +369,7 @@ struct ShaderCompiler::Impl {
 			return std::pair{ name, ShaderProperty{rst} };
 		}
 
-		virtual antlrcpp::Any visitProperty_double4(details::ShaderParser::Property_double4Context* ctx) override {
+		virtual antlrcpp::Any visitProperty_double4(details::UShaderParser::Property_double4Context* ctx) override {
 			auto name = ctx->property_name()->getText();
 			valf4 rst{
 				std::stod(ctx->val_double4()->val_double(0)->getText()),
@@ -380,7 +380,7 @@ struct ShaderCompiler::Impl {
 			return std::pair{ name, ShaderProperty{rst} };
 		}
 
-		virtual antlrcpp::Any visitProperty_2D(details::ShaderParser::Property_2DContext* ctx) override {
+		virtual antlrcpp::Any visitProperty_2D(details::UShaderParser::Property_2DContext* ctx) override {
 			std::shared_ptr<const Texture2D> tex2d = ctx->val_tex2d()->accept(this);
 			if (!success)
 				return std::pair{ std::string{}, (const Texture2D*)nullptr };
@@ -388,7 +388,7 @@ struct ShaderCompiler::Impl {
 			return std::pair{ name, ShaderProperty{tex2d} };
 		}
 
-		virtual antlrcpp::Any visitVal_tex2d(details::ShaderParser::Val_tex2dContext* ctx) override {
+		virtual antlrcpp::Any visitVal_tex2d(details::UShaderParser::Val_tex2dContext* ctx) override {
 			static const std::shared_ptr<const Texture2D> ERROR;
 			xg::Guid guid;
 			if (ctx->default_texture_2d()) {
@@ -428,7 +428,7 @@ struct ShaderCompiler::Impl {
 			return std::const_pointer_cast<const Texture2D>(tex2d);
 		}
 
-		virtual antlrcpp::Any visitProperty_cube(details::ShaderParser::Property_cubeContext* ctx) override {
+		virtual antlrcpp::Any visitProperty_cube(details::UShaderParser::Property_cubeContext* ctx) override {
 			std::shared_ptr<const TextureCube> texcube = ctx->val_texcube()->accept(this);
 			if (!success)
 				return std::pair{ std::string{}, (const TextureCube*)nullptr };
@@ -436,7 +436,7 @@ struct ShaderCompiler::Impl {
 			return std::pair{ name, ShaderProperty{texcube} };
 		}
 
-		virtual antlrcpp::Any visitVal_texcube(details::ShaderParser::Val_texcubeContext* ctx) override {
+		virtual antlrcpp::Any visitVal_texcube(details::UShaderParser::Val_texcubeContext* ctx) override {
 			static const std::shared_ptr<const TextureCube> ERROR = nullptr;
 			xg::Guid guid;
 			if (ctx->default_texture_cube()) {
@@ -474,19 +474,19 @@ struct ShaderCompiler::Impl {
 			return std::const_pointer_cast<const TextureCube>(texcube);
 		}
 
-		virtual antlrcpp::Any visitProperty_rgb(details::ShaderParser::Property_rgbContext* ctx) override {
+		virtual antlrcpp::Any visitProperty_rgb(details::UShaderParser::Property_rgbContext* ctx) override {
 			auto name = ctx->property_name()->getText();
 			valf3 f3 = ctx->val_float3()->accept(this);
 			return std::pair{ name, ShaderProperty{f3.as<rgbf>()} };
 		}
 
-		virtual antlrcpp::Any visitProperty_rgba(details::ShaderParser::Property_rgbaContext* ctx) override {
+		virtual antlrcpp::Any visitProperty_rgba(details::UShaderParser::Property_rgbaContext* ctx) override {
 			auto name = ctx->property_name()->getText();
 			valf4 f4 = ctx->val_float4()->accept(this);
 			return std::pair{ name, ShaderProperty{f4.cast_to<rgbaf>()} };
 		}
 
-		virtual antlrcpp::Any visitVal_float3(details::ShaderParser::Val_float3Context* ctx) override {
+		virtual antlrcpp::Any visitVal_float3(details::UShaderParser::Val_float3Context* ctx) override {
 			valf3 rst{
 				ctx->val_float(0)->accept(this).as<float>(),
 				ctx->val_float(1)->accept(this).as<float>(),
@@ -495,7 +495,7 @@ struct ShaderCompiler::Impl {
 			return rst;
 		}
 
-		virtual antlrcpp::Any visitVal_float4(details::ShaderParser::Val_float4Context* ctx) override {
+		virtual antlrcpp::Any visitVal_float4(details::UShaderParser::Val_float4Context* ctx) override {
 			valf4 rst{
 				ctx->val_float(0)->accept(this).as<float>(),
 				ctx->val_float(1)->accept(this).as<float>(),
@@ -505,7 +505,7 @@ struct ShaderCompiler::Impl {
 			return rst;
 		}
 
-		virtual antlrcpp::Any visitPass(details::ShaderParser::PassContext* ctx) override {
+		virtual antlrcpp::Any visitPass(details::UShaderParser::PassContext* ctx) override {
 			const ShaderPass ERROR;
 			ShaderPass pass;
 			pass.vertexName = ctx->vs()->getText();
@@ -518,7 +518,7 @@ struct ShaderCompiler::Impl {
 			return pass;
 		}
 
-		virtual antlrcpp::Any visitTags(details::ShaderParser::TagsContext* ctx) override {
+		virtual antlrcpp::Any visitTags(details::UShaderParser::TagsContext* ctx) override {
 			for (auto tagCtx : ctx->tag()) {
 				auto key_s = tagCtx->StringLiteral(0)->getText();
 				auto mapped_s = tagCtx->StringLiteral(1)->getText();
@@ -530,7 +530,7 @@ struct ShaderCompiler::Impl {
 			return {};
 		}
 
-		virtual antlrcpp::Any visitCull(details::ShaderParser::CullContext* ctx) override {
+		virtual antlrcpp::Any visitCull(details::UShaderParser::CullContext* ctx) override {
 			auto mode = ctx->CullMode()->getText();
 			if (mode == "Front")
 				curPass->renderState.cullMode = CullMode::FRONT;
@@ -538,6 +538,19 @@ struct ShaderCompiler::Impl {
 				curPass->renderState.cullMode = CullMode::BACK;
 			else if (mode == "Off")
 				curPass->renderState.cullMode = CullMode::NONE;
+			else {
+				assert(false);
+				success = false;
+			}
+			return {};
+		}
+
+		virtual antlrcpp::Any visitFill(details::UShaderParser::FillContext* ctx) override {
+			auto mode = ctx->FillMode()->getText();
+			if (mode == "Wireframe")
+				curPass->renderState.fillMode = FillMode::WIREFRAME;
+			else if (mode == "Solid")
+				curPass->renderState.fillMode = FillMode::SOLID;
 			else {
 				assert(false);
 				success = false;
@@ -566,12 +579,12 @@ struct ShaderCompiler::Impl {
 			}
 		}
 
-		virtual antlrcpp::Any visitZtest(details::ShaderParser::ZtestContext* ctx) override {
+		virtual antlrcpp::Any visitZtest(details::UShaderParser::ZtestContext* ctx) override {
 			curPass->renderState.zTest = DecodeComparatorStr(ctx->Comparator()->getText());
 			return {};
 		}
 
-		virtual antlrcpp::Any visitZwrite_off(details::ShaderParser::Zwrite_offContext* ctx) override {
+		virtual antlrcpp::Any visitZwrite_off(details::UShaderParser::Zwrite_offContext* ctx) override {
 			curPass->renderState.zWrite = false;
 			return {};
 		}
@@ -603,7 +616,7 @@ struct ShaderCompiler::Impl {
 			}
 		}
 
-		virtual antlrcpp::Any visitBlend(details::ShaderParser::BlendContext* ctx) override {
+		virtual antlrcpp::Any visitBlend(details::UShaderParser::BlendContext* ctx) override {
 			size_t index;
 			if (auto indexCtx = ctx->index()) {
 				index = std::stoull(indexCtx->getText(), nullptr, 0);
@@ -648,7 +661,7 @@ struct ShaderCompiler::Impl {
 			}
 		}
 
-		virtual antlrcpp::Any visitBlend_op(details::ShaderParser::Blend_opContext* ctx) override {
+		virtual antlrcpp::Any visitBlend_op(details::UShaderParser::Blend_opContext* ctx) override {
 			size_t index;
 			if (auto indexCtx = ctx->index()) {
 				index = std::stoull(indexCtx->getText(), nullptr, 0);
@@ -667,7 +680,7 @@ struct ShaderCompiler::Impl {
 			return {};
 		}
 
-		virtual antlrcpp::Any visitColor_mask(details::ShaderParser::Color_maskContext* ctx) override {
+		virtual antlrcpp::Any visitColor_mask(details::UShaderParser::Color_maskContext* ctx) override {
 			size_t index;
 			if (auto indexCtx = ctx->index()) {
 				index = std::stoull(indexCtx->getText(), nullptr, 0);
@@ -698,27 +711,27 @@ struct ShaderCompiler::Impl {
 			return {};
 		}
 
-		virtual antlrcpp::Any visitStencil(details::ShaderParser::StencilContext* ctx) override {
+		virtual antlrcpp::Any visitStencil(details::UShaderParser::StencilContext* ctx) override {
 			curPass->renderState.stencilState.enable = true;
 			return visitChildren(ctx);
 		}
 
-		virtual antlrcpp::Any visitStencil_ref(details::ShaderParser::Stencil_refContext* ctx) override {
+		virtual antlrcpp::Any visitStencil_ref(details::UShaderParser::Stencil_refContext* ctx) override {
 			curPass->renderState.stencilState.ref = static_cast<uint8_t>(std::stoull(ctx->IntegerLiteral()->getText(), nullptr, 0));
 			return {};
 		}
 
-		virtual antlrcpp::Any visitStencil_mask_read(details::ShaderParser::Stencil_mask_readContext* ctx) override {
+		virtual antlrcpp::Any visitStencil_mask_read(details::UShaderParser::Stencil_mask_readContext* ctx) override {
 			curPass->renderState.stencilState.readMask = static_cast<uint8_t>(std::stoull(ctx->IntegerLiteral()->getText(), nullptr, 0));
 			return {};
 		}
 
-		virtual antlrcpp::Any visitStencil_mask_write(details::ShaderParser::Stencil_mask_writeContext* ctx) override {
+		virtual antlrcpp::Any visitStencil_mask_write(details::UShaderParser::Stencil_mask_writeContext* ctx) override {
 			curPass->renderState.stencilState.writeMask = static_cast<uint8_t>(std::stoull(ctx->IntegerLiteral()->getText(), nullptr, 0));
 			return {};
 		}
 
-		virtual antlrcpp::Any visitStencil_compare(details::ShaderParser::Stencil_compareContext* ctx) override {
+		virtual antlrcpp::Any visitStencil_compare(details::UShaderParser::Stencil_compareContext* ctx) override {
 			curPass->renderState.stencilState.func = DecodeComparatorStr(ctx->Comparator()->getText());
 			return {};
 		}
@@ -746,22 +759,22 @@ struct ShaderCompiler::Impl {
 			}
 		}
 
-		virtual antlrcpp::Any visitStencil_pass(details::ShaderParser::Stencil_passContext* ctx) override {
+		virtual antlrcpp::Any visitStencil_pass(details::UShaderParser::Stencil_passContext* ctx) override {
 			curPass->renderState.stencilState.passOp = DecodeStencilOpStr(ctx->stencil_op()->getText());
 			return {};
 		}
 
-		virtual antlrcpp::Any visitStencil_fail(details::ShaderParser::Stencil_failContext* ctx) override {
+		virtual antlrcpp::Any visitStencil_fail(details::UShaderParser::Stencil_failContext* ctx) override {
 			curPass->renderState.stencilState.failOp = DecodeStencilOpStr(ctx->stencil_op()->getText());
 			return {};
 		}
 
-		virtual antlrcpp::Any visitStencil_zfail(details::ShaderParser::Stencil_zfailContext* ctx) override {
+		virtual antlrcpp::Any visitStencil_zfail(details::UShaderParser::Stencil_zfailContext* ctx) override {
 			curPass->renderState.stencilState.depthFailOp = DecodeStencilOpStr(ctx->stencil_op()->getText());
 			return {};
 		}
 
-		virtual antlrcpp::Any visitQueue(details::ShaderParser::QueueContext* ctx) override {
+		virtual antlrcpp::Any visitQueue(details::UShaderParser::QueueContext* ctx) override {
 			size_t base;
 			if (auto keyCtx = ctx->val_queue()->queue_key()) {
 				if (keyCtx->getText() == "Background")
@@ -804,15 +817,15 @@ struct ShaderCompiler::Impl {
 	};
 };
 
-ShaderCompiler::ShaderCompiler()
+UShaderCompiler::UShaderCompiler()
 	:pImpl{ new Impl } {}
 
-ShaderCompiler::~ShaderCompiler() {
+UShaderCompiler::~UShaderCompiler() {
 	delete pImpl;
 }
 
-std::tuple<bool, Shader> ShaderCompiler::Compile(std::string_view ushader) {
+std::tuple<bool, Shader> UShaderCompiler::Compile(std::string_view ushader) {
 	Shader shader;
-	Impl::ShaderCompilerInstance compiler;
+	Impl::UShaderCompilerInstance compiler;
 	return compiler.Compile(ushader);
 }

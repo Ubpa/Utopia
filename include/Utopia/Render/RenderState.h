@@ -1,6 +1,11 @@
 #pragma once
 
 namespace Ubpa::Utopia {
+	enum class FillMode {
+		WIREFRAME = 2,
+		SOLID = 3
+	};
+
 	enum class CullMode {
 		NONE = 1,
 		FRONT = 2,
@@ -80,6 +85,8 @@ namespace Ubpa::Utopia {
 	};
 
 	struct RenderState {
+		FillMode fillMode{ FillMode::SOLID };
+
 		CullMode cullMode{ CullMode::BACK };
 
 		CompareFunc zTest{ CompareFunc::LESS };

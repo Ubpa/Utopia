@@ -5,6 +5,20 @@
 #include <USRefl/USRefl.h>
 
 template<>
+struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::FillMode> :
+    TypeInfoBase<Ubpa::Utopia::FillMode>
+{
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[23] = "Ubpa::Utopia::FillMode";
+#endif
+    static constexpr AttrList attrs = {};
+    static constexpr FieldList fields = {
+        Field {TSTR("WIREFRAME"), Type::WIREFRAME},
+        Field {TSTR("SOLID"), Type::SOLID},
+    };
+};
+
+template<>
 struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::CullMode> :
     TypeInfoBase<Ubpa::Utopia::CullMode>
 {
@@ -98,22 +112,22 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::BlendState> :
             Attr {TSTR(UMeta::initializer), []()->bool { return { false }; }},
         }},
         Field {TSTR("src"), &Type::src, AttrList {
-            Attr {TSTR(UMeta::initializer), []()->Ubpa::Utopia::Blend { return { Ubpa::Utopia::Blend::SRC_ALPHA }; }},
+            Attr {TSTR(UMeta::initializer), []()->Utopia::Blend { return { Utopia::Blend::SRC_ALPHA }; }},
         }},
         Field {TSTR("dest"), &Type::dest, AttrList {
-            Attr {TSTR(UMeta::initializer), []()->Ubpa::Utopia::Blend { return { Ubpa::Utopia::Blend::INV_SRC_ALPHA }; }},
+            Attr {TSTR(UMeta::initializer), []()->Utopia::Blend { return { Utopia::Blend::INV_SRC_ALPHA }; }},
         }},
         Field {TSTR("op"), &Type::op, AttrList {
-            Attr {TSTR(UMeta::initializer), []()->Ubpa::Utopia::BlendOp { return { Ubpa::Utopia::BlendOp::ADD }; }},
+            Attr {TSTR(UMeta::initializer), []()->Utopia::BlendOp { return { Utopia::BlendOp::ADD }; }},
         }},
         Field {TSTR("srcAlpha"), &Type::srcAlpha, AttrList {
-            Attr {TSTR(UMeta::initializer), []()->Ubpa::Utopia::Blend { return { Ubpa::Utopia::Blend::ONE }; }},
+            Attr {TSTR(UMeta::initializer), []()->Utopia::Blend { return { Utopia::Blend::ONE }; }},
         }},
         Field {TSTR("destAlpha"), &Type::destAlpha, AttrList {
-            Attr {TSTR(UMeta::initializer), []()->Ubpa::Utopia::Blend { return { Ubpa::Utopia::Blend::INV_SRC_ALPHA }; }},
+            Attr {TSTR(UMeta::initializer), []()->Utopia::Blend { return { Utopia::Blend::INV_SRC_ALPHA }; }},
         }},
         Field {TSTR("opAlpha"), &Type::opAlpha, AttrList {
-            Attr {TSTR(UMeta::initializer), []()->Ubpa::Utopia::BlendOp { return { Ubpa::Utopia::BlendOp::ADD }; }},
+            Attr {TSTR(UMeta::initializer), []()->Utopia::BlendOp { return { Utopia::BlendOp::ADD }; }},
         }},
     };
 };
@@ -160,16 +174,16 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::StencilState> :
             Attr {TSTR(UMeta::initializer), []()->uint8_t { return { 0xff }; }},
         }},
         Field {TSTR("failOp"), &Type::failOp, AttrList {
-            Attr {TSTR(UMeta::initializer), []()->Ubpa::Utopia::StencilOp { return { Ubpa::Utopia::StencilOp::KEEP }; }},
+            Attr {TSTR(UMeta::initializer), []()->Utopia::StencilOp { return { Utopia::StencilOp::KEEP }; }},
         }},
         Field {TSTR("depthFailOp"), &Type::depthFailOp, AttrList {
-            Attr {TSTR(UMeta::initializer), []()->Ubpa::Utopia::StencilOp { return { Ubpa::Utopia::StencilOp::KEEP }; }},
+            Attr {TSTR(UMeta::initializer), []()->Utopia::StencilOp { return { Utopia::StencilOp::KEEP }; }},
         }},
         Field {TSTR("passOp"), &Type::passOp, AttrList {
-            Attr {TSTR(UMeta::initializer), []()->Ubpa::Utopia::StencilOp { return { Ubpa::Utopia::StencilOp::KEEP }; }},
+            Attr {TSTR(UMeta::initializer), []()->Utopia::StencilOp { return { Utopia::StencilOp::KEEP }; }},
         }},
         Field {TSTR("func"), &Type::func, AttrList {
-            Attr {TSTR(UMeta::initializer), []()->Ubpa::Utopia::CompareFunc { return { Ubpa::Utopia::CompareFunc::ALWAYS }; }},
+            Attr {TSTR(UMeta::initializer), []()->Utopia::CompareFunc { return { Utopia::CompareFunc::ALWAYS }; }},
         }},
     };
 };
@@ -183,11 +197,14 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::Utopia::RenderState> :
 #endif
     static constexpr AttrList attrs = {};
     static constexpr FieldList fields = {
+        Field {TSTR("fillMode"), &Type::fillMode, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->Utopia::FillMode { return { Utopia::FillMode::SOLID }; }},
+        }},
         Field {TSTR("cullMode"), &Type::cullMode, AttrList {
-            Attr {TSTR(UMeta::initializer), []()->Ubpa::Utopia::CullMode { return { Ubpa::Utopia::CullMode::BACK }; }},
+            Attr {TSTR(UMeta::initializer), []()->Utopia::CullMode { return { Utopia::CullMode::BACK }; }},
         }},
         Field {TSTR("zTest"), &Type::zTest, AttrList {
-            Attr {TSTR(UMeta::initializer), []()->Ubpa::Utopia::CompareFunc { return { Ubpa::Utopia::CompareFunc::LESS }; }},
+            Attr {TSTR(UMeta::initializer), []()->Utopia::CompareFunc { return { Utopia::CompareFunc::LESS }; }},
         }},
         Field {TSTR("zWrite"), &Type::zWrite, AttrList {
             Attr {TSTR(UMeta::initializer), []()->bool { return { true }; }},

@@ -1,6 +1,6 @@
 #include <Utopia/Asset/AssetMngr.h>
 
-#include "ShaderCompiler/ShaderCompiler.h"
+#include "UShaderCompiler/UShaderCompiler.h"
 
 #include <Utopia/Asset/Serializer.h>
 
@@ -328,7 +328,7 @@ std::shared_ptr<Object> AssetMngr::LoadAsset(const std::filesystem::path& path) 
 	}
 	else if (ext == ".shader") {
 		auto shaderText = Impl::LoadText(path);
-		auto [success, rstShader] = ShaderCompiler::Instance().Compile(shaderText);
+		auto [success, rstShader] = UShaderCompiler::Instance().Compile(shaderText);
 		if (!success)
 			return nullptr;
 		auto shader = std::make_shared<Shader>(std::move(rstShader));

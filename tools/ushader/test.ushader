@@ -1,0 +1,47 @@
+Shader "StdPipeline/Geometry" {
+	HLSL : "d1ee38ec-7485-422e-93f3-c8886169a858"
+	RootSignature {
+		SRV[1] : 0
+		SRV[1] : 1
+		SRV[1] : 2
+		SRV[1] : 3
+		CBV : 0
+		CBV : 1
+		CBV : 2
+	}
+	// abc
+	/*
+	ddd
+	*/
+	Properties {
+		gAlbedoMap("albedo", 2D) : White
+		gMetalnessMap("metalness", 2D) : White
+		gRoughnessMap("roughness", 2D) : White
+		gNormalMap("albedo", 2D) : Bump
+		gSkybox("Skybox", Cube) : Black
+		gAlbedoFactor("albedo factor", Color3) : (1, 1, 1)
+		gRoughnessFactor("albedo factor", float) : 1
+		gMetalnessFactor("albedo factor", float) : 1
+	}
+	Pass (VS, PS) {
+		Tags {
+			"LightMode" : "Deferred"
+		}
+		ZTest Less
+		ZWriteOff
+		Blend[1] (SrcColor, OneMinusSrcAlpha, SrcAlpha, OneMinusSrcAlpha)
+		BlendOp[1] (Add, Sub)
+		ColorMask[1] GBA
+		Stencil {
+			Ref 1
+			ReadMask 0xff
+			WriteMask 0xff
+			Comp Less
+			Pass Zero
+			Fail Keep
+			ZFail Keep
+		}
+		Queue Geometry + 2
+		Fill Wireframe
+	}
+}
