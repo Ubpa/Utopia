@@ -2,44 +2,51 @@
 
 using namespace Ubpa::Utopia;
 
-void Mesh::SetPositions(std::vector<pointf3> positions) {
-	assert(isEditable);
+void Mesh::SetPositions(std::vector<pointf3> positions) noexcept {
+	if (!IsEditable())
+		return;
 	dirty = true;
 	this->positions = std::move(positions);
 }
 
-void Mesh::SetColors(std::vector<rgbf> colors) {
-	assert(isEditable);
+void Mesh::SetColors(std::vector<rgbf> colors) noexcept {
+	if (!IsEditable())
+		return;
 	dirty = true;
 	this->colors = std::move(colors);
 }
 
-void Mesh::SetNormals(std::vector<normalf> normals) {
-	assert(isEditable);
+void Mesh::SetNormals(std::vector<normalf> normals) noexcept {
+	if (!IsEditable())
+		return;
 	dirty = true;
 	this->normals = std::move(normals);
 }
 
-void Mesh::SetTangents(std::vector<vecf3> tangents) {
-	assert(isEditable);
+void Mesh::SetTangents(std::vector<vecf3> tangents) noexcept {
+	if (!IsEditable())
+		return;
 	dirty = true;
 	this->tangents = std::move(tangents);
 }
 
-void Mesh::SetUV(std::vector<pointf2> uv) {
-	assert(isEditable);
+void Mesh::SetUV(std::vector<pointf2> uv) noexcept {
+	if (!IsEditable())
+		return;
 	dirty = true;
 	this->uv = std::move(uv);
 }
 
-void Mesh::SetIndices(std::vector<uint32_t> indices) {
-	assert(isEditable);
+void Mesh::SetIndices(std::vector<uint32_t> indices) noexcept {
+	if (!IsEditable())
+		return;
 	dirty = true;
 	this->indices = std::move(indices);
 }
 
 void Mesh::SetSubMeshCount(size_t num) {
-	assert(isEditable);
+	if (!IsEditable())
+		return;
 	if (submeshes.size() < num) {
 		for (size_t i = submeshes.size(); i < num; i++) {
 			submeshes.emplace_back(
@@ -55,9 +62,9 @@ void Mesh::SetSubMeshCount(size_t num) {
 	}
 }
 
-void Mesh::SetSubMesh(size_t index, SubMeshDescriptor desc) {
-	assert(isEditable);
-	assert(index < submeshes.size());
+void Mesh::SetSubMesh(size_t index, SubMeshDescriptor desc) noexcept {
+	if (!IsEditable() || index >= submeshes.size())
+		return;
 	dirty = true;
 	desc.firstVertex = indices[desc.indexStart] + desc.baseVertex;
 	desc.bounds = { positions[desc.firstVertex], positions[desc.firstVertex] };
@@ -69,6 +76,9 @@ void Mesh::SetSubMesh(size_t index, SubMeshDescriptor desc) {
 }
 
 void Mesh::GenNormals() {
+	if (!IsEditable())
+		return;
+
 	normals.clear();
 	normals.resize(positions.size(), normalf(0, 0, 0));
 
@@ -101,6 +111,9 @@ void Mesh::GenNormals() {
 }
 
 void Mesh::GenUV() {
+	if (!IsEditable())
+		return;
+
 	uv.resize(positions.size());
 	pointf3 center = pointf3::combine(positions, 1.f / positions.size());
 	for (size_t i = 0; i < positions.size(); i++) {
@@ -110,6 +123,9 @@ void Mesh::GenUV() {
 }
 
 void Mesh::GenTangents() {
+	if (!IsEditable())
+		return;
+
 	if (normals.empty())
 		GenNormals();
 	if (uv.empty())
@@ -181,7 +197,7 @@ void Mesh::GenTangents() {
 	}
 }
 
-bool Mesh::IsVertexValid() {
+bool Mesh::IsVertexValid() const noexcept {
 	size_t num = positions.size();
 	if (num != 0
 		&& (uv.size() == 0 || uv.size() == num)
@@ -195,9 +211,8 @@ bool Mesh::IsVertexValid() {
 }
 
 void Mesh::UpdateVertexBuffer() {
-	assert(IsDirty());
-
-	assert(IsVertexValid());
+	if (!IsDirty() || !IsVertexValid())
+		return;
 
 	size_t num = GetVertexBufferVertexCount();
 

@@ -18,14 +18,14 @@ struct Ubpa::USRefl::TypeInfo<Ubpa::UECS::SystemMngr> :
         Field {TSTR(UMeta::constructor), WrapConstructor<Type(const UECS::SystemMngr&, UECS::World*)>()},
         Field {TSTR(UMeta::constructor), WrapConstructor<Type(UECS::SystemMngr&&, UECS::World*)>()},
         Field {TSTR(UMeta::destructor), WrapDestructor<Type>()},
-        Field {TSTR("Create"), &Type::Create},
-        Field {TSTR("Activate"), &Type::Activate},
-        Field {TSTR("Deactivate"), &Type::Deactivate},
-        Field {TSTR("Destroy"), &Type::Destroy},
-        Field {TSTR("IsAlive"), &Type::IsAlive},
-        Field {TSTR("IsActive"), &Type::IsActive},
         Field {TSTR("GetAliveSystemIDs"), &Type::GetAliveSystemIDs},
         Field {TSTR("GetActiveSystemsIDs"), &Type::GetActiveSystemsIDs},
+        Field {TSTR("Create"), static_cast<void(Type::*)(size_t)>(&Type::Create)},
+        Field {TSTR("Activate"), static_cast<void(Type::*)(size_t)>(&Type::Activate)},
+        Field {TSTR("Deactivate"), static_cast<void(Type::*)(size_t)>(&Type::Deactivate)},
+        Field {TSTR("Destroy"), static_cast<void(Type::*)(size_t)>(&Type::Destroy)},
+        Field {TSTR("IsAlive"), static_cast<bool(Type::*)(size_t)const>(&Type::IsAlive)},
+        Field {TSTR("IsActive"), static_cast<bool(Type::*)(size_t)const>(&Type::IsActive)},
     };
 };
 

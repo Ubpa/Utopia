@@ -40,14 +40,14 @@ using namespace Ubpa::UECS;
 using namespace Ubpa;
 
 struct StdPipeline::Impl {
-	Impl(DirectX::ResourceUploadBatch& upload, InitDesc initDesc)
+	Impl(InitDesc initDesc)
 		:
 		initDesc{ initDesc },
 		frameRsrcMngr{ initDesc.numFrame, initDesc.device },
 		fg { "Standard Pipeline" },
 		shaderCBMngr{ initDesc.device }
 	{
-		BuildTextures(upload);
+		BuildTextures();
 		BuildFrameResources();
 		BuildShaders();
 		BuildPSOs();
@@ -220,7 +220,7 @@ struct StdPipeline::Impl {
 
 	const DXGI_FORMAT dsFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
-	void BuildTextures(DirectX::ResourceUploadBatch& upload);
+	void BuildTextures();
 	void BuildFrameResources();
 	void BuildShaders();
 	void BuildPSOs();
@@ -262,11 +262,11 @@ StdPipeline::Impl::~Impl() {
 	UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(ltcHandles));
 }
 
-void StdPipeline::Impl::BuildTextures(DirectX::ResourceUploadBatch& upload) {
+void StdPipeline::Impl::BuildTextures() {
 	ltcTexes[0].image = std::make_shared<Image>(LTCTex::SIZE, LTCTex::SIZE, 4, LTCTex::data1);
 	ltcTexes[1].image = std::make_shared<Image>(LTCTex::SIZE, LTCTex::SIZE, 4, LTCTex::data2);
-	RsrcMngrDX12::Instance().RegisterTexture2D(upload, ltcTexes[0]);
-	RsrcMngrDX12::Instance().RegisterTexture2D(upload, ltcTexes[1]);
+	RsrcMngrDX12::Instance().RegisterTexture2D(ltcTexes[0]);
+	RsrcMngrDX12::Instance().RegisterTexture2D(ltcTexes[1]);
 	ltcHandles = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(2);
 	auto ltc0 = RsrcMngrDX12::Instance().GetTexture2DResource(ltcTexes[0]);
 	auto ltc1 = RsrcMngrDX12::Instance().GetTexture2DResource(ltcTexes[1]);
@@ -1378,10 +1378,10 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::str
 		Draw(obj);
 }
 
-StdPipeline::StdPipeline(DirectX::ResourceUploadBatch& upload, InitDesc initDesc)
+StdPipeline::StdPipeline(InitDesc initDesc)
 	:
 	PipelineBase{ initDesc },
-	pImpl{ new Impl{ upload, initDesc } }
+	pImpl{ new Impl{ initDesc } }
 {}
 
 StdPipeline::~StdPipeline() {

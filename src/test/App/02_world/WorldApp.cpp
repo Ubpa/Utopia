@@ -148,10 +148,6 @@ bool WorldApp::Initialize() {
 	BuildWorld();
 
 	ThrowIfFailed(uGCmdList->Reset(mDirectCmdListAlloc.Get(), nullptr));
-	auto& upload = Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload();
-	auto& deleteBatch = Ubpa::Utopia::RsrcMngrDX12::Instance().GetDeleteBatch();
-
-	upload.Begin();
 
 	LoadTextures();
 	BuildShaders();
@@ -160,8 +156,6 @@ bool WorldApp::Initialize() {
 	// update mesh
 	world.RunEntityJob([&](const Ubpa::Utopia::MeshFilter* meshFilter) {
 		Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterMesh(
-			upload,
-			deleteBatch,
 			uGCmdList.Get(),
 			*meshFilter->mesh
 		);
@@ -172,13 +166,12 @@ bool WorldApp::Initialize() {
 	initDesc.rtFormat = mBackBufferFormat;
 	initDesc.cmdQueue = uCmdQueue.raw.Get();
 	initDesc.numFrame = gNumFrameResources;
-	pipeline = std::make_unique<Ubpa::Utopia::StdPipeline>(upload, initDesc);
+	pipeline = std::make_unique<Ubpa::Utopia::StdPipeline>(initDesc);
 
 	// commit upload, delete ...
-	upload.End(uCmdQueue.raw.Get());
 	uGCmdList->Close();
 	uCmdQueue.Execute(uGCmdList.raw.Get());
-	deleteBatch.Commit(uDevice.raw.Get(), uCmdQueue.raw.Get());
+	Ubpa::Utopia::RsrcMngrDX12::Instance().CommitUploadAndDelete(uCmdQueue.raw.Get());
 
 	// Do the initial resize code.
 	OnResize();
@@ -211,15 +204,12 @@ void WorldApp::Update()
 	auto cmdAlloc = frameRsrcMngr->GetCurrentFrameResource()->GetResource<Microsoft::WRL::ComPtr<ID3D12CommandAllocator>>("CommandAllocator");
 	cmdAlloc->Reset();
 	ThrowIfFailed(uGCmdList->Reset(cmdAlloc.Get(), nullptr));
-	auto& deleteBatch = Ubpa::Utopia::RsrcMngrDX12::Instance().GetDeleteBatch();
 
 	world.RunEntityJob([&](const Ubpa::Utopia::MeshFilter* meshFilter, const Ubpa::Utopia::MeshRenderer* meshRenderer) {
 		if (!meshFilter->mesh || meshRenderer->materials.empty())
 			return;
 
 		Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterMesh(
-			upload,
-			deleteBatch,
 			uGCmdList.Get(),
 			*meshFilter->mesh
 		);
@@ -230,13 +220,11 @@ void WorldApp::Update()
 			for (const auto& [name, property] : material->properties) {
 				if (std::holds_alternative<std::shared_ptr<const Ubpa::Utopia::Texture2D>>(property)) {
 					Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTexture2D(
-						Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(),
 						*std::get<std::shared_ptr<const Ubpa::Utopia::Texture2D>>(property)
 					);
 				}
 				else if (std::holds_alternative<std::shared_ptr<const Ubpa::Utopia::TextureCube>>(property)) {
 					Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTextureCube(
-						Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(),
 						*std::get<std::shared_ptr<const Ubpa::Utopia::TextureCube>>(property)
 					);
 				}
@@ -248,13 +236,11 @@ void WorldApp::Update()
 		for (const auto& [name, property] : skybox->material->properties) {
 			if (std::holds_alternative<std::shared_ptr<const Ubpa::Utopia::Texture2D>>(property)) {
 				Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTexture2D(
-					Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(),
 					*std::get<std::shared_ptr<const Ubpa::Utopia::Texture2D>>(property)
 				);
 			}
 			else if (std::holds_alternative<std::shared_ptr<const Ubpa::Utopia::TextureCube>>(property)) {
 				Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTextureCube(
-					Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(),
 					*std::get<std::shared_ptr<const Ubpa::Utopia::TextureCube>>(property)
 				);
 			}
@@ -262,10 +248,9 @@ void WorldApp::Update()
 	}
 
 	// commit upload, delete ...
-	upload.End(uCmdQueue.raw.Get());
 	uGCmdList->Close();
 	uCmdQueue.Execute(uGCmdList.raw.Get());
-	deleteBatch.Commit(uDevice.raw.Get(), uCmdQueue.raw.Get());
+	Ubpa::Utopia::RsrcMngrDX12::Instance().CommitUploadAndDelete(uCmdQueue.raw.Get());
 	frameRsrcMngr->EndFrame(uCmdQueue.raw.Get());
 
 	std::vector<Ubpa::Utopia::PipelineBase::CameraData> gameCameras;
@@ -407,7 +392,6 @@ void WorldApp::LoadTextures() {
 	for (const auto& guid : tex2dGUIDs) {
 		const auto& path = Ubpa::Utopia::AssetMngr::Instance().GUIDToAssetPath(guid);
 		Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTexture2D(
-			Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(),
 			*Ubpa::Utopia::AssetMngr::Instance().LoadAsset<Ubpa::Utopia::Texture2D>(path)
 		);
 	}
@@ -416,7 +400,6 @@ void WorldApp::LoadTextures() {
 	for (const auto& guid : texcubeGUIDs) {
 		const auto& path = Ubpa::Utopia::AssetMngr::Instance().GUIDToAssetPath(guid);
 		Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTextureCube(
-			Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(),
 			*Ubpa::Utopia::AssetMngr::Instance().LoadAsset<Ubpa::Utopia::TextureCube>(path)
 		);
 	}

@@ -26,7 +26,7 @@ mesh 和 texture 类似，就一并说明，不加以区分
 
 对于动态资源，如果只需要读一次，就仅放在上传堆，如果需要读取多次，需要拷贝到默认堆
 
-对于 shader 的 per pass, per material, per object constant buffer，则只需放在上传堆即可
+对于 shader 的 per pass, per material, per object constant buffer等，则只需放在上传堆即可（每一帧都全部重新计算）
 
 而对于 mesh，由于很可能多次使用（阴影 pass + 几何 pass），所以默认会拷贝到上传堆
 
@@ -45,6 +45,5 @@ mesh 和 texture 类似，就一并说明，不加以区分
 - 静态：维持静态
 
 ![rsrc](assets/StaticDynamicResource/rsrc.png)
-
 
 

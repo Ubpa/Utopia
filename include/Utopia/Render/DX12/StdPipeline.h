@@ -5,7 +5,7 @@
 namespace Ubpa::Utopia {
 	class StdPipeline final : public PipelineBase {
 	public:
-		StdPipeline(DirectX::ResourceUploadBatch& upload, InitDesc desc);
+		StdPipeline(InitDesc desc);
 		virtual ~StdPipeline();
 
 		// data : cpu -> gpu

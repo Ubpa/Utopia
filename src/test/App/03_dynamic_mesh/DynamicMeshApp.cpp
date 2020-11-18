@@ -31,7 +31,9 @@ struct AnimateMeshSystem {
 				Ubpa::Utopia::MeshFilter* meshFilter,
 				Ubpa::UECS::Latest<Ubpa::UECS::Singleton<Ubpa::Utopia::WorldTime>> time
 			) {
-				if (time->elapsedTime < 10.f) {
+				if(!meshFilter->mesh)
+					return;
+				if (time->elapsedTime < 5.f) {
 					if (meshFilter->mesh->IsEditable()) {
 						auto positions = meshFilter->mesh->GetPositions();
 						for (auto& pos : positions)
@@ -39,20 +41,43 @@ struct AnimateMeshSystem {
 						meshFilter->mesh->SetPositions(positions);
 					}
 				}
+				else if (5.f < time->elapsedTime && time->elapsedTime < 7.f)
+					meshFilter->mesh->SetToNonEditable();
+				else if (7.f < time->elapsedTime && time->elapsedTime < 9.f) {
+					meshFilter->mesh->SetToEditable();
+					auto positions = meshFilter->mesh->GetPositions();
+					for (auto& pos : positions)
+						pos[1] = 0.2f * (Ubpa::rand01<float>() - 0.5f);
+					meshFilter->mesh->SetPositions(positions);
+				}
 				else
 					meshFilter->mesh->SetToNonEditable();
 			},
 			"AnimateMesh"
+		);
+		schedule.RegisterEntityJob(
+			[](
+				Ubpa::Utopia::MeshFilter* meshFilter,
+				Ubpa::UECS::Latest<Ubpa::UECS::Singleton<Ubpa::Utopia::WorldTime>> time
+			) {
+				if(!meshFilter->mesh)
+					return;
+				if (time->elapsedTime > 10.f) {
+					Ubpa::Utopia::RsrcMngrDX12::Instance().UnregisterMesh(*meshFilter->mesh);
+					meshFilter->mesh = nullptr;
+				}
+			},
+			"DeleteMesh"
 		);
 		schedule.RegisterCommand([](Ubpa::UECS::World* w) {
 			auto time = w->entityMngr.GetSingleton<Ubpa::Utopia::WorldTime>();
 			if (!time)
 				return;
 
-			if (time->elapsedTime < 10.f)
+			if (time->elapsedTime < 12.f)
 				return;
 
-			w->systemMngr.Deactivate(w->systemMngr.systemTraits.GetID(Ubpa::UECS::SystemTraits::StaticNameof<AnimateMeshSystem>()));
+			w->systemMngr.Deactivate<AnimateMeshSystem>();
 		});
 	}
 };
@@ -162,7 +187,6 @@ bool DynamicMeshApp::Initialize()
 
 	BuildWorld();
 
-	Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload().Begin();
 	LoadTextures();
 	BuildShaders();
 	BuildMaterials();
@@ -172,8 +196,8 @@ bool DynamicMeshApp::Initialize()
 	initDesc.rtFormat = mBackBufferFormat;
 	initDesc.cmdQueue = uCmdQueue.raw.Get();
 	initDesc.numFrame = gNumFrameResources;
-	pipeline = std::make_unique<Ubpa::Utopia::StdPipeline>(Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(), initDesc);
-	Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload().End(uCmdQueue.raw.Get());
+	pipeline = std::make_unique<Ubpa::Utopia::StdPipeline>(initDesc);
+	Ubpa::Utopia::RsrcMngrDX12::Instance().CommitUploadAndDelete(uCmdQueue.raw.Get());
 
 	// Do the initial resize code.
 	OnResize();
@@ -193,9 +217,6 @@ void DynamicMeshApp::OnResize()
 }
 
 void DynamicMeshApp::Update() {
-	auto& upload = Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload();
-	upload.Begin();
-
 	UpdateCamera();
 
 	world.Update();
@@ -216,8 +237,6 @@ void DynamicMeshApp::Update() {
 			return;
 
 		Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterMesh(
-			upload,
-			deleteBatch,
 			uGCmdList.Get(),
 			*meshFilter->mesh
 		);
@@ -228,13 +247,11 @@ void DynamicMeshApp::Update() {
 			for (const auto& [name, property] : material->properties) {
 				if (std::holds_alternative<std::shared_ptr<const Ubpa::Utopia::Texture2D>>(property)) {
 					Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTexture2D(
-						Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(),
 						*std::get<std::shared_ptr<const Ubpa::Utopia::Texture2D>>(property)
 					);
 				}
 				else if (std::holds_alternative<std::shared_ptr<const Ubpa::Utopia::TextureCube>>(property)) {
 					Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTextureCube(
-						Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(),
 						*std::get<std::shared_ptr<const Ubpa::Utopia::TextureCube>>(property)
 					);
 				}
@@ -246,13 +263,11 @@ void DynamicMeshApp::Update() {
 		for (const auto& [name, property] : skybox->material->properties) {
 			if (std::holds_alternative<std::shared_ptr<const Ubpa::Utopia::Texture2D>>(property)) {
 				Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTexture2D(
-					Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(),
 					*std::get<std::shared_ptr<const Ubpa::Utopia::Texture2D>>(property)
 				);
 			}
 			else if (std::holds_alternative<std::shared_ptr<const Ubpa::Utopia::TextureCube>>(property)) {
 				Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTextureCube(
-					Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(),
 					*std::get<std::shared_ptr<const Ubpa::Utopia::TextureCube>>(property)
 				);
 			}
@@ -260,10 +275,9 @@ void DynamicMeshApp::Update() {
 	}
 
 	// commit upload, delete ...
-	upload.End(uCmdQueue.raw.Get());
 	uGCmdList->Close();
 	uCmdQueue.Execute(uGCmdList.raw.Get());
-	deleteBatch.Commit(uDevice.raw.Get(), uCmdQueue.raw.Get());
+	Ubpa::Utopia::RsrcMngrDX12::Instance().CommitUploadAndDelete(uCmdQueue.raw.Get());
 	frameRsrcMngr->EndFrame(uCmdQueue.raw.Get());
 
 	std::vector<Ubpa::Utopia::PipelineBase::CameraData> gameCameras;
@@ -407,7 +421,6 @@ void DynamicMeshApp::LoadTextures() {
 	for (const auto& guid : tex2dGUIDs) {
 		const auto& path = Ubpa::Utopia::AssetMngr::Instance().GUIDToAssetPath(guid);
 		Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTexture2D(
-			Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(),
 			*Ubpa::Utopia::AssetMngr::Instance().LoadAsset<Ubpa::Utopia::Texture2D>(path)
 		);
 	}
@@ -416,7 +429,6 @@ void DynamicMeshApp::LoadTextures() {
 	for (const auto& guid : texcubeGUIDs) {
 		const auto& path = Ubpa::Utopia::AssetMngr::Instance().GUIDToAssetPath(guid);
 		Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTextureCube(
-			Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(),
 			*Ubpa::Utopia::AssetMngr::Instance().LoadAsset<Ubpa::Utopia::TextureCube>(path)
 		);
 	}

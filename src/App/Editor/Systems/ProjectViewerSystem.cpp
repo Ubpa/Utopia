@@ -188,7 +188,6 @@ namespace Ubpa::Utopia::detail {
 					else if (ext == ".tex2d") {
 						auto tex2d = AssetMngr::Instance().LoadAsset<Texture2D>(path);
 						Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTexture2D(
-							Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload(),
 							*tex2d
 						);
 						id = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*tex2d).ptr;

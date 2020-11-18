@@ -18,23 +18,21 @@ namespace Ubpa::Utopia {
 			return instance;
 		}
 
-		DirectX::ResourceUploadBatch& GetUpload() const;
-		UDX12::ResourceDeleteBatch& GetDeleteBatch() const;
-
 		RsrcMngrDX12& Init(ID3D12Device* device);
 		void Clear();
 
-		RsrcMngrDX12& RegisterTexture2D(
-			DirectX::ResourceUploadBatch& upload,
-			const Texture2D& tex2D
-		);
+		void CommitUploadAndDelete(ID3D12CommandQueue* cmdQueue);
+
+		DirectX::ResourceUploadBatch& GetUpload() const;
+		UDX12::ResourceDeleteBatch& GetDeleteBatch() const;
+
+		RsrcMngrDX12& RegisterTexture2D(const Texture2D& tex2D);
 
 		RsrcMngrDX12& UnregisterTexture2D(const Texture2D& tex2D);
 
-		RsrcMngrDX12& RegisterTextureCube(
-			DirectX::ResourceUploadBatch& upload,
-			const TextureCube& texcube
-		);
+		RsrcMngrDX12& RegisterTextureCube(const TextureCube& texcube);
+
+		RsrcMngrDX12& UnregisterTextureCube(const TextureCube& texcube);
 		// [sync]
 		// - (maybe) construct resized upload buffer
 		// - (maybe) construct resized default buffer
@@ -42,12 +40,9 @@ namespace Ubpa::Utopia {
 		// [async]
 		// - (maybe) upload buffer -> default buffer
 		// - (maybe) delete upload buffer
-		UDX12::MeshGPUBuffer& RegisterMesh(
-			DirectX::ResourceUploadBatch& upload,
-			UDX12::ResourceDeleteBatch& deleteBatch,
-			ID3D12GraphicsCommandList* cmdList,
-			Mesh& mesh
-		);
+		UDX12::MeshGPUBuffer& RegisterMesh(ID3D12GraphicsCommandList* cmdList, Mesh& mesh);
+
+		RsrcMngrDX12& UnregisterMesh(const Mesh& mesh);
 		
 		bool RegisterShader(const Shader& shader);
 

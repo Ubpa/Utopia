@@ -246,7 +246,6 @@ bool Editor::Impl::Init() {
 	AssetMngr::Instance().ImportAssetRecursively(L"..\\assets");
 	InitInspectorRegistry();
 
-	RsrcMngrDX12::Instance().GetUpload().Begin();
 	LoadTextures();
 	BuildShaders();
 	PipelineBase::InitDesc initDesc;
@@ -254,9 +253,9 @@ bool Editor::Impl::Init() {
 	initDesc.rtFormat = gameRTFormat;
 	initDesc.cmdQueue = pEditor->uCmdQueue.Get();
 	initDesc.numFrame = DX12App::NumFrameResources;
-	gamePipeline = std::make_unique<StdPipeline>(RsrcMngrDX12::Instance().GetUpload(), initDesc);
-	scenePipeline = std::make_unique<StdPipeline>(RsrcMngrDX12::Instance().GetUpload(), initDesc);
-	RsrcMngrDX12::Instance().GetUpload().End(pEditor->uCmdQueue.Get());
+	gamePipeline = std::make_unique<StdPipeline>(initDesc);
+	scenePipeline = std::make_unique<StdPipeline>(initDesc);
+	RsrcMngrDX12::Instance().CommitUploadAndDelete(pEditor->uCmdQueue.Get());
 
 	gameRT_SRV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(1);
 	gameRT_RTV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Allocate(1);
@@ -342,9 +341,6 @@ void Editor::Impl::Update() {
 	ImGui_ImplWin32_NewFrame_Context(gameImGuiCtx, gamePos, (float)gameWidth, (float)gameHeight);
 	ImGui_ImplWin32_NewFrame_Context(sceneImGuiCtx, scenePos, (float)sceneWidth, (float)sceneHeight);
 	ImGui_ImplWin32_NewFrame_Shared();
-
-	auto& upload = RsrcMngrDX12::Instance().GetUpload();
-	upload.Begin();
 
 	{ // editor
 		ImGui::SetCurrentContext(editorImGuiCtx);
@@ -573,8 +569,6 @@ void Editor::Impl::Update() {
 				return;
 
 			RsrcMngrDX12::Instance().RegisterMesh(
-				upload,
-				deleteBatch,
 				pEditor->uGCmdList.Get(),
 				*meshFilter->mesh
 			);
@@ -585,13 +579,11 @@ void Editor::Impl::Update() {
 				for (const auto& [name, property] : material->properties) {
 					if (std::holds_alternative<std::shared_ptr<const Texture2D>>(property)) {
 						RsrcMngrDX12::Instance().RegisterTexture2D(
-							RsrcMngrDX12::Instance().GetUpload(),
 							*std::get<std::shared_ptr<const Texture2D>>(property)
 						);
 					}
 					else if (std::holds_alternative<std::shared_ptr<const TextureCube>>(property)) {
 						RsrcMngrDX12::Instance().RegisterTextureCube(
-							RsrcMngrDX12::Instance().GetUpload(),
 							*std::get<std::shared_ptr<const TextureCube>>(property)
 						);
 					}
@@ -603,13 +595,11 @@ void Editor::Impl::Update() {
 			for (const auto& [name, property] : skybox->material->properties) {
 				if (std::holds_alternative<std::shared_ptr<const Texture2D>>(property)) {
 					RsrcMngrDX12::Instance().RegisterTexture2D(
-						RsrcMngrDX12::Instance().GetUpload(),
 						*std::get<std::shared_ptr<const Texture2D>>(property)
 					);
 				}
 				else if (std::holds_alternative<std::shared_ptr<const TextureCube>>(property)) {
 					RsrcMngrDX12::Instance().RegisterTextureCube(
-						RsrcMngrDX12::Instance().GetUpload(),
 						*std::get<std::shared_ptr<const TextureCube>>(property)
 					);
 				}
@@ -620,10 +610,9 @@ void Editor::Impl::Update() {
 	UpdateRenderResource(&sceneWorld);
 
 	// commit upload, delete ...
-	upload.End(pEditor->uCmdQueue.Get());
 	pEditor->uGCmdList->Close();
 	pEditor->uCmdQueue.Execute(pEditor->uGCmdList.Get());
-	deleteBatch.Commit(pEditor->uDevice.Get(), pEditor->uCmdQueue.Get());
+	RsrcMngrDX12::Instance().CommitUploadAndDelete(pEditor->uCmdQueue.Get());
 
 	{
 		std::vector<PipelineBase::CameraData> gameCameras;
@@ -899,7 +888,6 @@ void Editor::Impl::LoadTextures() {
 	for (const auto& guid : tex2dGUIDs) {
 		const auto& path = AssetMngr::Instance().GUIDToAssetPath(guid);
 		RsrcMngrDX12::Instance().RegisterTexture2D(
-			RsrcMngrDX12::Instance().GetUpload(),
 			*AssetMngr::Instance().LoadAsset<Texture2D>(path)
 		);
 	}
@@ -908,7 +896,6 @@ void Editor::Impl::LoadTextures() {
 	for (const auto& guid : texcubeGUIDs) {
 		const auto& path = AssetMngr::Instance().GUIDToAssetPath(guid);
 		RsrcMngrDX12::Instance().RegisterTextureCube(
-			RsrcMngrDX12::Instance().GetUpload(),
 			*AssetMngr::Instance().LoadAsset<TextureCube>(path)
 		);
 	}
