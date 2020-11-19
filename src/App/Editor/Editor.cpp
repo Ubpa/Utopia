@@ -3,11 +3,13 @@
 #include <Utopia/App/Editor/Components/Hierarchy.h>
 #include <Utopia/App/Editor/Components/Inspector.h>
 #include <Utopia/App/Editor/Components/ProjectViewer.h>
+#include <Utopia/App/Editor/Components/SystemController.h>
 
 #include <Utopia/App/Editor/Systems/HierarchySystem.h>
 #include <Utopia/App/Editor/Systems/InspectorSystem.h>
 #include <Utopia/App/Editor/Systems/ProjectViewerSystem.h>
 #include <Utopia/App/Editor/Systems/LoggerSystem.h>
+#include <Utopia/App/Editor/Systems/SystemControllerSystem.h>
 
 #include <Utopia/App/Editor/InspectorRegistry.h>
 
@@ -508,6 +510,8 @@ void Editor::Impl::Update() {
 			runningGameWorld = std::make_unique<Ubpa::UECS::World>(gameWorld);
 			if (auto hierarchy = editorWorld.entityMngr.GetSingleton<Hierarchy>())
 				hierarchy->world = runningGameWorld.get();
+			if (auto ctrl = editorWorld.entityMngr.GetSingleton<SystemController>())
+				ctrl->world = runningGameWorld.get();
 			curGameWorld = runningGameWorld.get();
 			runningGameWorld->systemMngr.Activate(runningGameWorld->systemMngr.systemTraits.GetID(UECS::SystemTraits::StaticNameof<LuaScriptQueueSystem>()));
 			auto ctx = LuaCtxMngr::Instance().Register(runningGameWorld.get());
@@ -529,6 +533,8 @@ void Editor::Impl::Update() {
 			runningGameWorld.reset();
 			if (auto hierarchy = editorWorld.entityMngr.GetSingleton<Hierarchy>())
 				hierarchy->world = &gameWorld;
+			if (auto ctrl = editorWorld.entityMngr.GetSingleton<SystemController>())
+				ctrl->world = &gameWorld;
 			{
 				LuaCtxMngr::Instance().Unregister(w);
 			}
@@ -754,7 +760,8 @@ void Editor::Impl::InitWorld(Ubpa::UECS::World& w) {
 		// editor
 		HierarchySystem,
 		InspectorSystem,
-		ProjectViewerSystem
+		ProjectViewerSystem,
+		SystemControllerSystem
 	>();
 	for (auto idx : indices)
 		w.systemMngr.Activate(idx);
@@ -790,7 +797,8 @@ void Editor::Impl::InitWorld(Ubpa::UECS::World& w) {
 		// editor
 		Hierarchy,
 		Inspector,
-		ProjectViewer
+		ProjectViewer,
+		SystemController
 	>();
 }
 
@@ -876,10 +884,13 @@ void Editor::Impl::BuildWorld() {
 			auto [e, hierarchy] = editorWorld.entityMngr.Create<Hierarchy>();
 			hierarchy->world = &gameWorld;
 		}
+		{ // system controller
+			auto [e, systemCtrl] = editorWorld.entityMngr.Create<SystemController>();
+			systemCtrl->world = &gameWorld;
+		}
 		editorWorld.entityMngr.Create<Inspector>();
 		editorWorld.entityMngr.Create<ProjectViewer>();
-		auto [logSys] = editorWorld.systemMngr.systemTraits.Register<LoggerSystem>();
-		editorWorld.systemMngr.Activate(logSys);
+		editorWorld.systemMngr.RegisterAndActivate<LoggerSystem, SystemControllerSystem>();
 	}
 }
 

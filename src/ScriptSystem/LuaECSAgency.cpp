@@ -31,7 +31,7 @@ const Ubpa::UECS::SystemFunc* LuaECSAgency::RegisterEntityJob(
 	auto bytes = systemFunc.dump();
 	auto sysfunc = s->RegisterChunkJob(
 	[bytes = std::move(bytes), cmptLocator = std::move(cmptLocator)]
-	(UECS::World* w, UECS::SingletonsView singletonsView, UECS::ChunkView chunk) {
+	(UECS::World* w, UECS::SingletonsView singletonsView, UECS::ChunkView chunk, size_t idx) {
 		if (chunk.EntityNum() == 0)
 			return;
 
@@ -60,7 +60,11 @@ const Ubpa::UECS::SystemFunc* LuaECSAgency::RegisterEntityJob(
 			size_t i = 0;
 			do {
 				UECS::CmptsView view{ Span{cmptPtrs.data(), cmptPtrs.size()} };
-				f.call(w, singletonsView, arrayEntity[i], i, view);
+				auto rst = f.call(w, singletonsView, arrayEntity[i], idx + i, view);
+				if (!rst.valid()) {
+					sol::error err = rst;
+					spdlog::error(err.what());
+				}
 				for (size_t j = 0; j < cmpts.size(); j++) {
 					cmpts[j] = (reinterpret_cast<uint8_t*>(cmpts[j]) + sizes[j]);
 					cmptPtrs[j] = { types[j], cmpts[j] };
@@ -89,7 +93,11 @@ const Ubpa::UECS::SystemFunc* LuaECSAgency::RegisterChunkJob(
 			{
 				sol::state_view lua(L);
 				sol::function f = lua.load(bytes.as_string_view());
-				f.call(w, singletonsView, entityBeginIndexInQuery, chunk);
+				auto rst = f.call(w, singletonsView, entityBeginIndexInQuery, chunk);
+				if (!rst.valid()) {
+					sol::error err = rst;
+					spdlog::error(err.what());
+				}
 			}
 			luaCtx->Recycle(L);
 		},
@@ -112,7 +120,11 @@ const Ubpa::UECS::SystemFunc* LuaECSAgency::RegisterJob(
 		{
 			sol::state_view lua(L);
 			sol::function f = lua.load(bytes.as_string_view());
-			f.call(w, singletonsView);
+			auto rst = f.call(w, singletonsView);
+			if (!rst.valid()) {
+				sol::error err = rst;
+				spdlog::error(err.what());
+			}
 		}
 		luaCtx->Recycle(L);
 	}, std::move(name), std::move(singletonLocator), std::move(randomAccessor));

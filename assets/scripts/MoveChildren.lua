@@ -2,12 +2,12 @@ MoveChildrenSystem_OnUpdate = function(schedule)
   local MoveChildren = function(w, singletons, e, idx, cmpts)
     local type0 = Ubpa.UECS.CmptAccessType.new(
       "Ubpa::Utopia::Translation",
-      AccessMode.WRITE
+      Ubpa.UECS.AccessMode.WRITE
     )
   
     local type1 = Ubpa.UECS.CmptAccessType.new(
       "Ubpa::Utopia::WorldTime",
-      AccessMode.LATEST
+      Ubpa.UECS.AccessMode.LATEST
     )
   
     local cmptPtr      = cmpts:GetCmpt(type0)

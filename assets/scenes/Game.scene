@@ -267,6 +267,11 @@
                             "value":"Quad Child 0"
                         }
 					},
+					{
+					    "__TYPE":10417055917306979397,
+						"__NAME":"struct Ubpa::Utopia::LocalToParent",
+                        "__CONTENT":{}
+					},
                     {
                         "__TYPE":14545184120177678863,
                         "__NAME":"struct Ubpa::Utopia::MeshRenderer",
@@ -363,6 +368,11 @@
                         "__CONTENT":{
                             "value":"Quad Child 1"
                         }
+					},
+					{
+					    "__TYPE":10417055917306979397,
+						"__NAME":"struct Ubpa::Utopia::LocalToParent",
+                        "__CONTENT":{}
 					},
                     {
                         "__TYPE":14545184120177678863,
