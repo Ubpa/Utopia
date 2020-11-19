@@ -373,7 +373,7 @@ namespace Ubpa::Utopia::detail {
 				InspectVar(field, static_cast<std::underlying_type_t<Value>&>(var), ctx);
 			}
 		}
-		else if constexpr (is_instance_of_v<Value, std::shared_ptr>) {
+		else if constexpr (is_instance_of_v<Value, std::shared_ptr> || is_instance_of_v<Value, USTL::shared_object>) {
 			using Element = typename Value::element_type;
 			static_assert(std::is_base_of_v<Object, Element>);
 			ImGui::Text("(*)");
@@ -605,7 +605,7 @@ namespace Ubpa::Utopia::detail {
 				else
 					InspectVar(field, static_cast<std::underlying_type_t<Value>&>(var), ctx);
 			}
-			else if constexpr (is_instance_of_v<Value, std::shared_ptr>) {
+			else if constexpr (is_instance_of_v<Value, std::shared_ptr> || is_instance_of_v<Value, USTL::shared_object>) {
 				using Element = typename Value::element_type;
 				static_assert(std::is_base_of_v<Object, Element>);
 				ImGui::Text("(*)");

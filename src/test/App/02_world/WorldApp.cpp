@@ -154,7 +154,7 @@ bool WorldApp::Initialize() {
 	BuildMaterials();
 
 	// update mesh
-	world.RunEntityJob([&](const Ubpa::Utopia::MeshFilter* meshFilter) {
+	world.RunEntityJob([&](Ubpa::Utopia::MeshFilter* meshFilter) {
 		Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterMesh(
 			uGCmdList.Get(),
 			*meshFilter->mesh
@@ -205,7 +205,7 @@ void WorldApp::Update()
 	cmdAlloc->Reset();
 	ThrowIfFailed(uGCmdList->Reset(cmdAlloc.Get(), nullptr));
 
-	world.RunEntityJob([&](const Ubpa::Utopia::MeshFilter* meshFilter, const Ubpa::Utopia::MeshRenderer* meshRenderer) {
+	world.RunEntityJob([&](Ubpa::Utopia::MeshFilter* meshFilter, const Ubpa::Utopia::MeshRenderer* meshRenderer) {
 		if (!meshFilter->mesh || meshRenderer->materials.empty())
 			return;
 

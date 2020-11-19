@@ -1,10 +1,11 @@
 #pragma once
 
 #include "../Mesh.h"
+#include <USTL/memory.h>
 
 namespace Ubpa::Utopia {
 	struct MeshFilter {
-		std::shared_ptr<Mesh> mesh;
+		USTL::shared_object<Mesh> mesh;
 	};
 }
 

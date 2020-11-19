@@ -563,8 +563,8 @@ void Editor::Impl::Update() {
 	ThrowIfFailed(pEditor->uGCmdList->Reset(cmdAlloc, nullptr));
 	auto& deleteBatch = RsrcMngrDX12::Instance().GetDeleteBatch();
 
-	auto UpdateRenderResource = [&](const Ubpa::UECS::World* w) {
-		w->RunEntityJob([&](const MeshFilter* meshFilter, const MeshRenderer* meshRenderer) {
+	auto UpdateRenderResource = [&](Ubpa::UECS::World* w) {
+		w->RunEntityJob([&](MeshFilter* meshFilter, const MeshRenderer* meshRenderer) {
 			if (!meshFilter->mesh || meshRenderer->materials.empty())
 				return;
 
@@ -589,7 +589,7 @@ void Editor::Impl::Update() {
 					}
 				}
 			}
-			}, false);
+		}, false);
 
 		if (auto skybox = w->entityMngr.GetSingleton<Skybox>(); skybox && skybox->material) {
 			for (const auto& [name, property] : skybox->material->properties) {

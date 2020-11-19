@@ -89,7 +89,7 @@ namespace Ubpa::Utopia::detail {
 				ctx.writer.Null();
 			}
 		}
-		else if constexpr (is_instance_of_v<Value, std::shared_ptr>) {
+		else if constexpr (is_instance_of_v<Value, std::shared_ptr> || is_instance_of_v<Value, USTL::shared_object>) {
 			using Element = typename Value::element_type;
 			if (var == nullptr)
 				ctx.writer.Null();
@@ -251,7 +251,7 @@ namespace Ubpa::Utopia::detail {
 				assert("not support" && false);
 			}
 		}
-		else if constexpr (is_instance_of_v<Value, std::shared_ptr>) {
+		else if constexpr (is_instance_of_v<Value, std::shared_ptr> || is_instance_of_v<Value, USTL::shared_object>) {
 			if (jsonValueField.IsNull())
 				var = nullptr;
 			else if (jsonValueField.IsString()) {

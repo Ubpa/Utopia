@@ -1,11 +1,12 @@
 #pragma once
 
 #include "../Material.h"
+#include <USTL/memory.h>
 
 namespace Ubpa::Utopia {
 	// singleton
 	struct Skybox {
-		std::shared_ptr<Material> material;
+		USTL::shared_object<Material> material;
 	};
 }
 

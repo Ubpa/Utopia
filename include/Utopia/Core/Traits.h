@@ -2,6 +2,7 @@
 
 #include <UTemplate/Func.h>
 #include <USRefl/USRefl.h>
+#include <USTL/memory.h>
 #include <UGM/UGM.h>
 
 #include <vector>

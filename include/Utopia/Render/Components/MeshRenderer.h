@@ -1,12 +1,13 @@
 #pragma once
 
 #include "../Material.h"
+#include <USTL/memory.h>
 
 #include <vector>
 
 namespace Ubpa::Utopia {
 	struct MeshRenderer {
-		std::vector<std::shared_ptr<Material> > materials;
+		std::vector<USTL::shared_object<Material>> materials;
 	};
 }
 
