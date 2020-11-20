@@ -4,10 +4,14 @@
 #include "../Core/Object.h"
 
 #include <UGM/UGM.h>
+#include <UDP/Basic/Dirty.h>
 
 #include <vector>
 
 namespace Ubpa::Utopia {
+	// Non-editable mesh is space-saving (release CPU vertex buffer and GPU upload buffer).
+	// If you want to change any data of the mesh, you should call SetToEditable() firstly.
+	// After editing, you can call SetToNonEditable() to release buffers.
 	class Mesh : public Object {
 	public:
 		Mesh(bool isEditable = true) : isEditable{ isEditable } {}
@@ -19,6 +23,10 @@ namespace Ubpa::Utopia {
 		const std::vector<rgbf>&              GetColors() const noexcept { return colors; }
 		const std::vector<uint32_t>&          GetIndices() const noexcept { return indices; }
 		const std::vector<SubMeshDescriptor>& GetSubMeshes() const noexcept { return submeshes; }
+
+		bool IsEditable() const noexcept { return isEditable; }
+		void SetToEditable() noexcept { isEditable = true; }
+		void SetToNonEditable() noexcept { isEditable = false; }
 
 		// must editable
 		void SetPositions(std::vector<pointf3> positions) noexcept;
@@ -32,28 +40,21 @@ namespace Ubpa::Utopia {
 
 		// must editable
 		void GenNormals();
-		void GenUV();
+		void GenUV(); // naive uv
 		void GenTangents();
-
-		void SetToEditable() noexcept { isEditable = true; }
-		void SetToNonEditable() noexcept { isEditable = false; }
-
-		bool IsDirty() const noexcept { return dirty; }
-
-		bool IsEditable() const noexcept { return isEditable; }
-
-		const void* GetVertexBufferData() const noexcept { return vertexBuffer.data(); }
-		size_t GetVertexBufferVertexCount() const noexcept { return positions.size(); }
-		size_t GetVertexBufferVertexStride() const noexcept { return vertexBuffer.size() / positions.size(); }
-
-		// asset(IsDirty())
-		// call by the engine, need to update GPU buffer
-		// [[ normal user should't use this API ]]
-		void UpdateVertexBuffer();
 
 		// non empty and every attributes have same num
 		bool IsVertexValid() const noexcept;
+
 	private:
+		// call by the RsrcMngrDX12, need to update GPU buffer in the meantime
+		friend class RsrcMngrDX12;
+		bool IsDirty() const noexcept { return vertexBuffer.IsDirty(); }
+		const void* GetVertexBufferData() { return vertexBuffer.Get(*this).data(); }
+		size_t GetVertexBufferVertexCount() const noexcept { return positions.size(); }
+		size_t GetVertexBufferVertexStride() { return vertexBuffer.Get(*this).size() / positions.size(); }
+		void ClearVertexBuffer();
+
 		std::vector<pointf3> positions;
 		std::vector<pointf2> uv;
 		std::vector<normalf> normals;
@@ -62,10 +63,11 @@ namespace Ubpa::Utopia {
 		std::vector<uint32_t> indices;
 		std::vector<SubMeshDescriptor> submeshes;
 
+		static void UpdateVertexBuffer(std::vector<uint8_t>& vb, const Mesh&);
+
 		// pos, uv, normal, tangent, color
-		std::vector<uint8_t> vertexBuffer;
+		AutoDirty<std::vector<uint8_t>, const Mesh&> vertexBuffer = { &Mesh::UpdateVertexBuffer };
 
 		bool isEditable;
-		bool dirty{ false };
 	};
 }

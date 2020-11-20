@@ -696,7 +696,6 @@ std::shared_ptr<Mesh> AssetMngr::Impl::BuildMesh(MeshContext ctx) {
 	if (mesh->GetTangents().empty())
 		mesh->GenTangents();
 
-	mesh->UpdateVertexBuffer();
 	mesh->SetToNonEditable();
 
 	return mesh;

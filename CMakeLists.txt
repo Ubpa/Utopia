@@ -11,7 +11,7 @@ Ubpa_InitProject()
 set(Ubpa_USRefl_Build_AutoRefl TRUE CACHE BOOL "use auto refl" FORCE)
 
 Ubpa_AddDep(URapidJSON 0.0.3)
-Ubpa_AddDep(UDP        0.7.3)
+Ubpa_AddDep(UDP        0.7.4)
 Ubpa_AddDep(UGM        0.6.13)
 Ubpa_AddDep(ULuaPP     0.2.0)
 Ubpa_AddDep(UECS       0.14.4)

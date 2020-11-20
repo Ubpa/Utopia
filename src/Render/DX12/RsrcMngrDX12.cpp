@@ -400,9 +400,6 @@ ID3D12Resource* RsrcMngrDX12::GetTextureCubeResource(const TextureCube& texCube)
 UDX12::MeshGPUBuffer& RsrcMngrDX12::RegisterMesh(ID3D12GraphicsCommandList* cmdList, Mesh& mesh) {
 	auto target = pImpl->meshMap.find(mesh.GetInstanceID());
 	if (target == pImpl->meshMap.end()) {
-		if (mesh.IsDirty())
-			mesh.UpdateVertexBuffer();
-
 		if (mesh.IsEditable()) {
 			auto [iter, success] = pImpl->meshMap.try_emplace(
 				mesh.GetInstanceID(),
@@ -429,6 +426,7 @@ UDX12::MeshGPUBuffer& RsrcMngrDX12::RegisterMesh(ID3D12GraphicsCommandList* cmdL
 				DXGI_FORMAT_R32_UINT
 			);
 			assert(success);
+			mesh.ClearVertexBuffer();
 			return iter->second;
 		}
 	}
@@ -438,7 +436,6 @@ UDX12::MeshGPUBuffer& RsrcMngrDX12::RegisterMesh(ID3D12GraphicsCommandList* cmdL
 			if (mesh.IsEditable()) {
 				meshGpuBuffer.ConvertToDynamic(pImpl->device);
 				if (mesh.IsDirty()) {
-					mesh.UpdateVertexBuffer();
 					meshGpuBuffer.Update(
 						pImpl->device, cmdList,
 						mesh.GetVertexBufferData(),
@@ -452,7 +449,6 @@ UDX12::MeshGPUBuffer& RsrcMngrDX12::RegisterMesh(ID3D12GraphicsCommandList* cmdL
 			}
 			else { // non-editable
 				if (mesh.IsDirty()) {
-					mesh.UpdateVertexBuffer();
 					meshGpuBuffer.ConvertToDynamic(pImpl->device);
 					meshGpuBuffer.Update(
 						pImpl->device, cmdList,
@@ -465,12 +461,12 @@ UDX12::MeshGPUBuffer& RsrcMngrDX12::RegisterMesh(ID3D12GraphicsCommandList* cmdL
 					);
 					meshGpuBuffer.ConvertToStatic(pImpl->deleteBatch);
 				}
+				mesh.ClearVertexBuffer();
 			}
 		}
 		else { // dynamic
 			if (mesh.IsEditable()) {
 				if (mesh.IsDirty()) {
-					mesh.UpdateVertexBuffer();
 					meshGpuBuffer.Update(
 						pImpl->device, cmdList,
 						mesh.GetVertexBufferData(),
@@ -494,6 +490,7 @@ UDX12::MeshGPUBuffer& RsrcMngrDX12::RegisterMesh(ID3D12GraphicsCommandList* cmdL
 						DXGI_FORMAT_R32_UINT
 					);
 				}
+				mesh.ClearVertexBuffer();
 				meshGpuBuffer.ConvertToStatic(pImpl->deleteBatch);
 			}
 		}
