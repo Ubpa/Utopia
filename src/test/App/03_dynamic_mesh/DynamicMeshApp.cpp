@@ -139,13 +139,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
             return 0;
 
         int rst = theApp.Run();
-		Ubpa::Utopia::RsrcMngrDX12::Instance().Clear();
 		return rst;
     }
     catch(Ubpa::UDX12::Util::Exception& e)
     {
 		MessageBox(nullptr, e.ToString().c_str(), L"HR Failed", MB_OK);
-		Ubpa::Utopia::RsrcMngrDX12::Instance().Clear();
         return 0;
     }
 
@@ -158,8 +156,9 @@ DynamicMeshApp::DynamicMeshApp(HINSTANCE hInstance)
 
 DynamicMeshApp::~DynamicMeshApp()
 {
+	Ubpa::Utopia::RsrcMngrDX12::Instance().Clear(uCmdQueue.Get());
     if(!uDevice.IsNull())
-        FlushCommandQueue();
+		FlushCommandQueue();
 }
 
 bool DynamicMeshApp::Initialize()
@@ -228,7 +227,6 @@ void DynamicMeshApp::Update() {
 	cmdAlloc->Reset();
 
 	ThrowIfFailed(uGCmdList->Reset(cmdAlloc.Get(), nullptr));
-	auto& deleteBatch = Ubpa::Utopia::RsrcMngrDX12::Instance().GetDeleteBatch();
 
 	// update mesh
 	

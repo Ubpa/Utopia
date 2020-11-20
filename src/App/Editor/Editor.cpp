@@ -183,9 +183,6 @@ Editor::Editor(HINSTANCE hInstance)
 {}
 
 Editor::~Editor() {
-    if(!uDevice.IsNull())
-        FlushCommandQueue();
-
 	ImGUIMngr::Instance().Clear();
 
 	delete pImpl;
@@ -567,7 +564,6 @@ void Editor::Impl::Update() {
 	cmdAlloc->Reset();
 
 	ThrowIfFailed(pEditor->uGCmdList->Reset(cmdAlloc, nullptr));
-	auto& deleteBatch = RsrcMngrDX12::Instance().GetDeleteBatch();
 
 	auto UpdateRenderResource = [&](Ubpa::UECS::World* w) {
 		w->RunEntityJob([&](MeshFilter* meshFilter, const MeshRenderer* meshRenderer) {

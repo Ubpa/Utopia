@@ -18,6 +18,10 @@
 #include <Utopia/Core/Components/Components.h>
 #include <Utopia/Core/Systems/Systems.h>
 
+#ifndef NDEBUG
+#include <dxgidebug.h>
+#endif
+
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
 
@@ -88,10 +92,11 @@ private:
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
     PSTR cmdLine, int showCmd)
 {
-    // Enable run-time memory check for debug builds.
+	// Enable run-time memory check for debug builds.
 #if defined(DEBUG) | defined(_DEBUG)
-    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
+	int rst;
 
     try
     {
@@ -99,17 +104,22 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
         if(!theApp.Initialize())
             return 0;
 
-        int rst = theApp.Run();
-		Ubpa::Utopia::RsrcMngrDX12::Instance().Clear();
-		return rst;
+        rst = theApp.Run();
     }
     catch(Ubpa::UDX12::Util::Exception& e)
     {
 		MessageBox(nullptr, e.ToString().c_str(), L"HR Failed", MB_OK);
-		Ubpa::Utopia::RsrcMngrDX12::Instance().Clear();
-        return 0;
+		rst = 1;
     }
 
+#ifndef NDEBUG
+	Microsoft::WRL::ComPtr<IDXGIDebug> debug;
+	DXGIGetDebugInterface1(0, IID_PPV_ARGS(&debug));
+	if (debug)
+		debug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_DETAIL);
+#endif
+
+	return 1;
 }
 
 WorldApp::WorldApp(HINSTANCE hInstance)
@@ -119,8 +129,9 @@ WorldApp::WorldApp(HINSTANCE hInstance)
 
 WorldApp::~WorldApp()
 {
+	Ubpa::Utopia::RsrcMngrDX12::Instance().Clear(uCmdQueue.Get());
     if(!uDevice.IsNull())
-        FlushCommandQueue();
+		FlushCommandQueue();
 }
 
 bool WorldApp::Initialize() {
@@ -171,6 +182,7 @@ bool WorldApp::Initialize() {
 	// commit upload, delete ...
 	uGCmdList->Close();
 	uCmdQueue.Execute(uGCmdList.raw.Get());
+
 	Ubpa::Utopia::RsrcMngrDX12::Instance().CommitUploadAndDelete(uCmdQueue.raw.Get());
 
 	// Do the initial resize code.
@@ -191,9 +203,6 @@ void WorldApp::OnResize() {
 
 void WorldApp::Update()
 {
-	auto& upload = Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload();
-	upload.Begin();
-
 	UpdateCamera();
 
 	world.Update();

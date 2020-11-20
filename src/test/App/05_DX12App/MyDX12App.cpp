@@ -179,9 +179,6 @@ MyDX12App::MyDX12App(HINSTANCE hInstance)
 }
 
 MyDX12App::~MyDX12App() {
-    if(!uDevice.IsNull())
-        FlushCommandQueue();
-
 	Ubpa::Utopia::ImGUIMngr::Instance().Clear();
 }
 
@@ -233,9 +230,6 @@ void MyDX12App::Update() {
 	ImGui_ImplDX12_NewFrame();
 	ImGui_ImplWin32_NewFrame_Context(gameImGuiCtx, { 0,0 }, (float)mClientWidth, (float)mClientHeight);
 	ImGui_ImplWin32_NewFrame_Shared();
-
-	auto& upload = Ubpa::Utopia::RsrcMngrDX12::Instance().GetUpload();
-	upload.Begin();
 
 	ImGui::SetCurrentContext(gameImGuiCtx);
 	ImGui::NewFrame();
@@ -289,7 +283,6 @@ void MyDX12App::Update() {
 	cmdAlloc->Reset();
 
 	ThrowIfFailed(uGCmdList->Reset(cmdAlloc, nullptr));
-	auto& deleteBatch = Ubpa::Utopia::RsrcMngrDX12::Instance().GetDeleteBatch();
 
 	// update mesh
 	
@@ -336,10 +329,9 @@ void MyDX12App::Update() {
 	}
 
 	// commit upload, delete ...
-	upload.End(uCmdQueue.Get());
 	uGCmdList->Close();
 	uCmdQueue.Execute(uGCmdList.Get());
-	deleteBatch.Commit(uDevice.Get(), uCmdQueue.Get());
+	Ubpa::Utopia::RsrcMngrDX12::Instance().CommitUploadAndDelete(uCmdQueue.Get());
 
 	std::vector<Ubpa::Utopia::PipelineBase::CameraData> gameCameras;
 	Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::CmptAccessType::Of<Ubpa::Utopia::Camera>} };

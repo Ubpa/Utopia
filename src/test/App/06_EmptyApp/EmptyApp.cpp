@@ -7,7 +7,6 @@ using Microsoft::WRL::ComPtr;
 class TestApp : public Ubpa::Utopia::DX12App {
 public:
 	TestApp(HINSTANCE hInstance);
-	~TestApp();
 
 	virtual bool Init() override;
 
@@ -55,11 +54,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 TestApp::TestApp(HINSTANCE hInstance)
 	: DX12App(hInstance)
 {
-}
-
-TestApp::~TestApp() {
-	if (!uDevice.IsNull())
-		FlushCommandQueue();
 }
 
 bool TestApp::Init() {

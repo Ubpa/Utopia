@@ -280,7 +280,6 @@ void GameStarter::Update() {
 	cmdAlloc->Reset();
 
 	ThrowIfFailed(uGCmdList->Reset(cmdAlloc, nullptr));
-	auto& deleteBatch = Ubpa::Utopia::RsrcMngrDX12::Instance().GetDeleteBatch();
 
 	world.RunEntityJob([&](Ubpa::Utopia::MeshFilter* meshFilter, const Ubpa::Utopia::MeshRenderer* meshRenderer) {
 		if (!meshFilter->mesh || meshRenderer->materials.empty())

@@ -50,17 +50,38 @@ namespace Ubpa::Utopia::detail {
 	template<typename T> struct ColorTraits<rgb <T>> : ColorTraitsBase<T> {};
 	template<typename T> struct ColorTraits<rgba<T>> : ColorTraitsBase<T> {};
 
+	// ==============================
+	inline void HelpMarker(std::string_view desc) {
+		ImGui::TextDisabled("(?)");
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::BeginTooltip();
+			ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
+			ImGui::TextUnformatted(desc.data());
+			ImGui::PopTextWrapPos();
+			ImGui::EndTooltip();
+		}
+	}
+
+	template<typename Field, typename Value>
+	void InspectField(Field field, Value& var, InspectorRegistry::InspectContext ctx);
 	template<typename Field, typename Value>
 	void InspectVar(Field field, Value& var, InspectorRegistry::InspectContext ctx);
 	template<typename Field, typename Value>
 	bool InspectVar1(Field field, Value& var, InspectorRegistry::InspectContext ctx);
 
-	static constexpr char FieldValueAsName[] = "InstectorRegistry_FieldValueAsName";
+	constexpr auto GenerateNameField(std::string_view n) {
+		return USRefl::Field{
+			TSTR(""), nullptr, USRefl::AttrList{
+				USRefl::Attr{TSTR(UInspector::name), n}
+			}
+		};
+	}
 
 	template<typename Fld>
-	std::string_view GetFieldName(Fld field) {
-		if constexpr (Fld::NameIs(TSTR(FieldValueAsName)))
-			return field.value;
+	constexpr std::string_view GetFieldName(Fld field) {
+		if constexpr (field.attrs.Contains(TSTR(UInspector::name)))
+			return field.attrs.Find(TSTR(UInspector::name)).value;
 		else
 			return field.name;
 	}
@@ -71,7 +92,7 @@ namespace Ubpa::Utopia::detail {
 			ImGui::PushID((const void *)UECS::CmptType::Of<Cmpt>.HashCode());
 			if (ImGui::CollapsingHeader(USRefl::TypeInfo<Cmpt>::name)) {
 				USRefl::TypeInfo<Cmpt>::ForEachVarOf(*cmpt, [ctx](auto field, auto& var) {
-					InspectVar(field, var, ctx);
+					InspectField(field, var, ctx);
 				});
 			}
 			ImGui::PopID();
@@ -86,7 +107,7 @@ namespace Ubpa::Utopia::detail {
 	void InspectAsset(Asset* asset, InspectorRegistry::InspectContext ctx) {
 		if constexpr (HasDefinition<USRefl::TypeInfo<Asset>>::value) {
 			USRefl::TypeInfo<Asset>::ForEachVarOf(*asset, [ctx](auto field, auto& var) {
-				InspectVar(field, var, ctx);
+				InspectField(field, var, ctx);
 			});
 		}
 		else {
@@ -109,6 +130,22 @@ namespace Ubpa::Utopia::detail {
 		}
 		else
 			ImGui::Text(GetFieldName(field).data());
+	}
+
+	template<typename Field, typename Value>
+	void InspectField(Field field, Value& var, InspectorRegistry::InspectContext ctx) {
+		if constexpr (!field.attrs.Contains(TSTR(UInspector::hide))) {
+			if constexpr (field.attrs.Contains(TSTR(UInspector::header))) {
+				std::string_view sv{ field.attrs.Find(TSTR(UInspector::header)).value };
+				ImGui::Text(sv.data());
+			}
+			if constexpr (field.attrs.Contains(TSTR(UInspector::tooltip))) {
+				std::string_view sv{ field.attrs.Find(TSTR(UInspector::tooltip)).value };
+				HelpMarker(sv);
+				ImGui::SameLine();
+			}
+			InspectVar(field, var, ctx);
+		}
 	}
 
 	template<typename Field, typename Value>
@@ -135,29 +172,29 @@ namespace Ubpa::Utopia::detail {
 			else
 				ImGui::BulletText("Entity (%d)", var.Idx());
 		}
-		else if constexpr (is_instance_of_v<Value, std::shared_ptr> || is_instance_of_v<Value, USTL::shared_object>) {
-			using Element = typename Value::element_type;
-			if constexpr (std::is_base_of_v<Object, Element>) {
-				ImGui::Text("(*)");
-				ImGui::SameLine();
-				// button
-				if (var) {
-					const auto& path = AssetMngr::Instance().GetAssetPath(*var);
-					if (!path.empty()) {
-						auto name = path.stem().string();
-						ImGui::Button(name.c_str());
+		else if constexpr (std::is_pointer_v<Value> || is_instance_of_v<Value, std::shared_ptr> || is_instance_of_v<Value, USTL::shared_object>) {
+			ImGui::Text("(* const)");
+			ImGui::SameLine();
+			if (var) {
+				if constexpr (std::is_pointer_v<Value>)
+					InspectVar(field, *var, ctx);
+				else {
+					using Element = typename Value::element_type;
+					if constexpr (std::is_base_of_v<Object, Element>) {
+						const auto& path = AssetMngr::Instance().GetAssetPath(*var);
+						if (!path.empty()) {
+							auto name = path.stem().string();
+							ImGui::Text(name.c_str());
+						}
+						else
+							ImGui::Text("UNKNOW");
 					}
 					else
-						ImGui::Button("UNKNOW");
+						InspectVar(field, *var, ctx);
 				}
-				else
-					ImGui::Button("nullptr");
-				ImGui::SameLine();
-				ImGui::Text(GetFieldName(field).data());
 			}
-			else {
-				InspectVar(field, *var, ctx);
-			}
+			else
+				ImGui::Text("nullptr");
 		}
 		else if constexpr (ArrayTraits<Value>::isArray) {
 			if constexpr (ValNTraits<Value>::isValN) {
@@ -206,7 +243,7 @@ namespace Ubpa::Utopia::detail {
 					ImGui::PushID(GetFieldName(field).data());
 					for (size_t i = 0; i < ArrayTraits<Value>::size; i++) {
 						auto str = std::to_string(i);
-						InspectVar(USRefl::Field{ TSTR(FieldValueAsName), std::string_view{str} }, ArrayTraits_Get(var, i), ctx);
+						InspectVar(GenerateNameField(str), ArrayTraits_Get(var, i), ctx);
 					}
 					ImGui::PopID();
 					ImGui::TreePop();
@@ -218,7 +255,7 @@ namespace Ubpa::Utopia::detail {
 				ImGui::PushID(GetFieldName(field).data());
 				USTL::tuple_for_each(var, [ctx, idx = 0](auto& ele) mutable {
 					auto str = std::to_string(idx++);
-					InspectVar(USRefl::Field{ TSTR(FieldValueAsName), std::string_view{str} }, ele, ctx);
+					InspectVar(GenerateNameField(str), ele, ctx);
 				});
 				ImGui::PopID();
 				ImGui::TreePop();
@@ -232,10 +269,10 @@ namespace Ubpa::Utopia::detail {
 				for (auto iter = iter_begin; iter != iter_end; ++iter) {
 					auto& [key, mapped] = *iter;
 					if constexpr (std::is_same_v<std::decay_t<decltype(key)>, std::string>)
-						InspectVar(USRefl::Field{ TSTR(FieldValueAsName), std::string_view{key} }, mapped, ctx);
+						InspectVar(GenerateNameField(key), mapped, ctx);
 					else {
 						auto name = std::to_string(key);
-						InspectVar(USRefl::Field{ TSTR(FieldValueAsName), std::string_view{name} }, mapped, ctx);
+						InspectVar(GenerateNameField(name), mapped, ctx);
 					}
 				}
 				ImGui::PopID();
@@ -250,7 +287,7 @@ namespace Ubpa::Utopia::detail {
 				size_t idx = 0;
 				for (auto iter = iter_begin; iter != iter_end; ++iter) {
 					auto name = std::to_string(idx++);
-					InspectVar(USRefl::Field{ TSTR(FieldValueAsName), std::string_view{name} }, *iter, ctx);
+					InspectVar(GenerateNameField(name), *iter, ctx);
 				}
 				ImGui::PopID();
 				ImGui::TreePop();
@@ -304,26 +341,75 @@ namespace Ubpa::Utopia::detail {
 		//static_assert(!std::is_const_v<Value>);
 		if constexpr (std::is_same_v<Value, bool>)
 			ImGui::Checkbox(GetFieldName(field).data(), &var);
-		else if constexpr (std::is_same_v<Value, uint8_t>)
-			ImGui::DragScalar(GetFieldName(field).data(), ImGuiDataType_U8, &var, 1.f);
-		else if constexpr (std::is_same_v<Value, uint16_t>)
-			ImGui::DragScalar(GetFieldName(field).data(), ImGuiDataType_U16, &var, 1.f);
-		else if constexpr (std::is_same_v<Value, uint32_t>)
-			ImGui::DragScalar(GetFieldName(field).data(), ImGuiDataType_U32, &var, 1.f);
-		else if constexpr (std::is_same_v<Value, uint64_t>)
-			ImGui::DragScalar(GetFieldName(field).data(), ImGuiDataType_U64, &var, 1.f);
-		else if constexpr (std::is_same_v<Value, int8_t>)
-			ImGui::DragScalar(GetFieldName(field).data(), ImGuiDataType_S8, &var, 1.f);
-		else if constexpr (std::is_same_v<Value, int16_t>)
-			ImGui::DragScalar(GetFieldName(field).data(), ImGuiDataType_S16, &var, 1.f);
-		else if constexpr (std::is_same_v<Value, int32_t>)
-			ImGui::DragScalar(GetFieldName(field).data(), ImGuiDataType_S32, &var, 1.f);
-		else if constexpr (std::is_same_v<Value, int64_t>)
-			ImGui::DragScalar(GetFieldName(field).data(), ImGuiDataType_S64, &var, 1.f);
-		else if constexpr (std::is_same_v<Value, float>)
-			ImGui::DragFloat(GetFieldName(field).data(), &var, 0.001f);
-		else if constexpr (std::is_same_v<Value, double>)
-			ImGui::DragScalar(GetFieldName(field).data(), ImGuiDataType_Double, &var, 0.001f);
+		else if constexpr (std::is_integral_v<Value> || std::is_floating_point_v<Value>) {
+			if constexpr (field.attrs.Contains(TSTR(UInspector::range))) {
+				Value minvalue = field.attrs.Find(TSTR(UInspector::range)).value.first;
+				Value maxvalue = field.attrs.Find(TSTR(UInspector::range)).value.second;
+				if constexpr (std::is_same_v<Value, uint8_t>)
+					ImGui::SliderScalar(GetFieldName(field).data(), ImGuiDataType_U8, &var, &minvalue, &maxvalue);
+				else if constexpr (std::is_same_v<Value, uint16_t>)
+					ImGui::SliderScalar(GetFieldName(field).data(), ImGuiDataType_U16, &var, &minvalue, &maxvalue);
+				else if constexpr (std::is_same_v<Value, uint32_t>)
+					ImGui::SliderScalar(GetFieldName(field).data(), ImGuiDataType_U32, &var, &minvalue, &maxvalue);
+				else if constexpr (std::is_same_v<Value, uint64_t>)
+					ImGui::SliderScalar(GetFieldName(field).data(), ImGuiDataType_U64, &var, &minvalue, &maxvalue);
+				else if constexpr (std::is_same_v<Value, int8_t>)
+					ImGui::SliderScalar(GetFieldName(field).data(), ImGuiDataType_S8, &var, &minvalue, &maxvalue);
+				else if constexpr (std::is_same_v<Value, int16_t>)
+					ImGui::SliderScalar(GetFieldName(field).data(), ImGuiDataType_S16, &var, &minvalue, &maxvalue);
+				else if constexpr (std::is_same_v<Value, int32_t>)
+					ImGui::SliderScalar(GetFieldName(field).data(), ImGuiDataType_S32, &var, &minvalue, &maxvalue);
+				else if constexpr (std::is_same_v<Value, int64_t>)
+					ImGui::SliderScalar(GetFieldName(field).data(), ImGuiDataType_S64, &var, &minvalue, &maxvalue);
+				else if constexpr (std::is_same_v<Value, float>)
+					ImGui::SliderScalar(GetFieldName(field).data(), ImGuiDataType_Float, &var, &minvalue, &maxvalue);
+				else if constexpr (std::is_same_v<Value, double>)
+					ImGui::SliderScalar(GetFieldName(field).data(), ImGuiDataType_Double, &var, &minvalue, &maxvalue);
+				else
+					static_assert(false);
+			}
+			else {
+				Value minvalue;
+				float step;
+
+				if constexpr (field.attrs.Contains(TSTR(UInspector::min_value)))
+					minvalue = field.attrs.Find(TSTR(UInspector::min_value)).value;
+				else if constexpr (std::is_floating_point_v<Value>)
+					minvalue = -std::numeric_limits<Value>::max();
+				else
+					minvalue = std::numeric_limits<Value>::min();
+
+				if constexpr (field.attrs.Contains(TSTR(UInspector::step)))
+					step = field.attrs.Find(TSTR(UInspector::step)).value;
+				else if constexpr (std::is_floating_point_v<Value>)
+					step = 0.01f;
+				else
+					step = 1.f; // integer
+
+				if constexpr (std::is_same_v<Value, uint8_t>)
+					ImGui::DragScalar(GetFieldName(field).data(), ImGuiDataType_U8, &var, step, &minvalue);
+				else if constexpr (std::is_same_v<Value, uint16_t>)
+					ImGui::DragScalar(GetFieldName(field).data(), ImGuiDataType_U16, &var, step, &minvalue);
+				else if constexpr (std::is_same_v<Value, uint32_t>)
+					ImGui::DragScalar(GetFieldName(field).data(), ImGuiDataType_U32, &var, step, &minvalue);
+				else if constexpr (std::is_same_v<Value, uint64_t>)
+					ImGui::DragScalar(GetFieldName(field).data(), ImGuiDataType_U64, &var, step, &minvalue);
+				else if constexpr (std::is_same_v<Value, int8_t>)
+					ImGui::DragScalar(GetFieldName(field).data(), ImGuiDataType_S8, &var, step, &minvalue);
+				else if constexpr (std::is_same_v<Value, int16_t>)
+					ImGui::DragScalar(GetFieldName(field).data(), ImGuiDataType_S16, &var, step, &minvalue);
+				else if constexpr (std::is_same_v<Value, int32_t>)
+					ImGui::DragScalar(GetFieldName(field).data(), ImGuiDataType_S32, &var, step, &minvalue);
+				else if constexpr (std::is_same_v<Value, int64_t>)
+					ImGui::DragScalar(GetFieldName(field).data(), ImGuiDataType_S64, &var, step, &minvalue);
+				else if constexpr (std::is_same_v<Value, float>)
+					ImGui::DragScalar(GetFieldName(field).data(), ImGuiDataType_Float, &var, step, &minvalue);
+				else if constexpr (std::is_same_v<Value, double>)
+					ImGui::DragScalar(GetFieldName(field).data(), ImGuiDataType_Double, &var, step, &minvalue);
+				else
+					static_assert(false);
+			}
+		}
 		else if constexpr (std::is_same_v<Value, std::string>)
 			ImGui::InputText(GetFieldName(field).data(), &var);
 		else if constexpr (std::is_same_v<Value, UECS::Entity>) {
@@ -355,24 +441,15 @@ namespace Ubpa::Utopia::detail {
 				std::string_view cur;
 				USRefl::TypeInfo<Value>::fields.FindIf([&](auto field) {
 					if (field.value == var) {
-						cur = field.name;
+						cur = GetFieldName(field);
 						return true;
 					}
 					return false;
 				});
 
-				if (ImGui::BeginCombo(GetFieldName(field).data(), cur.data())) {
-					USRefl::TypeInfo<Value>::fields.ForEach([&](auto field) {
-						bool isSelected = field.value == var;
-						if (ImGui::Selectable(GetFieldName(field).data(), isSelected))
-							var = field.value;
-
-						if (isSelected)
-							ImGui::SetItemDefaultFocus();
-
-					});
-					ImGui::EndCombo();
-				}
+				ImGui::Button(cur.data());
+				ImGui::SameLine();
+				ImGui::Text(GetFieldName(field).data());
 			}
 			else {
 				InspectVar(field, static_cast<std::underlying_type_t<Value>&>(var), ctx);
@@ -413,6 +490,15 @@ namespace Ubpa::Utopia::detail {
 			else {
 				InspectVar(field, *var, ctx);
 			}
+		}
+		else if constexpr (std::is_pointer_v<Value>) {
+			ImGui::Text("(*)");
+			ImGui::SameLine();
+			// button
+			if (var)
+				InspectVar(field, *var, ctx);
+			else
+				ImGui::Text("nullptr");
 		}
 		else if constexpr (ArrayTraits<Value>::isArray) {
 			if constexpr (ValNTraits<Value>::isValN) {
@@ -459,7 +545,7 @@ namespace Ubpa::Utopia::detail {
 					ImGui::PushID(GetFieldName(field).data());
 					for (size_t i = 0; i < ArrayTraits<Value>::size; i++) {
 						auto str = std::to_string(i);
-						InspectVar(USRefl::Field{ TSTR(FieldValueAsName), std::string_view{str} }, ArrayTraits_Get(var, i), ctx);
+						InspectVar(GenerateNameField(str), ArrayTraits_Get(var, i), ctx);
 					}
 					ImGui::PopID();
 					ImGui::TreePop();
@@ -471,7 +557,7 @@ namespace Ubpa::Utopia::detail {
 				ImGui::PushID(GetFieldName(field).data());
 				USTL::tuple_for_each(var, [ctx, idx = 0](auto& ele) mutable {
 					auto str = std::to_string(idx++);
-					InspectVar(USRefl::Field{ TSTR(FieldValueAsName), std::string_view{str} }, ele, ctx);
+					InspectVar(GenerateNameField(str), ele, ctx);
 				});
 				ImGui::PopID();
 				ImGui::TreePop();
@@ -487,10 +573,10 @@ namespace Ubpa::Utopia::detail {
 				for (auto iter = iter_begin; iter != iter_end; ++iter) {
 					auto& [key, mapped] = *iter;
 					if constexpr (std::is_same_v<std::decay_t<decltype(key)>, std::string>)
-						InspectVar(USRefl::Field{ TSTR(FieldValueAsName), std::string_view{key} }, mapped, ctx);
+						InspectVar(GenerateNameField(key), mapped, ctx);
 					else {
 						auto name = std::to_string(key);
-						InspectVar(USRefl::Field{ TSTR(FieldValueAsName), std::string_view{name} }, mapped, ctx);
+						InspectVar(GenerateNameField(name), mapped, ctx);
 					}
 				}
 				ImGui::PopID();
@@ -515,7 +601,7 @@ namespace Ubpa::Utopia::detail {
 				size_t idx = 0;
 				for (auto iter = iter_begin; iter != iter_end; ++iter) {
 					auto name = std::to_string(idx++);
-					InspectVar(USRefl::Field{ TSTR(FieldValueAsName), std::string_view{name} }, *iter, ctx);
+					InspectVar(GenerateNameField(name), *iter, ctx);
 				}
 				ImGui::PopID();
 				ImGui::TreePop();
@@ -591,11 +677,11 @@ namespace Ubpa::Utopia::detail {
 					std::string_view cur;
 					USRefl::TypeInfo<Value>::fields.FindIf([&](auto field) {
 						if (field.value == var) {
-							cur = field.name;
+							cur = GetFieldName(field);
 							return true;
 						}
 						return false;
-						});
+					});
 
 					if (ImGui::BeginCombo(GetFieldName(field).data(), cur.data())) {
 						USRefl::TypeInfo<Value>::fields.ForEach([&](auto field) {
@@ -701,7 +787,7 @@ namespace Ubpa::Utopia::detail {
 					ImGui::PushID(GetFieldName(field).data());
 					for (size_t i = 0; i < ArrayTraits<Value>::size; i++) {
 						auto str = std::to_string(i);
-						if (InspectVar1(USRefl::Field{ TSTR(FieldValueAsName), std::string_view{str} }, ArrayTraits_Get(var, i), ctx))
+						if (InspectVar1(GenerateNameField(str), ArrayTraits_Get(var, i), ctx))
 							changed = true;
 					}
 					ImGui::PopID();
@@ -713,7 +799,7 @@ namespace Ubpa::Utopia::detail {
 					ImGui::PushID(GetFieldName(field).data());
 					USTL::tuple_for_each(var, [ctx, idx = 0](auto& ele) mutable {
 						auto str = std::to_string(idx++);
-						if (InspectVar1(USRefl::Field{ TSTR(FieldValueAsName), std::string_view{str} }, ele, ctx))
+						if (InspectVar1(GenerateNameField(str), ele, ctx))
 							changed = true;
 					});
 					ImGui::PopID();
@@ -728,12 +814,12 @@ namespace Ubpa::Utopia::detail {
 					for (auto iter = iter_begin; iter != iter_end; ++iter) {
 						auto& [key, mapped] = *iter;
 						if constexpr (std::is_same_v<std::decay_t<decltype(key)>, std::string>) {
-							if (InspectVar1(USRefl::Field{ TSTR(FieldValueAsName), std::string_view{key} }, mapped, ctx))
+							if (InspectVar1(GenerateNameField(key), mapped, ctx))
 								changed = true;
 						}
 						else {
 							auto name = std::to_string(key);
-							if (InspectVar1(USRefl::Field{ TSTR(FieldValueAsName), std::string_view{name} }, mapped, ctx))
+							if (InspectVar1(GenerateNameField(name), mapped, ctx))
 								changed = true;
 						}
 					}
@@ -761,7 +847,7 @@ namespace Ubpa::Utopia::detail {
 					size_t idx = 0;
 					for (auto iter = iter_begin; iter != iter_end; ++iter) {
 						auto name = std::to_string(idx++);
-						if (InspectVar1(USRefl::Field{ TSTR(FieldValueAsName), std::string_view{name} }, *iter, ctx))
+						if (InspectVar1(GenerateNameField(name), *iter, ctx))
 							changed = true;
 					}
 					ImGui::PopID();

@@ -18,12 +18,13 @@ DX12App::DX12App(HINSTANCE hInstance)
 }
 
 DX12App::~DX12App() {
+	Ubpa::Utopia::RsrcMngrDX12::Instance().Clear(uCmdQueue.Get());
+
 	if (!uDevice.IsNull())
 		FlushCommandQueue();
 	if(!swapchainRTVCpuDH.IsNull())
 		Ubpa::UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Free(std::move(swapchainRTVCpuDH));
 
-	Ubpa::Utopia::RsrcMngrDX12::Instance().Clear();
 	Ubpa::UDX12::DescriptorHeapMngr::Instance().Clear();
 
 	mApp = nullptr;

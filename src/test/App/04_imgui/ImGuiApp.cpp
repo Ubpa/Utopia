@@ -295,13 +295,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
             return 0;
 
         int rst = theApp.Run();
-		Ubpa::Utopia::RsrcMngrDX12::Instance().Clear();
 		return rst;
     }
     catch(Ubpa::UDX12::Util::Exception& e)
     {
 		MessageBox(nullptr, e.ToString().c_str(), L"HR Failed", MB_OK);
-		Ubpa::Utopia::RsrcMngrDX12::Instance().Clear();
         return 0;
     }
 
@@ -314,10 +312,10 @@ ImGUIApp::ImGUIApp(HINSTANCE hInstance)
 
 ImGUIApp::~ImGUIApp()
 {
-    if(!uDevice.IsNull())
-		FlushCommandQueue();
-
+	Ubpa::Utopia::RsrcMngrDX12::Instance().Clear(uCmdQueue.Get());
 	Ubpa::Utopia::ImGUIMngr::Instance().Clear();
+	if (!uDevice.IsNull())
+		FlushCommandQueue();
 }
 
 bool ImGUIApp::Initialize()
@@ -436,7 +434,6 @@ void ImGUIApp::Update()
 	cmdAlloc->Reset();
 
 	ThrowIfFailed(uGCmdList->Reset(cmdAlloc.Get(), nullptr));
-	auto& deleteBatch = Ubpa::Utopia::RsrcMngrDX12::Instance().GetDeleteBatch();
 
 	// update mesh
 	

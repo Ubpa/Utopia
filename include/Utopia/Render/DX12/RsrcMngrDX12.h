@@ -19,12 +19,9 @@ namespace Ubpa::Utopia {
 		}
 
 		RsrcMngrDX12& Init(ID3D12Device* device);
-		void Clear();
+		void Clear(ID3D12CommandQueue* cmdQueue);
 
 		void CommitUploadAndDelete(ID3D12CommandQueue* cmdQueue);
-
-		DirectX::ResourceUploadBatch& GetUpload() const;
-		UDX12::ResourceDeleteBatch& GetDeleteBatch() const;
 
 		RsrcMngrDX12& RegisterTexture2D(const Texture2D& tex2D);
 
