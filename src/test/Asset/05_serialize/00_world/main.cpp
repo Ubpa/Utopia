@@ -198,16 +198,16 @@ int main() {
 
 	a->v_vector_entity = { e0,e1,e2,e3 };
 
-	auto json = Serializer::Instance().ToJSON(&w);
+	auto json = Serializer::Instance().Serialize(&w);
 	cout << json << endl;
 	auto new_w = std::make_unique<World>();
 	auto [new_e0] = new_w->entityMngr.Create();
 	auto [new_e1] = new_w->entityMngr.Create();
 	new_w->entityMngr.Destroy(new_e0);
 	new_w->entityMngr.cmptTraits.Register<A>();
-	Serializer::Instance().ToWorld(new_w.get(), json);
+	Serializer::Instance().SerializeToWorld(new_w.get(), json);
 	new_w->entityMngr.Destroy(new_e1);
-	auto new_json = Serializer::Instance().ToJSON(new_w.get());
+	auto new_json = Serializer::Instance().Serialize(new_w.get());
 	cout << new_json << endl;
 	std::pair p{ 1,2 };
 	std::apply([](auto...) {}, p);

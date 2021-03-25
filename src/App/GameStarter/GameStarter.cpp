@@ -501,11 +501,11 @@ void GameStarter::BuildWorld() {
 		Ubpa::Utopia::Translation,
 		Ubpa::Utopia::WorldToLocal
 	>();
-	//OutputDebugStringA(Ubpa::Utopia::Serializer::Instance().ToJSON(&world).c_str());
+	//OutputDebugStringA(Ubpa::Utopia::Serializer::Instance().Serialize(&world).c_str());
 	auto scene = Ubpa::Utopia::AssetMngr::Instance().LoadAsset<Ubpa::Utopia::Scene>(L"..\\assets\\scenes\\Game.scene");
-	Ubpa::Utopia::Serializer::Instance().ToWorld(&world, scene->GetText());
+	Ubpa::Utopia::Serializer::Instance().SerializeToWorld(&world, scene->GetText());
 	cam = world.entityMngr.GetEntityArray({ {Ubpa::UECS::AccessTypeID_of<Ubpa::Utopia::Camera>} }).front();
-	OutputDebugStringA(Ubpa::Utopia::Serializer::Instance().ToJSON(&world).c_str());
+	OutputDebugStringA(Ubpa::Utopia::Serializer::Instance().Serialize(&world).c_str());
 
 	auto mainLua = Ubpa::Utopia::LuaCtxMngr::Instance().Register(&world)->Main();
 	sol::state_view solLua(mainLua);

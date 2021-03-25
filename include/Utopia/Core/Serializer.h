@@ -21,15 +21,20 @@ namespace Ubpa::Utopia {
 		}
 
 		struct Key {
-			static constexpr const char ENTITY_MNGR[] = "__ENTITY_MNGR";
-			static constexpr const char ENTITIES[] = "__ENTITIES";
-			static constexpr const char INDEX[] = "__INDEX";
-			static constexpr const char COMPONENTS[] = "__COMPONENTS";
-			static constexpr const char TYPEID[] = "__TYPEID";
-			static constexpr const char TYPENAME[] = "__TYPENAME";
-			static constexpr const char CONTENT[] = "__CONTENT";
-			static constexpr const char NOT_SUPPORT[] = "__NOT_SUPPORT";
+			static constexpr const char EntityMngr[] = "__EntityMngr";
+			static constexpr const char Entities[] = "__Entities";
+			static constexpr const char Index[] = "__Index";
+			static constexpr const char Components[] = "__Components";
+			static constexpr const char TypeID[] = "__TypeID";
+			static constexpr const char TypeName[] = "__TypeName";
+			static constexpr const char Content[] = "__Content";
+			static constexpr const char NotSupport[] = "__NotSupport";
+			static constexpr const char Guid[] = "__Guid";
 		};
+
+		//
+		// Serialize
+		//////////////
 
 		using JSONWriter = rapidjson::Writer<rapidjson::StringBuffer>;
 		struct SerializeContext {
@@ -39,6 +44,22 @@ namespace Ubpa::Utopia {
 			const Visitor<void(const void*, SerializeContext&)>& serializer;
 		};
 		using SerializeFunc = std::function<void(const void*, SerializeContext&)>;
+
+		void RegisterSerializeFunction(TypeID id, SerializeFunc);
+
+		template<typename Func> // (const T*, SerializeContext&)
+		void RegisterSerializeFunction(Func&& func);
+
+		std::string Serialize(const UECS::World*);
+		std::string Serialize(size_t ID, const void* obj);
+		template<typename UserType>
+		std::string Serialize(const UserType* obj);
+		bool SerializeToWorld(UECS::World*, std::string_view json);
+
+		//
+		// Deserialize
+		////////////////
+
 		using EntityIdxMap = std::unordered_map<size_t, UECS::Entity>;
 		struct DeserializeContext {
 			const EntityIdxMap& entityIdxMap;
@@ -46,34 +67,14 @@ namespace Ubpa::Utopia {
 		};
 		using DeserializeFunc = std::function<void(void*, const rapidjson::Value&, DeserializeContext&)>;
 
-		void RegisterComponentSerializeFunction(TypeID, SerializeFunc);
-		void RegisterComponentDeserializeFunction(TypeID, DeserializeFunc);
+		void RegisterDeserializeFunction(TypeID id, DeserializeFunc);
 
-		template<typename Func>
-		void RegisterComponentSerializeFunction(Func&& func);
-		template<typename Func>
-		void RegisterComponentDeserializeFunction(Func&& func);
+		template<typename Func> // (const T*, SerializeContext&)
+		void RegisterDeserializeFunction(Func&& func);
 
-		void RegisterUserTypeSerializeFunction(size_t id, SerializeFunc);
-		void RegisterUserTypeDeserializeFunction(size_t id, DeserializeFunc);
+		UDRefl::SharedObject Deserialize(std::string_view json);
 
-		template<typename Func>
-		void RegisterUserTypeSerializeFunction(Func&& func);
-		template<typename Func>
-		void RegisterUserTypeDeserializeFunction(Func&& func);
-
-		std::string ToJSON(const UECS::World*);
-		bool ToWorld(UECS::World*, std::string_view json);
-
-		std::string ToJSON(size_t ID, const void* obj);
-		template<typename UserType>
-		std::string ToJSON(const UserType* obj);
-		UDRefl::SharedObject ToUserType(std::string_view json);
 	private:
-		// core functions
-		void RegisterSerializeFunction(size_t id, SerializeFunc);
-		void RegisterDeserializeFunction(size_t id, DeserializeFunc);
-
 		Serializer();
 		~Serializer();
 

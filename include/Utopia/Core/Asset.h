@@ -21,4 +21,6 @@ namespace Ubpa::Utopia {
 		const T& operator*() const noexcept { return *obj; }
 		operator bool() const noexcept { return static_cast<bool>(obj); }
 	};
+
+	struct DefaultAsset {};
 }

@@ -4,7 +4,7 @@ namespace Ubpa::Utopia::details {
 	void UDRefl_Register_Children();
 	void UDRefl_Register_Input();
 	void UDRefl_Register_LocalToParent();
-	void UDRefl_Register_LocalToWorld();
+	void UDRefl_Register_LocalSerializeToWorld();
 	void UDRefl_Register_Name();
 	void UDRefl_Register_NonUniformScale();
 	void UDRefl_Register_Parent();

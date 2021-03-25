@@ -68,7 +68,7 @@ struct Serializer::Impl {
 
 		virtual void EnterWorld(const World* world) override {
 			ctx.writer.StartObject();
-			ctx.writer.Key(Serializer::Key::ENTITY_MNGR);
+			ctx.writer.Key(Serializer::Key::EntityMngr);
 			w = world;
 		}
 		virtual void ExistWorld(const World* world) override {
@@ -78,7 +78,7 @@ struct Serializer::Impl {
 
 		virtual void EnterEntityMngr(const EntityMngr*) override {
 			ctx.writer.StartObject();
-			ctx.writer.Key(Serializer::Key::ENTITIES);
+			ctx.writer.Key(Serializer::Key::Entities);
 			ctx.writer.StartArray();
 		}
 		virtual void ExistEntityMngr(const EntityMngr*) override {
@@ -88,9 +88,9 @@ struct Serializer::Impl {
 
 		virtual void EnterEntity(Entity e) override {
 			ctx.writer.StartObject();
-			ctx.writer.Key(Key::INDEX);
+			ctx.writer.Key(Key::Index);
 			ctx.writer.Uint64(e.index);
-			ctx.writer.Key(Key::COMPONENTS);
+			ctx.writer.Key(Key::Components);
 			ctx.writer.StartArray();
 		}
 		virtual void ExistEntity(Entity) override {
@@ -167,18 +167,18 @@ struct Serializer::Impl {
 			}
 
 			ctx.writer.StartObject();
-			ctx.writer.Key(Key::TYPEID);
+			ctx.writer.Key(Key::TypeID);
 			ctx.writer.Uint64(obj.GetType().GetID().GetValue());
-			ctx.writer.Key(Key::TYPENAME);
-			ctx.writer.String(Mngr.tregistry.Typeof(obj.GetType().GetID()).GetName().data());
-			ctx.writer.Key(Key::CONTENT);
+			ctx.writer.Key(Key::TypeName);
+			ctx.writer.String(obj.GetType().GetName().data());
+			ctx.writer.Key(Key::Content);
 
 			// write content
 
 			if (ctx.serializer.IsRegistered(obj.GetType().GetID().GetValue()))
 				ctx.serializer.Visit(obj.GetType().GetID().GetValue(), obj.GetPtr(), ctx);
 			else if (obj.GetType().IsReference())
-				ctx.writer.String(Key::NOT_SUPPORT);
+				ctx.writer.String(Key::NotSupport);
 			else if (obj.GetType().Is<UECS::Entity>())
 				ctx.writer.Uint64(obj.As<Entity>().index);
 			else if (auto attr = Mngr.GetTypeAttr(obj.GetType(), Type_of<ContainerType>); attr.GetType().Valid()) {
@@ -190,7 +190,7 @@ struct Serializer::Impl {
 				case Ubpa::UDRefl::ContainerType::Queue:
 				case Ubpa::UDRefl::ContainerType::PriorityQueue:
 				case Ubpa::UDRefl::ContainerType::None:
-					ctx.writer.String(Key::NOT_SUPPORT);
+					ctx.writer.String(Key::NotSupport);
 					break;
 				case Ubpa::UDRefl::ContainerType::Array:
 				case Ubpa::UDRefl::ContainerType::Deque:
@@ -282,10 +282,10 @@ namespace Ubpa::Utopia::details {
 
 		assert(value.IsObject());
 		const auto& jsonObj = value.GetObject();
-		if (jsonObj.FindMember(Serializer::Key::TYPEID) == jsonObj.end())
+		if (jsonObj.FindMember(Serializer::Key::TypeID) == jsonObj.end())
 			return {};
 
-		std::size_t id = jsonObj[Serializer::Key::TYPEID].GetUint64();
+		std::uint64_t id = jsonObj[Serializer::Key::TypeID].GetUint64();
 		Type type = Mngr.tregistry.Typeof(TypeID{ id });
 
 		if (type.IsReference()) {
@@ -295,7 +295,7 @@ namespace Ubpa::Utopia::details {
 
 		type = type.RemoveConst();
 
-		const rapidjson::Value& content = jsonObj[Serializer::Key::CONTENT];
+		const rapidjson::Value& content = jsonObj[Serializer::Key::Content];
 
 		// content -> obj
 
@@ -303,6 +303,7 @@ namespace Ubpa::Utopia::details {
 			auto* info = Mngr.GetTypeInfo(type);
 			void* buffer = Mngr.GetObjectResource()->allocate(std::max<std::size_t>(1, info->size), info->alignment);
 			ctx.deserializer.Visit(
+				type.GetID().GetValue(),
 				buffer,
 				content,
 				ctx
@@ -476,21 +477,21 @@ Serializer::Serializer()
 
 Serializer::~Serializer() { delete pImpl; }
 
-string Serializer::ToJSON(const World* world) {
+string Serializer::Serialize(const World* world) {
 	Impl::WorldSerializer worldSerializer(pImpl->serializer);
 	world->Accept(&worldSerializer);
 	auto json = worldSerializer.ctx.sb.GetString();
 	return json;
 }
 
-string Serializer::ToJSON(size_t ID, const void* obj) {
+string Serializer::Serialize(size_t ID, const void* obj) {
 	SerializeContext ctx{ pImpl->serializer };
 	pImpl->serializer.Visit(ID, obj, ctx);
 	auto json = ctx.sb.GetString();
 	return json;
 }
 
-bool Serializer::ToWorld(UECS::World* world, string_view json) {
+bool Serializer::SerializeToWorld(UECS::World* world, string_view json) {
 	Document doc;
 	ParseResult rst = doc.Parse(json.data());
 
@@ -501,8 +502,8 @@ bool Serializer::ToWorld(UECS::World* world, string_view json) {
 		return false;
 	}
 
-	auto entityMngr = doc[Serializer::Key::ENTITY_MNGR].GetObject();
-	auto entities = entityMngr[Serializer::Key::ENTITIES].GetArray();
+	auto entityMngr = doc[Serializer::Key::EntityMngr].GetObject();
+	auto entities = entityMngr[Serializer::Key::Entities].GetArray();
 
 	// 1. use free entry
 	// 2. use new entry
@@ -514,7 +515,7 @@ bool Serializer::ToWorld(UECS::World* world, string_view json) {
 	size_t newEntityIndex = world->entityMngr.TotalEntityNum() + leftFreeEntryNum;
 	for (const auto& val_e : entities) {
 		const auto& e = val_e.GetObject();
-		size_t index = e[Key::INDEX].GetUint64();
+		size_t index = e[Key::Index].GetUint64();
 		if (leftFreeEntryNum > 0) {
 			size_t freeIdx = freeEntries[--leftFreeEntryNum];
 			size_t version = world->entityMngr.GetEntityVersion(freeIdx);
@@ -528,14 +529,13 @@ bool Serializer::ToWorld(UECS::World* world, string_view json) {
 
 	for (const auto& val_e : entities) {
 		const auto& jsonEntity = val_e.GetObject();
-		const auto& jsonCmpts = jsonEntity[Key::COMPONENTS].GetArray();
+		const auto& jsonCmpts = jsonEntity[Key::Components].GetArray();
 
 		std::vector<TypeID> cmptTypes;
 		cmptTypes.resize(jsonCmpts.Size());
 		for (SizeType i = 0; i < jsonCmpts.Size(); i++) {
 			const auto& cmpt = jsonCmpts[i].GetObject();
-			size_t cmptID = cmpt[Key::TYPEID].GetUint64();
-			cmptTypes[i] = TypeID{ cmptID };
+			cmptTypes[i] = TypeID{ cmpt[Key::TypeID].GetUint64() };
 		}
 
 		auto entity = world->entityMngr.Create(std::span{ cmptTypes.data(), cmptTypes.size() });
@@ -552,7 +552,7 @@ bool Serializer::ToWorld(UECS::World* world, string_view json) {
 	return true;
 }
 
-UDRefl::SharedObject Serializer::ToUserType(std::string_view json) {
+UDRefl::SharedObject Serializer::Deserialize(std::string_view json) {
 	Document doc;
 	ParseResult rst = doc.Parse(json.data());
 	EntityIdxMap emptyMap;
@@ -560,26 +560,10 @@ UDRefl::SharedObject Serializer::ToUserType(std::string_view json) {
 	return details::DeserializeRecursion(doc, ctx);
 }
 
-void Serializer::RegisterSerializeFunction(size_t id, SerializeFunc func) {
-	pImpl->serializer.Register(id, std::move(func));
+void Serializer::RegisterSerializeFunction(TypeID id, SerializeFunc func) {
+	pImpl->serializer.Register(id.GetValue(), std::move(func));
 }
 
-void Serializer::RegisterDeserializeFunction(size_t id, DeserializeFunc func) {
-	pImpl->deserializer.Register(id, std::move(func));
-}
-
-void Serializer::RegisterComponentSerializeFunction(TypeID type, SerializeFunc func) {
-	RegisterSerializeFunction(type.GetValue(), std::move(func));
-}
-
-void Serializer::RegisterComponentDeserializeFunction(TypeID type, DeserializeFunc func) {
-	RegisterDeserializeFunction(type.GetValue(), std::move(func));
-}
-
-void Serializer::RegisterUserTypeSerializeFunction(size_t id, SerializeFunc func) {
-	RegisterSerializeFunction(id, std::move(func));
-}
-
-void Serializer::RegisterUserTypeDeserializeFunction(size_t id, DeserializeFunc func) {
-	RegisterDeserializeFunction(id, std::move(func));
+void Serializer::RegisterDeserializeFunction(TypeID id, DeserializeFunc func) {
+	pImpl->deserializer.Register(id.GetValue(), std::move(func));
 }

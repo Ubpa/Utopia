@@ -8,7 +8,7 @@ void Ubpa::Utopia::UDRefl_Register_Core() {
 	details::UDRefl_Register_Children();
 	details::UDRefl_Register_Input();
 	details::UDRefl_Register_LocalToParent();
-	details::UDRefl_Register_LocalToWorld();
+	details::UDRefl_Register_LocalSerializeToWorld();
 	details::UDRefl_Register_Name();
 	details::UDRefl_Register_NonUniformScale();
 	details::UDRefl_Register_Parent();

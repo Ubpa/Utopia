@@ -15,8 +15,8 @@ struct AssetMngr::Impl {
 	//
 	// ext -> importer creator
 
-	std::map<std::filesystem::path, xg::Guid> path2guid;
-	std::unordered_map<xg::Guid, std::filesystem::path> guid2path;
+	std::map<std::filesystem::path, xg::Guid> path2guid; // relative path
+	std::unordered_map<xg::Guid, std::filesystem::path> guid2path; // relative path
 
 	std::unordered_map<void*, xg::Guid> assetID2guid;
 	std::multimap<xg::Guid, Asset> guid2asset;
@@ -34,7 +34,18 @@ struct AssetMngr::Impl {
 };
 
 AssetMngr::AssetMngr()
-	: pImpl{ new Impl } {}
+	: pImpl{ new Impl }
+{
+	Serializer::Instance().RegisterSerializeFunction([](const AssetImporter* aimporter, Serializer::SerializeContext& ctx) {
+		aimporter->Serialize(ctx);
+	});
+	UDRefl::Mngr.RegisterType<DefaultAssetImporter>();
+	UDRefl::Mngr.AddBases<DefaultAssetImporter, AssetImporter>();
+	Serializer::Instance().RegisterDeserializeFunction([](DefaultAssetImporter* ptr, const rapidjson::Value& value, Serializer::DeserializeContext& ctx) {
+		xg::Guid guid(value[Serializer::Key::Guid].GetString());
+		new(ptr)DefaultAssetImporter(guid);
+	});
+}
 
 AssetMngr::~AssetMngr() {
 	delete pImpl;
@@ -138,19 +149,22 @@ Asset AssetMngr::GUIDToAsset(const xg::Guid& guid, Type type) const {
 }
 
 xg::Guid AssetMngr::ImportAsset(const std::filesystem::path& path) {
-	// TODO: path relative ?
+	if (path.empty())
+		return {};
 
-	assert(!path.empty() && path.is_relative());
+	assert(path.is_relative());
 	const auto ext = path.extension();
+
+	 std::filesystem::path fullpath = std::filesystem::path{ GetRootPath() } += path;
 
 	assert(ext != ".meta");
 
-	auto target = pImpl->path2guid.find(path);
+	auto target = pImpl->path2guid.find(fullpath);
 	if (target != pImpl->path2guid.end())
 		return target->second;
 
-	assert(std::filesystem::exists(path));
-	auto metapath = std::filesystem::path{ path }.concat(".meta");
+	assert(std::filesystem::exists(fullpath));
+	auto metapath = std::filesystem::path{ fullpath }.concat(".meta");
 	bool existMeta = std::filesystem::exists(metapath);
 	assert(!existMeta || !std::filesystem::is_directory(metapath));
 
@@ -158,30 +172,45 @@ xg::Guid AssetMngr::ImportAsset(const std::filesystem::path& path) {
 	std::shared_ptr<AssetImporter> importer;
 	if (!existMeta) {
 		auto ctarget = pImpl->ext2creator.find(ext);
-		if (ctarget == pImpl->ext2creator.end())
-			return {}; // TODO : default
+		if (ctarget == pImpl->ext2creator.end()) {
+			// default
+			guid = xg::newGuid();
+			DefaultAssetImporterCreator ctor;
+			importer = ctor.CreateAssetImporter(guid);
+			std::string matastr = Serializer::Instance().Serialize(importer.get());
+			std::ofstream ofs(metapath);
+			assert(ofs.is_open());
+			ofs << matastr;
+			ofs.close();
+		}
+		else {
+			guid = xg::newGuid();
+			importer = ctarget->second->CreateAssetImporter(guid);
+			std::string matastr = Serializer::Instance().Serialize(importer.get());
 
-		guid = xg::newGuid();
-		importer = ctarget->second->CreateAssetImporter(guid);
-		std::string matastr = Serializer::Instance().ToJSON(importer.get());
-
-		std::ofstream ofs(metapath);
-		assert(ofs.is_open());
-		ofs << matastr;
-		ofs.close();
+			std::ofstream ofs(metapath);
+			assert(ofs.is_open());
+			ofs << matastr;
+			ofs.close();
+		}
 	}
 	else {
 		std::string importerJson = Impl::LoadText(metapath);
-		auto importer_impl = Serializer::Instance().ToUserType(importerJson);
+		auto importer_impl = Serializer::Instance().Deserialize(importerJson);
 		auto importer_base = importer_impl.StaticCast_DerivedToBase(Type_of<AssetImporter>);
 		if (!importer_base)
 			return {};
 		importer = importer_base.AsShared<AssetImporter>();
+		guid = importer->GetGuid();
 	}
 
 	pImpl->path2guid.emplace(path, guid);
 	pImpl->guid2path.emplace(guid, path);
 	pImpl->guid2importer.emplace(guid, importer);
+
+	auto pguid = ImportAsset(path.parent_path());
+	if (pguid.isValid())
+		pImpl->assetTree[pguid].insert(guid);
 
 	return guid;
 }
@@ -286,7 +315,7 @@ bool AssetMngr::CreateAsset(SharedObject ptr, const std::filesystem::path& path)
 	if (ctarget == pImpl->ext2creator.end())
 		return false;
 
-	auto json = Serializer::Instance().ToJSON(ptr.GetType().GetID().GetValue(), ptr.GetPtr());
+	auto json = Serializer::Instance().Serialize(ptr.GetType().GetID().GetValue(), ptr.GetPtr());
 	if (json.empty())
 		return false;
 

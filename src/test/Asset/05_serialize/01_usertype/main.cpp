@@ -43,13 +43,13 @@ int main() {
 		}
 	};
 
-	auto json = Serializer::Instance().ToJSON(&t);
+	auto json = Serializer::Instance().Serialize(&t);
 	std::cout << json << std::endl;
 
 	t.data.clear();
-	Serializer::Instance().ToUserType(json, &t);
+	Serializer::Instance().Deserialize(json, &t);
 
-	auto newjson = Serializer::Instance().ToJSON(&t);
+	auto newjson = Serializer::Instance().Serialize(&t);
 	std::cout << newjson << std::endl;
 
 	return 0;

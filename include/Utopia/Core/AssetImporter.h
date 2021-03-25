@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Serializer.h"
 #include <_deps/crossguid/guid.hpp>
 #include <UDRefl/UDRefl.hpp>
 #include <map>
@@ -28,20 +29,42 @@ namespace Ubpa::Utopia {
 
 	class AssetImporter {
 	public:
+		AssetImporter(xg::Guid guid) : guid{ guid } {}
 		virtual ~AssetImporter() = default;
 
 		const xg::Guid& GetGuid() const noexcept { return guid; }
 
-		virtual void Serialize() const = 0;
+		// {
+		//   "__TypeID":<uint64>,
+		//   "__TypeName":<string>,
+		//   "__Content":{
+		//     "__Guid":<string>
+		//     ...
+		//   }
+		// }
+		virtual void Serialize(Serializer::SerializeContext& ctx) const = 0;
 		virtual bool ReserializeAsset() const { return false; }
 		virtual AssetImportContext ImportAsset() const = 0;
-	protected:
-		xg::Guid guid; // you must set it
+	private:
+		xg::Guid guid;
 	};
 
 	class AssetImporterCreator {
 	public:
 		virtual ~AssetImporterCreator() = default;
+		// the guid is not registered into asset mngr yet, but we can store it in assetimporter
 		virtual std::shared_ptr<AssetImporter> CreateAssetImporter(xg::Guid guid) = 0;
+	};
+
+	class DefaultAssetImporter : public AssetImporter {
+	public:
+		using AssetImporter::AssetImporter;
+		virtual void Serialize(Serializer::SerializeContext& ctx) const override;
+		virtual AssetImportContext ImportAsset() const override;
+	};
+
+	class DefaultAssetImporterCreator : public AssetImporterCreator {
+	public:
+		virtual std::shared_ptr<AssetImporter> CreateAssetImporter(xg::Guid guid) override;
 	};
 }
