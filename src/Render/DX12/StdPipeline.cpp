@@ -2,7 +2,7 @@
 
 #include "../_deps/LTCTex.h"
 
-#include <Utopia/Render/DX12/RsrcMngrDX12.h>
+#include <Utopia/Render/DX12/GPURsrcMngrDX12.h>
 #include <Utopia/Render/DX12/MeshLayoutMngr.h>
 #include <Utopia/Render/DX12/ShaderCBMngrDX12.h>
 #include <Utopia/Render/ShaderMngr.h>
@@ -13,7 +13,7 @@
 #include <Utopia/Render/Mesh.h>
 #include <Utopia/Render/RenderQueue.h>
 
-#include <Utopia/Asset/AssetMngr.h>
+#include <Utopia/Core/AssetMngr.h>
 
 #include <Utopia/Core/Image.h>
 #include <Utopia/Render/Components/Camera.h>
@@ -27,7 +27,7 @@
 #include <Utopia/Core/Components/Translation.h>
 #include <Utopia/Core/Components/WorldToLocal.h>
 
-#include <UECS/World.h>
+#include <UECS/UECS.hpp>
 
 #include <_deps/imgui/imgui.h>
 #include <_deps/imgui/imgui_impl_win32.h>
@@ -164,7 +164,7 @@ struct StdPipeline::Impl {
 
 		CameraConstants cameraConstants;
 
-		std::unordered_map<size_t, PipelineBase::ShaderCBDesc> shaderCBDescMap; // shader ID -> desc
+		std::unordered_map<const Shader*, PipelineBase::ShaderCBDesc> shaderCBDescMap; // shader ID -> desc
 
 		D3D12_GPU_DESCRIPTOR_HANDLE skybox;
 		LightArray lights;
@@ -225,7 +225,7 @@ struct StdPipeline::Impl {
 	void BuildShaders();
 	void BuildPSOs();
 
-	size_t GetPSO_ID(const Shader& shader, size_t passIdx, const Mesh& mesh, size_t rtNum, DXGI_FORMAT rtFormat);
+	size_t GetPSO_ID(std::shared_ptr<const Shader> shader, size_t passIdx, const Mesh& mesh, size_t rtNum, DXGI_FORMAT rtFormat);
 	struct PartialPSODesc {
 		PartialPSODesc() { memset(this, 0, sizeof(PartialPSODesc)); }
 		size_t shaderID;
@@ -257,19 +257,19 @@ StdPipeline::Impl::~Impl() {
 		UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(data->SRVDH));
 	}
 	UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(defaultIBLSRVDH));
-	RsrcMngrDX12::Instance().UnregisterTexture2D(ltcTexes[0]);
-	RsrcMngrDX12::Instance().UnregisterTexture2D(ltcTexes[1]);
+	GPURsrcMngrDX12::Instance().UnregisterTexture2D(ltcTexes[0].GetInstanceID());
+	GPURsrcMngrDX12::Instance().UnregisterTexture2D(ltcTexes[1].GetInstanceID());
 	UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(ltcHandles));
 }
 
 void StdPipeline::Impl::BuildTextures() {
-	ltcTexes[0].image = std::make_shared<Image>(LTCTex::SIZE, LTCTex::SIZE, 4, LTCTex::data1);
-	ltcTexes[1].image = std::make_shared<Image>(LTCTex::SIZE, LTCTex::SIZE, 4, LTCTex::data2);
-	RsrcMngrDX12::Instance().RegisterTexture2D(ltcTexes[0]);
-	RsrcMngrDX12::Instance().RegisterTexture2D(ltcTexes[1]);
+	ltcTexes[0].image = Image(LTCTex::SIZE, LTCTex::SIZE, 4, LTCTex::data1);
+	ltcTexes[1].image = Image(LTCTex::SIZE, LTCTex::SIZE, 4, LTCTex::data2);
+	GPURsrcMngrDX12::Instance().RegisterTexture2D(ltcTexes[0]);
+	GPURsrcMngrDX12::Instance().RegisterTexture2D(ltcTexes[1]);
 	ltcHandles = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(2);
-	auto ltc0 = RsrcMngrDX12::Instance().GetTexture2DResource(ltcTexes[0]);
-	auto ltc1 = RsrcMngrDX12::Instance().GetTexture2DResource(ltcTexes[1]);
+	auto ltc0 = GPURsrcMngrDX12::Instance().GetTexture2DResource(ltcTexes[0]);
+	auto ltc1 = GPURsrcMngrDX12::Instance().GetTexture2DResource(ltcTexes[1]);
 	const auto ltc0SRVDesc = UDX12::Desc::SRV::Tex2D(ltc0->GetDesc().Format);
 	const auto ltc1SRVDesc = UDX12::Desc::SRV::Tex2D(ltc1->GetDesc().Format);
 	initDesc.device->CreateShaderResourceView(
@@ -284,12 +284,12 @@ void StdPipeline::Impl::BuildTextures() {
 	);
 
 	auto skyboxBlack = AssetMngr::Instance().LoadAsset<Material>(LR"(..\assets\_internal\materials\skyBlack.mat)");
-	auto blackTexCube = std::get<std::shared_ptr<const TextureCube>>(skyboxBlack->properties.at("gSkybox"));
-	auto blackTexCubeRsrc = RsrcMngrDX12::Instance().GetTextureCubeResource(*blackTexCube);
-	defaultSkybox = RsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(*blackTexCube);
+	auto blackTexCube = std::get<std::shared_ptr<TextureCube>>(skyboxBlack->properties.at("gSkybox"));
+	auto blackTexCubeRsrc = GPURsrcMngrDX12::Instance().GetTextureCubeResource(*blackTexCube);
+	defaultSkybox = GPURsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(*blackTexCube);
 
 	auto blackTex2D = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(..\assets\_internal\textures\black.tex2d)");
-	auto blackRsrc = RsrcMngrDX12::Instance().GetTexture2DResource(*blackTex2D);
+	auto blackRsrc = GPURsrcMngrDX12::Instance().GetTexture2DResource(*blackTex2D.obj);
 
 	defaultIBLSRVDH = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(3);
 	auto cubeDesc = UDX12::Desc::SRV::TexCube(DXGI_FORMAT_R32G32B32A32_FLOAT);
@@ -372,7 +372,7 @@ void StdPipeline::Impl::BuildFrameResources() {
 		}
 		{// BRDF LUT
 			auto brdfLUTTex2D = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(..\assets\_internal\textures\BRDFLUT.tex2d)");
-			auto brdfLUTTex2DRsrc = RsrcMngrDX12::Instance().GetTexture2DResource(*brdfLUTTex2D);
+			auto brdfLUTTex2DRsrc = GPURsrcMngrDX12::Instance().GetTexture2DResource(*brdfLUTTex2D.obj);
 			auto desc = UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32_FLOAT);
 			initDesc.device->CreateShaderResourceView(brdfLUTTex2DRsrc, &desc, iblData->SRVDH.GetCpuHandle(2));
 		}
@@ -442,10 +442,10 @@ void StdPipeline::Impl::BuildShaders() {
 
 void StdPipeline::Impl::BuildPSOs() {
 	auto skyboxPsoDesc = UDX12::Desc::PSO::Basic(
-		RsrcMngrDX12::Instance().GetShaderRootSignature(*skyboxShader),
+		GPURsrcMngrDX12::Instance().GetShaderRootSignature(*skyboxShader),
 		nullptr, 0,
-		RsrcMngrDX12::Instance().GetShaderByteCode_vs(*skyboxShader, 0),
-		RsrcMngrDX12::Instance().GetShaderByteCode_ps(*skyboxShader, 0),
+		GPURsrcMngrDX12::Instance().GetShaderByteCode_vs(*skyboxShader, 0),
+		GPURsrcMngrDX12::Instance().GetShaderByteCode_ps(*skyboxShader, 0),
 		DXGI_FORMAT_R32G32B32A32_FLOAT,
 		DXGI_FORMAT_D24_UNORM_S8_UINT
 	);
@@ -454,13 +454,13 @@ void StdPipeline::Impl::BuildPSOs() {
 	skyboxPsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
 	skyboxPsoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
 	skyboxPsoDesc.DepthStencilState.StencilEnable = false;
-	ID_PSO_skybox = RsrcMngrDX12::Instance().RegisterPSO(&skyboxPsoDesc);
+	ID_PSO_skybox = GPURsrcMngrDX12::Instance().RegisterPSO(&skyboxPsoDesc);
 
 	auto deferLightingPsoDesc = UDX12::Desc::PSO::Basic(
-		RsrcMngrDX12::Instance().GetShaderRootSignature(*deferLightingShader),
+		GPURsrcMngrDX12::Instance().GetShaderRootSignature(*deferLightingShader),
 		nullptr, 0,
-		RsrcMngrDX12::Instance().GetShaderByteCode_vs(*deferLightingShader, 0),
-		RsrcMngrDX12::Instance().GetShaderByteCode_ps(*deferLightingShader, 0),
+		GPURsrcMngrDX12::Instance().GetShaderByteCode_vs(*deferLightingShader, 0),
+		GPURsrcMngrDX12::Instance().GetShaderByteCode_ps(*deferLightingShader, 0),
 		DXGI_FORMAT_R32G32B32A32_FLOAT,
 		DXGI_FORMAT_D24_UNORM_S8_UINT
 	);
@@ -468,57 +468,57 @@ void StdPipeline::Impl::BuildPSOs() {
 	deferLightingPsoDesc.DepthStencilState.DepthEnable = true;
 	deferLightingPsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
 	deferLightingPsoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_GREATER;
-	ID_PSO_defer_light = RsrcMngrDX12::Instance().RegisterPSO(&deferLightingPsoDesc);
+	ID_PSO_defer_light = GPURsrcMngrDX12::Instance().RegisterPSO(&deferLightingPsoDesc);
 
 	auto postprocessPsoDesc = UDX12::Desc::PSO::Basic(
-		RsrcMngrDX12::Instance().GetShaderRootSignature(*postprocessShader),
+		GPURsrcMngrDX12::Instance().GetShaderRootSignature(*postprocessShader),
 		nullptr, 0,
-		RsrcMngrDX12::Instance().GetShaderByteCode_vs(*postprocessShader, 0),
-		RsrcMngrDX12::Instance().GetShaderByteCode_ps(*postprocessShader, 0),
+		GPURsrcMngrDX12::Instance().GetShaderByteCode_vs(*postprocessShader, 0),
+		GPURsrcMngrDX12::Instance().GetShaderByteCode_ps(*postprocessShader, 0),
 		initDesc.rtFormat,
 		DXGI_FORMAT_UNKNOWN
 	);
 	postprocessPsoDesc.RasterizerState.FrontCounterClockwise = TRUE;
 	postprocessPsoDesc.DepthStencilState.DepthEnable = false;
 	postprocessPsoDesc.DepthStencilState.StencilEnable = false;
-	ID_PSO_postprocess = RsrcMngrDX12::Instance().RegisterPSO(&postprocessPsoDesc);
+	ID_PSO_postprocess = GPURsrcMngrDX12::Instance().RegisterPSO(&postprocessPsoDesc);
 
 	{
 		auto desc = UDX12::Desc::PSO::Basic(
-			RsrcMngrDX12::Instance().GetShaderRootSignature(*irradianceShader),
+			GPURsrcMngrDX12::Instance().GetShaderRootSignature(*irradianceShader),
 			nullptr, 0,
-			RsrcMngrDX12::Instance().GetShaderByteCode_vs(*irradianceShader, 0),
-			RsrcMngrDX12::Instance().GetShaderByteCode_ps(*irradianceShader, 0),
+			GPURsrcMngrDX12::Instance().GetShaderByteCode_vs(*irradianceShader, 0),
+			GPURsrcMngrDX12::Instance().GetShaderByteCode_ps(*irradianceShader, 0),
 			DXGI_FORMAT_R32G32B32A32_FLOAT,
 			DXGI_FORMAT_UNKNOWN
 		);
 		desc.RasterizerState.FrontCounterClockwise = TRUE;
 		desc.DepthStencilState.DepthEnable = false;
 		desc.DepthStencilState.StencilEnable = false;
-		ID_PSO_irradiance = RsrcMngrDX12::Instance().RegisterPSO(&desc);
+		ID_PSO_irradiance = GPURsrcMngrDX12::Instance().RegisterPSO(&desc);
 	}
 
 	{
 		auto desc = UDX12::Desc::PSO::Basic(
-			RsrcMngrDX12::Instance().GetShaderRootSignature(*prefilterShader),
+			GPURsrcMngrDX12::Instance().GetShaderRootSignature(*prefilterShader),
 			nullptr, 0,
-			RsrcMngrDX12::Instance().GetShaderByteCode_vs(*prefilterShader, 0),
-			RsrcMngrDX12::Instance().GetShaderByteCode_ps(*prefilterShader, 0),
+			GPURsrcMngrDX12::Instance().GetShaderByteCode_vs(*prefilterShader, 0),
+			GPURsrcMngrDX12::Instance().GetShaderByteCode_ps(*prefilterShader, 0),
 			DXGI_FORMAT_R32G32B32A32_FLOAT,
 			DXGI_FORMAT_UNKNOWN
 		);
 		desc.RasterizerState.FrontCounterClockwise = TRUE;
 		desc.DepthStencilState.DepthEnable = false;
 		desc.DepthStencilState.StencilEnable = false;
-		ID_PSO_prefilter = RsrcMngrDX12::Instance().RegisterPSO(&desc);
+		ID_PSO_prefilter = GPURsrcMngrDX12::Instance().RegisterPSO(&desc);
 	}
 }
 
-size_t StdPipeline::Impl::GetPSO_ID(const Shader& shader, size_t passIdx, const Mesh& mesh, size_t rtNum, DXGI_FORMAT rtFormat) {
+size_t StdPipeline::Impl::GetPSO_ID(std::shared_ptr<const Shader> shader, size_t passIdx, const Mesh& mesh, size_t rtNum, DXGI_FORMAT rtFormat) {
 	size_t layoutID = MeshLayoutMngr::Instance().GetMeshLayoutID(mesh);
 	PartialPSODesc partPsoDesc;
 	partPsoDesc.layoutID = layoutID;
-	partPsoDesc.shaderID = shader.GetInstanceID();
+	partPsoDesc.shaderID = shader->GetInstanceID();
 	partPsoDesc.passIndex = passIdx;
 	partPsoDesc.rtNum = rtNum;
 	partPsoDesc.rtFormat = rtFormat;
@@ -528,17 +528,17 @@ size_t StdPipeline::Impl::GetPSO_ID(const Shader& shader, size_t passIdx, const 
 		const auto& layout = MeshLayoutMngr::Instance().GetMeshLayoutValue(layoutID);
 
 		auto desc = UDX12::Desc::PSO::MRT(
-			RsrcMngrDX12::Instance().GetShaderRootSignature(shader),
+			GPURsrcMngrDX12::Instance().GetShaderRootSignature(*shader),
 			layout.data(), (UINT)layout.size(),
-			RsrcMngrDX12::Instance().GetShaderByteCode_vs(shader, passIdx),
-			RsrcMngrDX12::Instance().GetShaderByteCode_ps(shader, passIdx),
+			GPURsrcMngrDX12::Instance().GetShaderByteCode_vs(*shader, passIdx),
+			GPURsrcMngrDX12::Instance().GetShaderByteCode_ps(*shader, passIdx),
 			(UINT)rtNum,
 			rtFormat,
 			DXGI_FORMAT_D24_UNORM_S8_UINT
 		);
 		desc.RasterizerState.FrontCounterClockwise = TRUE;
-		PipelineBase::SetPSODescForRenderState(desc, shader.passes[passIdx].renderState);
-		size_t psoID = RsrcMngrDX12::Instance().RegisterPSO(&desc);
+		PipelineBase::SetPSODescForRenderState(desc, shader->passes[passIdx].renderState);
+		size_t psoID = GPURsrcMngrDX12::Instance().RegisterPSO(&desc);
 		target = PSOIDMap.emplace_hint(target, std::pair{ partPsoDesc, psoID });
 	}
 	return target->second;
@@ -555,9 +555,9 @@ void StdPipeline::Impl::UpdateRenderContext(
 	renderContext.shaderCBDescMap.clear();
 
 	{ // camera
-		auto cmptCamera = cameraData.world.entityMngr.Get<Camera>(cameraData.entity);
-		auto cmptW2L = cameraData.world.entityMngr.Get<WorldToLocal>(cameraData.entity);
-		auto cmptTranslation = cameraData.world.entityMngr.Get<Translation>(cameraData.entity);
+		auto cmptCamera = cameraData.world.entityMngr.ReadComponent<Camera>(cameraData.entity);
+		auto cmptW2L = cameraData.world.entityMngr.ReadComponent<WorldToLocal>(cameraData.entity);
+		auto cmptTranslation = cameraData.world.entityMngr.ReadComponent<Translation>(cameraData.entity);
 		
 		renderContext.cameraConstants.View = cmptW2L->value;
 		renderContext.cameraConstants.InvView = renderContext.cameraConstants.View.inverse();
@@ -578,20 +578,20 @@ void StdPipeline::Impl::UpdateRenderContext(
 	{ // object
 		ArchetypeFilter filter;
 		filter.all = {
-			CmptAccessType::Of<Latest<MeshFilter>>,
-			CmptAccessType::Of<Latest<MeshRenderer>>,
-			CmptAccessType::Of<Latest<LocalToWorld>>,
+			AccessTypeID_of<Latest<MeshFilter>>,
+			AccessTypeID_of<Latest<MeshRenderer>>,
+			AccessTypeID_of<Latest<LocalToWorld>>,
 		};
 		for (auto world : worlds) {
 			world->RunChunkJob(
 				[&](ChunkView chunk) {
-					auto meshFilters = chunk.GetCmptArray<MeshFilter>();
-					auto meshRenderers = chunk.GetCmptArray<MeshRenderer>();
-					auto L2Ws = chunk.GetCmptArray<LocalToWorld>();
-					auto W2Ls = chunk.GetCmptArray<WorldToLocal>();
-					auto entities = chunk.GetEntityArray();
+					auto meshFilters = chunk->GetCmptArray<MeshFilter>();
+					auto meshRenderers = chunk->GetCmptArray<MeshRenderer>();
+					auto L2Ws = chunk->GetCmptArray<LocalToWorld>();
+					auto W2Ls = chunk->GetCmptArray<WorldToLocal>();
+					auto entities = chunk->GetEntityArray();
 
-					size_t N = chunk.EntityNum();
+					size_t N = chunk->EntityNum();
 
 					for (size_t i = 0; i < N; i++) {
 						auto meshFilter = meshFilters[i];
@@ -632,13 +632,13 @@ void StdPipeline::Impl::UpdateRenderContext(
 						if(!isDraw)
 							continue;
 
-						auto target = renderContext.entity2data.find(obj.entity.Idx());
+						auto target = renderContext.entity2data.find(obj.entity.index);
 						if (target != renderContext.entity2data.end())
 							continue;
 						RenderContext::EntityData data;
 						data.l2w = L2Ws[i].value;
 						data.w2l = !W2Ls.empty() ? W2Ls[i].value : L2Ws[i].value.inverse();
-						renderContext.entity2data.emplace_hint(target, std::pair{ obj.entity.Idx(), data });
+						renderContext.entity2data.emplace_hint(target, std::pair{ obj.entity.index, data });
 					}
 				},
 				filter,
@@ -661,7 +661,7 @@ void StdPipeline::Impl::UpdateRenderContext(
 		renderContext.lights.diskLightNum = 0;
 
 		UECS::ArchetypeFilter filter;
-		filter.all = { UECS::CmptAccessType::Of<UECS::Latest<LocalToWorld>> };
+		filter.all = { UECS::AccessTypeID_of<UECS::Latest<LocalToWorld>> };
 		for (auto world : worlds) {
 			world->RunEntityJob(
 				[&](const Light* light) {
@@ -766,13 +766,13 @@ void StdPipeline::Impl::UpdateRenderContext(
 	// use first skybox in the world vector
 	renderContext.skybox = defaultSkybox;
 	for (auto world : worlds) {
-		if (auto ptr = world->entityMngr.GetSingleton<Skybox>(); ptr && ptr->material && ptr->material->shader == skyboxShader) {
+		if (auto ptr = world->entityMngr.ReadSingleton<Skybox>(); ptr && ptr->material && ptr->material->shader == skyboxShader) {
 			auto target = ptr->material->properties.find("gSkybox");
 			if (target != ptr->material->properties.end()
-				&& std::holds_alternative<std::shared_ptr<const TextureCube>>(target->second)
+				&& std::holds_alternative<std::shared_ptr<TextureCube>>(target->second)
 			) {
-				auto texcube = std::get<std::shared_ptr<const TextureCube>>(target->second);
-				renderContext.skybox = RsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(*texcube);
+				auto texcube = std::get<std::shared_ptr<TextureCube>>(target->second);
+				renderContext.skybox = GPURsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(*texcube);
 				break;
 			}
 		}
@@ -843,7 +843,7 @@ void StdPipeline::Impl::UpdateShaderCBs() {
 			transparentMaterialMap.erase(target);
 		}
 
-		renderContext.shaderCBDescMap[shader->GetInstanceID()] =
+		renderContext.shaderCBDescMap[shader.get()] =
 			PipelineBase::UpdateShaderCBs(shaderCBMngr, *shader, materials, commonCBs);
 		shader = nullptr;
 		materials.clear();
@@ -857,7 +857,7 @@ void StdPipeline::Impl::UpdateShaderCBs() {
 	}
 	Commit();
 	for (const auto& [shader, materials] : transparentMaterialMap) {
-		renderContext.shaderCBDescMap[shader->GetInstanceID()] =
+		renderContext.shaderCBDescMap[shader] =
 			PipelineBase::UpdateShaderCBs(shaderCBMngr, *shader, materials, commonCBs);
 	}
 }
@@ -1049,8 +1049,8 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 			cmdList->SetDescriptorHeaps(1, &heap);
 			
 			if (iblData->nextIdx < 6) { // irradiance
-				cmdList->SetGraphicsRootSignature(RsrcMngrDX12::Instance().GetShaderRootSignature(*irradianceShader));
-				cmdList->SetPipelineState(RsrcMngrDX12::Instance().GetPSO(ID_PSO_irradiance));
+				cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*irradianceShader));
+				cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetPSO(ID_PSO_irradiance));
 
 				D3D12_VIEWPORT viewport;
 				viewport.MinDepth = 0.f;
@@ -1082,8 +1082,8 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 				//}
 			}
 			else { // prefilter
-				cmdList->SetGraphicsRootSignature(RsrcMngrDX12::Instance().GetShaderRootSignature(*prefilterShader));
-				cmdList->SetPipelineState(RsrcMngrDX12::Instance().GetPSO(ID_PSO_prefilter));
+				cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*prefilterShader));
+				cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetPSO(ID_PSO_prefilter));
 
 				auto buffer = shaderCBMngr.GetCommonBuffer();
 
@@ -1155,8 +1155,8 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 			// Specify the buffers we are going to render to.
 			cmdList->OMSetRenderTargets(1, &rt.info.null_info_rtv.cpuHandle, false, &ds.info.desc2info_dsv.at(dsvDesc).cpuHandle);
 
-			cmdList->SetGraphicsRootSignature(RsrcMngrDX12::Instance().GetShaderRootSignature(*deferLightingShader));
-			cmdList->SetPipelineState(RsrcMngrDX12::Instance().GetPSO(ID_PSO_defer_light));
+			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*deferLightingShader));
+			cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetPSO(ID_PSO_defer_light));
 
 			cmdList->SetGraphicsRootDescriptorTable(0, gb0.info.desc2info_srv.at(srvDesc).gpuHandle);
 			cmdList->SetGraphicsRootDescriptorTable(1, ds.info.desc2info_srv.at(dsSrvDesc).gpuHandle);
@@ -1195,8 +1195,8 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
 			cmdList->SetDescriptorHeaps(1, &heap);
 
-			cmdList->SetGraphicsRootSignature(RsrcMngrDX12::Instance().GetShaderRootSignature(*skyboxShader));
-			cmdList->SetPipelineState(RsrcMngrDX12::Instance().GetPSO(ID_PSO_skybox));
+			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*skyboxShader));
+			cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetPSO(ID_PSO_skybox));
 
 			cmdList->RSSetViewports(1, &resizeData.screenViewport);
 			cmdList->RSSetScissorRects(1, &resizeData.scissorRect);
@@ -1243,8 +1243,8 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 	fgExecutor.RegisterPassFunc(
 		postprocessPass,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
-			cmdList->SetGraphicsRootSignature(RsrcMngrDX12::Instance().GetShaderRootSignature(*postprocessShader));
-			cmdList->SetPipelineState(RsrcMngrDX12::Instance().GetPSO(ID_PSO_postprocess));
+			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*postprocessShader));
+			cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetPSO(ID_PSO_postprocess));
 
 			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
 			cmdList->SetDescriptorHeaps(1, &heap);
@@ -1302,26 +1302,26 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::str
 	auto cameraCBAdress = commonBuffer->GetResource()->GetGPUVirtualAddress()
 		+ renderContext.cameraOffset;
 	
-	const Shader* shader{ nullptr };
+	std::shared_ptr<const Shader> shader;
 	auto Draw = [&](const RenderObject& obj) {
 		const auto& pass = obj.material->shader->passes[obj.passIdx];
 
 		if (auto target = pass.tags.find("LightMode"); target == pass.tags.end() || target->second != lightMode)
 			return;
 
-		if (shader != obj.material->shader.get()) {
-			shader = obj.material->shader.get();
-			cmdList->SetGraphicsRootSignature(RsrcMngrDX12::Instance().GetShaderRootSignature(*shader));
+		if (shader != obj.material->shader) {
+			shader = obj.material->shader;
+			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*shader));
 		}
 
 		auto matBuffer = shaderCBMngr.GetBuffer(*shader);
 
-		const auto& shaderCBDesc = renderContext.shaderCBDescMap.at(shader->GetInstanceID());
+		const auto& shaderCBDesc = renderContext.shaderCBDescMap.at(shader.get());
 
 		auto lightCBAdress = commonBuffer->GetResource()->GetGPUVirtualAddress()
 			+ renderContext.lightOffset;
 
-		auto& meshGPUBuffer = RsrcMngrDX12::Instance().GetMeshGPUBuffer(*obj.mesh);
+		auto& meshGPUBuffer = GPURsrcMngrDX12::Instance().GetMeshGPUBuffer(*obj.mesh);
 		const auto& submesh = obj.mesh->GetSubMeshes().at(obj.submeshIdx);
 		const auto meshVBView = meshGPUBuffer.VertexBufferView();
 		const auto meshIBView = meshGPUBuffer.IndexBufferView();
@@ -1350,7 +1350,7 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::str
 
 		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress =
 			commonBuffer->GetResource()->GetGPUVirtualAddress()
-			+ renderContext.entity2offset.at(obj.entity.Idx());
+			+ renderContext.entity2offset.at(obj.entity.index);
 
 		StdPipeline::SetGraphicsRoot_CBV_SRV(cmdList, shaderCBMngr, shaderCBDesc, *obj.material,
 			{
@@ -1365,8 +1365,8 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::str
 		);
 		if (shader->passes[obj.passIdx].renderState.stencilState.enable)
 			cmdList->OMSetStencilRef(shader->passes[obj.passIdx].renderState.stencilState.ref);
-		cmdList->SetPipelineState(RsrcMngrDX12::Instance().GetPSO(GetPSO_ID(
-			*shader, obj.passIdx, *obj.mesh, rtNum, rtFormat
+		cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetPSO(GetPSO_ID(
+			shader, obj.passIdx, *obj.mesh, rtNum, rtFormat
 		)));
 		cmdList->DrawIndexedInstanced((UINT)submesh.indexCount, 1, (UINT)submesh.indexStart, (INT)submesh.baseVertex, 0);
 	};

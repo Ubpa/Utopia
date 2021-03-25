@@ -2,7 +2,7 @@
 
 #include <Utopia/Render/HLSLFile.h>
 
-#include <UECS/World.h>
+#include <UECS/UECS.hpp>
 
 #include <iostream>
 

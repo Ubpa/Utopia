@@ -1,10 +1,6 @@
 #include <Utopia/App/Editor/Editor.h>
 
-#include <Utopia/App/Editor/InspectorRegistry.h>
-
-#include "TestInspector.h"
-
-#include <UECS/World.h>
+#include <UECS/UECS.hpp>
 
 #ifndef NDEBUG
 #include <dxgidebug.h>
@@ -22,9 +18,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
         Editor app(hInstance);
         if(!app.Init())
             return 1;
-
-        app.GetGameWorld()->entityMngr.cmptTraits.Register<TestInspector>();
-        InspectorRegistry::Instance().RegisterCmpts<TestInspector>();
 
 		rst = app.Run();
     }

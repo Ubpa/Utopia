@@ -1,6 +1,6 @@
 #pragma once
 
-#include <UECS/Entity.h>
+#include <UECS/Entity.hpp>
 #include <_deps/crossguid/guid.hpp>
 
 namespace Ubpa::Utopia {

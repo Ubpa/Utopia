@@ -1,6 +1,6 @@
 #include <Utopia/App/Editor/InspectorRegistry.h>
 
-#include <UECS/CmptType.h>
+#include <UTemplate/Type.hpp>
 
 #include <unordered_map>
 #include <functional>
@@ -14,26 +14,26 @@ struct InspectorRegistry::Impl {
 InspectorRegistry::InspectorRegistry() : pImpl{ new Impl } {}
 InspectorRegistry::~InspectorRegistry() { delete pImpl; }
 
-void InspectorRegistry::RegisterCmpt(UECS::CmptType type, std::function<void(void*, InspectContext)> cmptInspectFunc) {
-	pImpl->inspector.Register(type.HashCode(), std::move(cmptInspectFunc));
+void InspectorRegistry::RegisterCmpt(TypeID type, std::function<void(void*, InspectContext)> cmptInspectFunc) {
+	pImpl->inspector.Register(type.GetValue(), std::move(cmptInspectFunc));
 }
 
-void InspectorRegistry::RegisterAsset(const std::type_info& typeinfo, std::function<void(void*, InspectContext)> assetInspectFunc) {
-	pImpl->inspector.Register(typeinfo.hash_code(), std::move(assetInspectFunc));
+void InspectorRegistry::RegisterAsset(Type type, std::function<void(void*, InspectContext)> assetInspectFunc) {
+	pImpl->inspector.Register(type.GetID().GetValue(), std::move(assetInspectFunc));
 }
 
-bool InspectorRegistry::IsRegisteredCmpt(UECS::CmptType type) const {
-	return pImpl->inspector.IsRegistered(type.HashCode());
+bool InspectorRegistry::IsRegisteredCmpt(TypeID type) const {
+	return pImpl->inspector.IsRegistered(type.GetValue());
 }
 
-bool InspectorRegistry::IsRegisteredAsset(const std::type_info& typeinfo) const {
-	return pImpl->inspector.IsRegistered(typeinfo.hash_code());
+bool InspectorRegistry::IsRegisteredAsset(Type type) const {
+	return pImpl->inspector.IsRegistered(type.GetID().GetValue());
 }
 
 void InspectorRegistry::Inspect(const UECS::World* world, UECS::CmptPtr cmpt) {
-	pImpl->inspector.Visit(cmpt.Type().HashCode(), cmpt.Ptr(), InspectContext{ world, pImpl->inspector });
+	pImpl->inspector.Visit(cmpt.Type().GetValue(), cmpt.Ptr(), InspectContext{ world, pImpl->inspector });
 }
 
-void InspectorRegistry::Inspect(const std::type_info& typeinfo, void* asset) {
-	pImpl->inspector.Visit(typeinfo.hash_code(), asset, InspectContext{ nullptr, pImpl->inspector });
+void InspectorRegistry::Inspect(Type type, void* asset) {
+	pImpl->inspector.Visit(type.GetID().GetValue(), asset, InspectContext{ nullptr, pImpl->inspector });
 }

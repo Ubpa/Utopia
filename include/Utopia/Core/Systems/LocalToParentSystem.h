@@ -1,8 +1,8 @@
 #pragma once
 
-#include <UECS/World.h>
+#include <UECS/UECS.hpp>
 
-#include <UGM/transform.h>
+#include <UGM/transform.hpp>
 
 namespace Ubpa::Utopia {
 	struct LocalToParentSystem {

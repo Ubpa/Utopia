@@ -1,6 +1,6 @@
 #pragma once
 
-#include <UGM/rgb.h>
+#include <UGM/rgb.hpp>
 
 namespace Ubpa::Utopia {
 	struct Light {
@@ -22,5 +22,3 @@ namespace Ubpa::Utopia {
 		float outerSpotAngle{ 30.f };
 	};
 }
-
-#include "details/Light_AutoRefl.inl"

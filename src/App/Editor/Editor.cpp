@@ -15,10 +15,10 @@
 
 #include <Utopia/App/DX12App/DX12App.h>
 
-#include <Utopia/Asset/AssetMngr.h>
-#include <Utopia/Asset/Serializer.h>
+#include <Utopia/Core/AssetMngr.h>
+#include <Utopia/Core/Serializer.h>
 
-#include <Utopia/Render/DX12/RsrcMngrDX12.h>
+#include <Utopia/Render/DX12/GPURsrcMngrDX12.h>
 #include <Utopia/Render/DX12/StdPipeline.h>
 #include <Utopia/Render/Texture2D.h>
 #include <Utopia/Render/TextureCube.h>
@@ -30,7 +30,6 @@
 #include <Utopia/Render/Components/Components.h>
 #include <Utopia/Render/Systems/Systems.h>
 
-#include <Utopia/Core/Scene.h>
 #include <Utopia/Core/GameTimer.h>
 #include <Utopia/Core/Components/Components.h>
 #include <Utopia/Core/Systems/Systems.h>
@@ -42,14 +41,6 @@
 
 #include <Utopia/Core/StringsSink.h>
 #include <spdlog/spdlog.h>
-
-#include <Utopia/ScriptSystem/LuaContext.h>
-#include <Utopia/ScriptSystem/LuaCtxMngr.h>
-#include <Utopia/ScriptSystem/LuaScript.h>
-#include <Utopia/ScriptSystem/LuaScriptQueue.h>
-#include <Utopia/ScriptSystem/LuaScriptQueueSystem.h>
-
-#include <ULuaPP/ULuaPP.h>
 
 using namespace Ubpa::Utopia;
 using namespace Ubpa::UECS;
@@ -69,7 +60,7 @@ struct Editor::Impl {
 	void BuildWorld();
 
 	static void InitWorld(Ubpa::UECS::World&);
-	static void InitInspectorRegistry();
+	//static void InitInspectorRegistry();
 	static void LoadTextures();
 	static void BuildShaders();
 
@@ -243,7 +234,7 @@ bool Editor::Impl::Init() {
 	ImGUIMngr::Instance().Init(pEditor->MainWnd(), pEditor->uDevice.Get(), DX12App::NumFrameResources, 3);
 	
 	AssetMngr::Instance().ImportAssetRecursively(L"..\\assets");
-	InitInspectorRegistry();
+	//InitInspectorRegistry();
 
 	LoadTextures();
 	BuildShaders();
@@ -254,7 +245,7 @@ bool Editor::Impl::Init() {
 	initDesc.numFrame = DX12App::NumFrameResources;
 	gamePipeline = std::make_unique<StdPipeline>(initDesc);
 	scenePipeline = std::make_unique<StdPipeline>(initDesc);
-	RsrcMngrDX12::Instance().CommitUploadAndDelete(pEditor->uCmdQueue.Get());
+	GPURsrcMngrDX12::Instance().CommitUploadAndDelete(pEditor->uCmdQueue.Get());
 
 	gameRT_SRV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(1);
 	gameRT_RTV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Allocate(1);
@@ -505,15 +496,11 @@ void Editor::Impl::Update() {
 		case Impl::GameState::Starting:
 		{
 			runningGameWorld = std::make_unique<Ubpa::UECS::World>(gameWorld);
-			if (auto hierarchy = editorWorld.entityMngr.GetSingleton<Hierarchy>())
+			if (auto hierarchy = editorWorld.entityMngr.WriteSingleton<Hierarchy>())
 				hierarchy->world = runningGameWorld.get();
-			if (auto ctrl = editorWorld.entityMngr.GetSingleton<SystemController>())
+			if (auto ctrl = editorWorld.entityMngr.WriteSingleton<SystemController>())
 				ctrl->world = runningGameWorld.get();
 			curGameWorld = runningGameWorld.get();
-			runningGameWorld->systemMngr.Activate(runningGameWorld->systemMngr.systemTraits.GetID(UECS::SystemTraits::StaticNameof<LuaScriptQueueSystem>()));
-			auto ctx = LuaCtxMngr::Instance().Register(runningGameWorld.get());
-			sol::state_view lua{ ctx->Main() };
-			lua["world"] = runningGameWorld.get();
 			gameState = Impl::GameState::Running;
 			GameTimer::Instance().Reset();
 			// break;
@@ -528,13 +515,10 @@ void Editor::Impl::Update() {
 		{
 			auto w = runningGameWorld.get();
 			runningGameWorld.reset();
-			if (auto hierarchy = editorWorld.entityMngr.GetSingleton<Hierarchy>())
+			if (auto hierarchy = editorWorld.entityMngr.WriteSingleton<Hierarchy>())
 				hierarchy->world = &gameWorld;
-			if (auto ctrl = editorWorld.entityMngr.GetSingleton<SystemController>())
+			if (auto ctrl = editorWorld.entityMngr.WriteSingleton<SystemController>())
 				ctrl->world = &gameWorld;
-			{
-				LuaCtxMngr::Instance().Unregister(w);
-			}
 			curGameWorld = &gameWorld;
 			gameState = Impl::GameState::NotStart;
 			break;
@@ -570,7 +554,7 @@ void Editor::Impl::Update() {
 			if (!meshFilter->mesh || meshRenderer->materials.empty())
 				return;
 
-			RsrcMngrDX12::Instance().RegisterMesh(
+			GPURsrcMngrDX12::Instance().RegisterMesh(
 				pEditor->uGCmdList.Get(),
 				*meshFilter->mesh
 			);
@@ -579,30 +563,30 @@ void Editor::Impl::Update() {
 				if (!material)
 					continue;
 				for (const auto& [name, property] : material->properties) {
-					if (std::holds_alternative<std::shared_ptr<const Texture2D>>(property)) {
-						RsrcMngrDX12::Instance().RegisterTexture2D(
-							*std::get<std::shared_ptr<const Texture2D>>(property)
+					if (std::holds_alternative<std::shared_ptr<Texture2D>>(property)) {
+						GPURsrcMngrDX12::Instance().RegisterTexture2D(
+							*std::get<std::shared_ptr<Texture2D>>(property)
 						);
 					}
-					else if (std::holds_alternative<std::shared_ptr<const TextureCube>>(property)) {
-						RsrcMngrDX12::Instance().RegisterTextureCube(
-							*std::get<std::shared_ptr<const TextureCube>>(property)
+					else if (std::holds_alternative<std::shared_ptr<TextureCube>>(property)) {
+						GPURsrcMngrDX12::Instance().RegisterTextureCube(
+							*std::get<std::shared_ptr<TextureCube>>(property)
 						);
 					}
 				}
 			}
 		}, false);
 
-		if (auto skybox = w->entityMngr.GetSingleton<Skybox>(); skybox && skybox->material) {
+		if (auto skybox = w->entityMngr.WriteSingleton<Skybox>(); skybox && skybox->material) {
 			for (const auto& [name, property] : skybox->material->properties) {
-				if (std::holds_alternative<std::shared_ptr<const Texture2D>>(property)) {
-					RsrcMngrDX12::Instance().RegisterTexture2D(
-						*std::get<std::shared_ptr<const Texture2D>>(property)
+				if (std::holds_alternative<std::shared_ptr<Texture2D>>(property)) {
+					GPURsrcMngrDX12::Instance().RegisterTexture2D(
+						*std::get<std::shared_ptr<Texture2D>>(property)
 					);
 				}
-				else if (std::holds_alternative<std::shared_ptr<const TextureCube>>(property)) {
-					RsrcMngrDX12::Instance().RegisterTextureCube(
-						*std::get<std::shared_ptr<const TextureCube>>(property)
+				else if (std::holds_alternative<std::shared_ptr<TextureCube>>(property)) {
+					GPURsrcMngrDX12::Instance().RegisterTextureCube(
+						*std::get<std::shared_ptr<TextureCube>>(property)
 					);
 				}
 			}
@@ -614,11 +598,11 @@ void Editor::Impl::Update() {
 	// commit upload, delete ...
 	pEditor->uGCmdList->Close();
 	pEditor->uCmdQueue.Execute(pEditor->uGCmdList.Get());
-	RsrcMngrDX12::Instance().CommitUploadAndDelete(pEditor->uCmdQueue.Get());
+	GPURsrcMngrDX12::Instance().CommitUploadAndDelete(pEditor->uCmdQueue.Get());
 
 	{
 		std::vector<PipelineBase::CameraData> gameCameras;
-		Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::CmptAccessType::Of<Camera>} };
+		Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::AccessTypeID_of<Camera>} };
 		curGameWorld->RunEntityJob([&](Ubpa::UECS::Entity e) {
 			gameCameras.emplace_back(e, *curGameWorld);
 			}, false, camFilter);
@@ -628,7 +612,7 @@ void Editor::Impl::Update() {
 
 	{
 		std::vector<PipelineBase::CameraData> sceneCameras;
-		Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::CmptAccessType::Of<Camera>} };
+		Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::AccessTypeID_of<Camera>} };
 		sceneWorld.RunEntityJob([&](Ubpa::UECS::Entity e) {
 			sceneCameras.emplace_back(e, sceneWorld);
 			}, false, camFilter);
@@ -705,39 +689,6 @@ void Editor::Impl::Draw() {
 	ImGui_ImplWin32_EndFrame();
 }
 
-void Editor::Impl::InitInspectorRegistry() {
-	InspectorRegistry::Instance().RegisterCmpts <
-		// core
-		Camera,
-		MeshFilter,
-		MeshRenderer,
-		WorldTime,
-		Name,
-		Skybox,
-		Light,
-		Input,
-		Roamer,
-
-		// transform
-		Children,
-		LocalToParent,
-		LocalToWorld,
-		Parent,
-		Rotation,
-		RotationEuler,
-		Scale,
-		NonUniformScale,
-		Translation,
-		WorldToLocal,
-
-		LuaScriptQueue
-	> ();
-	InspectorRegistry::Instance().RegisterAssets <
-		Shader
-	>();
-	InspectorRegistry::Instance().RegisterAsset(&InspectMaterial);
-}
-
 void Editor::Impl::InitWorld(Ubpa::UECS::World& w) {
 	auto indices = w.systemMngr.systemTraits.Register<
 		// transform
@@ -761,7 +712,6 @@ void Editor::Impl::InitWorld(Ubpa::UECS::World& w) {
 	>();
 	for (auto idx : indices)
 		w.systemMngr.Activate(idx);
-	w.systemMngr.systemTraits.Register<LuaScriptQueueSystem>();
 
 	w.entityMngr.cmptTraits.Register<
 		// transform
@@ -787,9 +737,6 @@ void Editor::Impl::InitWorld(Ubpa::UECS::World& w) {
 		Input,
 		Roamer,
 
-		// script
-		LuaScriptQueue,
-
 		// editor
 		Hierarchy,
 		Inspector,
@@ -799,94 +746,50 @@ void Editor::Impl::InitWorld(Ubpa::UECS::World& w) {
 }
 
 void Editor::Impl::BuildWorld() {
-	Serializer::Instance().RegisterComponents <
-		// core
-		Camera,
-		MeshFilter,
-		MeshRenderer,
-		WorldTime,
-		Name,
-		Skybox,
-		Light,
-		Input,
-		Roamer,
-
-		// transform
-		Children,
-		LocalToParent,
-		LocalToWorld,
-		Parent,
-		Rotation,
-		RotationEuler,
-		Scale,
-		NonUniformScale,
-		Translation,
-		WorldToLocal,
-
-		LuaScriptQueue,
-
-		// editor
-		Hierarchy,
-		Inspector,
-		ProjectViewer
-	> ();
-
 	{ // game
 		InitWorld(gameWorld);
-
-		//OutputDebugStringA(Serializer::Instance().ToJSON(&gameWorld).c_str());
-		auto scene = AssetMngr::Instance().LoadAsset<Scene>(L"..\\assets\\scenes\\Game.scene");
-		Serializer::Instance().ToWorld(&gameWorld, scene->GetText());
-		{ // input
-			gameWorld.entityMngr.Create<Input>();
-		}
-		OutputDebugStringA(Serializer::Instance().ToJSON(&gameWorld).c_str());
-
-		auto mainLua = LuaCtxMngr::Instance().Register(&gameWorld)->Main();
-		sol::state_view solLua(mainLua);
-		solLua["world"] = &gameWorld;
 	}
 
 	{ // scene
 		InitWorld(sceneWorld);
-		{ // scene camera
-			auto [e, l2w, w2l, cam, t, rot, roamer] = sceneWorld.entityMngr.Create<
-				LocalToWorld,
-				WorldToLocal,
-				Camera,
-				Translation,
-				Rotation,
-				Roamer
-			>();
-			roamer->reverseFrontBack = true;
-			roamer->reverseLeftRight = true;
-			roamer->moveSpeed = 1.f;
-			roamer->rotateSpeed = 0.1f;
-		}
+		//{ // scene camera
+		//	auto [e, l2w, w2l, cam, t, rot, roamer] = sceneWorld.entityMngr.Create<
+		//		LocalToWorld,
+		//		WorldToLocal,
+		//		Camera,
+		//		Translation,
+		//		Rotation,
+		//		Roamer
+		//	>();
+		//	roamer->reverseFrontBack = true;
+		//	roamer->reverseLeftRight = true;
+		//	roamer->moveSpeed = 1.f;
+		//	roamer->rotateSpeed = 0.1f;
+		//}
 
-		{ // hierarchy
-			auto [e, hierarchy] = sceneWorld.entityMngr.Create<Hierarchy>();
-			hierarchy->world = &sceneWorld;
-		}
-		sceneWorld.entityMngr.Create<WorldTime>();
-		sceneWorld.entityMngr.Create<ProjectViewer>();
-		sceneWorld.entityMngr.Create<Inspector>();
-		sceneWorld.entityMngr.Create<Input>();
+		//{ // hierarchy
+		//	auto [e, hierarchy] = sceneWorld.entityMngr.Create<Hierarchy>();
+		//	hierarchy->world = &sceneWorld;
+		//}
+		//sceneWorld.entityMngr.Create<WorldTime>();
+		//sceneWorld.entityMngr.Create<ProjectViewer>();
+		//sceneWorld.entityMngr.Create<Inspector>();
+		//sceneWorld.entityMngr.Create<Input>();
 	}
 	
 	{ // editor
 		InitWorld(editorWorld);
-		{ // hierarchy
-			auto [e, hierarchy] = editorWorld.entityMngr.Create<Hierarchy>();
-			hierarchy->world = &gameWorld;
-		}
-		{ // system controller
-			auto [e, systemCtrl] = editorWorld.entityMngr.Create<SystemController>();
-			systemCtrl->world = &gameWorld;
-		}
-		editorWorld.entityMngr.Create<Inspector>();
-		editorWorld.entityMngr.Create<ProjectViewer>();
-		editorWorld.systemMngr.RegisterAndActivate<LoggerSystem, SystemControllerSystem>();
+		//{ // hierarchy
+		//	auto [e, hierarchy] = editorWorld.entityMngr.Create<Hierarchy>();
+		//	hierarchy->world = &gameWorld;
+		//}
+		//{ // system controller
+		//	auto [e, systemCtrl] = editorWorld.entityMngr.Create<SystemController>();
+		//	systemCtrl->world = &gameWorld;
+		//}
+		//editorWorld.entityMngr.Create<Inspector>();
+		//editorWorld.entityMngr.Create<ProjectViewer>();
+		//editorWorld.systemMngr.RegisterAndActivate<LoggerSystem, SystemControllerSystem>();
 	}
 }
 
@@ -894,7 +797,7 @@ void Editor::Impl::LoadTextures() {
 	auto tex2dGUIDs = AssetMngr::Instance().FindAssets(std::wregex{ LR"(\.\.\\assets\\_internal\\.*\.tex2d)" });
 	for (const auto& guid : tex2dGUIDs) {
 		const auto& path = AssetMngr::Instance().GUIDToAssetPath(guid);
-		RsrcMngrDX12::Instance().RegisterTexture2D(
+		GPURsrcMngrDX12::Instance().RegisterTexture2D(
 			*AssetMngr::Instance().LoadAsset<Texture2D>(path)
 		);
 	}
@@ -902,7 +805,7 @@ void Editor::Impl::LoadTextures() {
 	auto texcubeGUIDs = AssetMngr::Instance().FindAssets(std::wregex{ LR"(\.\.\\assets\\_internal\\.*\.texcube)" });
 	for (const auto& guid : texcubeGUIDs) {
 		const auto& path = AssetMngr::Instance().GUIDToAssetPath(guid);
-		RsrcMngrDX12::Instance().RegisterTextureCube(
+		GPURsrcMngrDX12::Instance().RegisterTextureCube(
 			*AssetMngr::Instance().LoadAsset<TextureCube>(path)
 		);
 	}
@@ -914,78 +817,78 @@ void Editor::Impl::BuildShaders() {
 	for (const auto& guid : shaderGUIDs) {
 		const auto& path = assetMngr.GUIDToAssetPath(guid);
 		auto shader = assetMngr.LoadAsset<Shader>(path);
-		RsrcMngrDX12::Instance().RegisterShader(*shader);
-		ShaderMngr::Instance().Register(shader);
+		GPURsrcMngrDX12::Instance().RegisterShader(*shader);
+		ShaderMngr::Instance().Register(shader.obj);
 	}
 }
 
-void Editor::Impl::InspectMaterial(Material* material, InspectorRegistry::InspectContext ctx) {
-	ImGui::Text("(*)");
-	ImGui::SameLine();
-	if (material->shader) {
-		if (ImGui::Button(material->shader->name.c_str()))
-			ImGui::OpenPopup("Meterial_Shader_Seletor");
-	}
-	else {
-		if (ImGui::Button("nullptr"))
-			ImGui::OpenPopup("Meterial_Shader_Seletor");
-	}
-	if (ImGui::BeginDragDropTarget()) {
-		if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(PlayloadType::GUID)) {
-			IM_ASSERT(payload->DataSize == sizeof(xg::Guid));
-			const auto& payload_guid = *(const xg::Guid*)payload->Data;
-			const auto& path = AssetMngr::Instance().GUIDToAssetPath(payload_guid);
-			assert(!path.empty());
-			if (auto shader = AssetMngr::Instance().LoadAsset<Shader>(path)) {
-				material->shader = shader;
-				material->properties = shader->properties;
-			}
-		}
-		ImGui::EndDragDropTarget();
-	}
-	if (ImGui::BeginPopup("Meterial_Shader_Seletor")) {
-		if (material->shader)
-			ImGui::PushID((void*)material->shader->GetInstanceID());
-		else
-			ImGui::PushID(0);
-		// Helper class to easy setup a text filter.
-		// You may want to implement a more feature-full filtering scheme in your own application.
-		static ImGuiTextFilter filter;
-		filter.Draw();
-		int ID = 0;
-		ShaderMngr::Instance().Refresh();
-		size_t N = ShaderMngr::Instance().GetShaderMap().size();
-		for (const auto& [name, shader] : ShaderMngr::Instance().GetShaderMap()) {
-			auto shader_s = shader.lock();
-			if (shader_s != material->shader && filter.PassFilter(name.c_str())) {
-				ImGui::PushID(ID);
-				ImGui::PushStyleColor(ImGuiCol_Button, (ImVec4)ImColor::HSV(ID / float(N), 0.6f, 0.6f));
-				ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImVec4)ImColor::HSV(ID / float(N), 0.7f, 0.7f));
-				ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImVec4)ImColor::HSV(ID / float(N), 0.8f, 0.8f));
-				if (ImGui::Button(name.c_str())) {
-					material->shader = shader_s;
-					material->properties = shader_s->properties;
-				}
-				ImGui::PopStyleColor(3);
-				ImGui::PopID();
-			}
-			ID++;
-		}
-		ImGui::PopID();
-		ImGui::EndPopup();
-	}
-	ImGui::SameLine();
-	ImGui::Text("shader");
-
-	bool changed = false;
-	USRefl::TypeInfo<Material>::ForEachVarOf(*material, [ctx, &changed](auto field, auto& var) {
-		if (field.name == "shader")
-			return;
-		if (detail::InspectVar1(field, var, ctx))
-			changed = true;
-	});
-	if (changed) {
-		const auto& path = AssetMngr::Instance().GetAssetPath(*material);
-		AssetMngr::Instance().ReserializeAsset(path);
-	}
-}
+//void Editor::Impl::InspectMaterial(Material* material, InspectorRegistry::InspectContext ctx) {
+//	ImGui::Text("(*)");
+//	ImGui::SameLine();
+//	if (material->shader) {
+//		if (ImGui::Button(material->shader->name.c_str()))
+//			ImGui::OpenPopup("Meterial_Shader_Seletor");
+//	}
+//	else {
+//		if (ImGui::Button("nullptr"))
+//			ImGui::OpenPopup("Meterial_Shader_Seletor");
+//	}
+//	if (ImGui::BeginDragDropTarget()) {
+//		if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(PlayloadType::GUID)) {
+//			IM_ASSERT(payload->DataSize == sizeof(xg::Guid));
+//			const auto& payload_guid = *(const xg::Guid*)payload->Data;
+//			const auto& path = AssetMngr::Instance().GUIDToAssetPath(payload_guid);
+//			assert(!path.empty());
+//			if (auto shader = AssetMngr::Instance().LoadAsset<Shader>(path)) {
+//				material->shader = shader.obj;
+//				material->properties = shader->properties;
+//			}
+//		}
+//		ImGui::EndDragDropTarget();
+//	}
+//	if (ImGui::BeginPopup("Meterial_Shader_Seletor")) {
+//		if (material->shader)
+//			ImGui::PushID((void*)material->shader->GetInstanceID());
+//		else
+//			ImGui::PushID(0);
+//		// Helper class to easy setup a text filter.
+//		// You may want to implement a more feature-full filtering scheme in your own application.
+//		static ImGuiTextFilter filter;
+//		filter.Draw();
+//		int ID = 0;
+//		ShaderMngr::Instance().Refresh();
+//		size_t N = ShaderMngr::Instance().GetShaderMap().size();
+//		for (const auto& [name, shader] : ShaderMngr::Instance().GetShaderMap()) {
+//			auto shader_s = shader.lock();
+//			if (shader_s != material->shader && filter.PassFilter(name.c_str())) {
+//				ImGui::PushID(ID);
+//				ImGui::PushStyleColor(ImGuiCol_Button, (ImVec4)ImColor::HSV(ID / float(N), 0.6f, 0.6f));
+//				ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImVec4)ImColor::HSV(ID / float(N), 0.7f, 0.7f));
+//				ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImVec4)ImColor::HSV(ID / float(N), 0.8f, 0.8f));
+//				if (ImGui::Button(name.c_str())) {
+//					material->shader = shader_s;
+//					material->properties = shader_s->properties;
+//				}
+//				ImGui::PopStyleColor(3);
+//				ImGui::PopID();
+//			}
+//			ID++;
+//		}
+//		ImGui::PopID();
+//		ImGui::EndPopup();
+//	}
+//	ImGui::SameLine();
+//	ImGui::Text("shader");
+//
+//	bool changed = false;
+//	USRefl::TypeInfo<Material>::ForEachVarOf(*material, [ctx, &changed](auto field, auto& var) {
+//		if (field.name == "shader")
+//			return;
+//		if (detail::InspectVar1(field, var, ctx))
+//			changed = true;
+//	});
+//	if (changed) {
+//		const auto& path = AssetMngr::Instance().GetAssetPath(*material);
+//		AssetMngr::Instance().ReserializeAsset(path);
+//	}
+//}

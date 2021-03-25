@@ -10,7 +10,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "_deps/stb_image_write.h"
 
-#include <UGM/point.h>
+#include <UGM/point.hpp>
 
 using namespace Ubpa::Utopia;
 using namespace Ubpa;
@@ -228,9 +228,6 @@ const rgbaf Image::SampleLinear(const pointf2& uv) const {
 	assert(IsValid());
 	assert(0 <= u && u <= 1);
 	assert(0 <= v && v <= 1);
-
-	Read<Image, pointf3> p;
-	p + vecf3{ 1,1,1 };
 
 	float xf = width * u - 0.5f; // [-0.5f, width - 0.5f]
 	float yf = height * v - 0.5f; // [-0.5f, height - 0.5f]

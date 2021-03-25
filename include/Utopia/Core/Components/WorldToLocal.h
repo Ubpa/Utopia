@@ -1,11 +1,9 @@
 #pragma once
 
-#include <UGM/transform.h>
+#include <UGM/transform.hpp>
 
 namespace Ubpa::Utopia {
 	struct WorldToLocal {
 		transformf value{ transformf::eye() };
 	};
 }
-
-#include "details/WorldToLocal_AutoRefl.inl"

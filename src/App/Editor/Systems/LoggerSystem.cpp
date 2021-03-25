@@ -9,7 +9,7 @@ using namespace Ubpa::Utopia;
 using namespace Ubpa::UECS;
 
 void LoggerSystem::OnUpdate(UECS::Schedule& schedule) {
-	schedule.RegisterCommand([](UECS::World*) {
+	schedule.GetWorld()->AddCommand([]() {
 		if (ImGui::Begin("Log")) {
 			auto logger = spdlog::default_logger();
 			if (!logger || logger->sinks().size() != 1) {
@@ -67,5 +67,5 @@ void LoggerSystem::OnUpdate(UECS::Schedule& schedule) {
 			ImGui::EndChild();
 		}
 		ImGui::End();
-	});
+	}, 0);
 }

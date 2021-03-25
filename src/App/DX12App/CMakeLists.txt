@@ -3,7 +3,7 @@ Ubpa_AddTarget(
   SOURCE
     "${PROJECT_SOURCE_DIR}/include/Utopia/App/DX12App"
   LIB
-    Ubpa::Utopia_Asset
+    Ubpa::Utopia_Render
   L_OPTION_INTERFACE
     /SUBSYSTEM:WINDOWS
 )

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <UECS/Entity.h>
-#include <UGM/point.h>
+#include <UECS/Entity.hpp>
+#include <UGM/point.hpp>
 
 #include <vector>
 

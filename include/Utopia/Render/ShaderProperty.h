@@ -1,8 +1,8 @@
 #pragma once
 
-#include <UGM/val.h>
-#include <UGM/rgb.h>
-#include <UGM/rgba.h>
+#include <UGM/val.hpp>
+#include <UGM/rgb.hpp>
+#include <UGM/rgba.hpp>
 
 #include <variant>
 #include <memory>
@@ -34,7 +34,7 @@ namespace Ubpa::Utopia {
 		val<double, 4>,                    // 19, vector<double, 4>
 		rgbf,                              // 20, color (RGB)
 		rgbaf,                             // 21, color (RGBA)
-		std::shared_ptr<const Texture2D>,  // 22, Texture 2D
-		std::shared_ptr<const TextureCube> // 23, Texture Cube
+		std::shared_ptr<Texture2D>,        // 22, Texture 2D
+		std::shared_ptr<TextureCube>       // 23, Texture Cube
 	>;
 }

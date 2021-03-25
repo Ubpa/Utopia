@@ -4,18 +4,19 @@
 
 #include <Utopia/App/Editor/Components/Inspector.h>
 #include <Utopia/App/Editor/Components/Hierarchy.h>
+#include <Utopia/Core/AssetMngr.h>
 
 #include <_deps/imgui/imgui.h>
 
 using namespace Ubpa::Utopia;
 
 void InspectorSystem::OnUpdate(UECS::Schedule& schedule) {
-	schedule.RegisterCommand([](UECS::World* world) {
-		auto inspector = world->entityMngr.GetSingleton<Inspector>();
+	schedule.GetWorld()->AddCommand([world = schedule.GetWorld()]() {
+		auto inspector = world->entityMngr.WriteSingleton<Inspector>();
 		if (!inspector)
 			return;
 
-		auto hierarchy = world->entityMngr.GetSingleton<Hierarchy>();
+		auto hierarchy = world->entityMngr.WriteSingleton<Hierarchy>();
 		switch (inspector->mode) {
 		case Inspector::Mode::Asset:
 		{
@@ -25,14 +26,14 @@ void InspectorSystem::OnUpdate(UECS::Schedule& schedule) {
 				inspector->lock = false;
 				return;
 			}
-			auto asset = AssetMngr::Instance().LoadAsset(path);
-			const auto& typeinfo = AssetMngr::Instance().GetAssetType(path);
+			auto asset = AssetMngr::Instance().LoadMainAsset(path);
+			const auto& type = AssetMngr::Instance().GetAssetType(path);
 
 			if (ImGui::Begin("Inspector") && inspector->asset.isValid()) {
 				ImGui::Checkbox("lock", &inspector->lock);
 				ImGui::Separator();
-				if (InspectorRegistry::Instance().IsRegisteredAsset(typeinfo))
-					InspectorRegistry::Instance().Inspect(typeinfo, asset.get());
+				if (InspectorRegistry::Instance().IsRegisteredAsset(type))
+					InspectorRegistry::Instance().Inspect(type, asset.obj.GetPtr());
 			}
 			ImGui::End();
 			break;
@@ -57,13 +58,13 @@ void InspectorSystem::OnUpdate(UECS::Schedule& schedule) {
 					int ID = 0;
 					size_t N = hierarchy->world->entityMngr.cmptTraits.GetNames().size();
 					for (const auto& [type, name] : hierarchy->world->entityMngr.cmptTraits.GetNames()) {
-						if (!hierarchy->world->entityMngr.Have(inspector->entity, type) && filter.PassFilter(name.c_str())) {
+						if (!hierarchy->world->entityMngr.Have(inspector->entity, type) && filter.PassFilter(name.data())) {
 							ImGui::PushID(ID);
 							ImGui::PushStyleColor(ImGuiCol_Button, (ImVec4)ImColor::HSV(ID / float(N), 0.6f, 0.6f));
 							ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImVec4)ImColor::HSV(ID / float(N), 0.7f, 0.7f));
 							ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImVec4)ImColor::HSV(ID / float(N), 0.8f, 0.8f));
-							if (ImGui::Button(name.c_str()))
-								hierarchy->world->entityMngr.Attach(inspector->entity, type);
+							if (ImGui::Button(name.data()))
+								hierarchy->world->entityMngr.Attach(inspector->entity, TempTypeIDs{ type });
 							ImGui::PopStyleColor(3);
 							ImGui::PopID();
 						}
@@ -82,10 +83,10 @@ void InspectorSystem::OnUpdate(UECS::Schedule& schedule) {
 					static ImGuiTextFilter filter;
 					filter.Draw();
 					int ID = 0;
-					auto cmpts = hierarchy->world->entityMngr.Components(inspector->entity);
+					auto cmpts = hierarchy->world->entityMngr.Components(inspector->entity, UECS::AccessMode::WRITE);
 					size_t N = cmpts.size();
 					for (const auto& cmpt : cmpts) {
-						auto name = hierarchy->world->entityMngr.cmptTraits.Nameof(cmpt.Type());
+						auto name = hierarchy->world->entityMngr.cmptTraits.Nameof(cmpt.AccessType());
 						if (!name.empty()) {
 							if (filter.PassFilter(name.data())) {
 								ImGui::PushID(ID);
@@ -93,23 +94,23 @@ void InspectorSystem::OnUpdate(UECS::Schedule& schedule) {
 								ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImVec4)ImColor::HSV(ID / float(N), 0.7f, 0.7f));
 								ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImVec4)ImColor::HSV(ID / float(N), 0.8f, 0.8f));
 								if (ImGui::Button(name.data())) {
-									const auto cmptType = cmpt.Type();
-									hierarchy->world->entityMngr.Detach(inspector->entity, cmptType);
+									const auto cmptType = cmpt.AccessType();
+									hierarchy->world->entityMngr.Detach(inspector->entity, TempTypeIDs{ cmptType });
 								}
 								ImGui::PopStyleColor(3);
 								ImGui::PopID();
 							}
 						}
 						else {
-							auto name = std::to_string(cmpt.Type().HashCode());
+							auto name = std::to_string(cmpt.AccessType().GetValue());
 							if (filter.PassFilter(name.c_str())) {
 								ImGui::PushID(ID);
 								ImGui::PushStyleColor(ImGuiCol_Button, (ImVec4)ImColor::HSV(ID / float(N), 0.6f, 0.6f));
 								ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImVec4)ImColor::HSV(ID / float(N), 0.7f, 0.7f));
 								ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImVec4)ImColor::HSV(ID / float(N), 0.8f, 0.8f));
 								if (ImGui::Button(name.c_str())) {
-									const auto cmptType = cmpt.Type();
-									hierarchy->world->entityMngr.Detach(inspector->entity, cmptType);
+									const auto cmptType = cmpt.AccessType();
+									hierarchy->world->entityMngr.Detach(inspector->entity, TempTypeIDs{ cmptType });
 								}
 								ImGui::PopStyleColor(3);
 								ImGui::PopID();
@@ -124,21 +125,21 @@ void InspectorSystem::OnUpdate(UECS::Schedule& schedule) {
 				ImGui::Checkbox("lock", &inspector->lock);
 				ImGui::Separator();
 
-				auto cmpts = hierarchy->world->entityMngr.Components(inspector->entity);
+				auto cmpts = hierarchy->world->entityMngr.Components(inspector->entity, Ubpa::UECS::AccessMode::WRITE);
 				for (size_t i = 0; i < cmpts.size(); i++) {
-					auto type = cmpts[i].Type();
+					auto type = cmpts[i].AccessType();
 					if (InspectorRegistry::Instance().IsRegisteredCmpt(type))
 						continue;
 					auto name = hierarchy->world->entityMngr.cmptTraits.Nameof(type);
 					if (name.empty())
-						ImGui::Text(std::to_string(type.HashCode()).c_str());
+						ImGui::Text(std::to_string(type.GetValue()).c_str());
 					else
 						ImGui::Text(name.data());
 				}
 
 				for (const auto& cmpt : cmpts) {
-					if (InspectorRegistry::Instance().IsRegisteredCmpt(cmpt.Type()))
-						InspectorRegistry::Instance().Inspect(hierarchy->world, cmpt);
+					if (InspectorRegistry::Instance().IsRegisteredCmpt(cmpt.AccessType()))
+						InspectorRegistry::Instance().Inspect(hierarchy->world, cmpt.Ptr());
 				}
 			}
 			ImGui::End();
@@ -148,5 +149,5 @@ void InspectorSystem::OnUpdate(UECS::Schedule& schedule) {
 			assert(false);
 			break;
 		}
-	});
+	}, 0);
 }

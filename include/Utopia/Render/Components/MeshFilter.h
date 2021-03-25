@@ -1,12 +1,10 @@
 #pragma once
 
 #include "../Mesh.h"
-#include <USTL/memory.h>
+#include "../../Core/SharedVar.h"
 
 namespace Ubpa::Utopia {
 	struct MeshFilter {
-		USTL::shared_object<Mesh> mesh;
+		SharedVar<Mesh> mesh;
 	};
 }
-
-#include "details/MeshFilter_AutoRefl.inl"

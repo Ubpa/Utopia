@@ -3,7 +3,7 @@
 #include <Utopia/Render/Material.h>
 #include <Utopia/Render/Shader.h>
 
-#include <Utopia/Render/DX12/RsrcMngrDX12.h>
+#include <Utopia/Render/DX12/GPURsrcMngrDX12.h>
 #include <Utopia/Render/DX12/ShaderCBMngrDX12.h>
 
 using namespace Ubpa::Utopia;
@@ -41,8 +41,8 @@ PipelineBase::ShaderCBDesc PipelineBase::UpdateShaderCBs(
 	};
 
 	for (size_t i = 0; i < shader.passes.size(); i++) {
-		CalculateSize(RsrcMngrDX12::Instance().GetShaderRefl_vs(shader, i));
-		CalculateSize(RsrcMngrDX12::Instance().GetShaderRefl_ps(shader, i));
+		CalculateSize(GPURsrcMngrDX12::Instance().GetShaderRefl_vs(shader, i));
+		CalculateSize(GPURsrcMngrDX12::Instance().GetShaderRefl_ps(shader, i));
 	}
 
 	auto buffer = shaderCBMngr.GetBuffer(shader);
@@ -52,8 +52,8 @@ PipelineBase::ShaderCBDesc PipelineBase::UpdateShaderCBs(
 		rst.indexMap[material->GetInstanceID()] = idx;
 	}
 
-	auto UpdateShaderCBsForRefl = [&](std::set<size_t>& flags, const Material* material, ID3D12ShaderReflection* refl) {
-		size_t index = rst.indexMap.at(material->GetInstanceID());
+	auto UpdateShaderCBsForRefl = [&](std::set<size_t>& flags, const Material& material, ID3D12ShaderReflection* refl) {
+		size_t index = rst.indexMap.at(material.GetInstanceID());
 
 		D3D12_SHADER_DESC shaderDesc;
 		ThrowIfFailed(refl->GetDesc(&shaderDesc));
@@ -81,8 +81,8 @@ PipelineBase::ShaderCBDesc PipelineBase::UpdateShaderCBs(
 				D3D12_SHADER_VARIABLE_DESC varDesc;
 				ThrowIfFailed(var->GetDesc(&varDesc));
 
-				auto target = material->properties.find(varDesc.Name);
-				if(target == material->properties.end())
+				auto target = material.properties.find(varDesc.Name);
+				if(target == material.properties.end())
 					continue;
 
 				std::visit([&](const auto& value) {
@@ -106,8 +106,8 @@ PipelineBase::ShaderCBDesc PipelineBase::UpdateShaderCBs(
 	for (auto material : materials) {
 		std::set<size_t> flags;
 		for (size_t i = 0; i < shader.passes.size(); i++) {
-			UpdateShaderCBsForRefl(flags, material, RsrcMngrDX12::Instance().GetShaderRefl_vs(shader, i));
-			UpdateShaderCBsForRefl(flags, material, RsrcMngrDX12::Instance().GetShaderRefl_ps(shader, i));
+			UpdateShaderCBsForRefl(flags, *material, GPURsrcMngrDX12::Instance().GetShaderRefl_vs(shader, i));
+			UpdateShaderCBsForRefl(flags, *material, GPURsrcMngrDX12::Instance().GetShaderRefl_ps(shader, i));
 		}
 	}
 
@@ -223,15 +223,15 @@ void PipelineBase::SetGraphicsRoot_CBV_SRV(
 					switch (dim)
 					{
 					case D3D_SRV_DIMENSION_TEXTURE2D: {
-						assert(std::holds_alternative<std::shared_ptr<const Texture2D>>(target->second));
-						auto tex2d = std::get<std::shared_ptr<const Texture2D>>(target->second);
-						handle = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*tex2d);
+						assert(std::holds_alternative<std::shared_ptr<Texture2D>>(target->second));
+						auto tex2d = std::get<std::shared_ptr<Texture2D>>(target->second);
+						handle = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*tex2d);
 						break;
 					}
 					case D3D_SRV_DIMENSION_TEXTURECUBE: {
-						assert(std::holds_alternative<std::shared_ptr<const TextureCube>>(target->second));
-						auto texcube = std::get<std::shared_ptr<const TextureCube>>(target->second);
-						handle = RsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(*texcube);
+						assert(std::holds_alternative<std::shared_ptr<TextureCube>>(target->second));
+						auto texcube = std::get<std::shared_ptr<TextureCube>>(target->second);
+						handle = GPURsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(*texcube);
 						break;
 					}
 					default:
@@ -256,8 +256,8 @@ void PipelineBase::SetGraphicsRoot_CBV_SRV(
 	};
 
 	for (size_t i = 0; i < material.shader->passes.size(); i++) {
-		SetGraphicsRoot_Refl(RsrcMngrDX12::Instance().GetShaderRefl_vs(*material.shader, i));
-		SetGraphicsRoot_Refl(RsrcMngrDX12::Instance().GetShaderRefl_ps(*material.shader, i));
+		SetGraphicsRoot_Refl(GPURsrcMngrDX12::Instance().GetShaderRefl_vs(*material.shader, i));
+		SetGraphicsRoot_Refl(GPURsrcMngrDX12::Instance().GetShaderRefl_ps(*material.shader, i));
 	}
 }
 

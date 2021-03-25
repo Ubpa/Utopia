@@ -1,7 +1,7 @@
 #pragma once
 
-#include <UGM/point.h>
-#include <UGM/val.h>
+#include <UGM/point.hpp>
+#include <UGM/val.hpp>
 
 namespace Ubpa::Utopia {
 	struct Input {
@@ -76,5 +76,3 @@ namespace Ubpa::Utopia {
 		float KeysDownDuration[512];
 	};
 }
-
-#include "details/Input_AutoRefl.inl"

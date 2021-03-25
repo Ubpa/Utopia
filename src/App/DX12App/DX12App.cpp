@@ -1,6 +1,6 @@
 #include <Utopia/App/DX12App/DX12App.h>
 
-#include <Utopia/Render/DX12/RsrcMngrDX12.h>
+#include <Utopia/Render/DX12/GPURsrcMngrDX12.h>
 
 #include <Utopia/Core/GameTimer.h>
 
@@ -18,7 +18,7 @@ DX12App::DX12App(HINSTANCE hInstance)
 }
 
 DX12App::~DX12App() {
-	Ubpa::Utopia::RsrcMngrDX12::Instance().Clear(uCmdQueue.Get());
+	Ubpa::Utopia::GPURsrcMngrDX12::Instance().Clear(uCmdQueue.Get());
 
 	if (!uDevice.IsNull())
 		FlushCommandQueue();
@@ -298,7 +298,7 @@ bool DX12App::InitDirect3D() {
 		IID_PPV_ARGS(&mFence)));
 
 
-	Ubpa::Utopia::RsrcMngrDX12::Instance().Init(uDevice.raw.Get());
+	Ubpa::Utopia::GPURsrcMngrDX12::Instance().Init(uDevice.raw.Get());
 	Ubpa::UDX12::DescriptorHeapMngr::Instance().Init(uDevice.Get(), 16384, 16384, 16384, 16384, 16384);
 
 	frameRsrcMngr = std::make_unique<Ubpa::UDX12::FrameResourceMngr>(NumFrameResources, uDevice.Get());

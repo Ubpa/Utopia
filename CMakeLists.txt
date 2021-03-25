@@ -4,18 +4,19 @@ project(Utopia VERSION 0.0.5)
 message(STATUS "[Project] ${PROJECT_NAME}")
 
 include(cmake/InitUCMake.cmake)
-Ubpa_InitUCMake()
+Ubpa_InitUCMake(VERSION 0.6.4)
 
 Ubpa_InitProject()
 
 set(Ubpa_USRefl_Build_AutoRefl TRUE CACHE BOOL "use auto refl" FORCE)
 
-Ubpa_AddDep(URapidJSON 0.0.3)
-Ubpa_AddDep(UDP        0.7.4)
-Ubpa_AddDep(UGM        0.6.13)
-Ubpa_AddDep(ULuaPP     0.2.0)
-Ubpa_AddDep(UECS       0.14.4)
-Ubpa_AddDep(UDX12      0.0.12)
+Ubpa_AddDep(URapidJSON 0.0.4)
+Ubpa_AddDep(UVisitor   0.1.0)
+Ubpa_AddDep(UGM        0.7.1)
+Ubpa_AddDep(UECS       0.16.0)
+Ubpa_AddDep(UDX12      0.1.0)
+Ubpa_AddDep(UDRefl     0.10.3)
+Ubpa_AddDep(UANTLR     0.2.1)
 
 Ubpa_DownloadZip(
   https://cdn.jsdelivr.net/gh/Ubpa/UData@master/Utopia/crossguid/crossguid_20200919.zip

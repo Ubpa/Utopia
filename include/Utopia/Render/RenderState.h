@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 namespace Ubpa::Utopia {
 	enum class FillMode {
 		WIREFRAME = 2,
@@ -75,9 +77,9 @@ namespace Ubpa::Utopia {
 
 	struct StencilState {
 		bool enable{ false };
-		uint8_t ref{ 0 };
-		uint8_t readMask{ 0xff };
-		uint8_t writeMask{ 0xff };
+		std::uint8_t ref{ 0 };
+		std::uint8_t readMask{ 0xff };
+		std::uint8_t writeMask{ 0xff };
 		StencilOp failOp{ StencilOp::KEEP };
 		StencilOp depthFailOp{ StencilOp::KEEP };
 		StencilOp passOp{ StencilOp::KEEP };
@@ -96,8 +98,6 @@ namespace Ubpa::Utopia {
 
 		BlendState blendStates[8];
 
-		uint8_t colorMask[8] = { 0x0f,0x0f,0x0f,0x0f,0x0f,0x0f,0x0f,0x0f };
+		std::uint8_t colorMask[8] = { 0x0f,0x0f,0x0f,0x0f,0x0f,0x0f,0x0f,0x0f };
 	};
 }
-
-#include "details/RenderState_AutoRefl.inl"

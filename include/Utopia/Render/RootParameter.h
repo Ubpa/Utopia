@@ -38,8 +38,8 @@ namespace Ubpa::Utopia {
 	};
 
 	struct RootDescriptor {
-		RootDescriptorType DescriptorType; // ignore sampler
-		unsigned int ShaderRegister;
+		RootDescriptorType DescriptorType{}; // ignore sampler
+		unsigned int ShaderRegister{ 0 };
 		unsigned int RegisterSpace{ 0 };
 
 		void Init(
@@ -55,5 +55,3 @@ namespace Ubpa::Utopia {
 
 	using RootParameter = std::variant<RootDescriptorTable, RootConstants, RootDescriptor>;
 }
-
-#include "details/RootParameter_AutoRefl.inl"

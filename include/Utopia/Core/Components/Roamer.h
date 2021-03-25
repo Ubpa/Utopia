@@ -9,5 +9,3 @@ namespace Ubpa::Utopia {
 		bool reverseFrontBack{ false };
 	};
 }
-
-#include "details/Roamer_AutoRefl.inl"

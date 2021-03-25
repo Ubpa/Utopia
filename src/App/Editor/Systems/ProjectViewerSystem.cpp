@@ -5,10 +5,10 @@
 #include <Utopia/App/Editor/Components/ProjectViewer.h>
 #include <Utopia/App/Editor/Components/Inspector.h>
 
-#include <Utopia/Asset/AssetMngr.h>
+#include <Utopia/Core/AssetMngr.h>
 #include <Utopia/Render/Texture2D.h>
 #include <Utopia/Render/Material.h>
-#include <Utopia/Render/DX12/RsrcMngrDX12.h>
+#include <Utopia/Render/DX12/GPURsrcMngrDX12.h>
 
 #include <_deps/imgui/imgui.h>
 #include <_deps/imgui/misc/cpp/imgui_stdlib.h>
@@ -78,7 +78,7 @@ namespace Ubpa::Utopia::detail {
 				ImGui::SetNextItemOpen(true, ImGuiCond_Always);
 
 			bool nodeOpen = ImGui::TreeNodeEx(
-				(const void*)AssetMngr::Instance().LoadAsset(path)->GetInstanceID(),
+				AssetMngr::Instance().LoadMainAsset(path).obj.GetPtr(),
 				nodeFlags,
 				"%s", name.string().c_str()
 			);
@@ -131,16 +131,16 @@ namespace Ubpa::Utopia::detail {
 		auto model = AssetMngr::Instance().LoadAsset<Texture2D>(L"..\\assets\\_internal\\FolderViewer\\textures\\model.tex2d");
 		auto texcube = AssetMngr::Instance().LoadAsset<Texture2D>(L"..\\assets\\_internal\\FolderViewer\\textures\\texcube.tex2d");
 
-		auto fileID = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*file);
-		auto folderID = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*folder);
-		auto codeID = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*code);
-		auto imageID = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*image);
-		auto materialID = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*material);
-		auto shaderID = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*shader);
-		auto hlslID = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*hlsl);
-		auto sceneID = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*scene);
-		auto modelID = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*model);
-		auto texcubeID = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*texcube);
+		auto fileID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*file);
+		auto folderID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*folder);
+		auto codeID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*code);
+		auto imageID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*image);
+		auto materialID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*material);
+		auto shaderID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*shader);
+		auto hlslID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*hlsl);
+		auto sceneID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*scene);
+		auto modelID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*model);
+		auto texcubeID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*texcube);
 
 		ImGuiStyle& style = ImGui::GetStyle();
 		ImVec2 button_sz(64, 64);
@@ -187,10 +187,10 @@ namespace Ubpa::Utopia::detail {
 					}
 					else if (ext == ".tex2d") {
 						auto tex2d = AssetMngr::Instance().LoadAsset<Texture2D>(path);
-						Ubpa::Utopia::RsrcMngrDX12::Instance().RegisterTexture2D(
+						Ubpa::Utopia::GPURsrcMngrDX12::Instance().RegisterTexture2D(
 							*tex2d
 						);
-						id = RsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*tex2d).ptr;
+						id = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*tex2d).ptr;
 					}
 					else if (ext == ".mat")
 						id = materialID.ptr;
@@ -273,9 +273,9 @@ namespace Ubpa::Utopia::detail {
 }
 
 void ProjectViewerSystem::OnUpdate(UECS::Schedule& schedule) {
-	schedule.RegisterCommand([](UECS::World* w) {
-		auto viewer = w->entityMngr.GetSingleton<ProjectViewer>();
-		auto inspector = w->entityMngr.GetSingleton<Inspector>();
+	schedule.GetWorld()->AddCommand([w = schedule.GetWorld()]() {
+		auto viewer = w->entityMngr.WriteSingleton<ProjectViewer>();
+		auto inspector = w->entityMngr.WriteSingleton<Inspector>();
 
 		if (!viewer)
 			return;
@@ -317,11 +317,11 @@ void ProjectViewerSystem::OnUpdate(UECS::Schedule& schedule) {
 						newPath = wstr + L"\\" + L"new file (" + std::to_wstring(i) + L").mat";
 						i++;
 					} while (std::filesystem::exists(newPath));
-					AssetMngr::Instance().CreateAsset(Material{}, newPath);
+					AssetMngr::Instance().CreateAsset(std::make_shared<Material>(), newPath);
 				}
 				ImGui::EndPopup();
 			}
 		}
 		ImGui::End();
-	});
+	}, 0);
 }

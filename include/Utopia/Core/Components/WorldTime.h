@@ -7,5 +7,3 @@ namespace Ubpa::Utopia {
 		float deltaTime; // in seconds
 	};
 }
-
-#include "details/WorldTime_AutoRefl.inl"

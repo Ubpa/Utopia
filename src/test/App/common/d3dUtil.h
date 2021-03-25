@@ -8,7 +8,7 @@
 
 #include <UDX12/UDX12.h>
 #include <UFG/UFG.h>
-#include <Utopia/Render/DX12/RsrcMngrDX12.h>
+#include <Utopia/Render/DX12/GPURsrcMngrDX12.h>
 
 #include <windows.h>
 #include <wrl.h>

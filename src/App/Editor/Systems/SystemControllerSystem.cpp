@@ -8,8 +8,8 @@ using namespace Ubpa::UECS;
 using namespace Ubpa::Utopia;
 
 void SystemControllerSystem::OnUpdate(Schedule& schedule) {
-	schedule.RegisterCommand([](World* w) {
-		auto systemController = w->entityMngr.GetSingleton<SystemController>();
+	schedule.GetWorld()->AddCommand([w = schedule.GetWorld()]() {
+		auto systemController = w->entityMngr.WriteSingleton<SystemController>();
 		if (!systemController || !systemController->world)
 			return;
 
@@ -24,9 +24,9 @@ void SystemControllerSystem::OnUpdate(Schedule& schedule) {
 				static ImGuiTextFilter filter;
 				filter.Draw();
 				int idx = 0;
-				size_t createID = static_cast<size_t>(-1);
-				const size_t N = systemController->world->systemMngr.systemTraits.GetNameIDMap().size();
-				for (const auto& [name, ID] : systemController->world->systemMngr.systemTraits.GetNameIDMap()) {
+				NameID createID;
+				const size_t N = systemController->world->systemMngr.systemTraits.GetNames().size();
+				for (const auto& [ID, name] : systemController->world->systemMngr.systemTraits.GetNames()) {
 					if (!systemController->world->systemMngr.IsAlive(ID) && filter.PassFilter(name.data())) {
 						ImGui::PushID(idx);
 						ImGui::PushStyleColor(ImGuiCol_Button, (ImVec4)ImColor::HSV(idx / float(N), 0.6f, 0.6f));
@@ -39,7 +39,7 @@ void SystemControllerSystem::OnUpdate(Schedule& schedule) {
 					}
 					idx++;
 				}
-				if (createID != static_cast<size_t>(-1))
+				if (createID.Valid())
 					systemController->world->systemMngr.Create(createID);
 				ImGui::PopID();
 				ImGui::EndPopup();
@@ -54,7 +54,7 @@ void SystemControllerSystem::OnUpdate(Schedule& schedule) {
 				static ImGuiTextFilter filter;
 				filter.Draw();
 				int idx = 0;
-				size_t destroyID = static_cast<size_t>(-1);
+				NameID destroyID;
 				size_t N = systemController->world->systemMngr.GetAliveSystemIDs().size();
 				for (const auto& ID : systemController->world->systemMngr.GetAliveSystemIDs()) {
 					auto name = systemController->world->systemMngr.systemTraits.Nameof(ID);
@@ -70,7 +70,7 @@ void SystemControllerSystem::OnUpdate(Schedule& schedule) {
 					}
 					idx++;
 				}
-				if (destroyID != static_cast<size_t>(-1))
+				if (destroyID.Valid())
 					systemController->world->systemMngr.Destroy(destroyID);
 				ImGui::PopID();
 				ImGui::EndPopup();
@@ -78,7 +78,7 @@ void SystemControllerSystem::OnUpdate(Schedule& schedule) {
 			ImGui::Separator();
 
 			{
-				size_t switchID = static_cast<size_t>(-1);
+				NameID switchID;
 				static ImGuiTextFilter filter;
 				filter.Draw();
 				for (const auto& ID : systemController->world->systemMngr.GetAliveSystemIDs()) {
@@ -89,7 +89,7 @@ void SystemControllerSystem::OnUpdate(Schedule& schedule) {
 							switchID = ID;
 					}
 				}
-				if (switchID != static_cast<size_t>(-1)) {
+				if (switchID.Valid()) {
 					if (systemController->world->systemMngr.IsActive(switchID))
 						systemController->world->systemMngr.Deactivate(switchID);
 					else
@@ -98,5 +98,5 @@ void SystemControllerSystem::OnUpdate(Schedule& schedule) {
 			}
 		}
 		ImGui::End();
-	});
+	}, 0);
 }

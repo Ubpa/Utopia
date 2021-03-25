@@ -195,6 +195,7 @@ float _LTC_Rect_Evaluate(float3 N, float3 V, float3 P, float3x3 invM,
     L[1] = mul(invM, p1 - P);
     L[2] = mul(invM, p2 - P);
     L[3] = mul(invM, p3 - P);
+	L[4] = float3(0,0,0);
     // integrate
     float sum = 0.0;
 #ifdef STD_PIPELINE_LTC_RECT_SPHEXE_APPROX // sphere approximation

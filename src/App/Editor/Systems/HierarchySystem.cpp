@@ -17,7 +17,7 @@ namespace Ubpa::Utopia::detail {
 	bool HierarchyMovable(const UECS::World* w, UECS::Entity dst, UECS::Entity src) {
 		if (dst == src)
 			return false;
-		else if (auto p = w->entityMngr.Get<Parent>(dst))
+		else if (auto p = w->entityMngr.ReadComponent<Parent>(dst))
 			return HierarchyMovable(w, p->value, src);
 		else
 			return true;
@@ -29,8 +29,8 @@ namespace Ubpa::Utopia::detail {
 			| ImGuiTreeNodeFlags_OpenOnDoubleClick
 			| ImGuiTreeNodeFlags_SpanAvailWidth;
 
-		auto children = hierarchy->world->entityMngr.Get<Children>(e);
-		auto name = hierarchy->world->entityMngr.Get<Name>(e);
+		auto children = hierarchy->world->entityMngr.ReadComponent<Children>(e);
+		auto name = hierarchy->world->entityMngr.ReadComponent<Name>(e);
 		bool isLeaf = !children || children->value.empty();
 
 		ImGuiTreeNodeFlags nodeFlags = nodeBaseFlags;
@@ -40,15 +40,15 @@ namespace Ubpa::Utopia::detail {
 			nodeFlags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
 
 		bool nodeOpen = name ?
-			ImGui::TreeNodeEx((void*)(intptr_t)e.Idx(), nodeFlags, "%s (%d)", name->value.c_str(), e.Idx())
-			: ImGui::TreeNodeEx((void*)(intptr_t)e.Idx(), nodeFlags, "Entity (%d)", e.Idx());
+			ImGui::TreeNodeEx((void*)(intptr_t)e.index, nodeFlags, "%s (%d)", name->value.c_str(), e.index)
+			: ImGui::TreeNodeEx((void*)(intptr_t)e.index, nodeFlags, "Entity (%d)", e.index);
 
 		if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None)) {
 			ImGui::SetDragDropPayload(PlayloadType::ENTITY, &e, sizeof(UECS::Entity));
 			if (name)
-				ImGui::Text("%s (%d)", name->value.c_str(), e.Idx());
+				ImGui::Text("%s (%d)", name->value.c_str(), e.index);
 			else
-				ImGui::Text("Entity (%d)", e.Idx());
+				ImGui::Text("Entity (%d)", e.index);
 
 			ImGui::EndDragDropSource();
 		}
@@ -58,13 +58,15 @@ namespace Ubpa::Utopia::detail {
 				IM_ASSERT(payload->DataSize == sizeof(UECS::Entity));
 				auto payload_e = *(const UECS::Entity*)payload->Data;
 				if (HierarchyMovable(hierarchy->world, e, payload_e)) {
-					auto [payload_e_p] = hierarchy->world->entityMngr.Attach<Parent>(payload_e);
+					hierarchy->world->entityMngr.Attach(payload_e, TypeIDs_of<Parent>);
+					auto payload_e_p = hierarchy->world->entityMngr.WriteComponent<Parent>(payload_e);
 					if (payload_e_p->value.Valid()) {
-						auto parentChildren = hierarchy->world->entityMngr.Get<Children>(payload_e_p->value);
+						auto parentChildren = hierarchy->world->entityMngr.WriteComponent<Children>(payload_e_p->value);
 						parentChildren->value.erase(payload_e);
 					}
 					payload_e_p->value = e;
-					auto [children] = hierarchy->world->entityMngr.Attach<Children>(e);
+					hierarchy->world->entityMngr.Attach(e, TypeIDs_of<Children>);
+					auto children = hierarchy->world->entityMngr.WriteComponent<Children>(e);
 					children->value.insert(payload_e);
 				}
 			}
@@ -90,7 +92,7 @@ namespace Ubpa::Utopia::detail {
 	
 	// delete e and his children
 	void HierarchyDeleteEntityRecursively(UECS::World* w, UECS::Entity e) {
-		if (auto children = w->entityMngr.Get<Children>(e)) {
+		if (auto children = w->entityMngr.ReadComponent<Children>(e)) {
 			for (const auto& child : children->value)
 				HierarchyDeleteEntityRecursively(w, child);
 		}
@@ -100,9 +102,9 @@ namespace Ubpa::Utopia::detail {
 	// delete e in it's parent
 	// then call HierarchyDeleteEntityRecursively
 	void HierarchyDeleteEntity(UECS::World* w, UECS::Entity e) {
-		if (auto p = w->entityMngr.Get<Parent>(e)) {
+		if (auto p = w->entityMngr.ReadComponent<Parent>(e)) {
 			auto e_p = p->value;
-			auto children = w->entityMngr.Get<Children>(e_p);
+			auto children = w->entityMngr.WriteComponent<Children>(e_p);
 			children->value.erase(e);
 		}
 		detail::HierarchyDeleteEntityRecursively(w, e);
@@ -110,8 +112,8 @@ namespace Ubpa::Utopia::detail {
 }
 
 void HierarchySystem::OnUpdate(UECS::Schedule& schedule) {
-	schedule.RegisterCommand([](UECS::World* w) {
-		auto hierarchy = w->entityMngr.GetSingleton<Hierarchy>();
+	schedule.GetWorld()->AddCommand([w = schedule.GetWorld()]() {
+		auto hierarchy = w->entityMngr.WriteSingleton<Hierarchy>();
 		if (!hierarchy)
 			return;
 
@@ -122,9 +124,11 @@ void HierarchySystem::OnUpdate(UECS::Schedule& schedule) {
 			if (ImGui::BeginPopup("Hierarchy_popup")) {
 				if (hierarchy->hover.Valid()) {
 					if (ImGui::MenuItem("Create Empty")) {
-						auto [e, p] = hierarchy->world->entityMngr.Create<Parent>();
+						auto e = hierarchy->world->entityMngr.Create(TypeIDs_of<Parent>);
+						auto p = hierarchy->world->entityMngr.WriteComponent<Parent>(e);
 						p->value = hierarchy->hover;
-						auto [children] = hierarchy->world->entityMngr.Attach<Children>(hierarchy->hover);
+						hierarchy->world->entityMngr.Attach(hierarchy->hover, TypeIDs_of<Children>);
+						auto children = hierarchy->world->entityMngr.WriteComponent<Children>(hierarchy->hover);
 						children->value.insert(e);
 					}
 
@@ -151,18 +155,18 @@ void HierarchySystem::OnUpdate(UECS::Schedule& schedule) {
 					IM_ASSERT(payload->DataSize == sizeof(UECS::Entity));
 					auto payload_e = *(const UECS::Entity*)payload->Data;
 
-					if (auto payload_e_p = hierarchy->world->entityMngr.Get<Parent>(payload_e)) {
-						auto parentChildren = hierarchy->world->entityMngr.Get<Children>(payload_e_p->value);
+					if (auto payload_e_p = hierarchy->world->entityMngr.ReadComponent<Parent>(payload_e)) {
+						auto parentChildren = hierarchy->world->entityMngr.WriteComponent<Children>(payload_e_p->value);
 						parentChildren->value.erase(payload_e);
-						hierarchy->world->entityMngr.Detach<Parent>(payload_e);
+						hierarchy->world->entityMngr.Detach(payload_e, TypeIDs_of<Parent>);
 					}
 				}
 				ImGui::EndDragDropTarget();
 			}
 
-			auto inspector = w->entityMngr.GetSingleton<Inspector>();
+			auto inspector = w->entityMngr.WriteSingleton<Inspector>();
 			UECS::ArchetypeFilter filter;
-			filter.none = { UECS::CmptType::Of<Parent> };
+			filter.none = { TypeID_of<Parent> };
 			hierarchy->world->RunEntityJob(
 				[=](UECS::Entity e) {
 					detail::HierarchyPrintEntity(hierarchy, e, inspector);
@@ -172,5 +176,5 @@ void HierarchySystem::OnUpdate(UECS::Schedule& schedule) {
 			);
 		}
 		ImGui::End();
-	});
+	}, 0);
 }

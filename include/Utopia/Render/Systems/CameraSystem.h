@@ -1,6 +1,6 @@
 #pragma once
 
-#include <UECS/World.h>
+#include <UECS/UECS.hpp>
 
 namespace Ubpa::Utopia {
 	struct CameraSystem {

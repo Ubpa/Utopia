@@ -2,13 +2,14 @@
 
 #include <UDX12/UDX12.h>
 
-#include <UECS/Entity.h>
+#include <UECS/Entity.hpp>
 
 #include <unordered_map>
 #include <map>
 #include <set>
 #include <unordered_set>
 #include <vector>
+#include <memory>
 
 namespace Ubpa::UECS {
 	class World;

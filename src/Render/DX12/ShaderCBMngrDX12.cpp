@@ -24,7 +24,7 @@ Ubpa::UDX12::DynamicUploadBuffer* ShaderCBMngrDX12::GetBuffer(const Shader& shad
 }
 
 Ubpa::UDX12::DynamicUploadBuffer* ShaderCBMngrDX12::GetCommonBuffer() {
-	size_t ID = static_cast<size_t>(-1);
+	constexpr std::size_t ID = static_cast<std::size_t>(-1);
 	auto target = bufferMap.find(ID);
 	if (target != bufferMap.end())
 		return target->second;

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "MeshTopology.h"
-#include <UGM/bbox.h>
+#include <UGM/bbox.hpp>
 
 namespace Ubpa::Utopia {
 	struct SubMeshDescriptor {

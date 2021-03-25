@@ -1,18 +1,22 @@
 #pragma once
 
-#include "../Core/Object.h"
 #include "ShaderPass.h"
 #include "ShaderProperty.h"
 #include "RootParameter.h"
 
+#include "GPURsrc.h"
+
 #include <string>
 #include <vector>
 #include <map>
+#include <memory>
 
 namespace Ubpa::Utopia {
 	class HLSLFile;
 
-	struct Shader : Object {
+	struct Shader : GPURsrc {
+		virtual ~Shader();
+
 		std::shared_ptr<const HLSLFile> hlslFile;
 		std::string name; // e.g. a/b/c/d
 		std::vector<RootParameter> rootParameters;
@@ -20,6 +24,3 @@ namespace Ubpa::Utopia {
 		std::vector<ShaderPass> passes;
 	};
 }
-
-#include "../Core/details/Object_AutoRefl.inl"
-#include "details/Shader_AutoRefl.inl"

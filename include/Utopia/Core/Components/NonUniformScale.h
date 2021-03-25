@@ -1,11 +1,9 @@
 #pragma once
 
-#include <UGM/scale.h>
+#include <UGM/scale.hpp>
 
 namespace Ubpa::Utopia {
 	struct NonUniformScale {
 		scalef3 value{ 1.f };
 	};
 }
-
-#include "details/NonUniformScale_AutoRefl.inl"

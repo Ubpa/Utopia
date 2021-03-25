@@ -1,6 +1,6 @@
 #pragma once
 
-#include <UECS/Entity.h>
+#include <UECS/Entity.hpp>
 #include <vector>
 
 namespace Ubpa::Utopia {
@@ -8,5 +8,3 @@ namespace Ubpa::Utopia {
 		UECS::Entity value{ UECS::Entity::Invalid() };
 	};
 }
-
-#include "details/Parent_AutoRefl.inl"

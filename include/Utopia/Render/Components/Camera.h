@@ -1,6 +1,6 @@
 #pragma once
 
-#include <UGM/transform.h>
+#include <UGM/transform.hpp>
 
 namespace Ubpa::Utopia {
 	struct Camera {
@@ -15,5 +15,3 @@ namespace Ubpa::Utopia {
 		transformf prjectionMatrix;
 	};
 }
-
-#include "details/Camera_AutoRefl.inl"

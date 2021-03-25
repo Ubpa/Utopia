@@ -29,5 +29,3 @@ namespace Ubpa::Utopia {
 		size_t queue{ 2000 };
 	};
 }
-
-#include "details/ShaderPass_AutoRefl.inl"

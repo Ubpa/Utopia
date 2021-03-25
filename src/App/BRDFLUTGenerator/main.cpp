@@ -1,6 +1,6 @@
 #include <Utopia/Core/Image.h>
 
-#include <UGM/UGM.h>
+#include <UGM/UGM.hpp>
 
 #include <iostream>
 #include <thread>

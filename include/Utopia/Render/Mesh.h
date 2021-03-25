@@ -1,10 +1,10 @@
 #pragma once
 
 #include "SubMeshDescriptor.h"
-#include "../Core/Object.h"
 
-#include <UGM/UGM.h>
-#include <UDP/Basic/Dirty.h>
+#include "GPURsrc.h"
+
+#include <UGM/UGM.hpp>
 
 #include <vector>
 
@@ -12,9 +12,9 @@ namespace Ubpa::Utopia {
 	// Non-editable mesh is space-saving (release CPU vertex buffer and GPU upload buffer).
 	// If you want to change any data of the mesh, you should call SetToEditable() firstly.
 	// After editing, you can call SetToNonEditable() to release buffers.
-	class Mesh : public Object {
+	class Mesh : public GPURsrc {
 	public:
-		Mesh(bool isEditable = true) : isEditable{ isEditable } {}
+		Mesh() {}
 
 		const std::vector<pointf3>&           GetPositions() const noexcept { return positions; }
 		const std::vector<pointf2>&           GetUV() const noexcept { return uv; }
@@ -23,10 +23,6 @@ namespace Ubpa::Utopia {
 		const std::vector<rgbf>&              GetColors() const noexcept { return colors; }
 		const std::vector<uint32_t>&          GetIndices() const noexcept { return indices; }
 		const std::vector<SubMeshDescriptor>& GetSubMeshes() const noexcept { return submeshes; }
-
-		bool IsEditable() const noexcept { return isEditable; }
-		void SetToEditable() noexcept { isEditable = true; }
-		void SetToNonEditable() noexcept { isEditable = false; }
 
 		// must editable
 		void SetPositions(std::vector<pointf3> positions) noexcept;
@@ -47,13 +43,14 @@ namespace Ubpa::Utopia {
 		bool IsVertexValid() const noexcept;
 
 	private:
-		// call by the RsrcMngrDX12, need to update GPU buffer in the meantime
-		friend class RsrcMngrDX12;
-		bool IsDirty() const noexcept { return vertexBuffer.IsDirty(); }
-		const void* GetVertexBufferData() { return vertexBuffer.Get(*this).data(); }
+		friend class GPURsrcMngrDX12;
+
+		// call by the GPURsrcMngrDX12, need to update GPU buffer in the meantime
+		const void* GetVertexBufferData();
 		size_t GetVertexBufferVertexCount() const noexcept { return positions.size(); }
-		size_t GetVertexBufferVertexStride() { return vertexBuffer.Get(*this).size() / positions.size(); }
+		size_t GetVertexBufferVertexStride();
 		void ClearVertexBuffer();
+		void UpdateVertexBuffer();
 
 		std::vector<pointf3> positions;
 		std::vector<pointf2> uv;
@@ -63,11 +60,8 @@ namespace Ubpa::Utopia {
 		std::vector<uint32_t> indices;
 		std::vector<SubMeshDescriptor> submeshes;
 
-		static void UpdateVertexBuffer(std::vector<uint8_t>& vb, const Mesh&);
-
 		// pos, uv, normal, tangent, color
-		AutoDirty<std::vector<uint8_t>, const Mesh&> vertexBuffer = { &Mesh::UpdateVertexBuffer };
-
-		bool isEditable;
+		std::vector<uint8_t> vertexBuffer;
+		bool vertexBuffer_dirty{ true };
 	};
 }

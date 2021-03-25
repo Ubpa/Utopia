@@ -2,7 +2,7 @@
 
 #include <Utopia/Core/GameTimer.h>
 #include <Utopia/Asset/AssetMngr.h>
-#include <Utopia/Render/DX12/RsrcMngrDX12.h>
+#include <Utopia/Render/DX12/GPURsrcMngrDX12.h>
 #include <Utopia/Render/Shader.h>
 #include <Utopia/Render/HLSLFile.h>
 #include <Utopia/Render/ShaderMngr.h>
@@ -104,7 +104,7 @@ bool TestApp::Init() {
 	}
 
 	auto PrintShader = [](const Shader& shader) {
-		RsrcMngrDX12::Instance().RegisterShader(shader);
+		GPURsrcMngrDX12::Instance().RegisterShader(shader);
 		auto PrintRefl = [](ID3D12ShaderReflection* refl, const std::string& name) {
 			D3D12_SHADER_DESC shaderDesc;
 			ThrowIfFailed(refl->GetDesc(&shaderDesc));
@@ -180,8 +180,8 @@ bool TestApp::Init() {
 				indent--;
 			}
 		};
-		PrintRefl(RsrcMngrDX12::Instance().GetShaderRefl_vs(shader, 0), shader.name + " vs");
-		PrintRefl(RsrcMngrDX12::Instance().GetShaderRefl_ps(shader, 0), shader.name + " ps");
+		PrintRefl(GPURsrcMngrDX12::Instance().GetShaderRefl_vs(shader, 0), shader.name + " vs");
+		PrintRefl(GPURsrcMngrDX12::Instance().GetShaderRefl_ps(shader, 0), shader.name + " ps");
 	};
 	
 	auto geometry = ShaderMngr::Instance().Get("StdPipeline/Geometry");

@@ -10,33 +10,23 @@ Ubpa_DownloadFile(
 	SHA256 F34D6E55C7BB69C98BF66F191A7636A0B022047BCE7C7B16A9A9F356046FDC8A
 )
 
-set(components
-  Children
-  Input
-  LocalToParent
-  LocalToWorld
-  Name
-  Parent
-  Roamer
-  Rotation
-  RotationEuler
-  Scale
-  NonUniformScale
-  Translation
-  WorldTime
-  WorldToLocal
-)
+set(c_options_private "")
+if(MSVC)
+  list(APPEND c_options_private "/MP;/wd4244")
+elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+  #
+elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+  #
+endif()
 
-set(refls "")
-
-foreach(cmpt ${components})
-  set(dst "${PROJECT_SOURCE_DIR}/include/Utopia/Core/Components/details/${cmpt}_AutoRefl.inl")
-  Ubpa_USReflAutoRefl(
-    "${PROJECT_SOURCE_DIR}/include/Utopia/Core/Components/${cmpt}.h"
-    ${dst}
-  )
-  list(APPEND refls ${dst})
-endforeach()
+set(c_options "")
+if(MSVC)
+  list(APPEND c_options "/wd5222")
+elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+  #
+elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+  #
+endif()
 
 Ubpa_AddTarget(
   MODE STATIC
@@ -46,14 +36,19 @@ Ubpa_AddTarget(
   INC
     "${PROJECT_SOURCE_DIR}/include"
   LIB
-    Ubpa::USTL_core
-    Ubpa::USRefl_core
     Ubpa::UGM_core
-    Ubpa::UDP_core
+    Ubpa::UVisitor_core
+    Ubpa::UDRefl_core
     Ubpa::UECS_core
     Ubpa::UDX12_core
+    Ubpa::URapidJSON_core
     Ubpa::Utopia__deps_imgui
     Ubpa::Utopia__deps_spdlog
+    Ubpa::Utopia__deps_crossguid
+  C_OPTION
+    ${c_options}
+  C_OPTION_PRIVATE
+    ${c_options_private}
   DEFINE
     NOMINMAX
 )

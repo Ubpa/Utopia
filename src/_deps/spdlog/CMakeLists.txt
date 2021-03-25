@@ -3,6 +3,15 @@ find_package(Threads REQUIRED)
 set(SPDLOG_VERSION 1.8.1)
 set(SPDLOG_VERSION_MAJOR 1)
 
+set(c_options_private "")
+if(MSVC)
+  list(APPEND c_options_private "/MP")
+elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+  #
+elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+  #
+endif()
+
 # use fmt as default
 # build static as default
 
@@ -13,6 +22,8 @@ Ubpa_AddTarget(
     "${PROJECT_SOURCE_DIR}/include/_deps/spdlog"
   DEFINE
     SPDLOG_COMPILED_LIB
+  C_OPTION_PRIVATE
+    ${c_options_private}
   INC
     "${PROJECT_SOURCE_DIR}/include/_deps"
   LIB

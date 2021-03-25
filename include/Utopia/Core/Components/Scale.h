@@ -5,5 +5,3 @@ namespace Ubpa::Utopia {
 		float value{ 1.f };
 	};
 }
-
-#include "details/Scale_AutoRefl.inl"

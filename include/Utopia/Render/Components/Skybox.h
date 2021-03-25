@@ -1,13 +1,11 @@
 #pragma once
 
 #include "../Material.h"
-#include <USTL/memory.h>
+#include <Utopia/Core/Asset.h>
 
 namespace Ubpa::Utopia {
 	// singleton
 	struct Skybox {
-		USTL::shared_object<Material> material;
+		TAsset<Material> material;
 	};
 }
-
-#include "details/Skybox_AutoRefl.inl"

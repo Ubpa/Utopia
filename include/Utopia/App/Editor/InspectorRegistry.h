@@ -1,10 +1,10 @@
 #pragma once
 
-#include <UECS/World.h>
+#include <UECS/UECS.hpp>
 
 #include <functional>
 
-#include <UDP/Visitor/ncVisitor.h>
+#include <UVisitor/ncVisitor.h>
 #include <_deps/crossguid/guid.hpp>
 
 namespace UInspector {
@@ -50,27 +50,21 @@ namespace Ubpa::Utopia {
 			const Visitor<void(void*, InspectContext)>& inspector;
 		};
 
-		void RegisterCmpt(UECS::CmptType, std::function<void(void*, InspectContext)> cmptInspectFunc);
+		void RegisterCmpt(TypeID, std::function<void(void*, InspectContext)> cmptInspectFunc);
 
 		template<typename Func>
 		void RegisterCmpt(Func&& func);
 
-		template<typename... Cmpts>
-		void RegisterCmpts();
-
-		void RegisterAsset(const std::type_info&, std::function<void(void*, InspectContext)> assetInspectFunc);
+		void RegisterAsset(Type, std::function<void(void*, InspectContext)> assetInspectFunc);
 
 		template<typename Func>
 		void RegisterAsset(Func&& func);
 
-		template<typename... Assets>
-		void RegisterAssets();
-
-		bool IsRegisteredCmpt(UECS::CmptType) const;
-		bool IsRegisteredAsset(const std::type_info&) const;
+		bool IsRegisteredCmpt(TypeID) const;
+		bool IsRegisteredAsset(Type) const;
 
 		void Inspect(const UECS::World*, UECS::CmptPtr);
-		void Inspect(const std::type_info&, void* asset);
+		void Inspect(Type, void* asset);
 
 	private:
 		InspectorRegistry();

@@ -1,11 +1,9 @@
 #pragma once
 
-#include <UGM/quat.h>
+#include <UGM/quat.hpp>
 
 namespace Ubpa::Utopia {
 	struct Rotation {
 		quatf value{ quatf::identity() };
 	};
 }
-
-#include "details/Rotation_AutoRefl.inl"

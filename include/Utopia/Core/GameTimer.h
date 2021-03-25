@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 namespace Ubpa::Utopia {
 	class GameTimer {
 	public:
@@ -22,11 +24,11 @@ namespace Ubpa::Utopia {
 		double mSecondsPerCount;
 		double mDeltaTime;
 
-		__int64 mBaseTime;
-		__int64 mPausedTime;
-		__int64 mStopTime;
-		__int64 mPrevTime;
-		__int64 mCurrTime;
+		std::int64_t mBaseTime;
+		std::int64_t mPausedTime;
+		std::int64_t mStopTime;
+		std::int64_t mPrevTime;
+		std::int64_t mCurrTime;
 
 		bool mStopped;
 	};

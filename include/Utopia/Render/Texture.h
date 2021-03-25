@@ -1,9 +1,9 @@
 #pragma once
 
-#include "../Core/Object.h"
+#include "GPURsrc.h"
 
 namespace Ubpa::Utopia {
-	class Texture : public Object {
+	class Texture : public GPURsrc {
 	public:
 		virtual ~Texture() = default;
 	protected:
