@@ -4,18 +4,12 @@
 
 using namespace Ubpa::Utopia;
 
-void DefaultAssetImporter::Serialize(Serializer::SerializeContext& ctx) const {
-	ctx.writer.StartObject();
-	ctx.writer.Key(Serializer::Key::TypeID);
-	ctx.writer.Uint64(Type_of<DefaultAssetImporter>.GetID().GetValue());
-	ctx.writer.Key(Serializer::Key::TypeName);
-	ctx.writer.String(type_name<DefaultAssetImporter>().Data());
-	ctx.writer.Key(Serializer::Key::Content);
-	ctx.writer.StartObject();
-	ctx.writer.Key(Serializer::Key::Guid);
-	ctx.writer.String(GetGuid().str());
-	ctx.writer.EndObject();
-	ctx.writer.EndObject();
+void AssetImporter::RegisterToUDRefl() {
+	if (UDRefl::Mngr.typeinfos.contains(Type_of<AssetImporter>))
+		return;
+
+	UDRefl::Mngr.RegisterType<AssetImporter>();
+	UDRefl::Mngr.AddField<&AssetImporter::guid>(Serializer::Key::Guid);
 }
 
 AssetImportContext DefaultAssetImporter::ImportAsset() const {
@@ -27,8 +21,4 @@ AssetImportContext DefaultAssetImporter::ImportAsset() const {
 	ctx.AddObject(name, UDRefl::SharedObject{ Type_of<DefaultAsset>, std::make_shared<DefaultAsset>() });
 	ctx.SetMainObjectID(name);
 	return ctx;
-}
-
-std::shared_ptr<AssetImporter> DefaultAssetImporterCreator::CreateAssetImporter(xg::Guid guid) {
-	return std::make_shared<DefaultAssetImporter>(guid);
 }

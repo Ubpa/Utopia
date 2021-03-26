@@ -1,7 +1,6 @@
 #pragma once
 
 #include "AssetImporter.h"
-#include "Asset.h"
 
 #include <_deps/crossguid/guid.hpp>
 
@@ -27,6 +26,8 @@ namespace Ubpa::Utopia {
 
 		// default : ".."
 		const std::filesystem::path& GetRootPath() const noexcept;
+
+		// clear all imported assets and change root
 		void SetRootPath(std::filesystem::path path);
 
 		void Clear();
@@ -59,10 +60,11 @@ namespace Ubpa::Utopia {
 		const std::filesystem::path& GUIDToAssetPath(const xg::Guid&) const;
 
 		// if not loaded, return nullptr
-		Asset GUIDToAsset(const xg::Guid&) const;
-		Asset GUIDToAsset(const xg::Guid&, Type type) const;
+		
+		UDRefl::SharedObject GUIDToAsset(const xg::Guid&) const;
+		UDRefl::SharedObject GUIDToAsset(const xg::Guid&, Type type) const;
 		template<typename T>
-		TAsset<T> GUIDToAsset(const xg::Guid&) const;
+		std::shared_ptr<T> GUIDToAsset(const xg::Guid&) const;
 
 		// import asset at path (relative)
 		// * generate meta
@@ -71,20 +73,20 @@ namespace Ubpa::Utopia {
 		// not import the 'directory'
 		void ImportAssetRecursively(const std::filesystem::path& directory);
 
-		Asset LoadMainAsset(const std::filesystem::path& path);
+		UDRefl::SharedObject LoadMainAsset(const std::filesystem::path& path);
 		// returns the first asset object of type at given path
-		Asset LoadAsset(const std::filesystem::path& path, Type);
-		std::vector<Asset> LoadAllAssets(const std::filesystem::path& path);
+		UDRefl::SharedObject LoadAsset(const std::filesystem::path& path, Type);
+		std::vector<UDRefl::SharedObject> LoadAllAssets(const std::filesystem::path& path);
 		template<typename T>
-		TAsset<T> LoadAsset(const std::filesystem::path& path);
+		std::shared_ptr<T> LoadAsset(const std::filesystem::path& path);
 
 		bool ReserializeAsset(const std::filesystem::path& path);
 
 		bool MoveAsset(const std::filesystem::path& src, const std::filesystem::path& dst);
 
-		bool IsSupported(std::string_view extension) const noexcept;
-
 		void RegisterAssetImporterCreator(std::string_view extension, std::shared_ptr<AssetImporterCreator> creator);
+
+		std::string_view NameofAsset(UDRefl::SharedObject obj) const;
 
 	private:
 		struct Impl;

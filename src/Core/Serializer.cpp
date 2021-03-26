@@ -6,6 +6,7 @@
 #include <rapidjson/error/en.h>
 
 #include <UDRefl/UDRefl.hpp>
+#include <_deps/crossguid/guid.hpp>
 
 #include <iostream>
 
@@ -30,7 +31,7 @@ namespace Ubpa::Utopia::details {
 
 		return false;
 	}
-	enum AddMode {
+	enum class AddMode {
 		PushBack,
 		PushFront,
 		Insert,
@@ -99,381 +100,386 @@ struct Serializer::Impl {
 		}
 
 		virtual void EnterCmpt(CmptPtr p) override {
-			ObjectView obj{ UDRefl::Mngr.tregistry.Typeof(p.Type()), p.Ptr() };
-			SerializeRecursion(obj);
+			Serializer::SerializeRecursion({ Mngr.tregistry.Typeof(p.Type()), p.Ptr() }, ctx);
 		}
 		virtual void ExistCmpt(CmptPtr) override {
-			ctx.writer.EndObject();
-		}
-
-		void SerializeRecursion(ObjectView obj) {
-			if (obj.GetType().IsArithmetic()) {
-				switch (obj.GetType().GetID().GetValue())
-				{
-				case TypeID_of<bool>.GetValue():
-					ctx.writer.Bool(obj.As<bool>());
-					break;
-				case TypeID_of<std::int8_t>.GetValue():
-					ctx.writer.Int(obj.As<std::int8_t>());
-					break;
-				case TypeID_of<std::int16_t>.GetValue():
-					ctx.writer.Int(obj.As<std::int16_t>());
-					break;
-				case TypeID_of<std::int32_t>.GetValue():
-					ctx.writer.Int(obj.As<std::int32_t>());
-					break;
-				case TypeID_of<std::int64_t>.GetValue():
-					ctx.writer.Int64(obj.As<std::int64_t>());
-					break;
-				case TypeID_of<std::uint8_t>.GetValue():
-					ctx.writer.Uint(obj.As<std::uint8_t>());
-					break;
-				case TypeID_of<std::uint16_t>.GetValue():
-					ctx.writer.Uint(obj.As<std::uint16_t>());
-					break;
-				case TypeID_of<std::uint32_t>.GetValue():
-					ctx.writer.Uint(obj.As<std::uint32_t>());
-					break;
-				case TypeID_of<std::uint64_t>.GetValue():
-					ctx.writer.Uint64(obj.As<std::uint64_t>());
-					break;
-				case TypeID_of<float>.GetValue():
-					ctx.writer.Double(obj.As<float>());
-					break;
-				case TypeID_of<double>.GetValue():
-					ctx.writer.Double(obj.As<double>());
-					break;
-				default:
-					assert(false);
-				}
-				return;
-			}
-			else if (obj.GetType().Is<std::string_view>()) {
-				ctx.writer.String(obj.As<std::string_view>().data());
-				return;
-			}
-			else if (obj.GetType().Is<std::string>()) {
-				ctx.writer.String(obj.As<std::string>().data());
-				return;
-			}
-			else if (obj.GetType().Is<std::pmr::string>()) {
-				ctx.writer.String(obj.As<std::pmr::string>().data());
-				return;
-			}
-
-			if (ctx.serializer.IsRegistered(obj.GetType().GetID().GetValue())) {
-				ctx.serializer.Visit(obj.GetType().GetID().GetValue(), obj.GetPtr(), ctx);
-				return;
-			}
-
-			ctx.writer.StartObject();
-			ctx.writer.Key(Key::TypeID);
-			ctx.writer.Uint64(obj.GetType().GetID().GetValue());
-			ctx.writer.Key(Key::TypeName);
-			ctx.writer.String(obj.GetType().GetName().data());
-			ctx.writer.Key(Key::Content);
-
-			// write content
-
-			if (ctx.serializer.IsRegistered(obj.GetType().GetID().GetValue()))
-				ctx.serializer.Visit(obj.GetType().GetID().GetValue(), obj.GetPtr(), ctx);
-			else if (obj.GetType().IsReference())
-				ctx.writer.String(Key::NotSupport);
-			else if (obj.GetType().Is<UECS::Entity>())
-				ctx.writer.Uint64(obj.As<Entity>().index);
-			else if (auto attr = Mngr.GetTypeAttr(obj.GetType(), Type_of<ContainerType>); attr.GetType().Valid()) {
-				ContainerType ct = attr.As<ContainerType>();
-				switch (ct)
-				{
-				case Ubpa::UDRefl::ContainerType::Span:
-				case Ubpa::UDRefl::ContainerType::Stack:
-				case Ubpa::UDRefl::ContainerType::Queue:
-				case Ubpa::UDRefl::ContainerType::PriorityQueue:
-				case Ubpa::UDRefl::ContainerType::None:
-					ctx.writer.String(Key::NotSupport);
-					break;
-				case Ubpa::UDRefl::ContainerType::Array:
-				case Ubpa::UDRefl::ContainerType::Deque:
-				case Ubpa::UDRefl::ContainerType::ForwardList:
-				case Ubpa::UDRefl::ContainerType::List:
-				case Ubpa::UDRefl::ContainerType::MultiSet:
-				case Ubpa::UDRefl::ContainerType::RawArray:
-				case Ubpa::UDRefl::ContainerType::Set:
-				case Ubpa::UDRefl::ContainerType::UnorderedMap:
-				case Ubpa::UDRefl::ContainerType::UnorderedMultiSet:
-				case Ubpa::UDRefl::ContainerType::UnorderedMultiMap:
-				case Ubpa::UDRefl::ContainerType::UnorderedSet:
-				case Ubpa::UDRefl::ContainerType::Vector:
-					ctx.writer.StartArray();
-					{
-						auto e = obj.end();
-						for (auto iter = obj.begin(); iter != e; ++iter)
-							SerializeRecursion((*iter).RemoveReference());
-					}
-					ctx.writer.EndArray();
-					break;
-				case Ubpa::UDRefl::ContainerType::Pair:
-				case Ubpa::UDRefl::ContainerType::Tuple:
-					ctx.writer.StartArray();
-					{
-						std::size_t size = obj.tuple_size();
-						for (std::size_t i = 0; i < size; i++)
-							SerializeRecursion(obj.get(i).RemoveReference());
-					}
-					ctx.writer.EndArray();
-					break;
-				case Ubpa::UDRefl::ContainerType::Variant:
-					SerializeRecursion(obj.variant_visit_get().RemoveReference());
-					break;
-				case Ubpa::UDRefl::ContainerType::Optional:
-					if (obj.has_value())
-						SerializeRecursion(obj.value().RemoveReference());
-					else
-						ctx.writer.Null();
-					break;
-				default:
-					assert(false);
-					break;
-				}
-			}
-			else if (details::Traits_BeginEnd(obj.GetType())) {
-				ctx.writer.StartArray();
-				{
-					auto e = obj.end();
-					for (auto iter = obj.begin(); iter != e; ++iter)
-						SerializeRecursion((*iter).RemoveReference());
-				}
-				ctx.writer.EndArray();
-			}
-			else {
-				ctx.writer.StartObject();
-				for (const auto& [n, obj] : obj.GetVars(FieldFlag::Owned)) {
-					ctx.writer.Key(n.GetView().data());
-					SerializeRecursion(obj);
-				}
-				ctx.writer.EndObject();
-			}
-
-			ctx.writer.EndObject();
+			// do nothing
 		}
 	};
 };
 
-namespace Ubpa::Utopia::details {
-	UDRefl::SharedObject DeserializeRecursion(const rapidjson::Value& value, Serializer::DeserializeContext& ctx) {
-		if (value.IsBool())
-			return Mngr.MakeShared(Type_of<bool>, TempArgsView{ value.GetBool() });
-		if (value.IsFloat())
-			return Mngr.MakeShared(Type_of<float>, TempArgsView{ value.GetFloat() });
-		if (value.IsDouble())
-			return Mngr.MakeShared(Type_of<double>, TempArgsView{ value.GetDouble() });
-		if (value.IsInt())
-			return Mngr.MakeShared(Type_of<int>, TempArgsView{ value.GetInt() });
-		if (value.IsInt64())
-			return Mngr.MakeShared(Type_of<std::int64_t>, TempArgsView{ value.GetInt64() });
-		if (value.IsUint())
-			return Mngr.MakeShared(Type_of<unsigned int>, TempArgsView{ value.GetUint() });
-		if (value.IsUint64())
-			return Mngr.MakeShared(Type_of<std::uint64_t>, TempArgsView{ value.GetUint64() });
-		if (value.IsString())
-			return Mngr.MakeShared(Type_of<const char*>, TempArgsView{ value.GetString() });
-		if (value.IsNull())
-			return Mngr.MakeShared(Type_of<std::nullptr_t>);
+void Serializer::SerializeRecursion(UDRefl::ObjectView obj, SerializeContext& ctx) {
+	if (obj.GetType().IsArithmetic()) {
+		switch (obj.GetType().GetID().GetValue())
+		{
+		case TypeID_of<bool>.GetValue():
+			ctx.writer.Bool(obj.As<bool>());
+			break;
+		case TypeID_of<std::int8_t>.GetValue():
+			ctx.writer.Int(obj.As<std::int8_t>());
+			break;
+		case TypeID_of<std::int16_t>.GetValue():
+			ctx.writer.Int(obj.As<std::int16_t>());
+			break;
+		case TypeID_of<std::int32_t>.GetValue():
+			ctx.writer.Int(obj.As<std::int32_t>());
+			break;
+		case TypeID_of<std::int64_t>.GetValue():
+			ctx.writer.Int64(obj.As<std::int64_t>());
+			break;
+		case TypeID_of<std::uint8_t>.GetValue():
+			ctx.writer.Uint(obj.As<std::uint8_t>());
+			break;
+		case TypeID_of<std::uint16_t>.GetValue():
+			ctx.writer.Uint(obj.As<std::uint16_t>());
+			break;
+		case TypeID_of<std::uint32_t>.GetValue():
+			ctx.writer.Uint(obj.As<std::uint32_t>());
+			break;
+		case TypeID_of<std::uint64_t>.GetValue():
+			ctx.writer.Uint64(obj.As<std::uint64_t>());
+			break;
+		case TypeID_of<float>.GetValue():
+			ctx.writer.Double(obj.As<float>());
+			break;
+		case TypeID_of<double>.GetValue():
+			ctx.writer.Double(obj.As<double>());
+			break;
+		default:
+			assert(false);
+		}
+		return;
+	}
+	else if (obj.GetType().Is<std::string>()) {
+		ctx.writer.String(obj.As<std::string>());
+		return;
+	}
+	else if (obj.GetType().Is<std::pmr::string>()) {
+		ctx.writer.String(obj.As<std::pmr::string>().data());
+		return;
+	}
+	else if (obj.GetType().Is<xg::Guid>()) {
+		ctx.writer.String(obj.As<xg::Guid>().str());
+		return;
+	}
 
-		assert(value.IsObject());
-		const auto& jsonObj = value.GetObject();
-		if (jsonObj.FindMember(Serializer::Key::TypeID) == jsonObj.end())
+	if (ctx.serializer.IsRegistered(obj.GetType().GetID().GetValue())) {
+		ctx.serializer.Visit(obj.GetType().GetID().GetValue(), obj.GetPtr(), ctx);
+		return;
+	}
+
+	ctx.writer.StartObject();
+	ctx.writer.Key(Key::TypeID);
+	ctx.writer.Uint64(obj.GetType().GetID().GetValue());
+	ctx.writer.Key(Key::TypeName);
+	ctx.writer.String(obj.GetType().GetName().data());
+	ctx.writer.Key(Key::Content);
+
+	// write content
+
+	if (ctx.serializer.IsRegistered(obj.GetType().GetID().GetValue()))
+		ctx.serializer.Visit(obj.GetType().GetID().GetValue(), obj.GetPtr(), ctx);
+	else if (obj.GetType().IsReference())
+		ctx.writer.String(Key::NotSupport);
+	else if (obj.GetType().Is<UECS::Entity>())
+		ctx.writer.Uint64(obj.As<Entity>().index);
+	else if (auto attr = Mngr.GetTypeAttr(obj.GetType(), Type_of<ContainerType>); attr.GetType().Valid()) {
+		ContainerType ct = attr.As<ContainerType>();
+		switch (ct)
+		{
+		case Ubpa::UDRefl::ContainerType::Span:
+		case Ubpa::UDRefl::ContainerType::Stack:
+		case Ubpa::UDRefl::ContainerType::Queue:
+		case Ubpa::UDRefl::ContainerType::PriorityQueue:
+		case Ubpa::UDRefl::ContainerType::None:
+			ctx.writer.String(Key::NotSupport);
+			break;
+		case Ubpa::UDRefl::ContainerType::Array:
+		case Ubpa::UDRefl::ContainerType::Deque:
+		case Ubpa::UDRefl::ContainerType::ForwardList:
+		case Ubpa::UDRefl::ContainerType::List:
+		case Ubpa::UDRefl::ContainerType::MultiSet:
+		case Ubpa::UDRefl::ContainerType::RawArray:
+		case Ubpa::UDRefl::ContainerType::Set:
+		case Ubpa::UDRefl::ContainerType::UnorderedMap:
+		case Ubpa::UDRefl::ContainerType::UnorderedMultiSet:
+		case Ubpa::UDRefl::ContainerType::UnorderedMultiMap:
+		case Ubpa::UDRefl::ContainerType::UnorderedSet:
+		case Ubpa::UDRefl::ContainerType::Vector:
+			ctx.writer.StartArray();
+			{
+				auto e = obj.end();
+				for (auto iter = obj.begin(); iter != e; ++iter)
+					SerializeRecursion((*iter).RemoveReference(), ctx);
+			}
+			ctx.writer.EndArray();
+			break;
+		case Ubpa::UDRefl::ContainerType::Pair:
+		case Ubpa::UDRefl::ContainerType::Tuple:
+			ctx.writer.StartArray();
+			{
+				std::size_t size = obj.tuple_size();
+				for (std::size_t i = 0; i < size; i++)
+					SerializeRecursion(obj.get(i).RemoveReference(), ctx);
+			}
+			ctx.writer.EndArray();
+			break;
+		case Ubpa::UDRefl::ContainerType::Variant:
+			SerializeRecursion(obj.variant_visit_get().RemoveReference(), ctx);
+			break;
+		case Ubpa::UDRefl::ContainerType::Optional:
+			if (obj.has_value())
+				SerializeRecursion(obj.value().RemoveReference(), ctx);
+			else
+				ctx.writer.Null();
+			break;
+		default:
+			assert(false);
+			break;
+		}
+	}
+	else if (details::Traits_BeginEnd(obj.GetType())) {
+		ctx.writer.StartArray();
+		{
+			auto e = obj.end();
+			for (auto iter = obj.begin(); iter != e; ++iter)
+				SerializeRecursion((*iter).RemoveReference(), ctx);
+		}
+		ctx.writer.EndArray();
+	}
+	else {
+		ctx.writer.StartObject();
+		for (const auto& [n, obj] : obj.GetVars(FieldFlag::Owned)) {
+			ctx.writer.Key(n.GetView().data());
+			SerializeRecursion(obj, ctx);
+		}
+		ctx.writer.EndObject();
+	}
+
+	ctx.writer.EndObject();
+}
+
+UDRefl::SharedObject Serializer::DeserializeRecursion(const rapidjson::Value& value, Serializer::DeserializeContext& ctx) {
+	if (value.IsBool())
+		return Mngr.MakeShared(Type_of<bool>, TempArgsView{ value.GetBool() });
+	if (value.IsFloat())
+		return Mngr.MakeShared(Type_of<float>, TempArgsView{ value.GetFloat() });
+	if (value.IsDouble())
+		return Mngr.MakeShared(Type_of<double>, TempArgsView{ value.GetDouble() });
+	if (value.IsInt())
+		return Mngr.MakeShared(Type_of<int>, TempArgsView{ value.GetInt() });
+	if (value.IsInt64())
+		return Mngr.MakeShared(Type_of<std::int64_t>, TempArgsView{ value.GetInt64() });
+	if (value.IsUint())
+		return Mngr.MakeShared(Type_of<unsigned int>, TempArgsView{ value.GetUint() });
+	if (value.IsUint64())
+		return Mngr.MakeShared(Type_of<std::uint64_t>, TempArgsView{ value.GetUint64() });
+	if (value.IsString())
+		return Mngr.MakeShared(Type_of<std::string>, TempArgsView{ value.GetString() });
+	if (value.IsNull())
+		return Mngr.MakeShared(Type_of<std::nullptr_t>);
+
+	assert(value.IsObject());
+	const auto& jsonObj = value.GetObject();
+	if (jsonObj.FindMember(Serializer::Key::TypeID) == jsonObj.end())
+		return {};
+
+	std::uint64_t id = jsonObj[Serializer::Key::TypeID].GetUint64();
+	Type type = Mngr.tregistry.Typeof(TypeID{ id });
+
+	if (type.IsReference()) {
+		assert(false); // not support
+		return {};
+	}
+
+	type = type.RemoveConst();
+
+	const rapidjson::Value& content = jsonObj[Serializer::Key::Content];
+
+	// content -> obj
+
+	if (ctx.deserializer.IsRegistered(type.GetID().GetValue())) {
+		auto* info = Mngr.GetTypeInfo(type);
+		void* buffer = Mngr.GetObjectResource()->allocate(std::max<std::size_t>(1, info->size), info->alignment);
+		ctx.deserializer.Visit(
+			type.GetID().GetValue(),
+			buffer,
+			content,
+			ctx
+		);
+		return SharedObject(type, SharedBuffer(buffer, [type, s = info->size, a = info->alignment](void* ptr) {
+			Mngr.Destruct({ type, ptr });
+			Mngr.GetObjectResource()->deallocate(ptr, s, a);
+		}));
+	}
+	else if (type.Is<Entity>()) {
+		assert(content.IsUint64());
+		return Mngr.MakeShared(type, TempArgsView{ ctx.entityIdxMap.at(content.GetUint64()) });
+	}
+	else if (type.IsArithmetic()) {
+		switch (type.GetID().GetValue())
+		{
+		case TypeID_of<bool>.GetValue():
+			return Mngr.MakeShared(type, TempArgsView{ content.GetBool() });
+		case TypeID_of<std::int8_t>.GetValue():
+			return Mngr.MakeShared(type, TempArgsView{ static_cast<std::int8_t>(content.GetInt()) });
+		case TypeID_of<std::int16_t>.GetValue():
+			return Mngr.MakeShared(type, TempArgsView{ static_cast<std::int16_t>(content.GetInt()) });
+		case TypeID_of<std::int32_t>.GetValue():
+			return Mngr.MakeShared(type, TempArgsView{ static_cast<std::int32_t>(content.GetInt()) });
+		case TypeID_of<std::int64_t>.GetValue():
+			return Mngr.MakeShared(type, TempArgsView{ static_cast<std::int64_t>(content.GetInt64()) });
+		case TypeID_of<std::uint8_t>.GetValue():
+			return Mngr.MakeShared(type, TempArgsView{ static_cast<std::uint8_t>(content.GetUint()) });
+		case TypeID_of<std::uint16_t>.GetValue():
+			return Mngr.MakeShared(type, TempArgsView{ static_cast<std::uint16_t>(content.GetUint()) });
+		case TypeID_of<std::uint32_t>.GetValue():
+			return Mngr.MakeShared(type, TempArgsView{ static_cast<std::uint32_t>(content.GetUint()) });
+		case TypeID_of<std::uint64_t>.GetValue():
+			return Mngr.MakeShared(type, TempArgsView{ static_cast<std::uint64_t>(content.GetUint64()) });
+		case TypeID_of<float>.GetValue():
+			return Mngr.MakeShared(type, TempArgsView{ static_cast<float>(content.GetFloat()) });
+		case TypeID_of<double>.GetValue():
+			return Mngr.MakeShared(type, TempArgsView{ static_cast<double>(content.GetDouble()) });
+		default:
+			assert(false);
 			return {};
-
-		std::uint64_t id = jsonObj[Serializer::Key::TypeID].GetUint64();
-		Type type = Mngr.tregistry.Typeof(TypeID{ id });
-
-		if (type.IsReference()) {
-			assert(false); // not support
+		}
+	}
+	else if (auto attr = Mngr.GetTypeAttr(type, Type_of<ContainerType>); attr.GetType().Valid()) {
+		ContainerType ct = attr.As<ContainerType>();
+		switch (ct)
+		{
+		case Ubpa::UDRefl::ContainerType::Span:
+		case Ubpa::UDRefl::ContainerType::Stack:
+		case Ubpa::UDRefl::ContainerType::Queue:
+		case Ubpa::UDRefl::ContainerType::PriorityQueue:
+		case Ubpa::UDRefl::ContainerType::None:
 			return {};
+		case Ubpa::UDRefl::ContainerType::RawArray:
+		case Ubpa::UDRefl::ContainerType::Array:
+		{
+			auto obj = Mngr.MakeShared(type);
+			const auto& arr = content.GetArray();
+			std::size_t N = obj.size();
+			assert(N == arr.Size());
+			for (std::size_t i = 0; i < N; i++)
+				obj[i] = DeserializeRecursion(arr[static_cast<rapidjson::SizeType>(i)], ctx);
+			return obj;
 		}
-
-		type = type.RemoveConst();
-
-		const rapidjson::Value& content = jsonObj[Serializer::Key::Content];
-
-		// content -> obj
-
-		if (ctx.deserializer.IsRegistered(type.GetID().GetValue())) {
-			auto* info = Mngr.GetTypeInfo(type);
-			void* buffer = Mngr.GetObjectResource()->allocate(std::max<std::size_t>(1, info->size), info->alignment);
-			ctx.deserializer.Visit(
-				type.GetID().GetValue(),
-				buffer,
-				content,
-				ctx
-			);
-			return SharedObject(type, SharedBuffer(buffer, [type, s= info->size, a = info->alignment](void* ptr) {
-				Mngr.Destruct({ type, ptr });
-				Mngr.GetObjectResource()->deallocate(ptr, s, a);
-			}));
-		}
-		else if (type.Is<Entity>()) {
-			assert(content.IsUint64());
-			return Mngr.MakeShared(type, TempArgsView{ ctx.entityIdxMap.at(content.GetUint64()) });
-		}
-		else if (type.IsArithmetic()) {
-			switch (type.GetID().GetValue())
-			{
-			case TypeID_of<bool>.GetValue():
-				return Mngr.MakeShared(type, TempArgsView{ content.GetBool() });
-			case TypeID_of<std::int8_t>.GetValue():
-				return Mngr.MakeShared(type, TempArgsView{ static_cast<std::int8_t>(content.GetInt()) });
-			case TypeID_of<std::int16_t>.GetValue():
-				return Mngr.MakeShared(type, TempArgsView{ static_cast<std::int16_t>(content.GetInt()) });
-			case TypeID_of<std::int32_t>.GetValue():
-				return Mngr.MakeShared(type, TempArgsView{ static_cast<std::int32_t>(content.GetInt()) });
-			case TypeID_of<std::int64_t>.GetValue():
-				return Mngr.MakeShared(type, TempArgsView{ static_cast<std::int64_t>(content.GetInt64()) });
-			case TypeID_of<std::uint8_t>.GetValue():
-				return Mngr.MakeShared(type, TempArgsView{ static_cast<std::uint8_t>(content.GetUint()) });
-			case TypeID_of<std::uint16_t>.GetValue():
-				return Mngr.MakeShared(type, TempArgsView{ static_cast<std::uint16_t>(content.GetUint()) });
-			case TypeID_of<std::uint32_t>.GetValue():
-				return Mngr.MakeShared(type, TempArgsView{ static_cast<std::uint32_t>(content.GetUint()) });
-			case TypeID_of<std::uint64_t>.GetValue():
-				return Mngr.MakeShared(type, TempArgsView{ static_cast<std::uint64_t>(content.GetUint64()) });
-			case TypeID_of<float>.GetValue():
-				return Mngr.MakeShared(type, TempArgsView{ static_cast<float>(content.GetFloat()) });
-			case TypeID_of<double>.GetValue():
-				return Mngr.MakeShared(type, TempArgsView{ static_cast<double>(content.GetDouble()) });
-			default:
-				assert(false);
-				return {};
-			}
-		}
-		else if (auto attr = Mngr.GetTypeAttr(type, Type_of<ContainerType>); attr.GetType().Valid()) {
-			ContainerType ct = attr.As<ContainerType>();
-			switch (ct)
-			{
-			case Ubpa::UDRefl::ContainerType::Span:
-			case Ubpa::UDRefl::ContainerType::Stack:
-			case Ubpa::UDRefl::ContainerType::Queue:
-			case Ubpa::UDRefl::ContainerType::PriorityQueue:
-			case Ubpa::UDRefl::ContainerType::None:
-				return {};
-			case Ubpa::UDRefl::ContainerType::RawArray:
-			case Ubpa::UDRefl::ContainerType::Array:
-			{
-				auto obj = Mngr.MakeShared(type);
-				const auto& arr = content.GetArray();
-				std::size_t N = obj.size();
-				assert(N == arr.Size());
-				for (std::size_t i = 0; i < N; i++)
-					obj[i] = DeserializeRecursion(arr[static_cast<rapidjson::SizeType>(i)], ctx);
-				return obj;
-			}
-			case Ubpa::UDRefl::ContainerType::Deque:
-			case Ubpa::UDRefl::ContainerType::Vector:
-			case Ubpa::UDRefl::ContainerType::List:
-			{
-				auto obj = Mngr.MakeShared(type);
-				const auto& arr = content.GetArray();
-				std::size_t N = arr.Size();
-				for (std::size_t i = 0; i < N; i++)
-					obj.push_back(DeserializeRecursion(arr[static_cast<rapidjson::SizeType>(i)], ctx));
-				return obj;
-			}
-			case Ubpa::UDRefl::ContainerType::ForwardList:
-			{
-				auto obj = Mngr.MakeShared(type);
-				const auto& arr = content.GetArray();
-				std::size_t N = arr.Size();
-				for (std::size_t i = 0; i < N; i++)
-					obj.push_front(DeserializeRecursion(arr[static_cast<rapidjson::SizeType>(N - 1 - i)], ctx));
-				return obj;
-			}
-			case Ubpa::UDRefl::ContainerType::MultiSet:
-			case Ubpa::UDRefl::ContainerType::Set:
-			case Ubpa::UDRefl::ContainerType::UnorderedMap:
-			case Ubpa::UDRefl::ContainerType::UnorderedMultiSet:
-			case Ubpa::UDRefl::ContainerType::UnorderedMultiMap:
-			case Ubpa::UDRefl::ContainerType::UnorderedSet:
-			{
-				auto obj = Mngr.MakeShared(type);
-				const auto& arr = content.GetArray();
-				std::size_t N = arr.Size();
-				for (std::size_t i = 0; i < N; i++)
-					obj.insert(DeserializeRecursion(arr[static_cast<rapidjson::SizeType>(i)], ctx));
-				return obj;
-			}
-			case Ubpa::UDRefl::ContainerType::Pair:
-			case Ubpa::UDRefl::ContainerType::Tuple:
-			{
-				std::vector<SharedObject> args;
-				const auto& arr = content.GetArray();
-				std::size_t N = arr.Size();
-				for (std::size_t i = 0; i < N; i++)
-					args.push_back(DeserializeRecursion(arr[static_cast<rapidjson::SizeType>(i)], ctx));
-				std::vector<void*> argptrs;
-				std::vector<Type> argtypes;
-				for (const auto& arg : args) {
-					argptrs.push_back(arg.GetPtr());
-					argtypes.push_back(arg.GetType());
-				}
-				ArgsView argsview(argptrs.data(), argtypes);
-				return Mngr.MakeShared(type, argsview);
-			}
-			case Ubpa::UDRefl::ContainerType::Variant:
-				return Mngr.MakeShared(type, TempArgsView{ DeserializeRecursion(content, ctx) });
-			case Ubpa::UDRefl::ContainerType::Optional:
-				if (content.IsNull())
-					return Mngr.MakeShared(type);
-				else
-					return Mngr.MakeShared(type, TempArgsView{ DeserializeRecursion(content, ctx) });
-			default:
-				assert(false);
-				return {};
-			}
-		}
-		else if (auto addmode = Traits_AddMode(type); addmode != AddMode::None && Traits_BeginEnd(type)) {
+		case Ubpa::UDRefl::ContainerType::Deque:
+		case Ubpa::UDRefl::ContainerType::Vector:
+		case Ubpa::UDRefl::ContainerType::List:
+		{
 			auto obj = Mngr.MakeShared(type);
 			const auto& arr = content.GetArray();
 			std::size_t N = arr.Size();
-			for (std::size_t i = 0; i < N; i++) {
-				auto ele = DeserializeRecursion(arr[static_cast<rapidjson::SizeType>(i)], ctx);
-				switch (addmode)
-				{
-				case Ubpa::Utopia::details::PushBack:
-					obj.push_back(ele);
-					break;
-				case Ubpa::Utopia::details::PushFront:
-					obj.push_front(ele);
-					break;
-				case Ubpa::Utopia::details::Insert:
-					obj.insert(ele);
-					break;
-				case Ubpa::Utopia::details::Push:
-					obj.push(ele);
-					break;
-				default:
-					assert(false);
-					break;
-				}
-			}
+			for (std::size_t i = 0; i < N; i++)
+				obj.push_back(DeserializeRecursion(arr[static_cast<rapidjson::SizeType>(i)], ctx));
 			return obj;
 		}
-		else {
+		case Ubpa::UDRefl::ContainerType::ForwardList:
+		{
 			auto obj = Mngr.MakeShared(type);
-			const auto& jsonFields = content.GetObject();
-			for (const auto& [n, var] : obj.GetVars(FieldFlag::Owned)) {
-				var.Invoke<void>(
-					NameIDRegistry::Meta::operator_assignment,
-					TempArgsView{ DeserializeRecursion(jsonFields[n.GetView().data()], ctx) },
-					MethodFlag::Variable);
-			}
+			const auto& arr = content.GetArray();
+			std::size_t N = arr.Size();
+			for (std::size_t i = 0; i < N; i++)
+				obj.push_front(DeserializeRecursion(arr[static_cast<rapidjson::SizeType>(N - 1 - i)], ctx));
 			return obj;
 		}
+		case Ubpa::UDRefl::ContainerType::MultiSet:
+		case Ubpa::UDRefl::ContainerType::Set:
+		case Ubpa::UDRefl::ContainerType::UnorderedMap:
+		case Ubpa::UDRefl::ContainerType::UnorderedMultiSet:
+		case Ubpa::UDRefl::ContainerType::UnorderedMultiMap:
+		case Ubpa::UDRefl::ContainerType::UnorderedSet:
+		{
+			auto obj = Mngr.MakeShared(type);
+			const auto& arr = content.GetArray();
+			std::size_t N = arr.Size();
+			for (std::size_t i = 0; i < N; i++)
+				obj.insert(DeserializeRecursion(arr[static_cast<rapidjson::SizeType>(i)], ctx));
+			return obj;
+		}
+		case Ubpa::UDRefl::ContainerType::Pair:
+		case Ubpa::UDRefl::ContainerType::Tuple:
+		{
+			std::vector<SharedObject> args;
+			const auto& arr = content.GetArray();
+			std::size_t N = arr.Size();
+			for (std::size_t i = 0; i < N; i++)
+				args.push_back(DeserializeRecursion(arr[static_cast<rapidjson::SizeType>(i)], ctx));
+			std::vector<void*> argptrs;
+			std::vector<Type> argtypes;
+			for (const auto& arg : args) {
+				argptrs.push_back(arg.GetPtr());
+				argtypes.push_back(arg.GetType());
+			}
+			ArgsView argsview(argptrs.data(), argtypes);
+			return Mngr.MakeShared(type, argsview);
+		}
+		case Ubpa::UDRefl::ContainerType::Variant:
+			return Mngr.MakeShared(type, TempArgsView{ DeserializeRecursion(content, ctx) });
+		case Ubpa::UDRefl::ContainerType::Optional:
+			if (content.IsNull())
+				return Mngr.MakeShared(type);
+			else
+				return Mngr.MakeShared(type, TempArgsView{ DeserializeRecursion(content, ctx) });
+		default:
+			assert(false);
+			return {};
+		}
+	}
+	else if (auto addmode = details::Traits_AddMode(type); addmode != details::AddMode::None && details::Traits_BeginEnd(type)) {
+		auto obj = Mngr.MakeShared(type);
+		const auto& arr = content.GetArray();
+		std::size_t N = arr.Size();
+		for (std::size_t i = 0; i < N; i++) {
+			auto ele = DeserializeRecursion(arr[static_cast<rapidjson::SizeType>(i)], ctx);
+			switch (addmode)
+			{
+			case Ubpa::Utopia::details::AddMode::PushBack:
+				obj.push_back(ele);
+				break;
+			case Ubpa::Utopia::details::AddMode::PushFront:
+				obj.push_front(ele);
+				break;
+			case Ubpa::Utopia::details::AddMode::Insert:
+				obj.insert(ele);
+				break;
+			case Ubpa::Utopia::details::AddMode::Push:
+				obj.push(ele);
+				break;
+			default:
+				assert(false);
+				break;
+			}
+		}
+		return obj;
+	}
+	else {
+		auto obj = Mngr.MakeShared(type);
+		if (!obj.GetType())
+			return {};
+		const auto& jsonFields = content.GetObject();
+		for (const auto& [n, var] : obj.GetVars(FieldFlag::Owned)) {
+			var.Invoke<void>(
+				NameIDRegistry::Meta::operator_assignment,
+				TempArgsView{ DeserializeRecursion(jsonFields[n.GetView().data()], ctx) },
+				MethodFlag::Variable);
+		}
+		return obj;
 	}
 }
 
 Serializer::Serializer()
-	: pImpl{ new Impl } {}
+	: pImpl{ new Impl }
+{
+	UDRefl::Mngr.RegisterType<xg::Guid>();
+	UDRefl::Mngr.AddMemberMethod(UDRefl::NameIDRegistry::Meta::operator_assignment, [](xg::Guid& obj, const std::string_view& str) {
+		obj = xg::Guid{ str };
+	});
+}
 
 Serializer::~Serializer() { delete pImpl; }
 
@@ -486,7 +492,8 @@ string Serializer::Serialize(const World* world) {
 
 string Serializer::Serialize(size_t ID, const void* obj) {
 	SerializeContext ctx{ pImpl->serializer };
-	pImpl->serializer.Visit(ID, obj, ctx);
+	
+	SerializeRecursion(ObjectView{ UDRefl::Mngr.tregistry.Typeof(TypeID{ID}), const_cast<void*>(obj) }, ctx);
 	auto json = ctx.sb.GetString();
 	return json;
 }
@@ -544,7 +551,7 @@ bool Serializer::SerializeToWorld(UECS::World* world, string_view json) {
 			ObjectView obj{ UDRefl::Mngr.tregistry.Typeof(cmptTypes[i]), ptr };
 			obj.Invoke<void>(
 				NameIDRegistry::Meta::operator_assignment,
-				TempArgsView{ details::DeserializeRecursion(jsonCmpts[static_cast<SizeType>(i)], ctx) },
+				TempArgsView{ DeserializeRecursion(jsonCmpts[static_cast<SizeType>(i)], ctx) },
 				MethodFlag::Variable);
 		}
 	}
@@ -557,7 +564,7 @@ UDRefl::SharedObject Serializer::Deserialize(std::string_view json) {
 	ParseResult rst = doc.Parse(json.data());
 	EntityIdxMap emptyMap;
 	DeserializeContext ctx{ emptyMap, pImpl->deserializer };
-	return details::DeserializeRecursion(doc, ctx);
+	return DeserializeRecursion(doc, ctx);
 }
 
 void Serializer::RegisterSerializeFunction(TypeID id, SerializeFunc func) {

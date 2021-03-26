@@ -56,6 +56,8 @@ namespace Ubpa::Utopia {
 		std::string Serialize(const UserType* obj);
 		bool SerializeToWorld(UECS::World*, std::string_view json);
 
+		static void SerializeRecursion(UDRefl::ObjectView obj, SerializeContext& ctx);
+
 		//
 		// Deserialize
 		////////////////
@@ -73,6 +75,8 @@ namespace Ubpa::Utopia {
 		void RegisterDeserializeFunction(Func&& func);
 
 		UDRefl::SharedObject Deserialize(std::string_view json);
+
+		static UDRefl::SharedObject DeserializeRecursion(const rapidjson::Value& value, Serializer::DeserializeContext& ctx);
 
 	private:
 		Serializer();
