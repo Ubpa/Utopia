@@ -25,8 +25,6 @@ struct AssetMngr::Impl {
 
 	std::unordered_map<xg::Guid, std::shared_ptr<AssetImporter>> guid2importer;
 
-	std::map<xg::Guid, std::set<xg::Guid>> assetTree;
-
 	std::map<std::filesystem::path, std::shared_ptr<AssetImporterCreator>> ext2creator;
 
 	std::filesystem::path root{ L".." };
@@ -66,7 +64,7 @@ struct AssetMngr::Impl {
 				guid = xg::newGuid();
 				DefaultAssetImporterCreator ctor;
 				importer = ctor.CreateAssetImporter(guid);
-				std::string metastr = Serializer::Instance().Serialize(importer.get());
+				std::string metastr = Serializer::Instance().Serialize(importer->This());
 				std::ofstream ofs(metapath);
 				assert(ofs.is_open());
 				ofs << metastr;
@@ -75,7 +73,7 @@ struct AssetMngr::Impl {
 			else {
 				guid = xg::newGuid();
 				importer = ctarget->second->CreateAssetImporter(guid);
-				std::string metastr = Serializer::Instance().Serialize(importer.get());
+				std::string metastr = Serializer::Instance().Serialize(importer->This());
 
 				std::ofstream ofs(metapath);
 				assert(ofs.is_open());
@@ -99,9 +97,7 @@ struct AssetMngr::Impl {
 		guid2path.emplace(guid, relpath);
 		guid2importer.emplace(guid, importer);
 
-		auto pguid = ImportAsset(path.parent_path());
-		if (pguid.isValid())
-			assetTree[pguid].insert(guid);
+		ImportAsset(path.parent_path());
 
 		return guid;
 	}
@@ -109,6 +105,7 @@ struct AssetMngr::Impl {
 	std::filesystem::path GetFullPath(const std::filesystem::path& relpath) const {
 		assert(relpath.is_relative());
 		auto path = root;
+		path += LR"(\)";
 		path += relpath;
 		return path;
 	}
@@ -143,7 +140,6 @@ void AssetMngr::SetRootPath(std::filesystem::path path) {
 void AssetMngr::Clear() {
 	pImpl->assetID2guid.clear();
 	pImpl->assetID2name.clear();
-	pImpl->assetTree.clear();
 	pImpl->path2guid.clear();
 	pImpl->guid2asset.clear();
 	pImpl->guid2path.clear();
@@ -180,10 +176,6 @@ xg::Guid AssetMngr::GetAssetGUID(UDRefl::SharedObject obj) const {
 
 const std::filesystem::path& AssetMngr::GetAssetPath(SharedObject obj) const {
 	return GUIDToAssetPath(GetAssetGUID(obj));
-}
-
-const std::map<xg::Guid, std::set<xg::Guid>>& AssetMngr::GetAssetTree() const {
-	return pImpl->assetTree;
 }
 
 Ubpa::Type AssetMngr::GetAssetType(const std::filesystem::path& path) const {
@@ -230,7 +222,7 @@ xg::Guid AssetMngr::ImportAsset(const std::filesystem::path& path) {
 
 	const auto ext = path.extension();
 
-	 std::filesystem::path fullpath = std::filesystem::path{ GetRootPath() } += path;
+	 std::filesystem::path fullpath = pImpl->GetFullPath(path);
 
 	 return pImpl->ImportAsset(fullpath);
 }
@@ -336,9 +328,28 @@ std::vector<SharedObject> AssetMngr::LoadAllAssets(const std::filesystem::path& 
 	return rst;
 }
 
+bool AssetMngr::DeleteAsset(const std::filesystem::path& path) {
+	auto guid = AssetPathToGUID(path);
+	if (guid.isValid()) {
+		pImpl->guid2path.erase(guid);
+		pImpl->path2guid.erase(path);
+		pImpl->guid2importer.erase(guid);
+		auto [iter_begin, iter_end] = pImpl->guid2asset.equal_range(guid);
+		for (auto cursor = iter_begin; cursor != iter_end; ++cursor) {
+			auto asset = cursor->second;
+			pImpl->assetID2guid.erase(asset.GetPtr());
+			pImpl->assetID2name.erase(asset.GetPtr());
+		}
+		pImpl->guid2asset.erase(iter_begin, iter_end);
+	}
+	auto fullpath = pImpl->GetFullPath(path);
+	std::filesystem::remove_all(fullpath);
+	std::filesystem::remove(fullpath.concat(".meta"));
+	return true;
+}
+
 bool AssetMngr::CreateAsset(SharedObject ptr, const std::filesystem::path& path) {
-	if (std::filesystem::exists(path))
-		return false;
+	DeleteAsset(path);
 
 	const auto ext = path.extension().string();
 	assert(ext != ".meta");
@@ -346,26 +357,18 @@ bool AssetMngr::CreateAsset(SharedObject ptr, const std::filesystem::path& path)
 	if (ctarget == pImpl->ext2creator.end())
 		return false;
 
-	auto json = Serializer::Instance().Serialize(ptr.GetType().GetID().GetValue(), ptr.GetPtr());
-	if (json.empty())
-		return false;
-
-	auto dirPath = path.parent_path();
-	if (!std::filesystem::is_directory(dirPath))
-		std::filesystem::create_directories(dirPath);
-
-	std::ofstream ofs(path);
-	assert(ofs.is_open());
-	ofs << json;
-	ofs.close();
-
-	auto guid = ImportAsset(path);
-	if (!guid.isValid())
-		return false;
-
+	xg::Guid guid = xg::newGuid();
+	auto importer = ctarget->second->CreateAssetImporter(guid);
 	pImpl->guid2asset.emplace(guid, ptr);
+	pImpl->guid2path.emplace(guid, path);
+	pImpl->path2guid.emplace(path, guid);
 	pImpl->assetID2guid.emplace(ptr.GetPtr(), guid);
 	pImpl->assetID2name.emplace(ptr.GetPtr(), path.stem().string());
+	pImpl->guid2importer.emplace(guid, importer);
+
+	ImportAsset(path.parent_path());
+
+	ReserializeAsset(path);
 
 	return true;
 }
@@ -378,14 +381,26 @@ bool AssetMngr::ReserializeAsset(const std::filesystem::path& path) {
 	if (target == pImpl->guid2importer.end())
 		return false;
 
-	auto json = target->second->ReserializeAsset();
-	if (json.empty())
-		return false;
+	auto importer = target->second;
+	auto fullpath = pImpl->GetFullPath(path);
 
-	std::ofstream ofs(pImpl->GetFullPath(path));
-	assert(ofs.is_open());
-	ofs << json;
-	ofs.close();
+	{
+		auto json = importer->ReserializeAsset();
+		if (json.empty())
+			return false;
+		std::ofstream ofs(fullpath);
+		assert(ofs.is_open());
+		ofs << json;
+		ofs.close();
+	}
+
+	{
+		auto importerjson = Serializer::Instance().Serialize(importer->This());
+		std::ofstream ofs(fullpath.concat(".meta"));
+		assert(ofs.is_open());
+		ofs << importerjson;
+		ofs.close();
+	}
 
 	return true;
 }
@@ -414,9 +429,6 @@ bool AssetMngr::MoveAsset(const std::filesystem::path& src, const std::filesyste
 	pImpl->guid2path.at(guid) = dst;
 	pImpl->path2guid.erase(srcguidtarget);
 	pImpl->path2guid.emplace(dst, guid);
-
-	pImpl->assetTree.at(AssetPathToGUID(src.parent_path())).erase(guid);
-	pImpl->assetTree.at(AssetPathToGUID(dst.parent_path())).insert(guid);
 	
 	return true;
 }
@@ -427,6 +439,13 @@ std::string_view AssetMngr::NameofAsset(UDRefl::SharedObject obj) const {
 		return {};
 
 	return target->second;
+}
+
+void AssetMngr::SetImporterOverride(const std::filesystem::path& path, std::shared_ptr<AssetImporter> importer) {
+	auto guid = AssetPathToGUID(path);
+	if (!guid.isValid())
+		return;
+	pImpl->guid2importer.insert_or_assign(guid, importer);
 }
 
 std::string AssetMngr::Impl::LoadText(const std::filesystem::path& path) {

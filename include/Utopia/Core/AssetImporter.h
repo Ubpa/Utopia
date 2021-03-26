@@ -51,7 +51,7 @@ namespace Ubpa::Utopia {
 		virtual void Serialize(Serializer::SerializeContext& ctx) const {
 			Serializer::SerializeRecursion(This(), ctx);
 		}
-		virtual std::string ReserializeAsset() const { return {}; }
+		virtual std::string ReserializeAsset() const;
 		virtual AssetImportContext ImportAsset() const = 0;
 
 		static void RegisterToUDRefl(); // call by AssetMngr
@@ -135,12 +135,12 @@ namespace Ubpa::Utopia {
 
 	struct DefaultAsset {};
 
-	class DefaultAssetImporter : public TAssetImporter<DefaultAssetImporter> {
+	class DefaultAssetImporter final : public TAssetImporter<DefaultAssetImporter> {
 	public:
 		using TAssetImporter<DefaultAssetImporter>::TAssetImporter;
 		virtual AssetImportContext ImportAsset() const override;
 		static void RegisterToUDRefl() { RegisterToUDReflHelper(); }
 	};
 
-	class DefaultAssetImporterCreator : public TAssetImporterCreator<DefaultAssetImporter> {};
+	class DefaultAssetImporterCreator final : public TAssetImporterCreator<DefaultAssetImporter> {};
 }

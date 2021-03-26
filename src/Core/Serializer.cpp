@@ -1,5 +1,7 @@
 #include <Utopia/Core/Serializer.h>
 
+#include <Utopia/Core/AssetMngr.h>
+
 #include <UECS/UECS.hpp>
 #include <UECS/IListener.hpp>
 
@@ -183,6 +185,19 @@ void Serializer::SerializeRecursion(UDRefl::ObjectView obj, SerializeContext& ct
 		ctx.writer.String(Key::NotSupport);
 	else if (obj.GetType().Is<UECS::Entity>())
 		ctx.writer.Uint64(obj.As<Entity>().index);
+	else if (obj.GetType().Is<SharedObject>()) {
+		auto sobj = obj.As<SharedObject>();
+		if (AssetMngr::Instance().Contains(sobj)) {
+			ctx.writer.StartObject();
+			ctx.writer.Key(Key::Name);
+			ctx.writer.String(AssetMngr::Instance().NameofAsset(sobj).data());
+			ctx.writer.Key(Key::Guid);
+			ctx.writer.String(AssetMngr::Instance().GetAssetGUID(sobj).str());
+			ctx.writer.EndObject();
+		}
+		else
+			ctx.writer.String(Key::NotSupport);
+	}
 	else if (auto attr = Mngr.GetTypeAttr(obj.GetType(), Type_of<ContainerType>); attr.GetType().Valid()) {
 		ContainerType ct = attr.As<ContainerType>();
 		switch (ct)
@@ -491,9 +506,13 @@ string Serializer::Serialize(const World* world) {
 }
 
 string Serializer::Serialize(size_t ID, const void* obj) {
+	return Serialize(ObjectView{ UDRefl::Mngr.tregistry.Typeof(TypeID{ID}), const_cast<void*>(obj) });
+}
+
+std::string Serializer::Serialize(ObjectView obj) {
 	SerializeContext ctx{ pImpl->serializer };
-	
-	SerializeRecursion(ObjectView{ UDRefl::Mngr.tregistry.Typeof(TypeID{ID}), const_cast<void*>(obj) }, ctx);
+
+	SerializeRecursion(obj, ctx);
 	auto json = ctx.sb.GetString();
 	return json;
 }

@@ -29,6 +29,7 @@ namespace Ubpa::Utopia {
 			static constexpr const char TypeName[] = "__TypeName";
 			static constexpr const char Content[] = "__Content";
 			static constexpr const char NotSupport[] = "__NotSupport";
+			static constexpr const char Name[] = "__Name";
 			static constexpr const char Guid[] = "__Guid";
 		};
 
@@ -52,6 +53,7 @@ namespace Ubpa::Utopia {
 
 		std::string Serialize(const UECS::World*);
 		std::string Serialize(size_t ID, const void* obj);
+		std::string Serialize(UDRefl::ObjectView obj);
 		template<typename UserType>
 		std::string Serialize(const UserType* obj);
 		bool SerializeToWorld(UECS::World*, std::string_view json);

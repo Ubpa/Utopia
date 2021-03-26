@@ -4,6 +4,13 @@
 
 using namespace Ubpa::Utopia;
 
+std::string AssetImporter::ReserializeAsset() const {
+	auto asset = AssetMngr::Instance().GUIDToAsset(guid);
+	if (!asset.GetType() || !asset.GetPtr())
+		return {};
+	return Serializer::Instance().Serialize(asset);
+}
+
 void AssetImporter::RegisterToUDRefl() {
 	if (UDRefl::Mngr.typeinfos.contains(Type_of<AssetImporter>))
 		return;

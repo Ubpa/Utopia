@@ -10,7 +10,7 @@ struct MyAsset {
 	int data;
 };
 
-class MyAssetImporter : public TAssetImporter<MyAssetImporter> {
+class MyAssetImporter final : public TAssetImporter<MyAssetImporter> {
 public:
 	using TAssetImporter<MyAssetImporter>::TAssetImporter;
 
@@ -44,14 +44,14 @@ private:
 	int initdata{ 1 };
 };
 
-class MyAssetImporterCreator : public TAssetImporterCreator<MyAssetImporter> {};
+class MyAssetImporterCreator final : public TAssetImporterCreator<MyAssetImporter> {};
 
 int main() {
 	// Enable run-time memory check for debug builds.
 #if defined(DEBUG) | defined(_DEBUG)
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
-	std::filesystem::path root = LR"(..\src\test\x\00_AssetMngr\assets\)";
+	std::filesystem::path root = LR"(..\src\test\x\00_AssetMngr\assets)";
 	AssetMngr::Instance().SetRootPath(root);
 	assert(AssetMngr::Instance().GetRootPath() == root);
 
@@ -83,11 +83,6 @@ int main() {
 		assert(folder.GetPtr());
 		auto folder_path = AssetMngr::Instance().GetAssetPath(folder);
 		assert(folder_path == LR"(folder)");
-		assert(std::filesystem::is_directory(std::filesystem::path{ AssetMngr::Instance().GetRootPath() } += folder_path));
-		auto tree = AssetMngr::Instance().GetAssetTree();
-		auto guid_folder = AssetMngr::Instance().GetAssetGUID(folder);
-		assert(tree.contains(guid_folder));
-		assert(tree.at(guid_folder).contains(AssetMngr::Instance().GetAssetGUID(asset)));
 	}
 	{
 		auto guid = AssetMngr::Instance().ImportAsset(LR"(.no_stem)");
@@ -114,6 +109,13 @@ int main() {
 		assert(defaultAsset.get() != nullptr);
 		bool success = AssetMngr::Instance().ReserializeAsset(LR"(a.myasset)");
 		assert(success);
+	}
+	{
+		auto myasset = std::make_shared<MyAsset>();
+		myasset->data = 2;
+		AssetMngr::Instance().CreateAsset(myasset, LR"(b.myasset)");
+		AssetMngr::Instance().DeleteAsset(LR"(b.myasset)");
+		AssetMngr::Instance().CreateAsset(myasset, LR"(b.myasset)");
 	}
 
 	AssetMngr::Instance().Clear();

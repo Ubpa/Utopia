@@ -38,6 +38,8 @@ namespace Ubpa::Utopia {
 		// If the asset does not exist, AssetPathToGUID will return invalid xg::Guid
 		xg::Guid AssetPathToGUID(const std::filesystem::path& path) const;
 
+		bool DeleteAsset(const std::filesystem::path& path);
+
 		bool CreateAsset(UDRefl::SharedObject obj, const std::filesystem::path& path);
 
 		template<typename T> requires std::negation_v<std::is_void<T>>
@@ -49,9 +51,6 @@ namespace Ubpa::Utopia {
 
 		xg::Guid GetAssetGUID(UDRefl::SharedObject obj) const;
 		const std::filesystem::path& GetAssetPath(UDRefl::SharedObject obj) const;
-
-		// empty xg::Guid is root
-		const std::map<xg::Guid, std::set<xg::Guid>>& GetAssetTree() const;
 
 		// get first asset type
 		Type GetAssetType(const std::filesystem::path&) const;
@@ -88,6 +87,7 @@ namespace Ubpa::Utopia {
 
 		std::string_view NameofAsset(UDRefl::SharedObject obj) const;
 
+		void SetImporterOverride(const std::filesystem::path& path, std::shared_ptr<AssetImporter> importer);
 	private:
 		struct Impl;
 		Impl* pImpl;
