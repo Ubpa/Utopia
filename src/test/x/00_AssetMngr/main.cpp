@@ -113,9 +113,10 @@ int main() {
 	{
 		auto myasset = std::make_shared<MyAsset>();
 		myasset->data = 2;
-		AssetMngr::Instance().CreateAsset(myasset, LR"(b.myasset)");
-		AssetMngr::Instance().DeleteAsset(LR"(b.myasset)");
-		AssetMngr::Instance().CreateAsset(myasset, LR"(b.myasset)");
+		auto create_success = AssetMngr::Instance().CreateAsset(myasset, LR"(b.myasset)");
+		assert(create_success);
+		auto delete_success = AssetMngr::Instance().DeleteAsset(LR"(b.myasset)");
+		assert(delete_success);
 	}
 
 	AssetMngr::Instance().Clear();

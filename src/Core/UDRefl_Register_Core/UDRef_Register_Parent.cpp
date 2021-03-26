@@ -9,5 +9,5 @@ using namespace Ubpa::UDRefl;
 
 void Ubpa::Utopia::details::UDRefl_Register_Parent() {
 	Mngr.RegisterType<Parent>();
-	Mngr.AddField<&Parent::value>("value");
+	Mngr.SimpleAddField<&Parent::value>("value");
 }

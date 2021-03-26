@@ -9,6 +9,6 @@ using namespace Ubpa::UDRefl;
 
 void Ubpa::Utopia::details::UDRefl_Register_UECS() {
 	Mngr.RegisterType<UECS::Entity>();
-	Mngr.AddField<&UECS::Entity::index>("index");
-	Mngr.AddField<&UECS::Entity::version>("version");
+	Mngr.SimpleAddField<&UECS::Entity::index>("index");
+	Mngr.SimpleAddField<&UECS::Entity::version>("version");
 }

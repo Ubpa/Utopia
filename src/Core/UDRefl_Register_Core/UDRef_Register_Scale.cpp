@@ -9,5 +9,5 @@ using namespace Ubpa::UDRefl;
 
 void Ubpa::Utopia::details::UDRefl_Register_Scale() {
 	Mngr.RegisterType<Scale>();
-	Mngr.AddField<&Scale::value>("value");
+	Mngr.SimpleAddField<&Scale::value>("value");
 }

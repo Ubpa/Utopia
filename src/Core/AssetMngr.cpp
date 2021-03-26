@@ -214,6 +214,17 @@ SharedObject AssetMngr::GUIDToAsset(const xg::Guid& guid, Type type) const {
 	return {};
 }
 
+UDRefl::SharedObject AssetMngr::GUIDToAsset(const xg::Guid& guid, std::string_view name) const {
+	auto iter_begin = pImpl->guid2asset.lower_bound(guid);
+	auto iter_end = pImpl->guid2asset.upper_bound(guid);
+	for (auto iter = iter_begin; iter != iter_end; ++iter) {
+		if (pImpl->assetID2name.at(iter->second.GetPtr()) == name)
+			return iter->second;
+	}
+
+	return {};
+}
+
 xg::Guid AssetMngr::ImportAsset(const std::filesystem::path& path) {
 	assert(path.is_relative());
 
@@ -446,6 +457,7 @@ void AssetMngr::SetImporterOverride(const std::filesystem::path& path, std::shar
 	if (!guid.isValid())
 		return;
 	pImpl->guid2importer.insert_or_assign(guid, importer);
+	ReserializeAsset(path);
 }
 
 std::string AssetMngr::Impl::LoadText(const std::filesystem::path& path) {

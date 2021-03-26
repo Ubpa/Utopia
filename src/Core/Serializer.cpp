@@ -174,7 +174,8 @@ void Serializer::SerializeRecursion(UDRefl::ObjectView obj, SerializeContext& ct
 	ctx.writer.Key(Key::TypeID);
 	ctx.writer.Uint64(obj.GetType().GetID().GetValue());
 	ctx.writer.Key(Key::TypeName);
-	ctx.writer.String(obj.GetType().GetName().data());
+	ctx.writer.String(obj.GetType().GetName().data(),
+		static_cast<rapidjson::SizeType>(obj.GetType().GetName().size()));
 	ctx.writer.Key(Key::Content);
 
 	// write content
@@ -277,10 +278,10 @@ void Serializer::SerializeRecursion(UDRefl::ObjectView obj, SerializeContext& ct
 UDRefl::SharedObject Serializer::DeserializeRecursion(const rapidjson::Value& value, Serializer::DeserializeContext& ctx) {
 	if (value.IsBool())
 		return Mngr.MakeShared(Type_of<bool>, TempArgsView{ value.GetBool() });
-	if (value.IsFloat())
-		return Mngr.MakeShared(Type_of<float>, TempArgsView{ value.GetFloat() });
 	if (value.IsDouble())
 		return Mngr.MakeShared(Type_of<double>, TempArgsView{ value.GetDouble() });
+	if (value.IsFloat())
+		return Mngr.MakeShared(Type_of<float>, TempArgsView{ value.GetFloat() });
 	if (value.IsInt())
 		return Mngr.MakeShared(Type_of<int>, TempArgsView{ value.GetInt() });
 	if (value.IsInt64())
@@ -326,6 +327,18 @@ UDRefl::SharedObject Serializer::DeserializeRecursion(const rapidjson::Value& va
 			Mngr.Destruct({ type, ptr });
 			Mngr.GetObjectResource()->deallocate(ptr, s, a);
 		}));
+	}
+	else if (type.Is<SharedObject>()) {
+		if (!content.IsObject())
+			return {}; // not support
+
+		auto asset = content.GetObject();
+		auto n = asset[Key::Name].GetString();
+		auto guid = xg::Guid{ asset[Key::Guid].GetString() };
+
+		auto obj = AssetMngr::Instance().GUIDToAsset(guid, n);
+		// SharedObject of SharedObject
+		return Mngr.MakeShared(Type_of<SharedObject>, TempArgsView{ ObjectView{Type_of<SharedObject>, &obj} });
 	}
 	else if (type.Is<Entity>()) {
 		assert(content.IsUint64());
@@ -378,8 +391,12 @@ UDRefl::SharedObject Serializer::DeserializeRecursion(const rapidjson::Value& va
 			const auto& arr = content.GetArray();
 			std::size_t N = obj.size();
 			assert(N == arr.Size());
-			for (std::size_t i = 0; i < N; i++)
-				obj[i] = DeserializeRecursion(arr[static_cast<rapidjson::SizeType>(i)], ctx);
+			for (std::size_t i = 0; i < N; i++) {
+				obj[i].Invoke<void>(
+					NameIDRegistry::Meta::operator_assignment,
+					TempArgsView{ DeserializeRecursion(arr[static_cast<rapidjson::SizeType>(i)], ctx) },
+					MethodFlag::Variable);
+			}
 			return obj;
 		}
 		case Ubpa::UDRefl::ContainerType::Deque:
@@ -494,6 +511,7 @@ Serializer::Serializer()
 	UDRefl::Mngr.AddMemberMethod(UDRefl::NameIDRegistry::Meta::operator_assignment, [](xg::Guid& obj, const std::string_view& str) {
 		obj = xg::Guid{ str };
 	});
+	UDRefl::Mngr.RegisterType<UDRefl::SharedObject>();
 }
 
 Serializer::~Serializer() { delete pImpl; }

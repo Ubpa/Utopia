@@ -62,6 +62,7 @@ namespace Ubpa::Utopia {
 		
 		UDRefl::SharedObject GUIDToAsset(const xg::Guid&) const;
 		UDRefl::SharedObject GUIDToAsset(const xg::Guid&, Type type) const;
+		UDRefl::SharedObject GUIDToAsset(const xg::Guid&, std::string_view name) const;
 		template<typename T>
 		std::shared_ptr<T> GUIDToAsset(const xg::Guid&) const;
 

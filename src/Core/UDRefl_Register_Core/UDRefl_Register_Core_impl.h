@@ -1,6 +1,8 @@
 #pragma once
 
 namespace Ubpa::Utopia::details {
+	void UDRefl_Register_UGM();
+	void UDRefl_Register_UECS();
 	void UDRefl_Register_Children();
 	void UDRefl_Register_Input();
 	void UDRefl_Register_LocalToParent();
@@ -15,5 +17,4 @@ namespace Ubpa::Utopia::details {
 	void UDRefl_Register_Translation();
 	void UDRefl_Register_WorldTime();
 	void UDRefl_Register_WorldToLocal();
-	void UDRefl_Register_UECS();
 }

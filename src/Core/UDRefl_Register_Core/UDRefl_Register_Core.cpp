@@ -5,6 +5,8 @@
 using namespace Ubpa::Utopia;
 
 void Ubpa::Utopia::UDRefl_Register_Core() {
+	details::UDRefl_Register_UGM();
+	details::UDRefl_Register_UECS();
 	details::UDRefl_Register_Children();
 	details::UDRefl_Register_Input();
 	details::UDRefl_Register_LocalToParent();
@@ -19,5 +21,4 @@ void Ubpa::Utopia::UDRefl_Register_Core() {
 	details::UDRefl_Register_Translation();
 	details::UDRefl_Register_WorldTime();
 	details::UDRefl_Register_WorldToLocal();
-	details::UDRefl_Register_UECS();
 }

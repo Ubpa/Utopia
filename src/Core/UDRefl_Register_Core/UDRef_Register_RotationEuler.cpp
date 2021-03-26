@@ -9,5 +9,5 @@ using namespace Ubpa::UDRefl;
 
 void Ubpa::Utopia::details::UDRefl_Register_RotationEuler() {
 	Mngr.RegisterType<RotationEuler>();
-	Mngr.AddField<&RotationEuler::value>("value");
+	Mngr.SimpleAddField<&RotationEuler::value>("value");
 }

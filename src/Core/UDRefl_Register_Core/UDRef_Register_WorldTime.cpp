@@ -9,6 +9,6 @@ using namespace Ubpa::UDRefl;
 
 void Ubpa::Utopia::details::UDRefl_Register_WorldTime() {
 	Mngr.RegisterType<WorldTime>();
-	Mngr.AddField<&WorldTime::deltaTime>("deltaTime");
-	Mngr.AddField<&WorldTime::elapsedTime>("elapsedTime");
+	Mngr.SimpleAddField<&WorldTime::deltaTime>("deltaTime");
+	Mngr.SimpleAddField<&WorldTime::elapsedTime>("elapsedTime");
 }

@@ -9,5 +9,5 @@ using namespace Ubpa::UDRefl;
 
 void Ubpa::Utopia::details::UDRefl_Register_LocalToParent() {
 	Mngr.RegisterType<LocalToParent>();
-	Mngr.AddField<&LocalToParent::value>("value");
+	Mngr.SimpleAddField<&LocalToParent::value>("value");
 }

@@ -9,9 +9,9 @@ using namespace Ubpa::UDRefl;
 
 void Ubpa::Utopia::details::UDRefl_Register_Roamer() {
 	Mngr.RegisterType<Roamer>();
-	Mngr.AddField<&Roamer::moveSpeed>("moveSpeed");
-	Mngr.AddField<&Roamer::rotateSpeed>("rotateSpeed");
-	Mngr.AddField<&Roamer::reverseUpDown>("reverseUpDown");
-	Mngr.AddField<&Roamer::reverseLeftRight>("reverseLeftRight");
-	Mngr.AddField<&Roamer::reverseFrontBack>("reverseFrontBack");
+	Mngr.SimpleAddField<&Roamer::moveSpeed>("moveSpeed");
+	Mngr.SimpleAddField<&Roamer::rotateSpeed>("rotateSpeed");
+	Mngr.SimpleAddField<&Roamer::reverseUpDown>("reverseUpDown");
+	Mngr.SimpleAddField<&Roamer::reverseLeftRight>("reverseLeftRight");
+	Mngr.SimpleAddField<&Roamer::reverseFrontBack>("reverseFrontBack");
 }

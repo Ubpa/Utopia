@@ -9,5 +9,5 @@ using namespace Ubpa::UDRefl;
 
 void Ubpa::Utopia::details::UDRefl_Register_NonUniformScale() {
 	Mngr.RegisterType<NonUniformScale>();
-	Mngr.AddField<&NonUniformScale::value>("value");
+	Mngr.SimpleAddField<&NonUniformScale::value>("value");
 }
