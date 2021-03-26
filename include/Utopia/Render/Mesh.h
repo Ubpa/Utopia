@@ -1,6 +1,7 @@
 #pragma once
 
 #include "SubMeshDescriptor.h"
+#include "../Core/AssetImporter.h"
 
 #include "GPURsrc.h"
 
