@@ -665,21 +665,21 @@ void StdPipeline::Impl::UpdateRenderContext(
 		for (auto world : worlds) {
 			world->RunEntityJob(
 				[&](const Light* light) {
-					switch (light->type)
+					switch (light->mode)
 					{
-					case Light::Type::Directional:
+					case Light::Mode::Directional:
 						renderContext.lights.diectionalLightNum++;
 						break;
-					case Light::Type::Point:
+					case Light::Mode::Point:
 						renderContext.lights.pointLightNum++;
 						break;
-					case Light::Type::Spot:
+					case Light::Mode::Spot:
 						renderContext.lights.spotLightNum++;
 						break;
-					case Light::Type::Rect:
+					case Light::Mode::Rect:
 						renderContext.lights.rectLightNum++;
 						break;
-					case Light::Type::Disk:
+					case Light::Mode::Disk:
 						renderContext.lights.diskLightNum++;
 						break;
 					default:
@@ -705,20 +705,20 @@ void StdPipeline::Impl::UpdateRenderContext(
 		for (auto world : worlds) {
 			world->RunEntityJob(
 				[&](const Light* light, const LocalToWorld* l2w) {
-					switch (light->type)
+					switch (light->mode)
 					{
-					case Light::Type::Directional:
+					case Light::Mode::Directional:
 						renderContext.lights.lights[cur_diectionalLight].color = light->color * light->intensity;
 						renderContext.lights.lights[cur_diectionalLight].dir = (l2w->value * vecf3{ 0,0,1 }).safe_normalize();
 						cur_diectionalLight++;
 						break;
-					case Light::Type::Point:
+					case Light::Mode::Point:
 						renderContext.lights.lights[cur_pointLight].color = light->color * light->intensity;
 						renderContext.lights.lights[cur_pointLight].position = l2w->value * pointf3{ 0.f };
 						renderContext.lights.lights[cur_pointLight].range = light->range;
 						cur_pointLight++;
 						break;
-					case Light::Type::Spot:
+					case Light::Mode::Spot:
 						renderContext.lights.lights[cur_spotLight].color = light->color * light->intensity;
 						renderContext.lights.lights[cur_spotLight].position = l2w->value * pointf3{ 0.f };
 						renderContext.lights.lights[cur_spotLight].dir = (l2w->value * vecf3{ 0,1,0 }).safe_normalize();
@@ -729,7 +729,7 @@ void StdPipeline::Impl::UpdateRenderContext(
 							ShaderLight::Spot::pCosHalfOuterSpotAngle = std::cos(to_radian(light->outerSpotAngle) / 2.f);
 						cur_spotLight++;
 						break;
-					case Light::Type::Rect:
+					case Light::Mode::Rect:
 						renderContext.lights.lights[cur_rectLight].color = light->color * light->intensity;
 						renderContext.lights.lights[cur_rectLight].position = l2w->value * pointf3{ 0.f };
 						renderContext.lights.lights[cur_rectLight].dir = (l2w->value * vecf3{ 0,1,0 }).safe_normalize();
@@ -741,7 +741,7 @@ void StdPipeline::Impl::UpdateRenderContext(
 							ShaderLight::Rect::pHeight = light->height;
 						cur_rectLight++;
 						break;
-					case Light::Type::Disk:
+					case Light::Mode::Disk:
 						renderContext.lights.lights[cur_diskLight].color = light->color * light->intensity;
 						renderContext.lights.lights[cur_diskLight].position = l2w->value * pointf3{ 0.f };
 						renderContext.lights.lights[cur_diskLight].dir = (l2w->value * vecf3{ 0,1,0 }).safe_normalize();

@@ -4,6 +4,10 @@
 
 using namespace Ubpa::Utopia;
 
+std::filesystem::path AssetImporter::GetFullPath() const {
+	return AssetMngr::Instance().GetFullPath(AssetMngr::Instance().GUIDToAssetPath(GetGuid()));
+}
+
 std::string AssetImporter::ReserializeAsset() const {
 	auto asset = AssetMngr::Instance().GUIDToAsset(guid);
 	if (!asset.GetType() || !asset.GetPtr())
@@ -21,7 +25,8 @@ void AssetImporter::RegisterToUDRefl() {
 
 AssetImportContext DefaultAssetImporter::ImportAsset() const {
 	AssetImportContext ctx;
-	const auto& path = AssetMngr::Instance().GUIDToAssetPath(GetGuid());
+	
+	auto path = GetFullPath();
 	if (path.empty())
 		return {};
 	std::string name = path.stem().string();

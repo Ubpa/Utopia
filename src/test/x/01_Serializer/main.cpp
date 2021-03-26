@@ -107,9 +107,9 @@ int main() {
 	}
 	{
 		UDRefl::Mngr.RegisterType<B>();
-		UDRefl::Mngr.AddField<&B::v_str>("v_str");
-		UDRefl::Mngr.AddField<&B::v_pmr_str>("v_pmr_str");
-		UDRefl::Mngr.AddField<&B::v_guid>("v_guid");
+		UDRefl::Mngr.SimpleAddField<&B::v_str>("v_str");
+		UDRefl::Mngr.SimpleAddField<&B::v_pmr_str>("v_pmr_str");
+		UDRefl::Mngr.SimpleAddField<&B::v_guid>("v_guid");
 		B b{
 			.v_str = "abc",
 			.v_pmr_str = "def",

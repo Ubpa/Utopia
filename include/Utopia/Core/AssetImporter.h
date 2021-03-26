@@ -6,9 +6,6 @@
 #include <map>
 
 namespace Ubpa::Utopia {
-	template<typename Impl>
-	class TAssetImporterCreator;
-
 	class AssetImportContext {
 	public:
 		void AddObject(std::string id, UDRefl::SharedObject obj) {
@@ -30,6 +27,27 @@ namespace Ubpa::Utopia {
 		std::map<std::string, UDRefl::SharedObject> assets;
 	};
 
+	/*
+	* [Template]
+	* class XXXImporter final : public TAssetImporter<XXXImporter> {
+	* public:
+	*   using TAssetImporter<XXXImporter>::TAssetImporter;
+	*   virtual AssetImportContext ImportAsset() const override {
+	*     AssetImportContext ctx;
+	*     const auto& path = GetFullPath();
+	*     if (path.empty()) return {};
+	*     // fill ctx with path ...
+	*     return ctx;
+	*   }
+	*  static void RegisterToUDRefl() {
+	*    RegisterToUDReflHelper();
+	*    // Register fields
+	*    // Register Asset XXX
+	*  }
+	* 
+	*  // fields
+	* };
+	*/
 	class AssetImporter {
 	public:
 		AssetImporter() = default;
@@ -37,6 +55,7 @@ namespace Ubpa::Utopia {
 		virtual ~AssetImporter() = default;
 
 		const xg::Guid& GetGuid() const noexcept { return guid; }
+		std::filesystem::path GetFullPath() const;
 
 		virtual UDRefl::ObjectView This() const noexcept = 0;
 
@@ -82,6 +101,14 @@ namespace Ubpa::Utopia {
 		using AssetImporter::RegisterToUDRefl;
 	};
 
+	/*
+	* [Template]
+	* class XXXImporterCreator final : public TAssetImporterCreator<XXXImporter> {
+	*   virtual std::vector<std::string> SupportedExtentions() const override {
+	*     return { ".abc", ".def", ... };
+	*   }
+	* };
+	*/
 	class AssetImporterCreator {
 	public:
 		virtual ~AssetImporterCreator() = default;
@@ -98,6 +125,8 @@ namespace Ubpa::Utopia {
 			auto importer = importer_base.AsShared<AssetImporter>();
 			return importer;
 		}
+
+		virtual std::vector<std::string> SupportedExtentions() const = 0;
 	};
 
 	template<typename Importer>
@@ -142,5 +171,7 @@ namespace Ubpa::Utopia {
 		static void RegisterToUDRefl() { RegisterToUDReflHelper(); }
 	};
 
-	class DefaultAssetImporterCreator final : public TAssetImporterCreator<DefaultAssetImporter> {};
+	class DefaultAssetImporterCreator final : public TAssetImporterCreator<DefaultAssetImporter> {
+		virtual std::vector<std::string> SupportedExtentions() const override { return {}; }
+	};
 }

@@ -30,6 +30,8 @@ namespace Ubpa::Utopia {
 		// clear all imported assets and change root
 		void SetRootPath(std::filesystem::path path);
 
+		std::filesystem::path GetFullPath(const std::filesystem::path& path) const;
+
 		void Clear();
 
 		bool IsImported(const std::filesystem::path& path) const;
@@ -84,11 +86,13 @@ namespace Ubpa::Utopia {
 
 		bool MoveAsset(const std::filesystem::path& src, const std::filesystem::path& dst);
 
-		void RegisterAssetImporterCreator(std::string_view extension, std::shared_ptr<AssetImporterCreator> creator);
+		void RegisterAssetImporterCreator(std::shared_ptr<AssetImporterCreator> creator);
 
 		std::string_view NameofAsset(UDRefl::SharedObject obj) const;
 
 		void SetImporterOverride(const std::filesystem::path& path, std::shared_ptr<AssetImporter> importer);
+
+		void UnloadAsset(const std::filesystem::path& path);
 	private:
 		struct Impl;
 		Impl* pImpl;
