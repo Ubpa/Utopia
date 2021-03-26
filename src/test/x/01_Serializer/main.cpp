@@ -1,6 +1,7 @@
 #include <Utopia/Core/Serializer.h>
 #include <Utopia/Core/AssetMngr.h>
 #include <_deps/crossguid/guid.hpp>
+#include <Utopia/Core/SharedVar.h>
 #include <UGM/UGM.hpp>
 
 #include <iostream>
@@ -57,6 +58,13 @@ struct D {
 			&& lhs.v_o0 == rhs.v_o0
 			&& lhs.v_o1 == rhs.v_o1
 			&& lhs.v_vecf3 == rhs.v_vecf3;
+	}
+};
+
+struct E {
+	SharedVar<DefaultAsset> asset;
+	friend bool operator==(const E& lhs, const E& rhs) {
+		return lhs.asset.get() == rhs.asset.get();
 	}
 };
 
@@ -151,5 +159,17 @@ int main() {
 		std::cout << json << std::endl;
 		D d2 = Serializer::Instance().Deserialize(json).As<D>();
 		assert(d2 == d);
+	}
+	{
+		UDRefl::Mngr.RegisterType<E>();
+
+		UDRefl::Mngr.AddField<&E::asset>("asset");
+		E e{
+			.asset = asset
+		};
+		std::string json = Serializer::Instance().Serialize(&e);
+		std::cout << json << std::endl;
+		E e2 = Serializer::Instance().Deserialize(json).As<E>();
+		assert(e2 == e);
 	}
 }

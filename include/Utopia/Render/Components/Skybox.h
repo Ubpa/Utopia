@@ -1,11 +1,11 @@
 #pragma once
 
 #include "../Material.h"
-#include <Utopia/Core/Asset.h>
+#include "../../Core/SharedVar.h"
 
 namespace Ubpa::Utopia {
 	// singleton
 	struct Skybox {
-		TAsset<Material> material;
+		SharedVar<Material> material;
 	};
 }

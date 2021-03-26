@@ -217,13 +217,13 @@ namespace Ubpa::Utopia {
         // Assign
         ///////////
 
-        SharedVar& operator=(SharedVar& rhs) noexcept {
+        SharedVar& operator=(const SharedVar& rhs) noexcept {
             ptr = rhs.ptr;
             return *this;
         }
 
         template <typename U>
-        SharedVar& operator=(SharedVar<U>& rhs) noexcept {
+        SharedVar& operator=(const SharedVar<U>& rhs) noexcept {
             ptr = rhs.ptr;
             return *this;
         }
@@ -1043,6 +1043,19 @@ struct Ubpa::UDRefl::details::TypeAutoRegister<Ubpa::Utopia::SharedVar<T>> {
                 Ubpa::Utopia::SharedVar<T>&(Ubpa::UDRefl::SharedObject)
             >::template get(&Ubpa::Utopia::SharedVar<T>::operator=)
         >(Ubpa::UDRefl::NameIDRegistry::Meta::operator_assignment);
+        mngr.AddConstructor<Ubpa::Utopia::SharedVar<T>, Ubpa::UDRefl::SharedObject>();
+        mngr.AddMethod<
+            MemFuncOf<
+                Ubpa::Utopia::SharedVar<T>,
+                Ubpa::UDRefl::SharedObject()
+            >::template get(&Ubpa::Utopia::SharedVar<T>::cast_to_shared_obj)
+        >("cast_to_shared_obj");
+        mngr.AddMethod<
+            MemFuncOf<
+                Ubpa::Utopia::SharedVar<T>,
+                Ubpa::UDRefl::SharedObject()const
+            >::template get(&Ubpa::Utopia::SharedVar<T>::cast_to_shared_obj)
+        >("cast_to_shared_obj");
         Ubpa::UDRefl::details::TypeAutoRegister_Default<Ubpa::Utopia::SharedVar<T>>::run(mngr);
     }
 };

@@ -199,6 +199,19 @@ void Serializer::SerializeRecursion(UDRefl::ObjectView obj, SerializeContext& ct
 		else
 			ctx.writer.String(Key::NotSupport);
 	}
+	else if (obj.GetType().GetName().starts_with("Ubpa::Utopia::SharedVar<")) { // TODO
+		auto sobj = obj.Invoke("cast_to_shared_obj");
+		if (AssetMngr::Instance().Contains(sobj)) {
+			ctx.writer.StartObject();
+			ctx.writer.Key(Key::Name);
+			ctx.writer.String(AssetMngr::Instance().NameofAsset(sobj).data());
+			ctx.writer.Key(Key::Guid);
+			ctx.writer.String(AssetMngr::Instance().GetAssetGUID(sobj).str());
+			ctx.writer.EndObject();
+		}
+		else
+			ctx.writer.String(Key::NotSupport);
+	}
 	else if (auto attr = Mngr.GetTypeAttr(obj.GetType(), Type_of<ContainerType>); attr.GetType().Valid()) {
 		ContainerType ct = attr.As<ContainerType>();
 		switch (ct)
@@ -339,6 +352,18 @@ UDRefl::SharedObject Serializer::DeserializeRecursion(const rapidjson::Value& va
 		auto obj = AssetMngr::Instance().GUIDToAsset(guid, n);
 		// SharedObject of SharedObject
 		return Mngr.MakeShared(Type_of<SharedObject>, TempArgsView{ ObjectView{Type_of<SharedObject>, &obj} });
+	}
+	else if (type.GetName().starts_with("Ubpa::Utopia::SharedVar<")) { // TODO
+		if (!content.IsObject())
+			return {}; // not support
+
+		auto asset = content.GetObject();
+		auto n = asset[Key::Name].GetString();
+		auto guid = xg::Guid{ asset[Key::Guid].GetString() };
+
+		auto obj = AssetMngr::Instance().GUIDToAsset(guid, n);
+		// SharedVar of SharedObject
+		return Mngr.MakeShared(type, TempArgsView{ ObjectView{Type_of<SharedObject>, &obj} });
 	}
 	else if (type.Is<Entity>()) {
 		assert(content.IsUint64());
