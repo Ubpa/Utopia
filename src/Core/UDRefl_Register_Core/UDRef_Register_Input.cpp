@@ -22,7 +22,7 @@ void Ubpa::Utopia::details::UDRefl_Register_Input() {
 	Mngr.SimpleAddField<&Input::MouseInDisplay>("MouseInDisplay");
 	Mngr.SimpleAddField<&Input::MouseInDisplayPre>("MouseInDisplayPre");
 	Mngr.AddField<&Input::MouseClicked>("MouseClicked");
-	Mngr.AddField<&Input::MousePosPrev>("MousePosPrev");
+	Mngr.SimpleAddField<&Input::MousePosPrev>("MousePosPrev");
 	Mngr.SimpleAddField<&Input::MouseDelta>("MouseDelta");
 	Mngr.SimpleAddField<&Input::MouseClickedPos>("MouseClickedPos");
 	Mngr.AddField<&Input::MouseDoubleClicked>("MouseDoubleClicked");

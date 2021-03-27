@@ -284,7 +284,7 @@ void StdPipeline::Impl::BuildTextures() {
 	);
 
 	auto skyboxBlack = AssetMngr::Instance().LoadAsset<Material>(LR"(..\assets\_internal\materials\skyBlack.mat)");
-	auto blackTexCube = std::get<std::shared_ptr<TextureCube>>(skyboxBlack->properties.at("gSkybox"));
+	auto blackTexCube = std::get<SharedVar<TextureCube>>(skyboxBlack->properties.at("gSkybox").value);
 	auto blackTexCubeRsrc = GPURsrcMngrDX12::Instance().GetTextureCubeResource(*blackTexCube);
 	defaultSkybox = GPURsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(*blackTexCube);
 
@@ -769,9 +769,9 @@ void StdPipeline::Impl::UpdateRenderContext(
 		if (auto ptr = world->entityMngr.ReadSingleton<Skybox>(); ptr && ptr->material && ptr->material->shader == skyboxShader) {
 			auto target = ptr->material->properties.find("gSkybox");
 			if (target != ptr->material->properties.end()
-				&& std::holds_alternative<std::shared_ptr<TextureCube>>(target->second)
+				&& std::holds_alternative<SharedVar<TextureCube>>(target->second.value)
 			) {
-				auto texcube = std::get<std::shared_ptr<TextureCube>>(target->second);
+				auto texcube = std::get<SharedVar<TextureCube>>(target->second.value);
 				renderContext.skybox = GPURsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(*texcube);
 				break;
 			}

@@ -98,7 +98,7 @@ PipelineBase::ShaderCBDesc PipelineBase::UpdateShaderCBs(
 						assert(varDesc.Size == sizeof(Value));
 						buffer->Set(offset + varDesc.StartOffset, &value, varDesc.Size);
 					}
-				}, target->second);
+				}, target->second.value);
 			}
 		}
 	};
@@ -223,14 +223,14 @@ void PipelineBase::SetGraphicsRoot_CBV_SRV(
 					switch (dim)
 					{
 					case D3D_SRV_DIMENSION_TEXTURE2D: {
-						assert(std::holds_alternative<std::shared_ptr<Texture2D>>(target->second));
-						auto tex2d = std::get<std::shared_ptr<Texture2D>>(target->second);
+						assert(std::holds_alternative<SharedVar<Texture2D>>(target->second.value));
+						auto tex2d = std::get<SharedVar<Texture2D>>(target->second.value);
 						handle = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*tex2d);
 						break;
 					}
 					case D3D_SRV_DIMENSION_TEXTURECUBE: {
-						assert(std::holds_alternative<std::shared_ptr<TextureCube>>(target->second));
-						auto texcube = std::get<std::shared_ptr<TextureCube>>(target->second);
+						assert(std::holds_alternative<SharedVar<TextureCube>>(target->second.value));
+						auto texcube = std::get<SharedVar<TextureCube>>(target->second.value);
 						handle = GPURsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(*texcube);
 						break;
 					}

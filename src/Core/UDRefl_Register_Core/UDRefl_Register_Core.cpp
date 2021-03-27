@@ -5,7 +5,12 @@
 using namespace Ubpa::Utopia;
 
 void Ubpa::Utopia::UDRefl_Register_Core() {
-	details::UDRefl_Register_UGM();
+	details::UDRefl_Register_UGM_0();
+	details::UDRefl_Register_UGM_1();
+	details::UDRefl_Register_UGM_2();
+	details::UDRefl_Register_UGM_3();
+	details::UDRefl_Register_UGM_4();
+	details::UDRefl_Register_UGM_5();
 	details::UDRefl_Register_UECS();
 	details::UDRefl_Register_Children();
 	details::UDRefl_Register_Input();

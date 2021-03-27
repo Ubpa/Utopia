@@ -9,5 +9,5 @@ using namespace Ubpa::UDRefl;
 
 void Ubpa::Utopia::details::UDRefl_Register_Translation() {
 	Mngr.RegisterType<Translation>();
-	Mngr.AddField<&Translation::value>("value");
+	Mngr.SimpleAddField<&Translation::value>("value");
 }

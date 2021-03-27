@@ -25,7 +25,7 @@ endif()
 
 set(c_options_private "")
 if(MSVC)
-  list(APPEND c_options_private "/MP;/wd4244")
+  list(APPEND c_options_private "/MP;/wd4244;/wd4804")
 elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   #
 elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")

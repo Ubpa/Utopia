@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../Core/SharedVar.h"
+
 #include <UGM/val.hpp>
 #include <UGM/rgb.hpp>
 #include <UGM/rgba.hpp>
@@ -11,7 +13,7 @@ namespace Ubpa::Utopia {
 	struct Texture2D;
 	class TextureCube;
 
-	using ShaderProperty = std::variant<
+	using ShaderPropertyVariant = std::variant<
 		bool,                              //  0, bool
 		int,                               //  1, int
 		unsigned,                          //  2, uint
@@ -34,7 +36,11 @@ namespace Ubpa::Utopia {
 		val<double, 4>,                    // 19, vector<double, 4>
 		rgbf,                              // 20, color (RGB)
 		rgbaf,                             // 21, color (RGBA)
-		std::shared_ptr<Texture2D>,        // 22, Texture 2D
-		std::shared_ptr<TextureCube>       // 23, Texture Cube
-	>;
+		SharedVar<Texture2D>,              // 22, Texture 2D
+		SharedVar<TextureCube>             // 23, Texture Cube
+	> ;
+
+	struct ShaderProperty {
+		ShaderPropertyVariant value;
+	};
 }

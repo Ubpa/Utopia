@@ -51,4 +51,5 @@ Ubpa_AddTarget(
     ${c_options_private}
   DEFINE
     NOMINMAX
+    UBPA_UDREFL_INCLUDE_ALL_STD_NAME
 )

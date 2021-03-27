@@ -111,6 +111,12 @@ struct Serializer::Impl {
 };
 
 void Serializer::SerializeRecursion(UDRefl::ObjectView obj, SerializeContext& ctx) {
+	if (obj.GetType().IsReference()) {
+		ctx.writer.String(Key::NotSupport);
+		return;
+	}
+
+	obj = obj.RemoveConst();
 	if (obj.GetType().IsArithmetic()) {
 		switch (obj.GetType().GetID().GetValue())
 		{
@@ -182,8 +188,18 @@ void Serializer::SerializeRecursion(UDRefl::ObjectView obj, SerializeContext& ct
 
 	if (ctx.serializer.IsRegistered(obj.GetType().GetID().GetValue()))
 		ctx.serializer.Visit(obj.GetType().GetID().GetValue(), obj.GetPtr(), ctx);
-	else if (obj.GetType().IsReference())
-		ctx.writer.String(Key::NotSupport);
+	else if (obj.GetType().IsEnum()) {
+		bool found = false;
+		for (const auto& [name, v] : obj.GetVars(FieldFlag::Unowned)) {
+			if (v == obj) {
+				ctx.writer.String(name.GetView().data());
+				found = true;
+				break;
+			}
+		}
+		if (!found)
+			ctx.writer.String(Key::NotSupport);
+	}
 	else if (obj.GetType().Is<UECS::Entity>())
 		ctx.writer.Uint64(obj.As<Entity>().index);
 	else if (obj.GetType().Is<SharedObject>()) {
@@ -228,6 +244,8 @@ void Serializer::SerializeRecursion(UDRefl::ObjectView obj, SerializeContext& ct
 		case Ubpa::UDRefl::ContainerType::ForwardList:
 		case Ubpa::UDRefl::ContainerType::List:
 		case Ubpa::UDRefl::ContainerType::MultiSet:
+		case Ubpa::UDRefl::ContainerType::Map:
+		case Ubpa::UDRefl::ContainerType::MultiMap:
 		case Ubpa::UDRefl::ContainerType::RawArray:
 		case Ubpa::UDRefl::ContainerType::Set:
 		case Ubpa::UDRefl::ContainerType::UnorderedMap:
@@ -364,6 +382,18 @@ UDRefl::SharedObject Serializer::DeserializeRecursion(const rapidjson::Value& va
 		auto obj = AssetMngr::Instance().GUIDToAsset(guid, n);
 		// SharedVar of SharedObject
 		return Mngr.MakeShared(type, TempArgsView{ ObjectView{Type_of<SharedObject>, &obj} });
+	}
+	else if (type.IsEnum()) {
+		std::string name = content.GetString();
+		if(name == Key::NotSupport)
+			return Mngr.MakeShared(type);
+
+		for (const auto& [n, v] : VarRange{ type }) {
+			if (n.Is(name))
+				return Mngr.MakeShared(type, TempArgsView{ v });
+		}
+
+		return Mngr.MakeShared(type);
 	}
 	else if (type.Is<Entity>()) {
 		assert(content.IsUint64());

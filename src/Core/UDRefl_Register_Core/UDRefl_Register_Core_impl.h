@@ -1,7 +1,12 @@
 #pragma once
 
 namespace Ubpa::Utopia::details {
-	void UDRefl_Register_UGM();
+	void UDRefl_Register_UGM_0();
+	void UDRefl_Register_UGM_1();
+	void UDRefl_Register_UGM_2();
+	void UDRefl_Register_UGM_3();
+	void UDRefl_Register_UGM_4();
+	void UDRefl_Register_UGM_5();
 	void UDRefl_Register_UECS();
 	void UDRefl_Register_Children();
 	void UDRefl_Register_Input();
