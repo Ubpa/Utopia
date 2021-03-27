@@ -766,7 +766,7 @@ void StdPipeline::Impl::UpdateRenderContext(
 	// use first skybox in the world vector
 	renderContext.skybox = defaultSkybox;
 	for (auto world : worlds) {
-		if (auto ptr = world->entityMngr.ReadSingleton<Skybox>(); ptr && ptr->material && ptr->material->shader == skyboxShader) {
+		if (auto ptr = world->entityMngr.ReadSingleton<Skybox>(); ptr && ptr->material && ptr->material->shader.get() == skyboxShader.get()) {
 			auto target = ptr->material->properties.find("gSkybox");
 			if (target != ptr->material->properties.end()
 				&& std::holds_alternative<SharedVar<TextureCube>>(target->second.value)
@@ -820,7 +820,7 @@ void StdPipeline::Impl::UpdateShaderCBs() {
 
 		if (shader == nullptr)
 			shader = object.material->shader;
-		else if (shader != object.material->shader)
+		else if (shader.get() != object.material->shader.get())
 			return false;
 
 		materials.insert(object.material.get());
@@ -1309,7 +1309,7 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::str
 		if (auto target = pass.tags.find("LightMode"); target == pass.tags.end() || target->second != lightMode)
 			return;
 
-		if (shader != obj.material->shader) {
+		if (shader.get() != obj.material->shader.get()) {
 			shader = obj.material->shader;
 			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*shader));
 		}

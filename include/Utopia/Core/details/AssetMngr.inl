@@ -7,7 +7,7 @@ namespace Ubpa::Utopia {
 	}
 
 	template<typename T>
-	std::shared_ptr<T> AssetMngr::GUIDToAsset(const xg::Guid& guid) const {
+	std::shared_ptr<T> AssetMngr::GUIDToAsset(const xg::Guid& guid) {
 		auto asset = GUIDToAsset(guid, Type_of<T>);
 		if (!asset.GetType())
 			return {};

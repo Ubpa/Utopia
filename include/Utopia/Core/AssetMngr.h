@@ -62,11 +62,11 @@ namespace Ubpa::Utopia {
 
 		// if not loaded, return nullptr
 		
-		UDRefl::SharedObject GUIDToAsset(const xg::Guid&) const;
-		UDRefl::SharedObject GUIDToAsset(const xg::Guid&, Type type) const;
-		UDRefl::SharedObject GUIDToAsset(const xg::Guid&, std::string_view name) const;
+		UDRefl::SharedObject GUIDToAsset(const xg::Guid&);
+		UDRefl::SharedObject GUIDToAsset(const xg::Guid&, Type type);
+		UDRefl::SharedObject GUIDToAsset(const xg::Guid&, std::string_view name);
 		template<typename T>
-		std::shared_ptr<T> GUIDToAsset(const xg::Guid&) const;
+		std::shared_ptr<T> GUIDToAsset(const xg::Guid&);
 
 		// import asset at path (relative)
 		// * generate meta

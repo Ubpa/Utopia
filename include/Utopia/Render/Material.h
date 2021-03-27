@@ -2,6 +2,7 @@
 
 #include "ShaderProperty.h"
 #include "GPURsrc.h"
+#include "../Core/SharedVar.h"
 #include <memory>
 
 #include <map>
@@ -11,7 +12,7 @@ namespace Ubpa::Utopia {
 	struct Shader;
 
 	struct Material : GPURsrc {
-		std::shared_ptr<const Shader> shader;
+		SharedVar<Shader> shader;
 		std::map<std::string, ShaderProperty, std::less<>> properties;
 	};
 }

@@ -197,17 +197,19 @@ const std::filesystem::path& AssetMngr::GUIDToAssetPath(const xg::Guid& guid) co
 	return target == pImpl->guid2path.end() ? ERROR : target->second;
 }
 
-SharedObject AssetMngr::GUIDToAsset(const xg::Guid& guid) const {
+SharedObject AssetMngr::GUIDToAsset(const xg::Guid& guid) {
 	auto target = pImpl->guid2asset.find(guid);
 	if (target == pImpl->guid2asset.end())
-		return {};
+		return LoadMainAsset(GUIDToAssetPath(guid));
 
 	return target->second;
 }
 
-SharedObject AssetMngr::GUIDToAsset(const xg::Guid& guid, Type type) const {
+SharedObject AssetMngr::GUIDToAsset(const xg::Guid& guid, Type type) {
 	auto iter_begin = pImpl->guid2asset.lower_bound(guid);
 	auto iter_end = pImpl->guid2asset.upper_bound(guid);
+	if (iter_begin == iter_end)
+		return LoadAsset(GUIDToAssetPath(guid), type);
 	for (auto iter = iter_begin; iter != iter_end; ++iter) {
 		if (iter->second.GetType() == type)
 			return iter->second;
@@ -216,9 +218,18 @@ SharedObject AssetMngr::GUIDToAsset(const xg::Guid& guid, Type type) const {
 	return {};
 }
 
-UDRefl::SharedObject AssetMngr::GUIDToAsset(const xg::Guid& guid, std::string_view name) const {
+UDRefl::SharedObject AssetMngr::GUIDToAsset(const xg::Guid& guid, std::string_view name) {
 	auto iter_begin = pImpl->guid2asset.lower_bound(guid);
 	auto iter_end = pImpl->guid2asset.upper_bound(guid);
+	if (iter_begin == iter_end) {
+		auto assets = LoadAllAssets(GUIDToAssetPath(guid));
+		for (const auto& asset : assets) {
+			if (pImpl->assetID2name.at(asset.GetPtr()) == name)
+				return asset;
+		}
+		return {};
+	}
+
 	for (auto iter = iter_begin; iter != iter_end; ++iter) {
 		if (pImpl->assetID2name.at(iter->second.GetPtr()) == name)
 			return iter->second;
@@ -241,7 +252,7 @@ xg::Guid AssetMngr::ImportAsset(const std::filesystem::path& path) {
 }
 
 void AssetMngr::ImportAssetRecursively(const std::filesystem::path& directory) {
-	auto fullDir = std::filesystem::path{ GetRootPath() } += directory;
+	auto fullDir = GetFullPath(directory);
 
 	if (!std::filesystem::is_directory(fullDir))
 		return;
@@ -291,8 +302,10 @@ SharedObject AssetMngr::LoadAsset(const std::filesystem::path& path, Type type) 
 
 	if (!pImpl->guid2asset.contains(guid)) {
 		auto ctx = pImpl->guid2importer.at(guid)->ImportAsset();
-		if (ctx.GetAssets().empty())
+		if (ctx.GetAssets().empty()) {
+			pImpl->guid2asset.emplace(guid, SharedObject{});
 			return {};
+		}
 		auto mainObj = ctx.GetMainObject();
 		for (const auto& [n, obj] : ctx.GetAssets()) {
 			pImpl->assetID2guid.emplace(obj.GetPtr(), guid);

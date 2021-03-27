@@ -475,7 +475,9 @@ UDRefl::SharedObject Serializer::DeserializeRecursion(const rapidjson::Value& va
 			return obj;
 		}
 		case Ubpa::UDRefl::ContainerType::MultiSet:
+		case Ubpa::UDRefl::ContainerType::MultiMap:
 		case Ubpa::UDRefl::ContainerType::Set:
+		case Ubpa::UDRefl::ContainerType::Map:
 		case Ubpa::UDRefl::ContainerType::UnorderedMap:
 		case Ubpa::UDRefl::ContainerType::UnorderedMultiSet:
 		case Ubpa::UDRefl::ContainerType::UnorderedMultiMap:
