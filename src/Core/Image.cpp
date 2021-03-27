@@ -59,6 +59,7 @@ Image& Image::operator=(Image&& image) noexcept {
 	width = image.width;
 	height = image.height;
 	channel = image.channel;
+	image.data = nullptr;
 	return *this;
 }
 
@@ -251,4 +252,24 @@ const rgbaf Image::SampleLinear(const pointf2& uv) const {
 	rgbaf cyx = rgbaf::lerp(c0x, c1x, ty);
 
 	return cyx;
+}
+
+namespace Ubpa::Utopia {
+	bool operator==(const Image& lhs, const Image& rhs) noexcept {
+		if (lhs.width != rhs.width
+			|| lhs.height != rhs.height
+			|| lhs.channel != rhs.channel)
+			return false;
+
+		std::size_t cnt = lhs.width * lhs.height * lhs.channel;
+		for (std::size_t i = 0; i < cnt; i++) {
+			if (lhs.data[i] != rhs.data[i])
+				return false;
+		}
+
+		return true;
+	}
+	bool operator!=(const Image& lhs, const Image& rhs) noexcept {
+		return !(lhs == rhs);
+	}
 }
