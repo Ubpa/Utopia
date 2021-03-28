@@ -32,8 +32,8 @@ void InspectorSystem::OnUpdate(UECS::Schedule& schedule) {
 			if (ImGui::Begin("Inspector") && inspector->asset.isValid()) {
 				ImGui::Checkbox("lock", &inspector->lock);
 				ImGui::Separator();
-				if (InspectorRegistry::Instance().IsRegisteredAsset(type))
-					InspectorRegistry::Instance().Inspect(type, asset.GetPtr());
+				if (InspectorRegistry::Instance().IsRegistered(type))
+					InspectorRegistry::Instance().Inspect(world, type, asset.GetPtr()); // use self world?
 			}
 			ImGui::End();
 			break;
@@ -58,7 +58,7 @@ void InspectorSystem::OnUpdate(UECS::Schedule& schedule) {
 					int ID = 0;
 					size_t N = hierarchy->world->entityMngr.cmptTraits.GetNames().size();
 					for (const auto& [type, name] : hierarchy->world->entityMngr.cmptTraits.GetNames()) {
-						if (!hierarchy->world->entityMngr.Have(inspector->entity, type) && filter.PassFilter(name.data())) {
+						if (!type.Is<UECS::Entity>() && !hierarchy->world->entityMngr.Have(inspector->entity, type) && filter.PassFilter(name.data())) {
 							ImGui::PushID(ID);
 							ImGui::PushStyleColor(ImGuiCol_Button, (ImVec4)ImColor::HSV(ID / float(N), 0.6f, 0.6f));
 							ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImVec4)ImColor::HSV(ID / float(N), 0.7f, 0.7f));
@@ -125,10 +125,10 @@ void InspectorSystem::OnUpdate(UECS::Schedule& schedule) {
 				ImGui::Checkbox("lock", &inspector->lock);
 				ImGui::Separator();
 
-				auto cmpts = hierarchy->world->entityMngr.Components(inspector->entity, Ubpa::UECS::AccessMode::WRITE);
+				auto cmpts = hierarchy->world->entityMngr.Components(inspector->entity, UECS::AccessMode::WRITE);
 				for (size_t i = 0; i < cmpts.size(); i++) {
 					auto type = cmpts[i].AccessType();
-					if (InspectorRegistry::Instance().IsRegisteredCmpt(type))
+					if (InspectorRegistry::Instance().IsRegistered(type))
 						continue;
 					auto name = hierarchy->world->entityMngr.cmptTraits.Nameof(type);
 					if (name.empty())
@@ -138,8 +138,8 @@ void InspectorSystem::OnUpdate(UECS::Schedule& schedule) {
 				}
 
 				for (const auto& cmpt : cmpts) {
-					if (InspectorRegistry::Instance().IsRegisteredCmpt(cmpt.AccessType()))
-						InspectorRegistry::Instance().Inspect(hierarchy->world, cmpt.Ptr());
+					if (InspectorRegistry::Instance().IsRegistered(cmpt.AccessType()))
+						InspectorRegistry::Instance().InspectComponent(hierarchy->world, UECS::CmptPtr{ cmpt });
 				}
 			}
 			ImGui::End();

@@ -7,7 +7,7 @@
 using namespace Ubpa::Utopia;
 using namespace Ubpa::UDRefl;
 
-void Ubpa::Utopia::details::UDRefl_Register_LocalSerializeToWorld() {
+void Ubpa::Utopia::details::UDRefl_Register_LocalToWorld() {
 	Mngr.RegisterType<LocalToWorld>();
 	Mngr.SimpleAddField<&LocalToWorld::value>("value");
 }

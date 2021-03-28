@@ -870,21 +870,7 @@
 
 namespace Ubpa::Utopia {
 	template<typename Func>
-	void InspectorRegistry::RegisterCmpt(Func&& func) {
-		using ArgList = FuncTraits_ArgList<Func>;
-		static_assert(Length_v<ArgList> == 2);
-		static_assert(std::is_same_v<At_t<ArgList, 1>, InspectContext>);
-		using CmptPtr = At_t<ArgList, 0>;
-		static_assert(std::is_pointer_v<CmptPtr>);
-		using Cmpt = std::remove_pointer_t<CmptPtr>;
-		static_assert(!std::is_const_v<Cmpt>);
-		RegisterCmpt(TypeID_of<Cmpt>, [f = std::forward<Func>(func)](void* cmpt, InspectContext ctx) {
-			f(reinterpret_cast<Cmpt*>(cmpt), ctx);
-		});
-	}
-
-	template<typename Func>
-	void InspectorRegistry::RegisterAsset(Func&& func) {
+	void InspectorRegistry::Register(Func&& func) {
 		using ArgList = FuncTraits_ArgList<Func>;
 		static_assert(Length_v<ArgList> == 2);
 		static_assert(std::is_same_v<At_t<ArgList, 1>, InspectContext>);

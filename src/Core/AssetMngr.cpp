@@ -139,6 +139,10 @@ std::filesystem::path AssetMngr::GetFullPath(const std::filesystem::path& path) 
 	return rst;
 }
 
+std::filesystem::path AssetMngr::GetRelativePath(const std::filesystem::path& path) const {
+	return std::filesystem::relative(path, GetRootPath());
+}
+
 void AssetMngr::Clear() {
 	pImpl->assetID2guid.clear();
 	pImpl->assetID2name.clear();

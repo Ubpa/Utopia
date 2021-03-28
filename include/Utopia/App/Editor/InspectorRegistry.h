@@ -50,23 +50,20 @@ namespace Ubpa::Utopia {
 			const Visitor<void(void*, InspectContext)>& inspector;
 		};
 
-		void RegisterCmpt(TypeID, std::function<void(void*, InspectContext)> cmptInspectFunc);
+		void Register(TypeID, std::function<void(void*, InspectContext)> assetInspectFunc);
 
 		template<typename Func>
-		void RegisterCmpt(Func&& func);
+		void Register(Func&& func);
 
-		void RegisterAsset(Type, std::function<void(void*, InspectContext)> assetInspectFunc);
+		bool IsRegistered(TypeID) const;
+		bool IsRegistered(Type) const;
 
-		template<typename Func>
-		void RegisterAsset(Func&& func);
-
-		bool IsRegisteredCmpt(TypeID) const;
-		bool IsRegisteredAsset(Type) const;
-
-		void Inspect(const UECS::World*, UECS::CmptPtr);
-		void Inspect(Type, void* obj);
-		template<typename T>
+		void InspectComponent(const UECS::World*, UECS::CmptPtr);
+		void Inspect(const UECS::World*, TypeID, void* obj);
+		template<typename T> requires std::negation_v<std::is_void<std::decay_t<T>>>
 		void Inspect(T* obj) { Inspect(Type_of<T>, obj); }
+
+		static void InspectRecursively(std::string_view name, TypeID, void* obj, InspectContext ctx);
 
 	private:
 		InspectorRegistry();

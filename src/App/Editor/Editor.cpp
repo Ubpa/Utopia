@@ -41,6 +41,9 @@
 #include <Utopia/Core/Systems/Systems.h>
 #include <Utopia/Core/ImGUIMngr.h>
 
+#include <Utopia/Core/UDRefl_Register_Core.h>
+#include <Utopia/Render/UDRefl_Register_Render.h>
+
 #include <_deps/imgui/imgui.h>
 #include <_deps/imgui/imgui_impl_win32.h>
 #include <_deps/imgui/imgui_impl_dx12.h>
@@ -248,6 +251,9 @@ bool Editor::Impl::Init() {
 	AssetMngr::Instance().ImportAssetRecursively(LR"(.)");
 	
 	//InitInspectorRegistry();
+
+	UDRefl_Register_Core();
+	UDRefl_Register_Render();
 
 	LoadTextures();
 	BuildShaders();

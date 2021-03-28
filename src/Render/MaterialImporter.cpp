@@ -12,11 +12,11 @@ void MaterialImporter::RegisterToUDRefl() {
 	RegisterToUDReflHelper();
 
 	// Register ShaderProperty and map
-	//details::ShaderImporterRegister_Shader();
+	details::ShaderImporterRegister_Shader();
 
 	UDRefl::Mngr.RegisterType<Material>();
 	UDRefl::Mngr.AddField<&Material::shader>("shader");
-	UDRefl::Mngr.AddField<&Material::properties>("properties");
+	UDRefl::Mngr.SimpleAddField<&Material::properties>("properties");
 }
 
 AssetImportContext MaterialImporter::ImportAsset() const {

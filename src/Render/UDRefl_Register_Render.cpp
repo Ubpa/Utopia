@@ -7,7 +7,7 @@
 using namespace Ubpa::Utopia;
 using namespace Ubpa::UDRefl;
 
-void UDRefl_Register_Render() {
+void Ubpa::Utopia::UDRefl_Register_Render() {
 	// Camera
 	// TODO: attrs
 	Mngr.RegisterType<Camera>();
