@@ -1,5 +1,5 @@
 Shader "StdPipeline/Transparent 2-sided" {
-	HLSL : "92bd0b61-5844-4d20-95ba-4bb17636ae74"
+	HLSL : "aa8070f9-5eb9-46a9-8d3f-14f560e47d6e"
 	RootSignature {
 		SRV[1] : 0
 		SRV[1] : 1

@@ -1,5 +1,5 @@
 Shader "StdPipeline/Irradiance" {
-	HLSL : "94aa0330-a09e-47f4-8799-da329e55fa7c"
+	HLSL : "e6e1c53e-00e4-46a4-b948-5728698eec84"
 	RootSignature {
 		SRV[1] : 0
 		CBV : 0

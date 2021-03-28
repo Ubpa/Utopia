@@ -1,5 +1,5 @@
 Shader "StdPipeline/Geometry" {
-	HLSL : "d1ee38ec-7485-422e-93f3-c8886169a858"
+	HLSL : "008cb2d7-59b2-45e1-a765-36538a9d12ec"
 	RootSignature {
 		SRV[1] : 0
 		SRV[1] : 1

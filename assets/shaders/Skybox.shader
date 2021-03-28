@@ -1,12 +1,11 @@
 Shader "StdPipeline/Skybox" {
-	HLSL : "bdd78e15-6ec2-40fe-b7ce-93ce142d19a7"
+	HLSL : "511b6c06-86c8-468d-b9b9-ec0280ad3036"
 	RootSignature {
 		SRV[1] : 0
 		CBV : 0
 	}
-	Pass (VS, PS) {
-		Properties {
-			gSkybox("skybox", Cube) : Black
-		}
+	Properties {
+		gSkybox("skybox", Cube) : Black
 	}
+	Pass (VS, PS) {}
 }

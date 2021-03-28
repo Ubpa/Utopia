@@ -1,5 +1,5 @@
 Shader "StdPipeline/Forward Hole" {
-	HLSL : "c48f7543-e88f-4152-a9b8-1ccc1b4f01a8"
+	HLSL : "ea227832-c051-4304-86f4-dbf9454d5891"
 	RootSignature {
 		SRV[1] : 0
 		SRV[1] : 1

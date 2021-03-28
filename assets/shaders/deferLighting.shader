@@ -1,5 +1,5 @@
 Shader "StdPipeline/Defer Lighting" {
-	HLSL : "6d06a621-aa2a-439d-aac6-eba6cd1d6f20"
+	HLSL : "adf8c17e-cbbb-4921-83d8-5a755793bc21"
 	RootSignature {
 		SRV[3] : 0
 		SRV[1] : 3
