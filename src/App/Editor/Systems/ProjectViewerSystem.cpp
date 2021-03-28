@@ -15,22 +15,20 @@
 
 using namespace Ubpa::Utopia;
 
-namespace Ubpa::Utopia::detail {
-	bool IsFolderLeaf(const xg::Guid& folderGuid) {
-		const auto& tree = AssetMngr::Instance().GetAssetTree();
-		auto target = tree.find(folderGuid);
-		if (target == tree.end())
-			return true;
+namespace Ubpa::Utopia::details {
+	bool IsDeepestDirectory(const std::filesystem::path& directory) {
+		assert(std::filesystem::is_directory(directory));
 
-		for (const auto& child : target->second) {
-			if (std::filesystem::is_directory(AssetMngr::Instance().GUIDToAssetPath(child)))
-				return false;
+		for (const auto& entry : std::filesystem::directory_iterator(directory)) {
+			const auto& path = entry.path();
+			if (AssetMngr::Instance().AssetPathToGUID(path).isValid())
+				return true;
 		}
 
-		return true;
+		return false;
 	}
 
-	bool IsParentFolder(const std::filesystem::path& x, const std::filesystem::path& y) {
+	bool IsAncestorDirectory(const std::filesystem::path& x, const std::filesystem::path& y) {
 		if (y.empty())
 			return false;
 		else {
@@ -38,7 +36,7 @@ namespace Ubpa::Utopia::detail {
 			if (p == x)
 				return true;
 			else
-				return IsParentFolder(x, p);
+				return IsAncestorDirectory(x, p);
 		}
 	}
 
@@ -50,97 +48,100 @@ namespace Ubpa::Utopia::detail {
 		name[maxlength - 1] = '.';
 	}
 
-	void ProjectViewerSystemPrintChildren(ProjectViewer* viewer, const xg::Guid& guid) {
+	void ProjectViewerSystemPrintDirectoryTree(ProjectViewer* viewer, const std::filesystem::path& parent) {
 		static constexpr ImGuiTreeNodeFlags nodeBaseFlags =
 			ImGuiTreeNodeFlags_OpenOnArrow
 			| ImGuiTreeNodeFlags_OpenOnDoubleClick
 			| ImGuiTreeNodeFlags_SpanAvailWidth;
 
-		const auto& tree = AssetMngr::Instance().GetAssetTree();
+		const auto selectedDirectoryPath = AssetMngr::Instance().GetFullPath(AssetMngr::Instance().GUIDToAssetPath(viewer->selectedAsset));
 
-		const auto& selectFolderPath = AssetMngr::Instance().GUIDToAssetPath(viewer->selectedFolder);
-		const auto& children = tree.find(guid)->second;
-
-		for (const auto& child : children) {
-			const auto& path = AssetMngr::Instance().GUIDToAssetPath(child);
-			if (!std::filesystem::is_directory(path))
+		for (const auto& directory_entry : std::filesystem::directory_iterator(parent)) {
+			if (!directory_entry.is_directory())
 				continue;
-			bool isFolderLeaf = IsFolderLeaf(child);
+			
+			const auto& path = directory_entry.path();
+			auto guid = AssetMngr::Instance().AssetPathToGUID(path);
+			bool isDeepestDirectory = IsDeepestDirectory(path);
 
-			auto name = path.filename();
+			auto name = path.stem();
 
 			ImGuiTreeNodeFlags nodeFlags = nodeBaseFlags;
-			if (viewer->selectedFolder == child)
+			if (viewer->selectedFolder == guid)
 				nodeFlags |= ImGuiTreeNodeFlags_Selected;
-			if (isFolderLeaf)
+			if (isDeepestDirectory)
 				nodeFlags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
-			if (IsParentFolder(path, selectFolderPath))
+			if (IsAncestorDirectory(path, selectedDirectoryPath))
 				ImGui::SetNextItemOpen(true, ImGuiCond_Always);
 
 			bool nodeOpen = ImGui::TreeNodeEx(
-				AssetMngr::Instance().LoadMainAsset(path).obj.GetPtr(),
+				AssetMngr::Instance().LoadMainAsset(path).GetPtr(),
 				nodeFlags,
 				"%s", name.string().c_str()
 			);
 
 			if (ImGui::IsItemClicked())
-				viewer->selectedFolder = child;
+				viewer->selectedFolder = guid;
 
-			if (nodeOpen && !isFolderLeaf) {
-				ProjectViewerSystemPrintChildren(viewer, child);
+			if (nodeOpen && !isDeepestDirectory) {
+				ProjectViewerSystemPrintDirectoryTree(viewer, path);
 				ImGui::TreePop();
 			}
 		}
 	}
 
 	void ProjectViewerSystemPrintFolder(Inspector* inspector, ProjectViewer* viewer) {
-		const auto& tree = AssetMngr::Instance().GetAssetTree();
 		if (!viewer->selectedFolder.isValid())
 			return;
 
-		std::vector<std::filesystem::path> paths;
-		auto curPath = AssetMngr::Instance().GUIDToAssetPath(viewer->selectedFolder);
-		while (curPath != AssetMngr::Instance().GetRootPath() && !curPath.empty()) {
-			paths.emplace_back(curPath);
-			curPath = curPath.parent_path();
-		}
-		for (size_t i = 0; i < paths.size(); i++) {
-			size_t idx = paths.size() - 1 - i;
-			const auto& path = paths[idx];
-			if (idx > 0) {
-				if (ImGui::SmallButton(path.stem().string().c_str()))
-					viewer->selectedFolder = AssetMngr::Instance().AssetPathToGUID(path);
-				ImGui::SameLine();
-				ImGui::Text(">");
-				ImGui::SameLine();
+		const auto selectedFolderPath = AssetMngr::Instance().GetFullPath(AssetMngr::Instance().GUIDToAssetPath(viewer->selectedFolder));
+		{ // header
+			std::vector<std::filesystem::path> paths;
+			{
+				auto curPath = selectedFolderPath;
+				while (curPath != AssetMngr::Instance().GetRootPath()) {
+					paths.emplace_back(curPath);
+					curPath = curPath.parent_path();
+				}
 			}
-			else
-				ImGui::Text(path.stem().string().c_str());
+			for (size_t i = 0; i < paths.size(); i++) {
+				size_t idx = paths.size() - 1 - i;
+				const auto& path = paths[idx];
+				if (idx > 0) {
+					if (ImGui::SmallButton(path.stem().string().c_str()))
+						viewer->selectedFolder = AssetMngr::Instance().AssetPathToGUID(path);
+					ImGui::SameLine();
+					ImGui::Text(">");
+					ImGui::SameLine();
+				}
+				else
+					ImGui::Text(path.stem().string().c_str());
+			}
 		}
+
 		ImGui::Separator();
 
-		const auto& children = tree.find(viewer->selectedFolder)->second;
-		auto file = AssetMngr::Instance().LoadAsset<Texture2D>(L"..\\assets\\_internal\\FolderViewer\\textures\\file.tex2d");
-		auto folder = AssetMngr::Instance().LoadAsset<Texture2D>(L"..\\assets\\_internal\\FolderViewer\\textures\\folder.tex2d");
-		auto code = AssetMngr::Instance().LoadAsset<Texture2D>(L"..\\assets\\_internal\\FolderViewer\\textures\\code.tex2d");
-		auto image = AssetMngr::Instance().LoadAsset<Texture2D>(L"..\\assets\\_internal\\FolderViewer\\textures\\image.tex2d");
-		auto material = AssetMngr::Instance().LoadAsset<Texture2D>(L"..\\assets\\_internal\\FolderViewer\\textures\\material.tex2d");
-		auto shader = AssetMngr::Instance().LoadAsset<Texture2D>(L"..\\assets\\_internal\\FolderViewer\\textures\\shader.tex2d");
-		auto hlsl = AssetMngr::Instance().LoadAsset<Texture2D>(L"..\\assets\\_internal\\FolderViewer\\textures\\hlsl.tex2d");
-		auto scene = AssetMngr::Instance().LoadAsset<Texture2D>(L"..\\assets\\_internal\\FolderViewer\\textures\\scene.tex2d");
-		auto model = AssetMngr::Instance().LoadAsset<Texture2D>(L"..\\assets\\_internal\\FolderViewer\\textures\\model.tex2d");
-		auto texcube = AssetMngr::Instance().LoadAsset<Texture2D>(L"..\\assets\\_internal\\FolderViewer\\textures\\texcube.tex2d");
+		auto file = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\FolderViewer\textures\file.png)");
+		auto folder = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\FolderViewer\textures\folder.png)");
+		//auto code = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\FolderViewer\textures\code.png)");
+		//auto image = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\FolderViewer\textures\image.png)");
+		auto material = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\FolderViewer\textures\material.png)");
+		auto shader = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\FolderViewer\textures\shader.png)");
+		auto hlsl = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\FolderViewer\textures\hlsl.png)");
+		//auto scene = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\FolderViewer\textures\scene.png)");
+		auto model = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\FolderViewer\textures\model.v)");
+		//auto texcube = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\FolderViewer\textures\texcube.png)");
 
 		auto fileID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*file);
 		auto folderID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*folder);
-		auto codeID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*code);
-		auto imageID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*image);
+		//auto codeID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*code);
+		//auto imageID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*image);
 		auto materialID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*material);
 		auto shaderID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*shader);
 		auto hlslID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*hlsl);
-		auto sceneID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*scene);
+		//auto sceneID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*scene);
 		auto modelID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*model);
-		auto texcubeID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*texcube);
+		//auto texcubeID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*texcube);
 
 		ImGuiStyle& style = ImGui::GetStyle();
 		ImVec2 button_sz(64, 64);
@@ -148,18 +149,17 @@ namespace Ubpa::Utopia::detail {
 		UINT idx = 0;
 
 		// folder first
-		std::vector<xg::Guid> childQueue;
-		childQueue.reserve(children.size());
+		std::deque<xg::Guid> childQueue;
 
-		for (const auto& child : children) {
-			const auto& path = AssetMngr::Instance().GUIDToAssetPath(child);
-			if (std::filesystem::is_directory(path))
-				childQueue.push_back(child);
-		}
-		for (const auto& child : children) {
-			const auto& path = AssetMngr::Instance().GUIDToAssetPath(child);
-			if (!std::filesystem::is_directory(path))
-				childQueue.push_back(child);
+		for (const auto& entry : std::filesystem::directory_iterator(selectedFolderPath)) {
+			auto guid = AssetMngr::Instance().AssetPathToGUID(entry.path());
+			if (!guid.isValid())
+				continue;
+
+			if (std::filesystem::is_directory(entry.path()))
+				childQueue.push_front(guid);
+			else
+				childQueue.push_back(guid);
 		}
 
 		for (const auto& child : childQueue) {
@@ -174,18 +174,12 @@ namespace Ubpa::Utopia::detail {
 				ImVec4 tint = viewer->selectedAsset == child ? ImVec4{ 0.65f, 0.65f, 0.65f, 1.f } : ImVec4{ 1,1,1,1 };
 				UINT64 id;
 				if (!isDir) {
-					if (ext == ".lua")
-						id = codeID.ptr;
-					else if (
-						ext == ".png"
+					if (ext == ".png"
 						|| ext == ".jpg"
 						|| ext == ".bmp"
 						|| ext == ".hdr"
-						|| ext == ".tga"
-						) {
-						id = imageID.ptr;
-					}
-					else if (ext == ".tex2d") {
+						|| ext == ".tga")
+					{
 						auto tex2d = AssetMngr::Instance().LoadAsset<Texture2D>(path);
 						Ubpa::Utopia::GPURsrcMngrDX12::Instance().RegisterTexture2D(
 							*tex2d
@@ -198,16 +192,11 @@ namespace Ubpa::Utopia::detail {
 						id = shaderID.ptr;
 					else if (ext == ".hlsl")
 						id = hlslID.ptr;
-					else if (ext == ".scene")
-						id = sceneID.ptr;
-					else if (
-						ext == ".obj"
-						|| ext == ".ply" && AssetMngr::Instance().IsSupported("ply")
+					else if ( ext == ".obj"
+						|| ext == ".ply" /*&& AssetMngr::Instance().IsSupported("ply")*/
 						) {
 						id = modelID.ptr;
 					}
-					else if (ext == ".texcube")
-						id = texcubeID.ptr;
 					else
 						id = fileID.ptr;
 				}
@@ -246,7 +235,7 @@ namespace Ubpa::Utopia::detail {
 						viewer->isRenaming = false;
 						if (!viewer->rename.empty()) {
 							std::filesystem::path newpath = path.parent_path().wstring()
-								+ L"\\"
+								+ LR"(\)"
 								+ std::filesystem::path(viewer->rename).wstring()
 								+ ext.wstring();
 							if (!std::filesystem::exists(newpath) && AssetMngr::Instance().MoveAsset(path, newpath))
@@ -263,7 +252,7 @@ namespace Ubpa::Utopia::detail {
 
 			float last_x = ImGui::GetItemRectMax().x;
 			float next_x = last_x + style.ItemSpacing.x + button_sz.x;
-			if (idx + 1 < children.size() && next_x < window_visible_x2)
+			if (idx + 1 < childQueue.size() && next_x < window_visible_x2)
 				ImGui::SameLine();
 
 			idx++;
@@ -283,11 +272,11 @@ void ProjectViewerSystem::OnUpdate(UECS::Schedule& schedule) {
 		viewer->hoveredAsset = xg::Guid{};
 		
 		if (ImGui::Begin("Project"))
-			detail::ProjectViewerSystemPrintChildren(viewer, xg::Guid{});
+			details::ProjectViewerSystemPrintDirectoryTree(viewer, AssetMngr::Instance().GetRootPath());
 		ImGui::End();
 
 		if (ImGui::Begin("Folder")) {
-			detail::ProjectViewerSystemPrintFolder(inspector, viewer);
+			details::ProjectViewerSystemPrintFolder(inspector, viewer);
 			if (ImGui::IsWindowHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
 				if (viewer->hoveredAsset.isValid())
 					ImGui::OpenPopup("Folder_Item_Popup");
@@ -306,7 +295,7 @@ void ProjectViewerSystem::OnUpdate(UECS::Schedule& schedule) {
 				}*/
 				ImGui::EndPopup();
 			}
-			if (ImGui::BeginPopup("Folder_Popup")) {
+			/*if (ImGui::BeginPopup("Folder_Popup")) {
 				if (ImGui::MenuItem("Create Material")) {
 					const auto& folderPath = AssetMngr::Instance().GUIDToAssetPath(viewer->selectedFolder);
 					auto wstr = folderPath.wstring();
@@ -314,13 +303,13 @@ void ProjectViewerSystem::OnUpdate(UECS::Schedule& schedule) {
 					const auto& tree = AssetMngr::Instance().GetAssetTree();
 					size_t i = 0;
 					do {
-						newPath = wstr + L"\\" + L"new file (" + std::to_wstring(i) + L").mat";
+						newPath = wstr + LR"(\" + L"new file (" + std::to_wstring(i) + L").mat)";
 						i++;
 					} while (std::filesystem::exists(newPath));
 					AssetMngr::Instance().CreateAsset(std::make_shared<Material>(), newPath);
 				}
 				ImGui::EndPopup();
-			}
+			}*/
 		}
 		ImGui::End();
 	}, 0);

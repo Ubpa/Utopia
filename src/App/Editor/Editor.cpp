@@ -5,6 +5,12 @@
 #include <Utopia/App/Editor/Components/ProjectViewer.h>
 #include <Utopia/App/Editor/Components/SystemController.h>
 
+#include <Utopia/Render/HLSLFileImporter.h>
+#include <Utopia/Render/TextureImporter.h>
+#include <Utopia/Render/ShaderImporter.h>
+#include <Utopia/Render/MaterialImporter.h>
+#include <Utopia/Render/MeshImporter.h>
+
 #include <Utopia/App/Editor/Systems/HierarchySystem.h>
 #include <Utopia/App/Editor/Systems/InspectorSystem.h>
 #include <Utopia/App/Editor/Systems/ProjectViewerSystem.h>
@@ -233,7 +239,14 @@ Editor::Impl::~Impl() {
 bool Editor::Impl::Init() {
 	ImGUIMngr::Instance().Init(pEditor->MainWnd(), pEditor->uDevice.Get(), DX12App::NumFrameResources, 3);
 	
-	AssetMngr::Instance().ImportAssetRecursively(L"..\\assets");
+	AssetMngr::Instance().SetRootPath(LR"(..\assets)");
+	AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<HLSLFileImporterCreator>());
+	AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<TextureImporterCreator>());
+	AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<ShaderImporterCreator>());
+	AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<MaterialImporterCreator>());
+	AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<MeshImporterCreator>());
+	AssetMngr::Instance().ImportAssetRecursively(LR"(.)");
+	
 	//InitInspectorRegistry();
 
 	LoadTextures();
@@ -550,7 +563,7 @@ void Editor::Impl::Update() {
 	ThrowIfFailed(pEditor->uGCmdList->Reset(cmdAlloc, nullptr));
 
 	auto UpdateRenderResource = [&](Ubpa::UECS::World* w) {
-		w->RunEntityJob([&](MeshFilter* meshFilter, const MeshRenderer* meshRenderer) {
+		w->RunEntityJob([&](MeshFilter* meshFilter, MeshRenderer* meshRenderer) {
 			if (!meshFilter->mesh || meshRenderer->materials.empty())
 				return;
 
@@ -559,18 +572,18 @@ void Editor::Impl::Update() {
 				*meshFilter->mesh
 			);
 
-			for (const auto& material : meshRenderer->materials) {
+			for (auto& material : meshRenderer->materials) {
 				if (!material)
 					continue;
-				for (const auto& [name, property] : material->properties) {
-					if (std::holds_alternative<std::shared_ptr<Texture2D>>(property)) {
+				for (auto& [name, property] : material->properties) {
+					if (std::holds_alternative<SharedVar<Texture2D>>(property.value)) {
 						GPURsrcMngrDX12::Instance().RegisterTexture2D(
-							*std::get<std::shared_ptr<Texture2D>>(property)
+							*std::get<SharedVar<Texture2D>>(property.value)
 						);
 					}
-					else if (std::holds_alternative<std::shared_ptr<TextureCube>>(property)) {
+					else if (std::holds_alternative<SharedVar<TextureCube>>(property.value)) {
 						GPURsrcMngrDX12::Instance().RegisterTextureCube(
-							*std::get<std::shared_ptr<TextureCube>>(property)
+							*std::get<SharedVar<TextureCube>>(property.value)
 						);
 					}
 				}
@@ -578,15 +591,15 @@ void Editor::Impl::Update() {
 		}, false);
 
 		if (auto skybox = w->entityMngr.WriteSingleton<Skybox>(); skybox && skybox->material) {
-			for (const auto& [name, property] : skybox->material->properties) {
-				if (std::holds_alternative<std::shared_ptr<Texture2D>>(property)) {
+			for (auto& [name, property] : skybox->material->properties) {
+				if (std::holds_alternative<SharedVar<Texture2D>>(property.value)) {
 					GPURsrcMngrDX12::Instance().RegisterTexture2D(
-						*std::get<std::shared_ptr<Texture2D>>(property)
+						*std::get<SharedVar<Texture2D>>(property.value)
 					);
 				}
-				else if (std::holds_alternative<std::shared_ptr<TextureCube>>(property)) {
+				else if (std::holds_alternative<SharedVar<TextureCube>>(property.value)) {
 					GPURsrcMngrDX12::Instance().RegisterTextureCube(
-						*std::get<std::shared_ptr<TextureCube>>(property)
+						*std::get<SharedVar<TextureCube>>(property.value)
 					);
 				}
 			}
@@ -748,66 +761,73 @@ void Editor::Impl::InitWorld(Ubpa::UECS::World& w) {
 void Editor::Impl::BuildWorld() {
 	{ // game
 		InitWorld(gameWorld);
+		{ // game camera
+			auto e = gameWorld.entityMngr.Create(TypeIDs_of<
+				LocalToWorld,
+				WorldToLocal,
+				Camera,
+				Translation,
+				Rotation
+			>);
+		}
 	}
 
 	{ // scene
 		InitWorld(sceneWorld);
-		//{ // scene camera
-		//	auto [e, l2w, w2l, cam, t, rot, roamer] = sceneWorld.entityMngr.Create<
-		//		LocalToWorld,
-		//		WorldToLocal,
-		//		Camera,
-		//		Translation,
-		//		Rotation,
-		//		Roamer
-		//	>();
-		//	roamer->reverseFrontBack = true;
-		//	roamer->reverseLeftRight = true;
-		//	roamer->moveSpeed = 1.f;
-		//	roamer->rotateSpeed = 0.1f;
-		//}
+		{ // scene camera
+			auto e = sceneWorld.entityMngr.Create(TypeIDs_of<
+				LocalToWorld,
+				WorldToLocal,
+				Camera,
+				Translation,
+				Rotation,
+				Roamer
+			>);
+			auto roamer = sceneWorld.entityMngr.WriteComponent<Roamer>(e);
+			roamer->reverseFrontBack = true;
+			roamer->reverseLeftRight = true;
+			roamer->moveSpeed = 1.f;
+			roamer->rotateSpeed = 0.1f;
+		}
 
-		//{ // hierarchy
-		//	auto [e, hierarchy] = sceneWorld.entityMngr.Create<Hierarchy>();
-		//	hierarchy->world = &sceneWorld;
-		//}
-		//sceneWorld.entityMngr.Create<WorldTime>();
-		//sceneWorld.entityMngr.Create<ProjectViewer>();
-		//sceneWorld.entityMngr.Create<Inspector>();
-		//sceneWorld.entityMngr.Create<Input>();
+		{ // hierarchy
+			auto e = sceneWorld.entityMngr.Create(TypeIDs_of<Hierarchy>);
+			auto hierarchy = sceneWorld.entityMngr.WriteComponent<Hierarchy>(e);
+			hierarchy->world = &sceneWorld;
+		}
+		sceneWorld.entityMngr.Create(TypeIDs_of<WorldTime>);
+		sceneWorld.entityMngr.Create(TypeIDs_of<ProjectViewer>);
+		sceneWorld.entityMngr.Create(TypeIDs_of<Inspector>);
+		sceneWorld.entityMngr.Create(TypeIDs_of<Input>);
 	}
 	
 	{ // editor
 		InitWorld(editorWorld);
-		//{ // hierarchy
-		//	auto [e, hierarchy] = editorWorld.entityMngr.Create<Hierarchy>();
-		//	hierarchy->world = &gameWorld;
-		//}
-		//{ // system controller
-		//	auto [e, systemCtrl] = editorWorld.entityMngr.Create<SystemController>();
-		//	systemCtrl->world = &gameWorld;
-		//}
-		//editorWorld.entityMngr.Create<Inspector>();
-		//editorWorld.entityMngr.Create<ProjectViewer>();
-		//editorWorld.systemMngr.RegisterAndActivate<LoggerSystem, SystemControllerSystem>();
+		{ // hierarchy
+			auto e = editorWorld.entityMngr.Create(TypeIDs_of<Hierarchy>);
+			auto hierarchy = editorWorld.entityMngr.WriteComponent<Hierarchy>(e);
+			hierarchy->world = &gameWorld;
+		}
+		{ // system controller
+			auto e = editorWorld.entityMngr.Create(TypeIDs_of<SystemController>);
+			auto systemCtrl = editorWorld.entityMngr.WriteComponent<SystemController>(e);
+			systemCtrl->world = &gameWorld;
+		}
+		editorWorld.entityMngr.Create(TypeIDs_of<Inspector>);
+		editorWorld.entityMngr.Create(TypeIDs_of<ProjectViewer>);
+		editorWorld.systemMngr.RegisterAndActivate<LoggerSystem, SystemControllerSystem>();
 	}
 }
 
 void Editor::Impl::LoadTextures() {
-	auto tex2dGUIDs = AssetMngr::Instance().FindAssets(std::wregex{ LR"(\.\.\\assets\\_internal\\.*\.tex2d)" });
+	auto tex2dGUIDs = AssetMngr::Instance().FindAssets(std::wregex{ LR"(_internal\\.*\.(png|jpg|bmp|hdr|tga))" });
 	for (const auto& guid : tex2dGUIDs) {
 		const auto& path = AssetMngr::Instance().GUIDToAssetPath(guid);
-		GPURsrcMngrDX12::Instance().RegisterTexture2D(
-			*AssetMngr::Instance().LoadAsset<Texture2D>(path)
-		);
-	}
-
-	auto texcubeGUIDs = AssetMngr::Instance().FindAssets(std::wregex{ LR"(\.\.\\assets\\_internal\\.*\.texcube)" });
-	for (const auto& guid : texcubeGUIDs) {
-		const auto& path = AssetMngr::Instance().GUIDToAssetPath(guid);
-		GPURsrcMngrDX12::Instance().RegisterTextureCube(
-			*AssetMngr::Instance().LoadAsset<TextureCube>(path)
-		);
+		auto asset = AssetMngr::Instance().LoadMainAsset(path);
+		if (asset.GetType().Is<Texture2D>())
+			GPURsrcMngrDX12::Instance().RegisterTexture2D(*asset.AsShared<Texture2D>());
+		else if (asset.GetType().Is<TextureCube>())
+			GPURsrcMngrDX12::Instance().RegisterTextureCube(*asset.AsShared<TextureCube>());
 	}
 }
 
@@ -818,7 +838,7 @@ void Editor::Impl::BuildShaders() {
 		const auto& path = assetMngr.GUIDToAssetPath(guid);
 		auto shader = assetMngr.LoadAsset<Shader>(path);
 		GPURsrcMngrDX12::Instance().RegisterShader(*shader);
-		ShaderMngr::Instance().Register(shader.obj);
+		ShaderMngr::Instance().Register(shader);
 	}
 }
 

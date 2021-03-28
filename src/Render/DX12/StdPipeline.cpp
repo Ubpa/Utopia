@@ -283,13 +283,16 @@ void StdPipeline::Impl::BuildTextures() {
 		ltcHandles.GetCpuHandle(static_cast<uint32_t>(1))
 	);
 
-	auto skyboxBlack = AssetMngr::Instance().LoadAsset<Material>(LR"(..\assets\_internal\materials\skyBlack.mat)");
-	auto blackTexCube = std::get<SharedVar<TextureCube>>(skyboxBlack->properties.at("gSkybox").value);
+	auto blackTex2D = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\textures\black.png)");
+	auto blackRsrc = GPURsrcMngrDX12::Instance().GetTexture2DResource(*blackTex2D);
+	// TODO bugs!
+	//auto skyboxBlack = AssetMngr::Instance().LoadAsset<Material>(LR"(_internal\materials\skyBlack.mat)");
+	//auto blackTexCube = std::get<SharedVar<TextureCube>>(tmp->properties.find("gSkybox")->second.value);
+	//auto tmp = std::make_shared<Material>();
+	//tmp->properties.emplace("gSkybox", blackTexCube);
+	auto blackTexCube = SharedVar<TextureCube>(AssetMngr::Instance().LoadAsset<TextureCube>(LR"(_internal\textures\blackCube.png)"));
 	auto blackTexCubeRsrc = GPURsrcMngrDX12::Instance().GetTextureCubeResource(*blackTexCube);
 	defaultSkybox = GPURsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(*blackTexCube);
-
-	auto blackTex2D = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(..\assets\_internal\textures\black.tex2d)");
-	auto blackRsrc = GPURsrcMngrDX12::Instance().GetTexture2DResource(*blackTex2D);
 
 	defaultIBLSRVDH = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(3);
 	auto cubeDesc = UDX12::Desc::SRV::TexCube(DXGI_FORMAT_R32G32B32A32_FLOAT);
@@ -371,7 +374,7 @@ void StdPipeline::Impl::BuildFrameResources() {
 			initDesc.device->CreateShaderResourceView(iblData->prefilterMapResource.Get(), &srvDesc, iblData->SRVDH.GetCpuHandle(1));
 		}
 		{// BRDF LUT
-			auto brdfLUTTex2D = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(..\assets\_internal\textures\BRDFLUT.tex2d)");
+			auto brdfLUTTex2D = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\textures\BRDFLUT.png)");
 			auto brdfLUTTex2DRsrc = GPURsrcMngrDX12::Instance().GetTexture2DResource(*brdfLUTTex2D);
 			auto desc = UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32_FLOAT);
 			initDesc.device->CreateShaderResourceView(brdfLUTTex2DRsrc, &desc, iblData->SRVDH.GetCpuHandle(2));

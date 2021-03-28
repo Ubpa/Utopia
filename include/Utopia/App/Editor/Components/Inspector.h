@@ -12,7 +12,7 @@ namespace Ubpa::Utopia {
 
 		bool lock{ false };
 		Mode mode;
-		UECS::Entity entity;
+		UECS::Entity entity{ UECS::Entity::Invalid() };
 		xg::Guid asset;
 	};
 }

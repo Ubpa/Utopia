@@ -13,11 +13,6 @@ namespace Ubpa::Utopia::details {
 }
 
 template<>
-constexpr auto Ubpa::type_name<ShaderPropertyVariant>() noexcept {
-	return TSTR("Ubpa::Utopia::ShaderPropertyVariant");
-}
-
-template<>
 struct Ubpa::UDRefl::details::TypeAutoRegister<ShaderPropertyVariant> {
 	static auto run(UDRefl::ReflMngr& mngr) {
 		using T = ShaderPropertyVariant;

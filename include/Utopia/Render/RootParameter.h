@@ -1,5 +1,7 @@
 #pragma once
 
+#include <UTemplate/Name.hpp>
+
 #include <variant>
 #include <vector>
 
@@ -54,4 +56,9 @@ namespace Ubpa::Utopia {
 	};
 
 	using RootParameter = std::variant<RootDescriptorTable, RootConstants, RootDescriptor>;
+}
+
+template<>
+constexpr auto Ubpa::type_name<Ubpa::Utopia::RootParameter>() noexcept {
+	return TSTR("Ubpa::Utopia::RootParameter");
 }

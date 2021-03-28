@@ -1,7 +1,7 @@
 #include <Utopia/App/DX12App/DX12App.h>
 
 #include <Utopia/Core/GameTimer.h>
-#include <Utopia/Asset/AssetMngr.h>
+#include <Utopia/Core/AssetMngr.h>
 #include <Utopia/Render/DX12/GPURsrcMngrDX12.h>
 #include <Utopia/Render/Shader.h>
 #include <Utopia/Render/HLSLFile.h>

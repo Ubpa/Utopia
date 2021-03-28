@@ -64,7 +64,9 @@ namespace Ubpa::Utopia {
 		bool IsRegisteredAsset(Type) const;
 
 		void Inspect(const UECS::World*, UECS::CmptPtr);
-		void Inspect(Type, void* asset);
+		void Inspect(Type, void* obj);
+		template<typename T>
+		void Inspect(T* obj) { Inspect(Type_of<T>, obj); }
 
 	private:
 		InspectorRegistry();

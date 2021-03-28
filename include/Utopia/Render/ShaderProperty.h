@@ -2,6 +2,8 @@
 
 #include "../Core/SharedVar.h"
 
+#include <UTemplate/Name.hpp>
+
 #include <UGM/val.hpp>
 #include <UGM/rgb.hpp>
 #include <UGM/rgba.hpp>
@@ -43,4 +45,10 @@ namespace Ubpa::Utopia {
 	struct ShaderProperty {
 		ShaderPropertyVariant value;
 	};
+}
+
+
+template<>
+constexpr auto Ubpa::type_name<Ubpa::Utopia::ShaderPropertyVariant>() noexcept {
+	return TSTR("Ubpa::Utopia::ShaderPropertyVariant");
 }
