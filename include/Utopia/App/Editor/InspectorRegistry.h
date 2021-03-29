@@ -1,6 +1,7 @@
 #pragma once
 
 #include <_deps/crossguid/guid.hpp>
+#include <UDRefl/Object.hpp>
 
 #include <UECS/UECS.hpp>
 
@@ -75,6 +76,7 @@ namespace Ubpa::Utopia {
 		void Inspect(T* obj) { Inspect(Type_of<T>, obj); }
 
 		static void InspectRecursively(std::string_view name, TypeID, void* obj, InspectContext ctx);
+		static void InspectRecursively(std::string_view name, UDRefl::ObjectView obj, InspectContext ctx);
 
 	private:
 		InspectorRegistry();

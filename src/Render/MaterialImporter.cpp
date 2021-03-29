@@ -3,6 +3,7 @@
 #include "ShaderImporter/ShaderImporterRegisterImpl.h"
 
 #include <Utopia/Render/Material.h>
+#include <Utopia/Render/Shader.h>
 
 #include <filesystem>
 
@@ -40,9 +41,19 @@ AssetImportContext MaterialImporter::ImportAsset() const {
 		std::istreambuf_iterator<char>()
 	);
 
-	auto materail = Serializer::Instance().Deserialize(str).AsShared<Material>();
+	auto material = Serializer::Instance().Deserialize(str).AsShared<Material>();
 
-	ctx.AddObject(name, UDRefl::SharedObject{ Type_of<Material>, materail });
+	if (material->shader) {
+		for (const auto& [n, prop] : material->shader->properties) {
+			auto target = material->properties.find(n);
+			if (target != material->properties.end())
+				continue;
+
+			material->properties.emplace_hint(target, n, prop);
+		}
+	}
+
+	ctx.AddObject(name, UDRefl::SharedObject{ Type_of<Material>, material });
 	ctx.SetMainObjectID(name);
 
 	return ctx;

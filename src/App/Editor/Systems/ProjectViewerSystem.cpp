@@ -173,7 +173,8 @@ namespace Ubpa::Utopia::details {
 
 		for (const auto& child : childQueue) {
 			const auto& path = AssetMngr::Instance().GUIDToAssetPath(child);
-			const bool isDir = std::filesystem::is_directory(AssetMngr::Instance().GetFullPath(path));
+			const auto fullpath = AssetMngr::Instance().GetFullPath(path);
+			const bool isDir = std::filesystem::is_directory(fullpath);
 			ImGui::PushID(reinterpret_cast<const void* const &>(child.bytes()));
 			auto ext = path.extension();
 			auto name = path.stem();
@@ -317,7 +318,7 @@ void ProjectViewerSystem::OnUpdate(UECS::Schedule& schedule) {
 					std::filesystem::path newPath;
 					size_t i = 0;
 					do {
-						newPath = wstr + L"(" + L"new file (" + std::to_wstring(i) + L").mat)";
+						newPath = wstr + LR"(\new file ()" + std::to_wstring(i) + LR"().mat)";
 						i++;
 					} while (std::filesystem::exists(newPath));
 					AssetMngr::Instance().CreateAsset(std::make_shared<Material>(), AssetMngr::Instance().GetRelativePath(newPath));

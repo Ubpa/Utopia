@@ -288,7 +288,7 @@ SharedObject AssetMngr::LoadMainAsset(const std::filesystem::path& path) {
 	for (const auto& [n, obj] : ctx.GetAssets()) {
 		pImpl->assetID2guid.emplace(obj.GetPtr(), guid);
 		pImpl->assetID2name.emplace(obj.GetPtr(), n);
-		if (obj == mainObj)
+		if (obj.GetPtr() == mainObj.GetPtr())
 			continue;
 		pImpl->guid2asset.emplace(guid, obj);
 	}
@@ -360,9 +360,10 @@ std::vector<SharedObject> AssetMngr::LoadAllAssets(const std::filesystem::path& 
 
 bool AssetMngr::DeleteAsset(const std::filesystem::path& path) {
 	auto guid = AssetPathToGUID(path);
+	auto fullpath = GetFullPath(path);
 	if (guid.isValid()) {
-		pImpl->guid2path.erase(guid);
 		pImpl->path2guid.erase(path);
+		pImpl->guid2path.erase(guid); // after erase path2guid (path is stored in guid2path)
 		pImpl->guid2importer.erase(guid);
 		auto [iter_begin, iter_end] = pImpl->guid2asset.equal_range(guid);
 		for (auto cursor = iter_begin; cursor != iter_end; ++cursor) {
@@ -372,7 +373,6 @@ bool AssetMngr::DeleteAsset(const std::filesystem::path& path) {
 		}
 		pImpl->guid2asset.erase(iter_begin, iter_end);
 	}
-	auto fullpath = GetFullPath(path);
 	std::filesystem::remove_all(fullpath);
 	std::filesystem::remove(fullpath.concat(".meta"));
 	return true;
@@ -433,6 +433,9 @@ bool AssetMngr::ReserializeAsset(const std::filesystem::path& path) {
 		ofs.close();
 	}
 
+	UnloadAsset(path);
+	LoadMainAsset(path);
+
 	return true;
 }
 
@@ -440,18 +443,21 @@ bool AssetMngr::MoveAsset(const std::filesystem::path& src, const std::filesyste
 	if (!dst.is_relative())
 		return false;
 
-	if (std::filesystem::exists(dst))
+	std::filesystem::path dstfull = GetFullPath(dst);
+
+	if (std::filesystem::exists(dstfull))
 		return false;
 
 	auto srcguidtarget = pImpl->path2guid.find(src);
 	if (srcguidtarget == pImpl->path2guid.end())
 		return false;
 
+	std::filesystem::path srcfull = GetFullPath(src);
 	auto target = pImpl->path2guid.find(src);
 	auto guid = target->second;
 	try {
-		std::filesystem::rename(src, dst);
-		std::filesystem::rename(src.wstring() + L".meta", dst.wstring() + L".meta");
+		std::filesystem::rename(srcfull, dstfull);
+		std::filesystem::rename(srcfull.wstring() + L".meta", dstfull.wstring() + L".meta");
 	}
 	catch (...) {
 		return false;

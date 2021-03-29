@@ -11,6 +11,7 @@ void Ubpa::Utopia::UDRefl_Register_Core() {
 	details::UDRefl_Register_UGM_3();
 	details::UDRefl_Register_UGM_4();
 	details::UDRefl_Register_UGM_5();
+	details::UDRefl_Register_UGM_6();
 	details::UDRefl_Register_UECS();
 	details::UDRefl_Register_Children();
 	details::UDRefl_Register_Input();
