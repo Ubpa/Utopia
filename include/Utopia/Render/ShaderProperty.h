@@ -42,9 +42,14 @@ namespace Ubpa::Utopia {
 		SharedVar<TextureCube>             // 23, Texture Cube
 	> ;
 
+	static_assert(alignof(rgbaf) <= alignof(std::max_align_t));
+	static_assert(alignof(val<float, 4>) <= alignof(std::max_align_t));
+	static_assert(alignof(ShaderPropertyVariant) <= alignof(std::max_align_t));
+
 	struct ShaderProperty {
 		ShaderPropertyVariant value;
 	};
+	static_assert(alignof(ShaderProperty) <= alignof(std::max_align_t));
 }
 
 
