@@ -48,12 +48,12 @@ namespace Ubpa::Utopia {
 		template<typename T> requires std::negation_v<std::is_void<T>>
 		bool CreateAsset(std::shared_ptr<T> ptr, const std::filesystem::path& path);
 
-		bool Contains(UDRefl::SharedObject obj) const;
+		bool Contains(const void* obj) const;
 
 		std::vector<xg::Guid> FindAssets(const std::wregex& matchRegex) const;
 
-		xg::Guid GetAssetGUID(UDRefl::SharedObject obj) const;
-		const std::filesystem::path& GetAssetPath(UDRefl::SharedObject obj) const;
+		xg::Guid GetAssetGUID(const void* obj) const;
+		const std::filesystem::path& GetAssetPath(const void* obj) const;
 
 		// get first asset type
 		Type GetAssetType(const std::filesystem::path&) const;
@@ -89,9 +89,10 @@ namespace Ubpa::Utopia {
 
 		void RegisterAssetImporterCreator(std::shared_ptr<AssetImporterCreator> creator);
 
-		std::string_view NameofAsset(UDRefl::SharedObject obj) const;
+		std::string_view NameofAsset(const void* obj) const;
 
 		void SetImporterOverride(const std::filesystem::path& path, std::shared_ptr<AssetImporter> importer);
+		std::shared_ptr<AssetImporter> GetImporter(const std::filesystem::path& path);
 
 		void UnloadAsset(const std::filesystem::path& path);
 	private:

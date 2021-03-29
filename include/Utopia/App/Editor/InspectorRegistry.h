@@ -1,5 +1,7 @@
 #pragma once
 
+#include <_deps/crossguid/guid.hpp>
+
 #include <UECS/UECS.hpp>
 
 #include <functional>
@@ -40,6 +42,15 @@ namespace UInspector {
 namespace Ubpa::Utopia {
 	class InspectorRegistry {
 	public:
+		struct Playload {
+			struct AssetHandle {
+				xg::Guid guid;
+				std::string_view name;
+			};
+			static constexpr const char Asset[] = "__AssetHandle";
+			static constexpr const char Entity[] = "__Entity";
+		};
+
 		static InspectorRegistry& Instance() noexcept {
 			static InspectorRegistry instance;
 			return instance;

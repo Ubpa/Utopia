@@ -1,6 +1,6 @@
 #include <Utopia/App/Editor/Systems/HierarchySystem.h>
 
-#include <Utopia/App/Editor/PlayloadType.h>
+#include <Utopia/App/Editor/InspectorRegistry.h>
 
 #include <Utopia/App/Editor/Components/Hierarchy.h>
 #include <Utopia/App/Editor/Components/Inspector.h>
@@ -44,7 +44,7 @@ namespace Ubpa::Utopia::detail {
 			: ImGui::TreeNodeEx((void*)(intptr_t)e.index, nodeFlags, "Entity (%d)", e.index);
 
 		if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None)) {
-			ImGui::SetDragDropPayload(PlayloadType::ENTITY, &e, sizeof(UECS::Entity));
+			ImGui::SetDragDropPayload(InspectorRegistry::Playload::Entity, &e, sizeof(UECS::Entity));
 			if (name)
 				ImGui::Text("%s (%d)", name->value.c_str(), e.index);
 			else
@@ -54,7 +54,7 @@ namespace Ubpa::Utopia::detail {
 		}
 
 		if (ImGui::BeginDragDropTarget()) {
-			if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(PlayloadType::ENTITY)) {
+			if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(InspectorRegistry::Playload::Entity)) {
 				IM_ASSERT(payload->DataSize == sizeof(UECS::Entity));
 				auto payload_e = *(const UECS::Entity*)payload->Data;
 				if (HierarchyMovable(hierarchy->world, e, payload_e)) {
@@ -151,7 +151,7 @@ void HierarchySystem::OnUpdate(UECS::Schedule& schedule) {
 				hierarchy->hover = UECS::Entity::Invalid();
 
 			if (ImGui::BeginDragDropTarget()) {
-				if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(PlayloadType::ENTITY)) {
+				if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(InspectorRegistry::Playload::Entity)) {
 					IM_ASSERT(payload->DataSize == sizeof(UECS::Entity));
 					auto payload_e = *(const UECS::Entity*)payload->Data;
 

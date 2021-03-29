@@ -204,12 +204,12 @@ void Serializer::SerializeRecursion(UDRefl::ObjectView obj, SerializeContext& ct
 		ctx.writer.Uint64(obj.As<Entity>().index);
 	else if (obj.GetType().Is<SharedObject>()) {
 		auto sobj = obj.As<SharedObject>();
-		if (AssetMngr::Instance().Contains(sobj)) {
+		if (AssetMngr::Instance().Contains(sobj.GetPtr())) {
 			ctx.writer.StartObject();
 			ctx.writer.Key(Key::Name);
-			ctx.writer.String(AssetMngr::Instance().NameofAsset(sobj).data());
+			ctx.writer.String(AssetMngr::Instance().NameofAsset(sobj.GetPtr()).data());
 			ctx.writer.Key(Key::Guid);
-			ctx.writer.String(AssetMngr::Instance().GetAssetGUID(sobj).str());
+			ctx.writer.String(AssetMngr::Instance().GetAssetGUID(sobj.GetPtr()).str());
 			ctx.writer.EndObject();
 		}
 		else
@@ -217,12 +217,12 @@ void Serializer::SerializeRecursion(UDRefl::ObjectView obj, SerializeContext& ct
 	}
 	else if (obj.GetType().GetName().starts_with("Ubpa::Utopia::SharedVar<")) { // TODO
 		auto sobj = obj.Invoke("cast_to_shared_obj");
-		if (AssetMngr::Instance().Contains(sobj)) {
+		if (AssetMngr::Instance().Contains(sobj.GetPtr())) {
 			ctx.writer.StartObject();
 			ctx.writer.Key(Key::Name);
-			ctx.writer.String(AssetMngr::Instance().NameofAsset(sobj).data());
+			ctx.writer.String(AssetMngr::Instance().NameofAsset(sobj.GetPtr()).data());
 			ctx.writer.Key(Key::Guid);
-			ctx.writer.String(AssetMngr::Instance().GetAssetGUID(sobj).str());
+			ctx.writer.String(AssetMngr::Instance().GetAssetGUID(sobj.GetPtr()).str());
 			ctx.writer.EndObject();
 		}
 		else

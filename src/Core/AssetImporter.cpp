@@ -23,6 +23,11 @@ void AssetImporter::RegisterToUDRefl() {
 	UDRefl::Mngr.AddField<&AssetImporter::guid>(Serializer::Key::Guid);
 }
 
+void DefaultAssetImporter::RegisterToUDRefl() {
+	RegisterToUDReflHelper();
+	UDRefl::Mngr.RegisterType<DefaultAsset>();
+}
+
 AssetImportContext DefaultAssetImporter::ImportAsset() const {
 	AssetImportContext ctx;
 	

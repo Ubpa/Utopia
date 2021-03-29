@@ -168,7 +168,7 @@ namespace Ubpa::Utopia {
 	public:
 		using TAssetImporter<DefaultAssetImporter>::TAssetImporter;
 		virtual AssetImportContext ImportAsset() const override;
-		static void RegisterToUDRefl() { RegisterToUDReflHelper(); }
+		static void RegisterToUDRefl();
 	};
 
 	class DefaultAssetImporterCreator final : public TAssetImporterCreator<DefaultAssetImporter> {
