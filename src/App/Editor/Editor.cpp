@@ -5,6 +5,7 @@
 #include <Utopia/App/Editor/Components/ProjectViewer.h>
 #include <Utopia/App/Editor/Components/SystemController.h>
 
+#include <Utopia/Core/WorldAssetImporter.h>
 #include <Utopia/Render/HLSLFileImporter.h>
 #include <Utopia/Render/TextureImporter.h>
 #include <Utopia/Render/ShaderImporter.h>
@@ -41,8 +42,8 @@
 #include <Utopia/Core/Systems/Systems.h>
 #include <Utopia/Core/ImGUIMngr.h>
 
-#include <Utopia/Core/UDRefl_Register_Core.h>
-#include <Utopia/Render/UDRefl_Register_Render.h>
+#include <Utopia/Core/Register_Core.h>
+#include <Utopia/Render/Register_Render.h>
 
 #include <_deps/imgui/imgui.h>
 #include <_deps/imgui/imgui_impl_win32.h>
@@ -243,6 +244,7 @@ bool Editor::Impl::Init() {
 	ImGUIMngr::Instance().Init(pEditor->MainWnd(), pEditor->uDevice.Get(), DX12App::NumFrameResources, 3);
 	
 	AssetMngr::Instance().SetRootPath(LR"(..\assets)");
+	AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<WorldAssetImporterCreator>());
 	AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<HLSLFileImporterCreator>());
 	AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<TextureImporterCreator>());
 	AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<ShaderImporterCreator>());
@@ -625,8 +627,11 @@ void Editor::Impl::Update() {
 		curGameWorld->RunEntityJob([&](Ubpa::UECS::Entity e) {
 			gameCameras.emplace_back(e, *curGameWorld);
 			}, false, camFilter);
-		assert(gameCameras.size() == 1); // now only support 1 camera
-		gamePipeline->BeginFrame({ curGameWorld }, gameCameras.front());
+		assert(gameCameras.empty() || gameCameras.size() == 1); // now only support 0/1 camera
+		if(gameCameras.empty())
+			gamePipeline->BeginFrame({ curGameWorld }, { Entity::Invalid(), *curGameWorld });
+		else
+			gamePipeline->BeginFrame({ curGameWorld }, gameCameras.front());
 	}
 
 	{
@@ -634,9 +639,12 @@ void Editor::Impl::Update() {
 		Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::AccessTypeID_of<Camera>} };
 		sceneWorld.RunEntityJob([&](Ubpa::UECS::Entity e) {
 			sceneCameras.emplace_back(e, sceneWorld);
-			}, false, camFilter);
-		assert(sceneCameras.size() == 1); // now only support 1 camera
-		scenePipeline->BeginFrame({ curGameWorld, &sceneWorld }, sceneCameras.front());
+		}, false, camFilter);
+		assert(sceneCameras.empty() || sceneCameras.size() == 1); // now only support 0/1 camera
+		if (sceneCameras.empty())
+			gamePipeline->BeginFrame({ curGameWorld, &sceneWorld }, { Entity::Invalid(), sceneWorld });
+		else
+			scenePipeline->BeginFrame({ curGameWorld, &sceneWorld }, sceneCameras.front());
 	}
 
 	{

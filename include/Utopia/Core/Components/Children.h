@@ -8,6 +8,7 @@
 namespace Ubpa::Utopia {
 	struct Children {
 		using allocator_type = std::pmr::polymorphic_allocator<UECS::Entity>;
+		Children() = default;
 		Children(const allocator_type& alloc) : value(alloc) {}
 		Children(const Children& other, const allocator_type& alloc) : value(other.value, alloc) {}
 		Children(Children&& other, const allocator_type& alloc) : value(std::move(other.value), alloc) {}

@@ -52,11 +52,12 @@ namespace Ubpa::Utopia {
 		void RegisterSerializeFunction(Func&& func);
 
 		std::string Serialize(const UECS::World*);
+		std::string Serialize(const UECS::World*, std::span<UECS::Entity> entities);
 		std::string Serialize(size_t ID, const void* obj);
 		std::string Serialize(UDRefl::ObjectView obj);
 		template<typename UserType>
 		std::string Serialize(const UserType* obj);
-		bool SerializeToWorld(UECS::World*, std::string_view json);
+		bool DeserializeToWorld(UECS::World*, std::string_view json);
 
 		static void SerializeRecursion(UDRefl::ObjectView obj, SerializeContext& ctx);
 

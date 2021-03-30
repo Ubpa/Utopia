@@ -503,7 +503,7 @@ void GameStarter::BuildWorld() {
 	>();
 	//OutputDebugStringA(Ubpa::Utopia::Serializer::Instance().Serialize(&world).c_str());
 	auto scene = Ubpa::Utopia::AssetMngr::Instance().LoadAsset<Ubpa::Utopia::Scene>(L"..\\assets\\scenes\\Game.scene");
-	Ubpa::Utopia::Serializer::Instance().SerializeToWorld(&world, scene->GetText());
+	Ubpa::Utopia::Serializer::Instance().DeserializeToWorld(&world, scene->GetText());
 	cam = world.entityMngr.GetEntityArray({ {Ubpa::UECS::AccessTypeID_of<Ubpa::Utopia::Camera>} }).front();
 	OutputDebugStringA(Ubpa::Utopia::Serializer::Instance().Serialize(&world).c_str());
 

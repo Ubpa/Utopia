@@ -8,8 +8,11 @@
 #include <Utopia/Core/Components/Children.h>
 #include <Utopia/Core/Components/Parent.h>
 #include <Utopia/Core/Components/Name.h>
+#include <Utopia/Core/AssetMngr.h>
+#include <Utopia/Core/WorldAssetImporter.h>
 
 #include <_deps/imgui/imgui.h>
+#include <_deps/imgui/misc/cpp/imgui_stdlib.h>
 
 using namespace Ubpa::Utopia;
 
@@ -118,6 +121,7 @@ void HierarchySystem::OnUpdate(UECS::Schedule& schedule) {
 			return;
 
 		if (ImGui::Begin("Hierarchy")) {
+
 			if (ImGui::IsWindowHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
 				ImGui::OpenPopup("Hierarchy_popup");
 
@@ -143,12 +147,21 @@ void HierarchySystem::OnUpdate(UECS::Schedule& schedule) {
 				else {
 					if (ImGui::MenuItem("Create Empty Entity"))
 						hierarchy->world->entityMngr.Create();
+
+					if (ImGui::MenuItem("Save World"))
+						hierarchy->is_saving_world = true;
+
+					if (ImGui::MenuItem("Delete All Entities"))
+						hierarchy->world->entityMngr.Clear();
 				}
 
 				ImGui::EndPopup();
 			}
 			else
 				hierarchy->hover = UECS::Entity::Invalid();
+
+			if (hierarchy->is_saving_world)
+				ImGui::OpenPopup("Input Saved Path");
 
 			if (ImGui::BeginDragDropTarget()) {
 				if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(InspectorRegistry::Playload::Entity)) {
@@ -161,7 +174,37 @@ void HierarchySystem::OnUpdate(UECS::Schedule& schedule) {
 						hierarchy->world->entityMngr.Detach(payload_e, TypeIDs_of<Parent>);
 					}
 				}
+				else if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(InspectorRegistry::Playload::Asset)) {
+					IM_ASSERT(payload->DataSize == sizeof(InspectorRegistry::Playload::AssetHandle));
+					auto asset_handle = *(const InspectorRegistry::Playload::AssetHandle*)payload->Data;
+					UDRefl::SharedObject asset = asset_handle.name.empty() ?
+						AssetMngr::Instance().GUIDToAsset(asset_handle.guid)
+						: AssetMngr::Instance().GUIDToAsset(asset_handle.guid, asset_handle.name);
+					if (asset.GetType().Is<WorldAsset>()) {
+						if(hierarchy->world)
+							asset.As<WorldAsset>().ToWorld(hierarchy->world);
+					}
+				}
 				ImGui::EndDragDropTarget();
+			}
+
+			if (ImGui::BeginPopupModal("Input Saved Path", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+				ImGui::InputText("path", &hierarchy->saved_path);
+				if (ImGui::Button("OK", ImVec2(120, 0))) {
+					std::filesystem::path path{ hierarchy->saved_path };
+					if (path.extension() != LR"(.world)")
+						path += LR"(.world)";
+					AssetMngr::Instance().CreateAsset(std::make_shared<WorldAsset>(hierarchy->world), path);
+					hierarchy->saved_path.clear();
+					hierarchy->is_saving_world = false;
+					ImGui::CloseCurrentPopup();
+				}
+				if (ImGui::Button("Cancel", ImVec2(120, 0))) {
+					hierarchy->is_saving_world = false;
+					ImGui::CloseCurrentPopup();
+				}
+
+				ImGui::EndPopup();
 			}
 
 			auto inspector = w->entityMngr.WriteSingleton<Inspector>();

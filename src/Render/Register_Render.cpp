@@ -1,6 +1,7 @@
-#include <Utopia/Render/UDRefl_Register_Render.h>
+#include <Utopia/Render/Register_Render.h>
 
 #include <Utopia/Render/Components/Components.h>
+#include <Utopia/Render/Systems/Systems.h>
 
 #include <UDRefl/UDRefl.hpp>
 
@@ -46,4 +47,18 @@ void Ubpa::Utopia::UDRefl_Register_Render() {
 	// Skybox
 	Mngr.RegisterType<Skybox>();
 	Mngr.AddField<&Skybox::material>("materials");
+}
+
+void Ubpa::Utopia::World_Register_Render(UECS::World* world) {
+	world->entityMngr.cmptTraits.Register<
+		Camera,
+		Light,
+		MeshFilter,
+		MeshRenderer,
+		Skybox
+	>();
+
+	world->systemMngr.systemTraits.Register<
+		CameraSystem
+	>();
 }

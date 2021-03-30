@@ -540,7 +540,7 @@ void InspectorRegistry::InspectRecursively(std::string_view name, UDRefl::Object
 			[[fallthrough]];
 			case Ubpa::UDRefl::ContainerType::Vector:
 			case Ubpa::UDRefl::ContainerType::Deque:
-			case Ubpa::UDRefl::ContainerType::ForwardList: // TODO: append
+			case Ubpa::UDRefl::ContainerType::ForwardList:
 			case Ubpa::UDRefl::ContainerType::List:
 			case Ubpa::UDRefl::ContainerType::Span:
 			case Ubpa::UDRefl::ContainerType::MultiSet:
@@ -560,7 +560,7 @@ void InspectorRegistry::InspectRecursively(std::string_view name, UDRefl::Object
 					{
 						int s = static_cast<int>(objv.size());
 						int origs = s;
-						ImGui::InputInt("resize", &s, 1);
+						ImGui::InputInt("size", &s, 1);
 						if (s != origs && s >= 0)
 							objv.resize(static_cast<size_t>(s));
 					}
