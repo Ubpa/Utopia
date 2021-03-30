@@ -9,6 +9,9 @@ using namespace Ubpa::Utopia;
 WorldAsset::WorldAsset(const UECS::World* world) :
 	data{Serializer::Instance().Serialize(world)} {}
 
+WorldAsset::WorldAsset(const UECS::World* world, std::span<UECS::Entity> entities) :
+	data{ Serializer::Instance().Serialize(world, entities) } {}
+
 bool WorldAsset::ToWorld(UECS::World* world) {
 	return Serializer::Instance().DeserializeToWorld(world, data);
 }

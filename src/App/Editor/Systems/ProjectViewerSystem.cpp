@@ -254,8 +254,7 @@ namespace Ubpa::Utopia::details {
 					if (ImGui::InputText("", &viewer->rename, ImGuiInputTextFlags_EnterReturnsTrue)) {
 						viewer->isRenaming = false;
 						if (!viewer->rename.empty()) {
-							std::filesystem::path newpath = path.parent_path().wstring()
-								+ LR"(\)"
+							std::filesystem::path newpath = (path.has_parent_path()? path.parent_path().wstring() + LR"(\)" : LR"()")
 								+ std::filesystem::path(viewer->rename).wstring()
 								+ ext.wstring();
 							if (!std::filesystem::exists(AssetMngr::Instance().GetFullPath(newpath)) && AssetMngr::Instance().MoveAsset(path, newpath))
@@ -326,6 +325,18 @@ void ProjectViewerSystem::OnUpdate(UECS::Schedule& schedule) {
 						i++;
 					} while (std::filesystem::exists(newPath));
 					AssetMngr::Instance().CreateAsset(std::make_shared<Material>(), AssetMngr::Instance().GetRelativePath(newPath));
+				}
+				if (ImGui::MenuItem("Create Folder")) {
+					const auto& folderPath = AssetMngr::Instance().GetFullPath(AssetMngr::Instance().GUIDToAssetPath(viewer->selectedFolder));
+					auto wstr = folderPath.wstring();
+					std::filesystem::path newPath;
+					size_t i = 0;
+					do {
+						newPath = wstr + LR"(\new folder ()" + std::to_wstring(i) + LR"())";
+						i++;
+					} while (std::filesystem::exists(newPath));
+					std::filesystem::create_directory(newPath);
+					AssetMngr::Instance().LoadMainAsset(AssetMngr::Instance().GetRelativePath(newPath));
 				}
 				ImGui::EndPopup();
 			}

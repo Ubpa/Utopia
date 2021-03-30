@@ -829,6 +829,7 @@ void Editor::Impl::BuildWorld() {
 		}
 		editorWorld.entityMngr.Create(TypeIDs_of<Inspector>);
 		editorWorld.entityMngr.Create(TypeIDs_of<ProjectViewer>);
+		editorWorld.entityMngr.Create(TypeIDs_of<Input>);
 		editorWorld.systemMngr.RegisterAndActivate<LoggerSystem, SystemControllerSystem>();
 	}
 }
