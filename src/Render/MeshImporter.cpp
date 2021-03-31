@@ -43,7 +43,6 @@ AssetImportContext MeshImporter::ImportAsset() const {
 	if (path.empty())
 		return {};
 
-	std::string name = path.stem().string();
 	auto ext = path.extension();
 	std::shared_ptr<Mesh> mesh;
 	if (ext == LR"(.obj)")
@@ -53,8 +52,8 @@ AssetImportContext MeshImporter::ImportAsset() const {
 		mesh = details::AssimpLoadMesh(path);
 #endif // UBPA_UTOPIA_USE_ASSIMP
 	
-	ctx.AddObject(name, UDRefl::SharedObject{ Type_of<Mesh>, mesh });
-	ctx.SetMainObjectID(name);
+	ctx.AddObject("main", UDRefl::SharedObject{ Type_of<Mesh>, mesh });
+	ctx.SetMainObjectID("main");
 
 	return ctx;
 }

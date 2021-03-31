@@ -140,7 +140,7 @@ std::filesystem::path AssetMngr::GetFullPath(const std::filesystem::path& path) 
 }
 
 std::filesystem::path AssetMngr::GetRelativePath(const std::filesystem::path& path) const {
-	return std::filesystem::relative(path, GetRootPath());
+	return path.lexically_relative(GetRootPath());
 }
 
 void AssetMngr::Clear() {
@@ -201,7 +201,18 @@ const std::filesystem::path& AssetMngr::GUIDToAssetPath(const xg::Guid& guid) co
 	return target == pImpl->guid2path.end() ? ERROR : target->second;
 }
 
-SharedObject AssetMngr::GUIDToAsset(const xg::Guid& guid) {
+std::vector<UDRefl::SharedObject> AssetMngr::GUIDToAllAssets(const xg::Guid& guid) {
+	auto [iter_begin, iter_end] = pImpl->guid2asset.equal_range(guid);
+	if (iter_begin == iter_end)
+		return LoadAllAssets(GUIDToAssetPath(guid));
+
+	std::vector<UDRefl::SharedObject> rst;
+	for (auto cursor = iter_begin; cursor != iter_end; ++cursor)
+		rst.push_back(cursor->second);
+	return rst;
+}
+
+SharedObject AssetMngr::GUIDToMainAsset(const xg::Guid& guid) {
 	auto target = pImpl->guid2asset.find(guid);
 	if (target == pImpl->guid2asset.end())
 		return LoadMainAsset(GUIDToAssetPath(guid));
@@ -285,15 +296,13 @@ SharedObject AssetMngr::LoadMainAsset(const std::filesystem::path& path) {
 	if (ctx.GetAssets().empty())
 		return {};
 	auto mainObj = ctx.GetMainObject();
+	pImpl->guid2asset.emplace(guid, mainObj);
 	for (const auto& [n, obj] : ctx.GetAssets()) {
 		pImpl->assetID2guid.emplace(obj.GetPtr(), guid);
 		pImpl->assetID2name.emplace(obj.GetPtr(), n);
 		if (obj.GetPtr() == mainObj.GetPtr())
 			continue;
 		pImpl->guid2asset.emplace(guid, obj);
-	}
-	if (mainObj) {
-		pImpl->guid2asset.emplace(guid, mainObj);
 	}
 
 	return mainObj;
@@ -311,6 +320,7 @@ SharedObject AssetMngr::LoadAsset(const std::filesystem::path& path, Type type) 
 			return {};
 		}
 		auto mainObj = ctx.GetMainObject();
+		pImpl->guid2asset.emplace(guid, mainObj);
 		for (const auto& [n, obj] : ctx.GetAssets()) {
 			pImpl->assetID2guid.emplace(obj.GetPtr(), guid);
 			pImpl->assetID2name.emplace(obj.GetPtr(), n);
@@ -318,8 +328,6 @@ SharedObject AssetMngr::LoadAsset(const std::filesystem::path& path, Type type) 
 				continue;
 			pImpl->guid2asset.emplace(guid, obj);
 		}
-		if (mainObj)
-			pImpl->guid2asset.emplace(guid, mainObj);
 	}
 
 	auto [iter_begin, iter_end] = pImpl->guid2asset.equal_range(guid);
@@ -340,6 +348,7 @@ std::vector<SharedObject> AssetMngr::LoadAllAssets(const std::filesystem::path& 
 		if (ctx.GetAssets().empty())
 			return {};
 		auto mainObj = ctx.GetMainObject();
+		pImpl->guid2asset.emplace(guid, mainObj);
 		for (const auto& [n, obj] : ctx.GetAssets()) {
 			pImpl->assetID2guid.emplace(obj.GetPtr(), guid);
 			pImpl->assetID2name.emplace(obj.GetPtr(), n);
@@ -347,8 +356,6 @@ std::vector<SharedObject> AssetMngr::LoadAllAssets(const std::filesystem::path& 
 				continue;
 			pImpl->guid2asset.emplace(guid, obj);
 		}
-		if (mainObj)
-			pImpl->guid2asset.emplace(guid, mainObj);
 	}
 
 	auto [iter_begin, iter_end] = pImpl->guid2asset.equal_range(guid);
@@ -379,6 +386,8 @@ bool AssetMngr::DeleteAsset(const std::filesystem::path& path) {
 }
 
 bool AssetMngr::CreateAsset(SharedObject ptr, const std::filesystem::path& path) {
+	if (path.empty())
+		return false;
 	DeleteAsset(path);
 
 	const auto ext = path.extension().string();
@@ -425,16 +434,13 @@ bool AssetMngr::ReserializeAsset(const std::filesystem::path& path) {
 
 	{
 		auto json = importer->ReserializeAsset();
-		if (json.empty())
-			return false;
-		std::ofstream ofs(fullpath);
-		assert(ofs.is_open());
-		ofs << json;
-		ofs.close();
+		if (!json.empty()) {
+			std::ofstream ofs(fullpath);
+			assert(ofs.is_open());
+			ofs << json;
+			ofs.close();
+		}
 	}
-
-	UnloadAsset(path);
-	LoadMainAsset(path);
 
 	return true;
 }

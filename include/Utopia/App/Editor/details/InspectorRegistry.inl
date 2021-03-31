@@ -878,7 +878,7 @@ namespace Ubpa::Utopia {
 		static_assert(std::is_pointer_v<AssetPtr>);
 		using Asset = std::remove_pointer_t<AssetPtr>;
 		static_assert(!std::is_const_v<Asset>);
-		RegisterAsset(typeid(Asset), [f = std::forward<Func>(func)](void* asset, InspectContext ctx) {
+		Register(TypeID_of<Asset>, [f = std::forward<Func>(func)](void* asset, InspectContext ctx) {
 			f(reinterpret_cast<Asset*>(asset), ctx);
 		});
 	}

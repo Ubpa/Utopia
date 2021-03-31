@@ -3,6 +3,8 @@
 #include <Utopia/Render/Texture2D.h>
 #include <Utopia/Render/TextureCube.h>
 
+#include <Utopia/Core/AssetMngr.h>
+
 #include <filesystem>
 
 using namespace Ubpa::Utopia;
@@ -26,8 +28,6 @@ AssetImportContext TextureImporter::ImportAsset() const {
 	if (path.empty())
 		return {};
 
-	std::string name = path.stem().string();
-
 	Image img(path.string());
 
 	switch (mode)
@@ -36,12 +36,12 @@ AssetImportContext TextureImporter::ImportAsset() const {
 		Texture2D t;
 		t.image = std::move(img);
 		auto tex = std::make_shared<Texture2D>(std::move(t));
-		ctx.AddObject(name, UDRefl::SharedObject{ Type_of<Texture2D>, tex });
+		ctx.AddObject("main", UDRefl::SharedObject{ Type_of<Texture2D>, tex });
 	}
 		break;
 	case Ubpa::Utopia::TextureImporter::Mode::TextureCube: {
 		auto tex = std::make_shared<TextureCube>(std::move(img));
-		ctx.AddObject(name, UDRefl::SharedObject{ Type_of<TextureCube>, tex });
+		ctx.AddObject("main", UDRefl::SharedObject{ Type_of<TextureCube>, tex });
 	}
 		break;
 	default:
@@ -49,9 +49,34 @@ AssetImportContext TextureImporter::ImportAsset() const {
 		return {};
 	}
 
-	ctx.SetMainObjectID(name);
+	ctx.SetMainObjectID("main");
 
 	return ctx;
+}
+
+std::string TextureImporter::ReserializeAsset() const {
+	auto asset = AssetMngr::Instance().GUIDToMainAsset(GetGuid());
+	if (!asset.GetPtr())
+		return {};
+	
+	const auto path = GetFullPath();
+	if (mode == Mode::Texture2D) {
+		if (!asset.GetType().Is<Texture2D>())
+			return {};
+		
+		asset.As<Texture2D>().image.Save(path.string());
+	}
+	else if (mode == Mode::TextureCube) {
+		if (!asset.GetType().Is<TextureCube>())
+			return {};
+		if (asset.As<TextureCube>().GetSourceMode() != TextureCube::SourceMode::EquirectangularMap)
+			return {};
+		asset.As<TextureCube>().GetEquiRectangularMap().Save(path.string());
+	}
+	else
+		assert(false);
+
+	return {};
 }
 
 std::vector<std::string> TextureImporterCreator::SupportedExtentions() const {

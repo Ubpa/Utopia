@@ -22,6 +22,12 @@ namespace Ubpa::Utopia {
 		void Clear();
 
 		SourceMode GetSourceMode() const noexcept { return mode; }
+		// 0 : +x
+		// 1 : -x
+		// 2 : +y
+		// 3 : -y
+		// 4 : +z
+		// 5 : -z
 		const auto& GetSixSideImages() const noexcept { return images; }
 		const auto& GetEquiRectangularMap() const noexcept { return equirectangularMap; }
 

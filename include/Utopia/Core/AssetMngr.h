@@ -62,8 +62,9 @@ namespace Ubpa::Utopia {
 		const std::filesystem::path& GUIDToAssetPath(const xg::Guid&) const;
 
 		// if not loaded, return nullptr
-		
-		UDRefl::SharedObject GUIDToAsset(const xg::Guid&);
+
+		std::vector<UDRefl::SharedObject> GUIDToAllAssets(const xg::Guid&);
+		UDRefl::SharedObject GUIDToMainAsset(const xg::Guid&);
 		UDRefl::SharedObject GUIDToAsset(const xg::Guid&, Type type);
 		UDRefl::SharedObject GUIDToAsset(const xg::Guid&, std::string_view name);
 		template<typename T>

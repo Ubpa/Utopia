@@ -37,7 +37,6 @@ AssetImportContext ShaderImporter::ImportAsset() const {
 	if (path.empty())
 		return {};
 
-	std::string name = path.stem().string();
 	std::ifstream ifs(path);
 	assert(ifs.is_open());
 	std::string str;
@@ -57,8 +56,8 @@ AssetImportContext ShaderImporter::ImportAsset() const {
 		return{};
 
 	std::shared_ptr<Shader> s = std::make_shared<Shader>(std::move(shader));
-	ctx.AddObject(name, UDRefl::SharedObject{ Type_of<Shader>, s });
-	ctx.SetMainObjectID(name);
+	ctx.AddObject("main", UDRefl::SharedObject{ Type_of<Shader>, s });
+	ctx.SetMainObjectID("main");
 
 	return ctx;
 }

@@ -291,6 +291,7 @@ GPURsrcMngrDX12& GPURsrcMngrDX12::RegisterTextureCube(TextureCube& texcube) {
 
 	pImpl->textureCubeMap.emplace_hint(target, std::make_pair(texcube.GetInstanceID(), std::move(tex)));
 
+	texcube.SetClean();
 	return *this;
 }
 

@@ -8,6 +8,7 @@
 #include <Utopia/Core/WorldAssetImporter.h>
 #include <Utopia/Render/HLSLFileImporter.h>
 #include <Utopia/Render/TextureImporter.h>
+#include <Utopia/Render/TextureCubeImporter.h>
 #include <Utopia/Render/ShaderImporter.h>
 #include <Utopia/Render/MaterialImporter.h>
 #include <Utopia/Render/MeshImporter.h>
@@ -247,12 +248,14 @@ bool Editor::Impl::Init() {
 	AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<WorldAssetImporterCreator>());
 	AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<HLSLFileImporterCreator>());
 	AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<TextureImporterCreator>());
+	AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<TextureCubeImporterCreator>());
 	AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<ShaderImporterCreator>());
 	AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<MaterialImporterCreator>());
 	AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<MeshImporterCreator>());
 	AssetMngr::Instance().ImportAssetRecursively(LR"(.)");
 	
 	//InitInspectorRegistry();
+	InspectorRegistry::Instance().Register(&Editor::Impl::InspectMaterial);
 
 	UDRefl_Register_Core();
 	UDRefl_Register_Render();
@@ -843,6 +846,17 @@ void Editor::Impl::LoadTextures() {
 			GPURsrcMngrDX12::Instance().RegisterTexture2D(*asset.AsShared<Texture2D>());
 		else if (asset.GetType().Is<TextureCube>())
 			GPURsrcMngrDX12::Instance().RegisterTextureCube(*asset.AsShared<TextureCube>());
+		else
+			assert(false);
+	}
+	auto texcubeGUIDs = AssetMngr::Instance().FindAssets(std::wregex{ LR"(_internal\\.*\.texcube)" });
+	for (const auto& guid : texcubeGUIDs) {
+		const auto& path = AssetMngr::Instance().GUIDToAssetPath(guid);
+		auto asset = AssetMngr::Instance().LoadMainAsset(path);
+		if (asset.GetType().Is<TextureCube>())
+			GPURsrcMngrDX12::Instance().RegisterTextureCube(*asset.AsShared<TextureCube>());
+		else
+			assert(false);
 	}
 }
 
@@ -857,73 +871,88 @@ void Editor::Impl::BuildShaders() {
 	}
 }
 
-//void Editor::Impl::InspectMaterial(Material* material, InspectorRegistry::InspectContext ctx) {
-//	ImGui::Text("(*)");
-//	ImGui::SameLine();
-//	if (material->shader) {
-//		if (ImGui::Button(material->shader->name.c_str()))
-//			ImGui::OpenPopup("Meterial_Shader_Seletor");
-//	}
-//	else {
-//		if (ImGui::Button("nullptr"))
-//			ImGui::OpenPopup("Meterial_Shader_Seletor");
-//	}
-//	if (ImGui::BeginDragDropTarget()) {
-//		if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(PlayloadType::GUID)) {
-//			IM_ASSERT(payload->DataSize == sizeof(xg::Guid));
-//			const auto& payload_guid = *(const xg::Guid*)payload->Data;
-//			const auto& path = AssetMngr::Instance().GUIDToAssetPath(payload_guid);
-//			assert(!path.empty());
-//			if (auto shader = AssetMngr::Instance().LoadAsset<Shader>(path)) {
-//				material->shader = shader.obj;
-//				material->properties = shader->properties;
-//			}
-//		}
-//		ImGui::EndDragDropTarget();
-//	}
-//	if (ImGui::BeginPopup("Meterial_Shader_Seletor")) {
-//		if (material->shader)
-//			ImGui::PushID((void*)material->shader->GetInstanceID());
-//		else
-//			ImGui::PushID(0);
-//		// Helper class to easy setup a text filter.
-//		// You may want to implement a more feature-full filtering scheme in your own application.
-//		static ImGuiTextFilter filter;
-//		filter.Draw();
-//		int ID = 0;
-//		ShaderMngr::Instance().Refresh();
-//		size_t N = ShaderMngr::Instance().GetShaderMap().size();
-//		for (const auto& [name, shader] : ShaderMngr::Instance().GetShaderMap()) {
-//			auto shader_s = shader.lock();
-//			if (shader_s != material->shader && filter.PassFilter(name.c_str())) {
-//				ImGui::PushID(ID);
-//				ImGui::PushStyleColor(ImGuiCol_Button, (ImVec4)ImColor::HSV(ID / float(N), 0.6f, 0.6f));
-//				ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImVec4)ImColor::HSV(ID / float(N), 0.7f, 0.7f));
-//				ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImVec4)ImColor::HSV(ID / float(N), 0.8f, 0.8f));
-//				if (ImGui::Button(name.c_str())) {
-//					material->shader = shader_s;
-//					material->properties = shader_s->properties;
-//				}
-//				ImGui::PopStyleColor(3);
-//				ImGui::PopID();
-//			}
-//			ID++;
-//		}
-//		ImGui::PopID();
-//		ImGui::EndPopup();
-//	}
-//	ImGui::SameLine();
-//	ImGui::Text("shader");
-//
-//	bool changed = false;
-//	USRefl::TypeInfo<Material>::ForEachVarOf(*material, [ctx, &changed](auto field, auto& var) {
-//		if (field.name == "shader")
-//			return;
-//		if (detail::InspectVar1(field, var, ctx))
-//			changed = true;
-//	});
-//	if (changed) {
-//		const auto& path = AssetMngr::Instance().GetAssetPath(*material);
-//		AssetMngr::Instance().ReserializeAsset(path);
-//	}
-//}
+void Editor::Impl::InspectMaterial(Material* material, InspectorRegistry::InspectContext ctx) {
+	std::string header = std::string{ AssetMngr::Instance().NameofAsset(material) } + " (" + std::string{ type_name<Material>().View() } + ")";
+	
+	if (ImGui::CollapsingHeader(header.data())) {
+		ImGui::PushID(material);
+
+		ImGui::Text("(*)");
+		ImGui::SameLine();
+
+		{ // button
+			if (material->shader) {
+				if (ImGui::Button(material->shader->name.c_str()))
+					ImGui::OpenPopup("Meterial_Shader_Seletor");
+			}
+			else {
+				if (ImGui::Button("nullptr"))
+					ImGui::OpenPopup("Meterial_Shader_Seletor");
+			}
+		}
+
+		if (ImGui::BeginDragDropTarget()) {
+			if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(InspectorRegistry::Playload::Asset)) {
+				IM_ASSERT(payload->DataSize == sizeof(InspectorRegistry::Playload::Asset));
+				const auto& asset_handle = *(InspectorRegistry::Playload::AssetHandle*)payload->Data;
+				UDRefl::SharedObject asset;
+				if (asset_handle.name.empty()) {
+					// main
+					asset = AssetMngr::Instance().GUIDToMainAsset(asset_handle.guid);
+				}
+				else
+					asset = AssetMngr::Instance().GUIDToAsset(asset_handle.guid, asset_handle.name);
+				if (asset.GetType().Is<Shader>()) {
+					material->shader = asset.AsShared<Shader>();
+					material->properties = material->shader->properties;
+				}
+			}
+			ImGui::EndDragDropTarget();
+		}
+
+		if (ImGui::BeginPopup("Meterial_Shader_Seletor")) {
+			if (material->shader)
+				ImGui::PushID((void*)material->shader->GetInstanceID());
+			else
+				ImGui::PushID(0);
+			// Helper class to easy setup a text filter.
+			// You may want to implement a more feature-full filtering scheme in your own application.
+			static ImGuiTextFilter filter;
+			filter.Draw();
+			int ID = 0;
+			ShaderMngr::Instance().Refresh();
+			size_t N = ShaderMngr::Instance().GetShaderMap().size();
+			for (const auto& [name, shader] : ShaderMngr::Instance().GetShaderMap()) {
+				auto shader_s = shader.lock();
+				if (shader_s.get() != material->shader.get() && filter.PassFilter(name.c_str())) {
+					ImGui::PushID(ID);
+					ImGui::PushStyleColor(ImGuiCol_Button, (ImVec4)ImColor::HSV(ID / float(N), 0.6f, 0.6f));
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImVec4)ImColor::HSV(ID / float(N), 0.7f, 0.7f));
+					ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImVec4)ImColor::HSV(ID / float(N), 0.8f, 0.8f));
+					if (ImGui::Button(name.c_str())) {
+						material->shader = shader_s;
+						material->properties = shader_s->properties;
+					}
+					ImGui::PopStyleColor(3);
+					ImGui::PopID();
+				}
+				ID++;
+			}
+			ImGui::PopID();
+			ImGui::EndPopup();
+		}
+		ImGui::SameLine();
+		ImGui::Text("shader");
+
+		for (const auto& [n, var] : UDRefl::ObjectView{ Type_of<Material>, material }.GetVars()) {
+			if (n == "shader")
+				continue;
+			InspectorRegistry::Instance().InspectRecursively(n, var.GetType().GetID(), var.GetPtr(), ctx);
+		}
+
+		if (ImGui::Button("apply"))
+			AssetMngr::Instance().ReserializeAsset(AssetMngr::Instance().GetAssetPath(material));
+
+		ImGui::PopID();
+	}
+}

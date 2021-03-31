@@ -30,8 +30,8 @@ public:
 	}
 
 	virtual std::string ReserializeAsset() const override {
-		auto asset = AssetMngr::Instance().GUIDToAsset(GetGuid());
-		return Serializer::Instance().Serialize(asset.GetType().GetID().GetValue(), asset.GetPtr());
+		auto asset = AssetMngr::Instance().GUIDToMainAsset(GetGuid());
+		return Serializer::Instance().Serialize(asset);
 	}
 
 	static void RegisterToUDRefl() {
@@ -64,26 +64,26 @@ int main() {
 	}
 	{
 		auto asset = AssetMngr::Instance().LoadMainAsset(LR"(hello.txt)");
-		assert(AssetMngr::Instance().NameofAsset(asset) == "hello");
+		assert(AssetMngr::Instance().NameofAsset(asset.GetPtr()) == "hello");
 		assert(asset.GetType().Is<DefaultAsset>());
 		assert(asset.GetPtr());
-		assert(AssetMngr::Instance().GetAssetPath(asset) == LR"(hello.txt)");
-		auto guid_asset = AssetMngr::Instance().GetAssetGUID(asset);
-		assert(AssetMngr::Instance().GUIDToAsset(guid_asset).GetPtr() == asset.GetPtr());
+		assert(AssetMngr::Instance().GetAssetPath(asset.GetPtr()) == LR"(hello.txt)");
+		auto guid_asset = AssetMngr::Instance().GetAssetGUID(asset.GetPtr());
+		assert(AssetMngr::Instance().GUIDToMainAsset(guid_asset).GetPtr() == asset.GetPtr());
 		assert(AssetMngr::Instance().GUIDToAssetPath(guid_asset) == LR"(hello.txt)");
 	}
 	{
 		auto asset = AssetMngr::Instance().LoadMainAsset(LR"(folder\file_in_folder.txt)");
-		assert(AssetMngr::Instance().NameofAsset(asset) == "file_in_folder");
+		assert(AssetMngr::Instance().NameofAsset(asset.GetPtr()) == "file_in_folder");
 		assert(asset.GetType().Is<DefaultAsset>());
 		assert(asset.GetPtr());
-		assert(AssetMngr::Instance().GetAssetPath(asset) == LR"(folder\file_in_folder.txt)");
+		assert(AssetMngr::Instance().GetAssetPath(asset.GetPtr()) == LR"(folder\file_in_folder.txt)");
 
 		auto folder = AssetMngr::Instance().LoadMainAsset(LR"(folder)");
-		assert(AssetMngr::Instance().NameofAsset(folder) == "folder");
+		assert(AssetMngr::Instance().NameofAsset(folder.GetPtr()) == "folder");
 		assert(folder.GetType().Is<DefaultAsset>());
 		assert(folder.GetPtr());
-		auto folder_path = AssetMngr::Instance().GetAssetPath(folder);
+		auto folder_path = AssetMngr::Instance().GetAssetPath(folder.GetPtr());
 		assert(folder_path == LR"(folder)");
 	}
 	{

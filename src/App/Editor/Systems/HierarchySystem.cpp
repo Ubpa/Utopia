@@ -192,7 +192,7 @@ void HierarchySystem::OnUpdate(UECS::Schedule& schedule) {
 					IM_ASSERT(payload->DataSize == sizeof(InspectorRegistry::Playload::AssetHandle));
 					auto asset_handle = *(const InspectorRegistry::Playload::AssetHandle*)payload->Data;
 					UDRefl::SharedObject asset = asset_handle.name.empty() ?
-						AssetMngr::Instance().GUIDToAsset(asset_handle.guid)
+						AssetMngr::Instance().GUIDToMainAsset(asset_handle.guid)
 						: AssetMngr::Instance().GUIDToAsset(asset_handle.guid, asset_handle.name);
 					if (asset.GetType().Is<WorldAsset>()) {
 						if(hierarchy->world)

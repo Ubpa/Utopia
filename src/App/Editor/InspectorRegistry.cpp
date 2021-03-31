@@ -76,15 +76,23 @@ void InspectorRegistry::Inspect(const UECS::World* w, TypeID typeID, void* obj) 
 		}
 		auto assets = AssetMngr::Instance().LoadAllAssets(path);
 		for (const auto& asset : assets) {
-			ImGui::PushID(asset.GetPtr());
-			if (ImGui::CollapsingHeader(asset.GetType().GetName().data())) {
-				InspectorRegistry::InspectContext ctx{ w, pImpl->inspector };
-				for (const auto& [n, var] : asset.GetVars())
-					InspectRecursively(n, var.GetType().GetID(), var.GetPtr(), ctx);
-				if (ImGui::Button("apply"))
-					AssetMngr::Instance().ReserializeAsset(path);
+			InspectorRegistry::InspectContext ctx{ w, pImpl->inspector };
+			if (ctx.inspector.IsRegistered(asset.GetType().GetID().GetValue())) {
+				ctx.inspector.Visit(asset.GetType().GetID().GetValue(), asset.GetPtr(), ctx);
+				return;
 			}
-			ImGui::PopID();
+			else {
+				std::string header = std::string{ AssetMngr::Instance().NameofAsset(asset.GetPtr()) }
+					+ " (" + std::string{ asset.GetType().GetName() } + ")";
+				if (ImGui::CollapsingHeader(header.data())) {
+					ImGui::PushID(asset.GetPtr());
+					for (const auto& [n, var] : asset.GetVars())
+						InspectRecursively(n, var.GetType().GetID(), var.GetPtr(), ctx);
+					if (ImGui::Button("apply"))
+						AssetMngr::Instance().ReserializeAsset(path);
+					ImGui::PopID();
+				}
+			}
 		}
 	}
 	else {
@@ -203,10 +211,8 @@ void InspectorRegistry::InspectRecursively(std::string_view name, UDRefl::Object
 				// button
 				if (sobj.GetPtr()) {
 					const auto& path = AssetMngr::Instance().GetAssetPath(sobj.GetPtr());
-					if (!path.empty()) {
-						auto name = path.stem().string();
-						ImGui::Button(name.c_str());
-					}
+					if (!path.empty())
+						ImGui::Button(path.string().c_str());
 					else
 						ImGui::Button("UNKNOW");
 				}
@@ -226,10 +232,8 @@ void InspectorRegistry::InspectRecursively(std::string_view name, UDRefl::Object
 				// button
 				if (sobj.GetPtr()) {
 					const auto& path = AssetMngr::Instance().GetAssetPath(sobj.GetPtr());
-					if (!path.empty()) {
-						auto name = path.stem().string();
-						ImGui::Button(name.c_str());
-					}
+					if (!path.empty())
+						ImGui::Button(path.string().c_str());
 					else
 						ImGui::Button("UNKNOW");
 				}
@@ -408,10 +412,8 @@ void InspectorRegistry::InspectRecursively(std::string_view name, UDRefl::Object
 				// button
 				if (sobj.GetPtr()) {
 					const auto& path = AssetMngr::Instance().GetAssetPath(sobj.GetPtr());
-					if (!path.empty()) {
-						auto name = path.stem().string();
-						ImGui::Button(name.c_str());
-					}
+					if (!path.empty())
+						ImGui::Button(path.string().c_str());
 					else
 						ImGui::Button("UNKNOW");
 				}
@@ -426,7 +428,7 @@ void InspectorRegistry::InspectRecursively(std::string_view name, UDRefl::Object
 					SharedObject asset;
 					if (assethandle.name.empty()) {
 						// main
-						asset = AssetMngr::Instance().GUIDToAsset(assethandle.guid);
+						asset = AssetMngr::Instance().GUIDToMainAsset(assethandle.guid);
 					}
 					else
 						asset = AssetMngr::Instance().GUIDToAsset(assethandle.guid, assethandle.name);
@@ -449,10 +451,8 @@ void InspectorRegistry::InspectRecursively(std::string_view name, UDRefl::Object
 				// button
 				if (sobj.GetPtr()) {
 					const auto& path = AssetMngr::Instance().GetAssetPath(sobj.GetPtr());
-					if (!path.empty()) {
-						auto name = path.stem().string();
-						ImGui::Button(name.c_str());
-					}
+					if (!path.empty())
+						ImGui::Button(path.string().c_str());
 					else
 						ImGui::Button("UNKNOW");
 				}
@@ -467,7 +467,7 @@ void InspectorRegistry::InspectRecursively(std::string_view name, UDRefl::Object
 					SharedObject asset;
 					if (assethandle.name.empty()) {
 						// main
-						asset = AssetMngr::Instance().GUIDToAsset(assethandle.guid);
+						asset = AssetMngr::Instance().GUIDToMainAsset(assethandle.guid);
 					}
 					else
 						asset = AssetMngr::Instance().GUIDToAsset(assethandle.guid, assethandle.name);

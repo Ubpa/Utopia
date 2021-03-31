@@ -8,7 +8,8 @@ namespace Ubpa::Utopia {
 		using TAssetImporter<TextureImporter>::TAssetImporter;
 
 		virtual AssetImportContext ImportAsset() const override;
-		static void RegisterToUDRefl();
+		virtual std::string ReserializeAsset() const;
+
 
 		enum class Mode {
 			Texture2D,
@@ -16,6 +17,10 @@ namespace Ubpa::Utopia {
 		};
 
 		Mode mode{ Mode::Texture2D };
+
+	private:
+		friend class TAssetImporterCreator<TextureImporter>;
+		static void RegisterToUDRefl();
 	};
 
 	class TextureImporterCreator final : public TAssetImporterCreator<TextureImporter> {

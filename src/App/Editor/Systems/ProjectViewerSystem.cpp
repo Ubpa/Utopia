@@ -7,6 +7,7 @@
 
 #include <Utopia/Core/AssetMngr.h>
 #include <Utopia/Render/Texture2D.h>
+#include <Utopia/Render/TextureCube.h>
 #include <Utopia/Render/Material.h>
 #include <Utopia/Render/DX12/GPURsrcMngrDX12.h>
 
@@ -141,7 +142,7 @@ namespace Ubpa::Utopia::details {
 		auto hlsl = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\FolderViewer\hlsl.png)");
 		auto world = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\FolderViewer\world.png)");
 		auto model = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\FolderViewer\model.png)");
-		//auto texcube = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\FolderViewer\texcube.png)");
+		auto texcube = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\FolderViewer\texcube.png)");
 
 		auto fileID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*file);
 		auto folderID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*folder);
@@ -152,7 +153,7 @@ namespace Ubpa::Utopia::details {
 		auto hlslID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*hlsl);
 		auto worldID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*world);
 		auto modelID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*model);
-		//auto texcubeID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*texcube);
+		auto texcubeID = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*texcube);
 
 		ImGuiStyle& style = ImGui::GetStyle();
 		ImVec2 button_sz(64, 64);
@@ -192,16 +193,19 @@ namespace Ubpa::Utopia::details {
 						|| ext == ".hdr"
 						|| ext == ".tga")
 					{
-						auto tex2d = AssetMngr::Instance().LoadAsset<Texture2D>(path);
-						if (tex2d.get()) {
-							Ubpa::Utopia::GPURsrcMngrDX12::Instance().RegisterTexture2D(
-								*tex2d
-							);
-							id = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*tex2d).ptr;
+						auto tex = AssetMngr::Instance().LoadMainAsset(path);
+						if (tex.GetType().Is<Texture2D>()) {
+							auto& tex2d = tex.As<Texture2D>();
+							Ubpa::Utopia::GPURsrcMngrDX12::Instance().RegisterTexture2D(tex2d);
+							id = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(tex2d).ptr;
 						}
+						else if (tex.GetType().Is<TextureCube>())
+							id = texcubeID.ptr;
 						else
 							id = fileID.ptr;
 					}
+					else if (ext == ".texcube")
+						id = texcubeID.ptr;
 					else if (ext == ".mat")
 						id = materialID.ptr;
 					else if (ext == ".shader")
@@ -212,7 +216,8 @@ namespace Ubpa::Utopia::details {
 						id = hlslID.ptr;
 					else if ( ext == ".obj"
 						|| ext == ".ply" /*&& AssetMngr::Instance().IsSupported("ply")*/
-						) {
+						)
+					{
 						id = modelID.ptr;
 					}
 					else
@@ -337,6 +342,17 @@ void ProjectViewerSystem::OnUpdate(UECS::Schedule& schedule) {
 					} while (std::filesystem::exists(newPath));
 					std::filesystem::create_directory(newPath);
 					AssetMngr::Instance().LoadMainAsset(AssetMngr::Instance().GetRelativePath(newPath));
+				}
+				if (ImGui::MenuItem("Create TextureCube")) {
+					const auto& folderPath = AssetMngr::Instance().GetFullPath(AssetMngr::Instance().GUIDToAssetPath(viewer->selectedFolder));
+					auto wstr = folderPath.wstring();
+					std::filesystem::path newPath;
+					size_t i = 0;
+					do {
+						newPath = wstr + LR"(\new texcube ()" + std::to_wstring(i) + LR"().texcube)";
+						i++;
+					} while (std::filesystem::exists(newPath));
+					AssetMngr::Instance().CreateAsset(std::make_shared<TextureCube>(Image(1,1,3)), AssetMngr::Instance().GetRelativePath(newPath));
 				}
 				ImGui::EndPopup();
 			}

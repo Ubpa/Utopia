@@ -9,7 +9,7 @@ std::filesystem::path AssetImporter::GetFullPath() const {
 }
 
 std::string AssetImporter::ReserializeAsset() const {
-	auto asset = AssetMngr::Instance().GUIDToAsset(guid);
+	auto asset = AssetMngr::Instance().GUIDToMainAsset(guid);
 	if (!asset.GetType() || !asset.GetPtr())
 		return {};
 	return Serializer::Instance().Serialize(asset);
@@ -21,7 +21,6 @@ AssetImportContext AssetImporter::ImportAsset() const {
 	auto path = GetFullPath();
 	if (path.empty())
 		return {};
-	std::string name = path.stem().string();
 
 	std::string str;
 	{ // read file to str
@@ -38,8 +37,8 @@ AssetImportContext AssetImporter::ImportAsset() const {
 		);
 	}
 
-	ctx.AddObject(name, Serializer::Instance().Deserialize(str));
-	ctx.SetMainObjectID(name);
+	ctx.AddObject("main", Serializer::Instance().Deserialize(str));
+	ctx.SetMainObjectID("main");
 
 	return ctx;
 }
