@@ -48,9 +48,11 @@ AssetImportContext MeshImporter::ImportAsset() const {
 	if (ext == LR"(.obj)")
 		mesh = details::LoadObj(path);
 #ifdef UBPA_UTOPIA_USE_ASSIMP
-	else if (ext == LR"(.ply)")
+	else if (ext == LR"(.ply)" || ext == LR"(.FBX)")
 		mesh = details::AssimpLoadMesh(path);
 #endif // UBPA_UTOPIA_USE_ASSIMP
+	else
+		assert(false);
 	
 	ctx.AddObject("main", UDRefl::SharedObject{ Type_of<Mesh>, mesh });
 	ctx.SetMainObjectID("main");
@@ -63,6 +65,7 @@ std::vector<std::string> MeshImporterCreator::SupportedExtentions() const {
 		".obj",
 #ifdef UBPA_UTOPIA_USE_ASSIMP
 		".ply",
+		".FBX"
 #endif // UBPA_UTOPIA_USE_ASSIMP
 	};
 }

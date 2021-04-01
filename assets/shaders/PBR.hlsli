@@ -28,7 +28,7 @@ float Pow5(float x) {
 }
 
 float3 SchlickFrR(float3 V, float3 N, float3 F0, float roughness) {
-	float cosTheta = max(dot(V, N), 0);
+	float cosTheta = saturate(dot(V, N));
 	float x = 1.0 - roughness;
     return F0 + (max(float3(x,x,x), F0) - F0) * Pow5(1.0 - cosTheta);
 }

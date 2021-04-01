@@ -778,15 +778,6 @@ void Editor::Impl::InitWorld(Ubpa::UECS::World& w) {
 void Editor::Impl::BuildWorld() {
 	{ // game
 		InitWorld(gameWorld);
-		{ // game camera
-			auto e = gameWorld.entityMngr.Create(TypeIDs_of<
-				LocalToWorld,
-				WorldToLocal,
-				Camera,
-				Translation,
-				Rotation
-			>);
-		}
 	}
 
 	{ // scene

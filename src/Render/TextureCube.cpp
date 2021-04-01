@@ -86,11 +86,11 @@ void TextureCube::Init(const Image& equirectangularMap) {
 					vecf3 p = origin[i] + (x / float(s)) * right[i] + (y / float(s)) * up[i];
 					p.normalize_self();
 					pointf2 uv = { std::atan2(p[2], p[0]), std::asin(p[1]) };
-					uv[0] = 0.5f - uv[0] * invAtan[0];
-					uv[1] = 0.5f + uv[1] * invAtan[1];
+					uv[0] = 0.5f + uv[0] * invAtan[0];
+					uv[1] = 1 - (0.5f + uv[1] * invAtan[1]); // filp
 					auto color = equirectangularMap.SampleLinear(uv);
 					for (size_t k = 0; k < c; k++)
-						img.At(x, y, k) = color[k];
+						img.At(x, s - 1 - y, k) = color[k]; // flip
 				}
 			}
 		}
@@ -102,6 +102,13 @@ void TextureCube::Init(const Image& equirectangularMap) {
 
 	for (auto& worker : workers)
 		worker.join();
+
+	/*imgs[0].Save("pos_x.png");
+	imgs[1].Save("neg_x.png");
+	imgs[2].Save("pos_y.png");
+	imgs[3].Save("neg_y.png");
+	imgs[4].Save("pos_z.png");
+	imgs[5].Save("neg_z.png");*/
 
 	images = std::move(imgs);
 }

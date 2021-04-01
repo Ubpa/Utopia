@@ -215,7 +215,8 @@ namespace Ubpa::Utopia::details {
 					else if (ext == ".hlsl")
 						id = hlslID.ptr;
 					else if ( ext == ".obj"
-						|| ext == ".ply" /*&& AssetMngr::Instance().IsSupported("ply")*/
+						|| ext == ".ply"
+						|| ext == ".FBX"
 						)
 					{
 						id = modelID.ptr;

@@ -117,58 +117,27 @@ void Serializer::SerializeRecursion(UDRefl::ObjectView obj, SerializeContext& ct
 	}
 
 	obj = obj.RemoveConst();
-	if (obj.GetType().IsArithmetic()) {
-		switch (obj.GetType().GetID().GetValue())
-		{
-		case TypeID_of<bool>.GetValue():
-			ctx.writer.Bool(obj.As<bool>());
-			break;
-		case TypeID_of<std::int8_t>.GetValue():
-			ctx.writer.Int(obj.As<std::int8_t>());
-			break;
-		case TypeID_of<std::int16_t>.GetValue():
-			ctx.writer.Int(obj.As<std::int16_t>());
-			break;
-		case TypeID_of<std::int32_t>.GetValue():
-			ctx.writer.Int(obj.As<std::int32_t>());
-			break;
-		case TypeID_of<std::int64_t>.GetValue():
-			ctx.writer.Int64(obj.As<std::int64_t>());
-			break;
-		case TypeID_of<std::uint8_t>.GetValue():
-			ctx.writer.Uint(obj.As<std::uint8_t>());
-			break;
-		case TypeID_of<std::uint16_t>.GetValue():
-			ctx.writer.Uint(obj.As<std::uint16_t>());
-			break;
-		case TypeID_of<std::uint32_t>.GetValue():
-			ctx.writer.Uint(obj.As<std::uint32_t>());
-			break;
-		case TypeID_of<std::uint64_t>.GetValue():
-			ctx.writer.Uint64(obj.As<std::uint64_t>());
-			break;
-		case TypeID_of<float>.GetValue():
-			ctx.writer.Double(obj.As<float>());
-			break;
-		case TypeID_of<double>.GetValue():
-			ctx.writer.Double(obj.As<double>());
-			break;
-		default:
-			assert(false);
-		}
+
+	switch (obj.GetType().GetID().GetValue())
+	{
+	case TypeID_of<bool>.GetValue():
+		ctx.writer.Bool(obj.As<bool>());
+	case TypeID_of<std::int32_t>.GetValue():
+		ctx.writer.Int(obj.As<std::int32_t>());
+	case TypeID_of<float>.GetValue():
+		ctx.writer.Double(obj.As<float>());
 		return;
-	}
-	else if (obj.GetType().Is<std::string>()) {
+	case TypeID_of<std::string>.GetValue():
 		ctx.writer.String(obj.As<std::string>());
 		return;
-	}
-	else if (obj.GetType().Is<std::pmr::string>()) {
+	case TypeID_of<std::pmr::string>.GetValue():
 		ctx.writer.String(obj.As<std::pmr::string>().data());
 		return;
-	}
-	else if (obj.GetType().Is<xg::Guid>()) {
+	case TypeID_of<xg::Guid>.GetValue():
 		ctx.writer.String(obj.As<xg::Guid>().str());
 		return;
+	default:
+		break;
 	}
 
 	if (ctx.serializer.IsRegistered(obj.GetType().GetID().GetValue())) {
@@ -309,18 +278,10 @@ void Serializer::SerializeRecursion(UDRefl::ObjectView obj, SerializeContext& ct
 UDRefl::SharedObject Serializer::DeserializeRecursion(const rapidjson::Value& value, Serializer::DeserializeContext& ctx) {
 	if (value.IsBool())
 		return Mngr.MakeShared(Type_of<bool>, TempArgsView{ value.GetBool() });
-	if (value.IsDouble())
-		return Mngr.MakeShared(Type_of<double>, TempArgsView{ value.GetDouble() });
 	if (value.IsFloat())
 		return Mngr.MakeShared(Type_of<float>, TempArgsView{ value.GetFloat() });
 	if (value.IsInt())
-		return Mngr.MakeShared(Type_of<int>, TempArgsView{ value.GetInt() });
-	if (value.IsInt64())
-		return Mngr.MakeShared(Type_of<std::int64_t>, TempArgsView{ value.GetInt64() });
-	if (value.IsUint())
-		return Mngr.MakeShared(Type_of<unsigned int>, TempArgsView{ value.GetUint() });
-	if (value.IsUint64())
-		return Mngr.MakeShared(Type_of<std::uint64_t>, TempArgsView{ value.GetUint64() });
+		return Mngr.MakeShared(Type_of<std::int32_t>, TempArgsView{ value.GetInt() });
 	if (value.IsString())
 		return Mngr.MakeShared(Type_of<std::string>, TempArgsView{ value.GetString() });
 	if (value.IsNull())

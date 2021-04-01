@@ -4,7 +4,7 @@
 
 namespace Ubpa::Utopia {
 	struct Camera {
-		float aspect{ 16.f / 9.f };
+		float aspect{ 4.f / 3.f };
 		[[interval(std::pair{1.f, 179.f})]]
 		float fov{ 60.f };
 		[[min(0.1f)]]
