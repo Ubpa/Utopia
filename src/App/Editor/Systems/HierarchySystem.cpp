@@ -224,6 +224,7 @@ void HierarchySystem::OnUpdate(UECS::Schedule& schedule) {
 				}
 				if (ImGui::Button("Cancel", ImVec2(120, 0))) {
 					hierarchy->is_saving_world = false;
+					hierarchy->is_saving_entities = false;
 					ImGui::CloseCurrentPopup();
 				}
 

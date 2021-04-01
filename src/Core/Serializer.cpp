@@ -122,8 +122,7 @@ void Serializer::SerializeRecursion(UDRefl::ObjectView obj, SerializeContext& ct
 	{
 	case TypeID_of<bool>.GetValue():
 		ctx.writer.Bool(obj.As<bool>());
-	case TypeID_of<std::int32_t>.GetValue():
-		ctx.writer.Int(obj.As<std::int32_t>());
+		return;
 	case TypeID_of<float>.GetValue():
 		ctx.writer.Double(obj.As<float>());
 		return;
@@ -146,12 +145,10 @@ void Serializer::SerializeRecursion(UDRefl::ObjectView obj, SerializeContext& ct
 	}
 
 	ctx.writer.StartObject();
-	ctx.writer.Key(Key::TypeID);
-	ctx.writer.Uint64(obj.GetType().GetID().GetValue());
-	ctx.writer.Key(Key::TypeName);
+	ctx.writer.Key(Key::Type);
 	ctx.writer.String(obj.GetType().GetName().data(),
 		static_cast<rapidjson::SizeType>(obj.GetType().GetName().size()));
-	ctx.writer.Key(Key::Content);
+	ctx.writer.Key(Key::Data);
 
 	// write content
 
@@ -168,6 +165,42 @@ void Serializer::SerializeRecursion(UDRefl::ObjectView obj, SerializeContext& ct
 		}
 		if (!found)
 			ctx.writer.String(Key::NotSupport);
+	}
+	else if (obj.GetType().IsArithmetic()) {
+		switch (obj.GetType().GetID().GetValue())
+		{
+		case TypeID_of<std::int8_t>.GetValue():
+			ctx.writer.Int(obj.As<std::int8_t>());
+			break;
+		case TypeID_of<std::int16_t>.GetValue():
+			ctx.writer.Int(obj.As<std::int16_t>());
+			break;
+		case TypeID_of<std::int32_t>.GetValue():
+			ctx.writer.Int(obj.As<std::int32_t>());
+			break;
+		case TypeID_of<std::int64_t>.GetValue():
+			ctx.writer.Int64(obj.As<std::int64_t>());
+			break;
+		case TypeID_of<std::uint8_t>.GetValue():
+			ctx.writer.Uint(obj.As<std::uint8_t>());
+			break;
+		case TypeID_of<std::uint16_t>.GetValue():
+			ctx.writer.Uint(obj.As<std::uint16_t>());
+			break;
+		case TypeID_of<std::uint32_t>.GetValue():
+			ctx.writer.Uint(obj.As<std::uint32_t>());
+			break;
+		case TypeID_of<std::uint64_t>.GetValue():
+			ctx.writer.Uint64(obj.As<std::uint64_t>());
+			break;
+		case TypeID_of<double>.GetValue():
+			ctx.writer.Double(obj.As<double>());
+			break;
+		default:
+			assert(false);
+			ctx.writer.Null();
+			break;
+		}
 	}
 	else if (obj.GetType().Is<UECS::Entity>())
 		ctx.writer.Uint64(obj.As<Entity>().index);
@@ -278,10 +311,8 @@ void Serializer::SerializeRecursion(UDRefl::ObjectView obj, SerializeContext& ct
 UDRefl::SharedObject Serializer::DeserializeRecursion(const rapidjson::Value& value, Serializer::DeserializeContext& ctx) {
 	if (value.IsBool())
 		return Mngr.MakeShared(Type_of<bool>, TempArgsView{ value.GetBool() });
-	if (value.IsFloat())
-		return Mngr.MakeShared(Type_of<float>, TempArgsView{ value.GetFloat() });
-	if (value.IsInt())
-		return Mngr.MakeShared(Type_of<std::int32_t>, TempArgsView{ value.GetInt() });
+	if (value.IsDouble())
+		return Mngr.MakeShared(Type_of<float>, TempArgsView{ static_cast<float>(value.GetDouble()) });
 	if (value.IsString())
 		return Mngr.MakeShared(Type_of<std::string>, TempArgsView{ value.GetString() });
 	if (value.IsNull())
@@ -289,11 +320,10 @@ UDRefl::SharedObject Serializer::DeserializeRecursion(const rapidjson::Value& va
 
 	assert(value.IsObject());
 	const auto& jsonObj = value.GetObject();
-	if (jsonObj.FindMember(Serializer::Key::TypeID) == jsonObj.end())
+	if (jsonObj.FindMember(Serializer::Key::Type) == jsonObj.end())
 		return {};
 
-	std::uint64_t id = jsonObj[Serializer::Key::TypeID].GetUint64();
-	Type type = Mngr.tregistry.Typeof(TypeID{ id });
+	auto type = Mngr.tregistry.Typeof(TypeID{ jsonObj[Serializer::Key::Type].GetString() });
 
 	if (type.IsReference()) {
 		assert(false); // not support
@@ -302,7 +332,7 @@ UDRefl::SharedObject Serializer::DeserializeRecursion(const rapidjson::Value& va
 
 	type = type.RemoveConst();
 
-	const rapidjson::Value& content = jsonObj[Serializer::Key::Content];
+	const rapidjson::Value& content = jsonObj[Serializer::Key::Data];
 
 	// content -> obj
 
@@ -363,8 +393,6 @@ UDRefl::SharedObject Serializer::DeserializeRecursion(const rapidjson::Value& va
 	else if (type.IsArithmetic()) {
 		switch (type.GetID().GetValue())
 		{
-		case TypeID_of<bool>.GetValue():
-			return Mngr.MakeShared(type, TempArgsView{ content.GetBool() });
 		case TypeID_of<std::int8_t>.GetValue():
 			return Mngr.MakeShared(type, TempArgsView{ static_cast<std::int8_t>(content.GetInt()) });
 		case TypeID_of<std::int16_t>.GetValue():
@@ -381,8 +409,6 @@ UDRefl::SharedObject Serializer::DeserializeRecursion(const rapidjson::Value& va
 			return Mngr.MakeShared(type, TempArgsView{ static_cast<std::uint32_t>(content.GetUint()) });
 		case TypeID_of<std::uint64_t>.GetValue():
 			return Mngr.MakeShared(type, TempArgsView{ static_cast<std::uint64_t>(content.GetUint64()) });
-		case TypeID_of<float>.GetValue():
-			return Mngr.MakeShared(type, TempArgsView{ static_cast<float>(content.GetFloat()) });
 		case TypeID_of<double>.GetValue():
 			return Mngr.MakeShared(type, TempArgsView{ static_cast<double>(content.GetDouble()) });
 		default:
@@ -634,7 +660,7 @@ bool Serializer::DeserializeToWorld(UECS::World* world, string_view json) {
 		cmptTypes.resize(jsonCmpts.Size());
 		for (SizeType i = 0; i < jsonCmpts.Size(); i++) {
 			const auto& cmpt = jsonCmpts[i].GetObject();
-			cmptTypes[i] = TypeID{ cmpt[Key::TypeID].GetUint64() };
+			cmptTypes[i] = TypeID{ cmpt[Key::Type].GetString() };
 		}
 
 		auto entity = world->entityMngr.Create(std::span{ cmptTypes.data(), cmptTypes.size() });

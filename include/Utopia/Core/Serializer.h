@@ -25,9 +25,8 @@ namespace Ubpa::Utopia {
 			static constexpr const char Entities[] = "__Entities";
 			static constexpr const char Index[] = "__Index";
 			static constexpr const char Components[] = "__Components";
-			static constexpr const char TypeID[] = "__TypeID";
-			static constexpr const char TypeName[] = "__TypeName";
-			static constexpr const char Content[] = "__Content";
+			static constexpr const char Type[] = "__Type";
+			static constexpr const char Data[] = "__Data";
 			static constexpr const char NotSupport[] = "__NotSupport";
 			static constexpr const char Name[] = "__Name";
 			static constexpr const char Guid[] = "__Guid";

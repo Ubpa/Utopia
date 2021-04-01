@@ -43,5 +43,7 @@ bin/logs/
 assets/materials/
 assets/models/
 assets/textures/
+*.world
+*.world.meta
 
 imgui*.ini

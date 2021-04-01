@@ -65,9 +65,8 @@ namespace Ubpa::Utopia {
 		// serialize self (importer) to ctx
 		// [Template]
 		// {
-		//   "__TypeID":<uint64>,
-		//   "__TypeName":<string>,
-		//   "__Content":{
+		//   "__Type":<string>,
+		//   "__Data":{
 		//     "__Guid":<string>
 		//     ...
 		//   }

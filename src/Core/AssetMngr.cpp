@@ -27,7 +27,7 @@ struct AssetMngr::Impl {
 
 	std::map<std::filesystem::path, std::shared_ptr<AssetImporterCreator>> ext2creator;
 
-	std::filesystem::path root{ L".." };
+	std::filesystem::path root{ L"." };
 
 	static std::string LoadText(const std::filesystem::path& path);
 	static rapidjson::Document LoadJSON(const std::filesystem::path& metapath);
