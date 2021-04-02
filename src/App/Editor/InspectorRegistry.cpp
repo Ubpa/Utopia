@@ -10,6 +10,8 @@
 
 #include <Utopia/Core/Components/Name.h>
 
+#include <Utopia/Render/GPURsrc.h>
+
 #include <unordered_map>
 #include <functional>
 
@@ -88,8 +90,11 @@ void InspectorRegistry::Inspect(const UECS::World* w, TypeID typeID, void* obj) 
 					ImGui::PushID(asset.GetPtr());
 					for (const auto& [n, var] : asset.GetVars())
 						InspectRecursively(n, var.GetType().GetID(), var.GetPtr(), ctx);
-					if (ImGui::Button("apply"))
+					if (ImGui::Button("apply")) {
 						AssetMngr::Instance().ReserializeAsset(path);
+						if (asset.StaticCast_DerivedToBase(Type_of<GPURsrc>))
+							asset.StaticCast_DerivedToBase(Type_of<GPURsrc>).As<GPURsrc>().SetDirty();
+					}
 					ImGui::PopID();
 				}
 			}

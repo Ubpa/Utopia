@@ -16,8 +16,11 @@ void TextureImporter::RegisterToUDRefl() {
 	UDRefl::Mngr.SimpleAddField<TextureImporter::Mode::Texture2D>("Texture2D");
 	UDRefl::Mngr.SimpleAddField<TextureImporter::Mode::TextureCube>("TextureCube");
 
+	UDRefl::Mngr.RegisterType<GPURsrc>();
 	UDRefl::Mngr.RegisterType<Texture2D>();
+	UDRefl::Mngr.AddBases<Texture2D, GPURsrc>();
 	UDRefl::Mngr.RegisterType<TextureCube>();
+	UDRefl::Mngr.AddBases<TextureCube, GPURsrc>();
 
 	UDRefl::Mngr.SimpleAddField<&TextureImporter::mode>("mode");
 }

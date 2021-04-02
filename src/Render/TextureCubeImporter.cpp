@@ -10,8 +10,11 @@ using namespace Ubpa::Utopia;
 void TextureCubeImporter::RegisterToUDRefl() {
 	RegisterToUDReflHelper();
 
+	UDRefl::Mngr.RegisterType<GPURsrc>();
 	UDRefl::Mngr.RegisterType<Texture2D>();
+	UDRefl::Mngr.AddBases<Texture2D, GPURsrc>();
 	UDRefl::Mngr.RegisterType<TextureCube>();
+	UDRefl::Mngr.AddBases<TextureCube, GPURsrc>();
 	UDRefl::Mngr.RegisterType<SharedVar<Texture2D>>();
 
 	UDRefl::Mngr.RegisterType<TextureCubeData>();

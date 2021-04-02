@@ -35,6 +35,10 @@ namespace Ubpa::Utopia::details {
 
 void MeshImporter::RegisterToUDRefl() {
 	RegisterToUDReflHelper();
+
+	UDRefl::Mngr.RegisterType<GPURsrc>();
+	UDRefl::Mngr.RegisterType<Mesh>();
+	UDRefl::Mngr.AddBases<Mesh, GPURsrc>();
 }
 
 AssetImportContext MeshImporter::ImportAsset() const {

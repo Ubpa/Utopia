@@ -29,6 +29,10 @@ void ShaderImporter::RegisterToUDRefl() {
 	details::ShaderImporterRegister_ShaderProperty();
 	details::ShaderImporterRegister_StencilOp();
 	details::ShaderImporterRegister_StencilState();
+
+	UDRefl::Mngr.RegisterType<GPURsrc>();
+	UDRefl::Mngr.RegisterType<Shader>();
+	UDRefl::Mngr.AddBases<Shader, GPURsrc>();
 }
 
 AssetImportContext ShaderImporter::ImportAsset() const {
