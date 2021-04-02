@@ -17,6 +17,7 @@ Ubpa_AddDep(UECS       0.16.0)
 Ubpa_AddDep(UDX12      0.1.0)
 Ubpa_AddDep(UDRefl     0.10.4)
 Ubpa_AddDep(UANTLR     0.3.0)
+Ubpa_AddDep(USignal    0.1.0)
 
 Ubpa_DownloadZip(
   https://cdn.jsdelivr.net/gh/Ubpa/UData@master/Utopia/crossguid/crossguid_20200919.zip
@@ -35,6 +36,15 @@ Ubpa_DownloadZip(
   spdlog_1_8_1.zip
   SHA256 2898A66A808A92C546BC5C173423BB5EA84BA0278A897D6F03DCFC1A6F98D866
 )
+
+if(Ubpa_BuildTest_Utopia)
+  find_package(GTest QUIET)
+  if(GTest_FOUND)
+    message(NOTICE "GTest Found")
+  else()
+    message(NOTICE "GTest not Found, so we ignore some targets depending on GTest")
+  endif()
+endif()
 
 Ubpa_AddSubDirsRec(include)
 Ubpa_AddSubDirsRec(src)

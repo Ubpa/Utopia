@@ -1,5 +1,7 @@
 #pragma once
 
+#include <USignal/Signal.hpp>
+
 #include <atomic>
 
 namespace Ubpa::Utopia {
@@ -15,12 +17,12 @@ namespace Ubpa::Utopia {
 		GPURsrc& operator=(GPURsrc&& rhs) noexcept {
 			id = rhs.id;
 			dirty = rhs.dirty;
-			rhs.id = static_cast<size_t>(-1);
+			rhs.id = static_cast<std::size_t>(-1);
 			rhs.dirty = true;
 			return *this;
 		}
 
-		size_t GetInstanceID() const noexcept { return id; }
+		std::size_t GetInstanceID() const noexcept { return id; }
 		bool Valid() const noexcept { return id != static_cast<std::size_t>(-1); }
 
 		bool IsDirty() const noexcept { return dirty; }
@@ -31,22 +33,28 @@ namespace Ubpa::Utopia {
 		void SetEditable() noexcept { editable = true; }
 		void SetReadOnly() noexcept { editable = false; }
 
+		Signal<std::size_t> destroyed;
+
 	protected:
 		GPURsrc() noexcept : id{ curID++ } {}
 
 		GPURsrc(const GPURsrc&) noexcept : id{ curID++ } {}
 
 		GPURsrc(GPURsrc&& rhs) noexcept : id{ rhs.id } {
-			rhs.id = static_cast<size_t>(-1);
+			rhs.id = static_cast<std::size_t>(-1);
 			rhs.dirty = true;
 		}
 
-		virtual ~GPURsrc() = default;
+		virtual ~GPURsrc() {
+			if (Valid())
+				destroyed.Emit(id);
+			destroyed.Clear();
+		}
 
 	private:
-		size_t id;
+		std::size_t id;
 		bool dirty{ true };
 		bool editable{ true };
-		inline static std::atomic<size_t> curID{ 0 };
+		inline static std::atomic<std::size_t> curID{ 0 };
 	};
 }

@@ -269,7 +269,9 @@ bool Editor::Impl::Init() {
 	initDesc.numFrame = DX12App::NumFrameResources;
 	gamePipeline = std::make_unique<StdPipeline>(initDesc);
 	scenePipeline = std::make_unique<StdPipeline>(initDesc);
-	GPURsrcMngrDX12::Instance().CommitUploadAndDelete(pEditor->uCmdQueue.Get());
+	auto delete_func = GPURsrcMngrDX12::Instance().CommitUploadAndPackDelete(pEditor->uCmdQueue.Get());
+	pEditor->GetFrameResourceMngr()->GetCurrentFrameResource()->RegisterResource("delete_func", std::move(delete_func));
+	pEditor->GetFrameResourceMngr()->GetCurrentFrameResource()->DelayUnregisterResource("delete_func");
 
 	gameRT_SRV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(1);
 	gameRT_RTV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Allocate(1);
@@ -622,14 +624,16 @@ void Editor::Impl::Update() {
 	// commit upload, delete ...
 	pEditor->uGCmdList->Close();
 	pEditor->uCmdQueue.Execute(pEditor->uGCmdList.Get());
-	GPURsrcMngrDX12::Instance().CommitUploadAndDelete(pEditor->uCmdQueue.Get());
+	auto delete_func = GPURsrcMngrDX12::Instance().CommitUploadAndPackDelete(pEditor->uCmdQueue.Get());
+	pEditor->GetFrameResourceMngr()->GetCurrentFrameResource()->RegisterResource("delete_func", std::move(delete_func));
+	pEditor->GetFrameResourceMngr()->GetCurrentFrameResource()->DelayUnregisterResource("delete_func");
 
 	{
 		std::vector<PipelineBase::CameraData> gameCameras;
 		Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::AccessTypeID_of<Camera>} };
 		curGameWorld->RunEntityJob([&](Ubpa::UECS::Entity e) {
 			gameCameras.emplace_back(e, *curGameWorld);
-			}, false, camFilter);
+		}, false, camFilter);
 		assert(gameCameras.empty() || gameCameras.size() == 1); // now only support 0/1 camera
 		if(gameCameras.empty())
 			gamePipeline->BeginFrame({ curGameWorld }, { Entity::Invalid(), *curGameWorld });
@@ -911,7 +915,6 @@ void Editor::Impl::InspectMaterial(Material* material, InspectorRegistry::Inspec
 			static ImGuiTextFilter filter;
 			filter.Draw();
 			int ID = 0;
-			ShaderMngr::Instance().Refresh();
 			size_t N = ShaderMngr::Instance().GetShaderMap().size();
 			for (const auto& [name, shader] : ShaderMngr::Instance().GetShaderMap()) {
 				auto shader_s = shader.lock();

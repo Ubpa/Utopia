@@ -9,6 +9,7 @@
 
 #include <unordered_map>
 #include <iostream>
+#include <mutex>
 
 using namespace Ubpa::Utopia;
 using namespace Ubpa;
@@ -156,7 +157,7 @@ void GPURsrcMngrDX12::Clear(ID3D12CommandQueue* cmdQueue) {
 	assert(pImpl->isInit);
 
 	pImpl->upload->End(cmdQueue);
-	pImpl->deleteBatch.Commit(pImpl->device, cmdQueue);
+	pImpl->deleteBatch.Pack()(); // maybe we need to return the delete callback
 
 	for (auto PSO : pImpl->PSOs)
 		PSO->Release();
@@ -174,13 +175,14 @@ void GPURsrcMngrDX12::Clear(ID3D12CommandQueue* cmdQueue) {
 	pImpl->isInit = false;
 }
 
-void GPURsrcMngrDX12::CommitUploadAndDelete(ID3D12CommandQueue* cmdQueue) {
+std::function<void()> GPURsrcMngrDX12::CommitUploadAndPackDelete(ID3D12CommandQueue* cmdQueue) {
 	if (pImpl->hasUpload) {
 		pImpl->upload->End(cmdQueue);
+		pImpl->hasUpload = false;
 		pImpl->upload->Begin();
 	}
 
-	pImpl->deleteBatch.Commit(pImpl->device, cmdQueue);
+	return pImpl->deleteBatch.Pack();
 }
 
 GPURsrcMngrDX12& GPURsrcMngrDX12::RegisterTexture2D(Texture2D& tex2D) {
@@ -205,7 +207,7 @@ GPURsrcMngrDX12& GPURsrcMngrDX12::RegisterTexture2D(Texture2D& tex2D) {
 	D3D12_SUBRESOURCE_DATA data;
 	data.pData = tex2D.image.GetData();
 	data.RowPitch = tex2D.image.GetWidth() * tex2D.image.GetChannel() * sizeof(float);
-	data.SlicePitch = tex2D.image.GetHeight()* data.RowPitch; // this field is useless for texture 2d
+	data.SlicePitch = 0; // this field is useless for texture 2d
 
 	pImpl->hasUpload = true;
 	DirectX::CreateTextureFromMemory(
@@ -228,15 +230,19 @@ GPURsrcMngrDX12& GPURsrcMngrDX12::RegisterTexture2D(Texture2D& tex2D) {
 	pImpl->texture2DMap.emplace_hint(target, tex2D.GetInstanceID(), move(tex));
 
 	tex2D.SetClean();
+	tex2D.destroyed.Connect<&GPURsrcMngrDX12::UnregisterTexture2D>(this);
 	return *this;
 }
 
 GPURsrcMngrDX12& GPURsrcMngrDX12::UnregisterTexture2D(std::size_t ID) {
+	static std::mutex m;
+	std::lock_guard guard{ m };
 	if (auto target = pImpl->texture2DMap.find(ID); target != pImpl->texture2DMap.end()) {
 		auto& tex = target->second;
-		UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(move(tex.allocationSRV));
-		pImpl->deleteBatch.Add(tex.resource.Detach());
-		tex.resource = nullptr;
+		pImpl->deleteBatch.Add(std::move(tex.resource));
+		pImpl->deleteBatch.AddCallback([alloc = std::make_shared<UDX12::DescriptorHeapAllocation>(std::move(tex.allocationSRV))]() {
+			UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(*alloc));
+		});
 		pImpl->texture2DMap.erase(target);
 	}
 	return *this;
@@ -292,15 +298,19 @@ GPURsrcMngrDX12& GPURsrcMngrDX12::RegisterTextureCube(TextureCube& texcube) {
 	pImpl->textureCubeMap.emplace_hint(target, std::make_pair(texcube.GetInstanceID(), std::move(tex)));
 
 	texcube.SetClean();
+	texcube.destroyed.Connect<&GPURsrcMngrDX12::UnregisterTextureCube>(this);
 	return *this;
 }
 
 GPURsrcMngrDX12& GPURsrcMngrDX12::UnregisterTextureCube(std::size_t ID) {
+	static std::mutex m;
+	std::lock_guard guard{ m };
 	if (auto target = pImpl->textureCubeMap.find(ID); target != pImpl->textureCubeMap.end()) {
 		auto& tex = target->second;
-		UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(move(tex.allocationSRV));
-		pImpl->deleteBatch.Add(tex.resource.Detach());
-		tex.resource = nullptr;
+		pImpl->deleteBatch.Add(std::move(tex.resource));
+		pImpl->deleteBatch.AddCallback([alloc = std::make_shared<UDX12::DescriptorHeapAllocation>(std::move(tex.allocationSRV))]() {
+			UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(*alloc));
+		});
 		pImpl->textureCubeMap.erase(target);
 	}
 	return *this;
@@ -328,6 +338,7 @@ ID3D12Resource* GPURsrcMngrDX12::GetTextureCubeResource(const TextureCube& texCu
 UDX12::MeshGPUBuffer& GPURsrcMngrDX12::RegisterMesh(ID3D12GraphicsCommandList* cmdList, Mesh& mesh) {
 	auto target = pImpl->meshMap.find(mesh.GetInstanceID());
 	if (target == pImpl->meshMap.end()) {
+		mesh.destroyed.Connect<&GPURsrcMngrDX12::UnregisterMesh>(this);
 		if (mesh.IsEditable()) {
 			auto [iter, success] = pImpl->meshMap.try_emplace(
 				mesh.GetInstanceID(),
@@ -435,6 +446,8 @@ UDX12::MeshGPUBuffer& GPURsrcMngrDX12::RegisterMesh(ID3D12GraphicsCommandList* c
 }
 
 GPURsrcMngrDX12& GPURsrcMngrDX12::UnregisterMesh(std::size_t ID) {
+	static std::mutex m;
+	std::lock_guard guard{ m };
 	if (auto target = pImpl->meshMap.find(ID); target != pImpl->meshMap.end()) {
 		target->second.Delete(pImpl->deleteBatch);
 		pImpl->meshMap.erase(target);
@@ -593,8 +606,19 @@ bool GPURsrcMngrDX12::RegisterShader(Shader& shader) {
 	serializedRootSig->Release();
 
 	shader.SetClean();
+	shader.destroyed.Connect<&GPURsrcMngrDX12::UnregisterShader>(this);
 
 	return true;
+}
+
+GPURsrcMngrDX12& GPURsrcMngrDX12::UnregisterShader(std::size_t ID) {
+	static std::mutex m;
+	std::lock_guard guard{ m };
+	if (auto target = pImpl->shaderMap.find(ID); target != pImpl->shaderMap.end()) {
+		pImpl->deleteBatch.AddCallback([data = std::move(target->second)]() {});
+		pImpl->shaderMap.erase(target);
+	}
+	return *this;
 }
 
 const ID3DBlob* GPURsrcMngrDX12::GetShaderByteCode_vs(const Shader& shader, size_t passIdx) const {

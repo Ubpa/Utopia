@@ -15,8 +15,6 @@ namespace Ubpa::Utopia {
 	class HLSLFile;
 
 	struct Shader : GPURsrc {
-		//virtual ~Shader();
-
 		SharedVar<HLSLFile> hlslFile;
 		std::string name; // e.g. a/b/c/d
 		std::vector<RootParameter> rootParameters;

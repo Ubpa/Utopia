@@ -44,6 +44,7 @@ Ubpa_AddTarget(
     Ubpa::Utopia_Core
     Ubpa::UANTLR_runtime
     Ubpa::Utopia__deps_tinyobjloader
+    Ubpa::USignal_core
   LIB_PRIVATE
     ${libs_private}
   C_OPTION_PRIVATE
