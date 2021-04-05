@@ -4,35 +4,37 @@
 
 using namespace Ubpa::Utopia;
 
-ShaderCBMngrDX12::~ShaderCBMngrDX12() {
-	for (auto [shaderID, buffer] : bufferMap) {
-		delete buffer;
-	}
-}
-
 Ubpa::UDX12::DynamicUploadBuffer* ShaderCBMngrDX12::GetBuffer(const Shader& shader) {
 	auto target = bufferMap.find(shader.GetInstanceID());
 	if (target != bufferMap.end())
-		return target->second;
-
+		return target->second.get();
+	{
+		auto conn = shader.destroyed.ScopeConnect<&ShaderCBMngrDX12::Unregister>(this);
+		connections.push_back(std::move(conn));
+	}
 	auto rst = bufferMap.emplace_hint(
 		target,
 		shader.GetInstanceID(),
-		new UDX12::DynamicUploadBuffer{ device }
+		std::make_unique<UDX12::DynamicUploadBuffer>(device)
 	);
-	return rst->second;
+	return rst->second.get();
 }
 
 Ubpa::UDX12::DynamicUploadBuffer* ShaderCBMngrDX12::GetCommonBuffer() {
 	constexpr std::size_t ID = static_cast<std::size_t>(-1);
 	auto target = bufferMap.find(ID);
 	if (target != bufferMap.end())
-		return target->second;
+		return target->second.get();
 
 	auto rst = bufferMap.emplace_hint(
 		target,
 		ID,
-		new UDX12::DynamicUploadBuffer{ device }
+		std::make_unique<UDX12::DynamicUploadBuffer>(device)
 	);
-	return rst->second;
+	return rst->second.get();
+}
+
+void ShaderCBMngrDX12::Unregister(std::size_t ID) {
+	std::lock_guard guard{ m };
+	bufferMap.erase(ID);
 }

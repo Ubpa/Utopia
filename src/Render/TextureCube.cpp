@@ -34,7 +34,7 @@ void TextureCube::Init(const Image& equirectangularMap) {
 #ifdef _DEBUG
 	size_t s = equirectangularMap.GetHeight() <= 512 ? equirectangularMap.GetHeight() : equirectangularMap.GetHeight() / 2;
 #else
-	size_t s = equirectangularMap->height;
+	size_t s = equirectangularMap.GetHeight();
 #endif
 	size_t c = equirectangularMap.GetChannel();
 

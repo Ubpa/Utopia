@@ -45,7 +45,7 @@ struct StdPipeline::Impl {
 		initDesc{ initDesc },
 		frameRsrcMngr{ initDesc.numFrame, initDesc.device },
 		fg { "Standard Pipeline" },
-		shaderCBMngr{ initDesc.device }
+		crossFrameShaderCBMngr{ initDesc.device }
 	{
 		BuildTextures();
 		BuildFrameResources();
@@ -214,7 +214,7 @@ struct StdPipeline::Impl {
 	std::shared_ptr<Shader> irradianceShader;
 	std::shared_ptr<Shader> prefilterShader;
 
-	ShaderCBMngrDX12 shaderCBMngr;
+	ShaderCBMngrDX12 crossFrameShaderCBMngr;
 
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
 
@@ -311,7 +311,7 @@ void StdPipeline::Impl::BuildFrameResources() {
 
 		fr->RegisterResource("CommandAllocator", std::move(allocator));
 
-		fr->RegisterResource("ShaderCBMngrDX12", ShaderCBMngrDX12{ initDesc.device });
+		fr->RegisterResource("ShaderCBMngrDX12", std::make_shared<ShaderCBMngrDX12>(initDesc.device));
 
 		auto fgRsrcMngr = std::make_shared<UDX12::FG::RsrcMngr>();
 		fr->RegisterResource("FrameGraphRsrcMngr", fgRsrcMngr);
@@ -417,7 +417,7 @@ void StdPipeline::Impl::BuildShaders() {
 		{ 0, 2, 0}, // -z
 	};
 
-	auto buffer = shaderCBMngr.GetCommonBuffer();
+	auto buffer = crossFrameShaderCBMngr.GetCommonBuffer();
 	constexpr auto quadPositionsSize = UDX12::Util::CalcConstantBufferByteSize(sizeof(QuadPositionLs));
 	constexpr auto mipInfoSize = UDX12::Util::CalcConstantBufferByteSize(sizeof(MipInfo));
 	buffer->FastReserve(6 * quadPositionsSize + IBLData::PreFilterMapMipLevels * mipInfoSize);
@@ -784,10 +784,10 @@ void StdPipeline::Impl::UpdateRenderContext(
 
 void StdPipeline::Impl::UpdateShaderCBs() {
 	auto& shaderCBMngr = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<ShaderCBMngrDX12>("ShaderCBMngrDX12");
+		->GetResource<std::shared_ptr<ShaderCBMngrDX12>>("ShaderCBMngrDX12");
 
 	{ // camera, lights, objects
-		auto buffer = shaderCBMngr.GetCommonBuffer();
+		auto buffer = shaderCBMngr->GetCommonBuffer();
 		buffer->FastReserve(
 			UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants))
 			+ UDX12::Util::CalcConstantBufferByteSize(sizeof(LightArray))
@@ -847,7 +847,7 @@ void StdPipeline::Impl::UpdateShaderCBs() {
 		}
 
 		renderContext.shaderCBDescMap[shader.get()] =
-			PipelineBase::UpdateShaderCBs(shaderCBMngr, *shader, materials, commonCBs);
+			PipelineBase::UpdateShaderCBs(*shaderCBMngr, *shader, materials, commonCBs);
 		shader = nullptr;
 		materials.clear();
 	};
@@ -861,7 +861,7 @@ void StdPipeline::Impl::UpdateShaderCBs() {
 	Commit();
 	for (const auto& [shader, materials] : transparentMaterialMap) {
 		renderContext.shaderCBDescMap[shader] =
-			PipelineBase::UpdateShaderCBs(shaderCBMngr, *shader, materials, commonCBs);
+			PipelineBase::UpdateShaderCBs(*shaderCBMngr, *shader, materials, commonCBs);
 	}
 }
 
@@ -1066,7 +1066,7 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 				cmdList->RSSetViewports(1, &viewport);
 				cmdList->RSSetScissorRects(1, &rect);
 
-				auto buffer = shaderCBMngr.GetCommonBuffer();
+				auto buffer = crossFrameShaderCBMngr.GetCommonBuffer();
 
 				cmdList->SetGraphicsRootDescriptorTable(0, renderContext.skybox);
 				//for (UINT i = 0; i < 6; i++) {
@@ -1088,7 +1088,7 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 				cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*prefilterShader));
 				cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetPSO(ID_PSO_prefilter));
 
-				auto buffer = shaderCBMngr.GetCommonBuffer();
+				auto buffer = crossFrameShaderCBMngr.GetCommonBuffer();
 
 				cmdList->SetGraphicsRootDescriptorTable(0, renderContext.skybox);
 				//size_t size = Impl::IBLData::PreFilterMapSize;
@@ -1173,13 +1173,13 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 			cmdList->SetGraphicsRootDescriptorTable(3, ltcHandles.GetGpuHandle());
 
 			auto cbLights = frameRsrcMngr.GetCurrentFrameResource()
-				->GetResource<ShaderCBMngrDX12>("ShaderCBMngrDX12")
-				.GetCommonBuffer()->GetResource()->GetGPUVirtualAddress() + renderContext.lightOffset;
+				->GetResource<std::shared_ptr<ShaderCBMngrDX12>>("ShaderCBMngrDX12")
+				->GetCommonBuffer()->GetResource()->GetGPUVirtualAddress() + renderContext.lightOffset;
 			cmdList->SetGraphicsRootConstantBufferView(4, cbLights);
 
 			auto cbPerCamera = frameRsrcMngr.GetCurrentFrameResource()
-				->GetResource<ShaderCBMngrDX12>("ShaderCBMngrDX12")
-				.GetCommonBuffer()->GetResource();
+				->GetResource<std::shared_ptr<ShaderCBMngrDX12>>("ShaderCBMngrDX12")
+				->GetCommonBuffer()->GetResource();
 			cmdList->SetGraphicsRootConstantBufferView(5, cbPerCamera->GetGPUVirtualAddress());
 
 			cmdList->IASetVertexBuffers(0, 0, nullptr);
@@ -1213,8 +1213,8 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 			cmdList->SetGraphicsRootDescriptorTable(0, renderContext.skybox);
 
 			auto cbPerCamera = frameRsrcMngr.GetCurrentFrameResource()
-				->GetResource<ShaderCBMngrDX12>("ShaderCBMngrDX12")
-				.GetCommonBuffer()->GetResource();
+				->GetResource<std::shared_ptr<ShaderCBMngrDX12>>("ShaderCBMngrDX12")
+				->GetCommonBuffer()->GetResource();
 			cmdList->SetGraphicsRootConstantBufferView(1, cbPerCamera->GetGPUVirtualAddress());
 
 			cmdList->IASetVertexBuffers(0, 0, nullptr);
@@ -1290,7 +1290,7 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 
 void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::string_view lightMode, size_t rtNum, DXGI_FORMAT rtFormat) {
 	auto& shaderCBMngr = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<ShaderCBMngrDX12>("ShaderCBMngrDX12");
+		->GetResource<std::shared_ptr<ShaderCBMngrDX12>>("ShaderCBMngrDX12");
 
 	D3D12_GPU_DESCRIPTOR_HANDLE ibl;
 	if (renderContext.skybox.ptr == defaultSkybox.ptr)
@@ -1301,7 +1301,7 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::str
 		ibl = iblData->SRVDH.GetGpuHandle();
 	}
 
-	auto commonBuffer = shaderCBMngr.GetCommonBuffer();
+	auto commonBuffer = shaderCBMngr->GetCommonBuffer();
 	auto cameraCBAdress = commonBuffer->GetResource()->GetGPUVirtualAddress()
 		+ renderContext.cameraOffset;
 	
@@ -1317,7 +1317,7 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::str
 			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*shader));
 		}
 
-		auto matBuffer = shaderCBMngr.GetBuffer(*shader);
+		auto matBuffer = shaderCBMngr->GetBuffer(*shader);
 
 		const auto& shaderCBDesc = renderContext.shaderCBDescMap.at(shader.get());
 
@@ -1355,7 +1355,7 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::str
 			commonBuffer->GetResource()->GetGPUVirtualAddress()
 			+ renderContext.entity2offset.at(obj.entity.index);
 
-		StdPipeline::SetGraphicsRoot_CBV_SRV(cmdList, shaderCBMngr, shaderCBDesc, *obj.material,
+		StdPipeline::SetGraphicsRoot_CBV_SRV(cmdList, *shaderCBMngr, shaderCBDesc, *obj.material,
 			{
 				{StdPipeline_cbPerObject, objCBAddress},
 				{StdPipeline_cbPerCamera, cameraCBAdress},
