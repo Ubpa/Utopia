@@ -157,7 +157,7 @@ void GPURsrcMngrDX12::Clear(ID3D12CommandQueue* cmdQueue) {
 	assert(pImpl->isInit);
 
 	pImpl->upload->End(cmdQueue);
-	pImpl->deleteBatch.Pack()(); // maybe we need to return the delete callback
+	pImpl->deleteBatch.Release(); // maybe we need to return the delete callback
 
 	for (auto PSO : pImpl->PSOs)
 		PSO->Release();
@@ -175,23 +175,24 @@ void GPURsrcMngrDX12::Clear(ID3D12CommandQueue* cmdQueue) {
 	pImpl->isInit = false;
 }
 
-std::function<void()> GPURsrcMngrDX12::CommitUploadAndPackDelete(ID3D12CommandQueue* cmdQueue) {
+UDX12::ResourceDeleteBatch GPURsrcMngrDX12::CommitUploadAndTakeDeleteBatch(ID3D12CommandQueue* cmdQueue) {
 	if (pImpl->hasUpload) {
 		pImpl->upload->End(cmdQueue);
 		pImpl->hasUpload = false;
 		pImpl->upload->Begin();
 	}
 
-	return pImpl->deleteBatch.Pack();
+	return std::move(pImpl->deleteBatch);
 }
 
 GPURsrcMngrDX12& GPURsrcMngrDX12::RegisterTexture2D(Texture2D& tex2D) {
 	if (tex2D.IsDirty())
-		pImpl->texture2DMap.erase(tex2D.GetInstanceID());
-
-	auto target = pImpl->texture2DMap.find(tex2D.GetInstanceID());
-	if (target != pImpl->texture2DMap.end())
-		return *this;
+		UnregisterTexture2D(tex2D.GetInstanceID());
+	else {
+		auto target = pImpl->texture2DMap.find(tex2D.GetInstanceID());
+		if (target != pImpl->texture2DMap.end())
+			return *this;
+	}
 
 	Impl::Texture2DGPUData tex;
 
@@ -227,7 +228,7 @@ GPURsrcMngrDX12& GPURsrcMngrDX12::RegisterTexture2D(Texture2D& tex2D) {
 		tex.allocationSRV.GetCpuHandle(static_cast<uint32_t>(0))
 	);
 
-	pImpl->texture2DMap.emplace_hint(target, tex2D.GetInstanceID(), move(tex));
+	pImpl->texture2DMap.emplace(tex2D.GetInstanceID(), move(tex));
 
 	tex2D.SetClean();
 	tex2D.destroyed.Connect<&GPURsrcMngrDX12::UnregisterTexture2D>(this);
@@ -250,11 +251,12 @@ GPURsrcMngrDX12& GPURsrcMngrDX12::UnregisterTexture2D(std::size_t ID) {
 
 GPURsrcMngrDX12& GPURsrcMngrDX12::RegisterTextureCube(TextureCube& texcube) {
 	if (texcube.IsDirty())
-		pImpl->textureCubeMap.erase(texcube.GetInstanceID());
-
-	auto target = pImpl->textureCubeMap.find(texcube.GetInstanceID());
-	if (target != pImpl->textureCubeMap.end())
-		return *this;
+		UnregisterTextureCube(texcube.GetInstanceID());
+	else {
+		auto target = pImpl->textureCubeMap.find(texcube.GetInstanceID());
+		if (target != pImpl->textureCubeMap.end())
+			return *this;
+	}
 
 	Impl::TextureCubeGPUData tex;
 
@@ -295,7 +297,7 @@ GPURsrcMngrDX12& GPURsrcMngrDX12::RegisterTextureCube(TextureCube& texcube) {
 		tex.allocationSRV.GetCpuHandle(static_cast<uint32_t>(0))
 	);
 
-	pImpl->textureCubeMap.emplace_hint(target, std::make_pair(texcube.GetInstanceID(), std::move(tex)));
+	pImpl->textureCubeMap.emplace(std::make_pair(texcube.GetInstanceID(), std::move(tex)));
 
 	texcube.SetClean();
 	texcube.destroyed.Connect<&GPURsrcMngrDX12::UnregisterTextureCube>(this);
@@ -461,17 +463,18 @@ UDX12::MeshGPUBuffer& GPURsrcMngrDX12::GetMeshGPUBuffer(const Mesh& mesh) const 
 
 bool GPURsrcMngrDX12::RegisterShader(Shader& shader) {
 	if (shader.IsDirty())
-		pImpl->shaderMap.erase(shader.GetInstanceID());
-
-	auto target = pImpl->shaderMap.find(shader.GetInstanceID());
-	if (target != pImpl->shaderMap.end())
-		return true;
+		UnregisterShader(shader.GetInstanceID());
+	else {
+		auto target = pImpl->shaderMap.find(shader.GetInstanceID());
+		if (target != pImpl->shaderMap.end())
+			return true;
+	}
 
 	D3D_SHADER_MACRO macros[] = {
 		{nullptr, nullptr}
 	};
 	Ubpa::UDX12::D3DInclude d3dInclude{ shader.hlslFile->GetLocalDir(), "../" };
-	auto& shaderCompileData = pImpl->shaderMap[shader.GetInstanceID()];
+	Impl::ShaderCompileData shaderCompileData;
 	shaderCompileData.passes.resize(shader.passes.size());
 	for (size_t i = 0; i < shader.passes.size(); i++) {
 		const auto& pass = shader.passes[i];
@@ -483,10 +486,8 @@ bool GPURsrcMngrDX12::RegisterShader(Shader& shader) {
 			"vs_5_0",
 			&d3dInclude
 		);
-		if (!shaderCompileData.passes[i].vsByteCode) {
-			pImpl->shaderMap.erase(shader.GetInstanceID());
+		if (!shaderCompileData.passes[i].vsByteCode)
 			return false;
-		}
 		shaderCompileData.passes[i].psByteCode = UDX12::Util::CompileShader(
 			shader.hlslFile->GetText(),
 			macros,
@@ -494,10 +495,8 @@ bool GPURsrcMngrDX12::RegisterShader(Shader& shader) {
 			"ps_5_0",
 			&d3dInclude
 		);
-		if (!shaderCompileData.passes[i].psByteCode) {
+		if (!shaderCompileData.passes[i].psByteCode)
 			pImpl->shaderMap.erase(shader.GetInstanceID());
-			return false;
-		}
 		ThrowIfFailed(D3DReflect(
 			shaderCompileData.passes[i].vsByteCode->GetBufferPointer(),
 			shaderCompileData.passes[i].vsByteCode->GetBufferSize(),
@@ -569,7 +568,7 @@ bool GPURsrcMngrDX12::RegisterShader(Shader& shader) {
 				}
 			}
 			else
-				static_assert(false);
+				static_assert(always_false<void>);
 		}, shader.rootParameters[i]);
 	}
 
@@ -587,11 +586,9 @@ bool GPURsrcMngrDX12::RegisterShader(Shader& shader) {
 	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
 		&serializedRootSig, &errorBlob);
 
-	if (errorBlob != nullptr)
-	{
+	if (errorBlob != nullptr) {
 		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
 		errorBlob->Release();
-		pImpl->shaderMap.erase(shader.GetInstanceID());
 		return false;
 	}
 	ThrowIfFailed(hr);
@@ -604,6 +601,8 @@ bool GPURsrcMngrDX12::RegisterShader(Shader& shader) {
 	));
 
 	serializedRootSig->Release();
+
+	pImpl->shaderMap.emplace(shader.GetInstanceID(), std::move(shaderCompileData));
 
 	shader.SetClean();
 	shader.destroyed.Connect<&GPURsrcMngrDX12::UnregisterShader>(this);

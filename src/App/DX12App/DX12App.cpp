@@ -162,7 +162,6 @@ LRESULT DX12App::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	return DefWindowProc(hwnd, msg, wParam, lParam);
 }
 
-
 int DX12App::Run() {
 	MSG msg = { 0 };
 
@@ -181,7 +180,6 @@ int DX12App::Run() {
 			if (!mAppPaused) {
 				CalculateFrameStats();
 				Update();
-				Draw();
 			}
 			else
 				Sleep(100);
@@ -261,8 +259,11 @@ bool DX12App::InitMainWindow() {
 }
 
 bool DX12App::InitDirect3D() {
+	UINT dxgiFactoryFlags = 0;
+
 #if defined(DEBUG) || defined(_DEBUG) 
-	// Enable the D3D12 debug layer.
+	// Enable the debug layer (requires the Graphics Tools "optional feature").
+	// NOTE: Enabling the debug layer after device creation will invalidate the active device.
 	{
 		ComPtr<ID3D12Debug> debugController;
 		//ThrowIfFailed(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)));
@@ -272,7 +273,7 @@ bool DX12App::InitDirect3D() {
 	}
 #endif
 
-	ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&mdxgiFactory)));
+	ThrowIfFailed(CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&mdxgiFactory)));
 
 	// Try to create hardware device.
 	// maybe thorw execption internal
@@ -297,7 +298,6 @@ bool DX12App::InitDirect3D() {
 	ThrowIfFailed(uDevice->CreateFence(mCurrentFence, D3D12_FENCE_FLAG_NONE,
 		IID_PPV_ARGS(&mFence)));
 
-
 	Ubpa::Utopia::GPURsrcMngrDX12::Instance().Init(uDevice.raw.Get());
 	Ubpa::UDX12::DescriptorHeapMngr::Instance().Init(uDevice.Get(), 16384, 16384, 16384, 16384, 16384);
 
@@ -309,16 +309,6 @@ bool DX12App::InitDirect3D() {
 			IID_PPV_ARGS(&allocator)));
 		fr->RegisterResource(FR_CommandAllocator, allocator);
 	}
-
-	//D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS msQualityLevels;
-	//msQualityLevels.Format = mBackBufferFormat;
-	//msQualityLevels.SampleCount = 4;
-	//msQualityLevels.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
-	//msQualityLevels.NumQualityLevels = 0;
-	//ThrowIfFailed(uDevice->CheckFeatureSupport(
-	//	D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS,
-	//	&msQualityLevels,
-	//	sizeof(msQualityLevels)));
 
 #ifdef _DEBUG
 	LogAdapters();

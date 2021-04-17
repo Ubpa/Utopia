@@ -21,7 +21,7 @@ namespace Ubpa::Utopia {
 		GPURsrcMngrDX12& Init(ID3D12Device* device);
 		void Clear(ID3D12CommandQueue* cmdQueue);
 
-		std::function<void()> CommitUploadAndPackDelete(ID3D12CommandQueue* cmdQueue);
+		UDX12::ResourceDeleteBatch CommitUploadAndTakeDeleteBatch(ID3D12CommandQueue* cmdQueue);
 
 		//
 		// Register

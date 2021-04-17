@@ -12,8 +12,8 @@ PipelineBase::ShaderCBDesc PipelineBase::UpdateShaderCBs(
 	ShaderCBMngrDX12& shaderCBMngr,
 	const Shader& shader,
 	const std::unordered_set<const Material*>& materials,
-	const std::set<std::string_view>& commonCBs
-) {
+	const std::set<std::string_view>& commonCBs)
+{
 	PipelineBase::ShaderCBDesc rst;
 
 	auto CalculateSize = [&](ID3D12ShaderReflection* refl) {
@@ -35,7 +35,7 @@ PipelineBase::ShaderCBDesc PipelineBase::UpdateShaderCBs(
 			if(target != rst.offsetMap.end())
 				continue;
 
-			rst.offsetMap.emplace_hint(target, std::pair{ rsrcDesc.BindPoint, rst.materialCBSize });
+			rst.offsetMap.emplace(std::pair{ rsrcDesc.BindPoint, rst.materialCBSize });
 			rst.materialCBSize += UDX12::Util::CalcConstantBufferByteSize(cbDesc.Size);
 		}
 	};
@@ -92,7 +92,7 @@ PipelineBase::ShaderCBDesc PipelineBase::UpdateShaderCBs(
 						assert(varDesc.Size == sizeof(unsigned int));
 						buffer->Set(offset + varDesc.StartOffset, &v, sizeof(unsigned int));
 					}
-					else if constexpr (std::is_same_v<Value, const Texture2D*> || std::is_same_v<Value, const TextureCube*>)
+					else if constexpr (std::is_same_v<Value, SharedVar<Texture2D>> || std::is_same_v<Value, SharedVar<TextureCube>>)
 						assert(false);
 					else {
 						assert(varDesc.Size == sizeof(Value));

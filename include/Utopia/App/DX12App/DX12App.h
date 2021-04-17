@@ -9,6 +9,9 @@
 namespace Ubpa::Utopia {
 	class DX12App {
 	public:
+		DX12App(const DX12App& rhs) = delete;
+		DX12App& operator=(const DX12App& rhs) = delete;
+
 		static DX12App* GetApp() noexcept { return mApp; }
 
 		HINSTANCE AppInst() const { return mhAppInst; }
@@ -20,7 +23,7 @@ namespace Ubpa::Utopia {
 		// 2. game loop
 		// - GameTimer Tick
 		// - pause ?
-		// - then CalculateFrameStats, Update, Draw
+		// - then CalculateFrameStats, Update
 		// - else sleep
 		int Run();
 
@@ -29,7 +32,6 @@ namespace Ubpa::Utopia {
 
 	protected:
 		virtual void Update() = 0;
-		virtual void Draw() = 0;
 		virtual void OnResize();
 
 		virtual LRESULT MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -113,9 +115,6 @@ namespace Ubpa::Utopia {
 		DXGI_FORMAT mBackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 
 		std::unique_ptr<UDX12::FrameResourceMngr> frameRsrcMngr;
-
-		DX12App(const DX12App& rhs) = delete;
-		DX12App& operator=(const DX12App& rhs) = delete;
 
 		static LRESULT CALLBACK MainWndProc(HWND, UINT, WPARAM, LPARAM);
 	};

@@ -18,7 +18,6 @@ namespace Ubpa::Utopia {
 
 	private:
 		virtual void Update() override;
-		virtual void Draw() override;
 		virtual LRESULT MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) override;
 
 		struct Impl;

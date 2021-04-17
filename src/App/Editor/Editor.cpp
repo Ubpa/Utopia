@@ -66,14 +66,13 @@ struct Editor::Impl {
 
 	bool Init();
 	void Update();
-	void Draw();
 
 	void BuildWorld();
 
 	static void InitWorld(Ubpa::UECS::World&);
 	//static void InitInspectorRegistry();
-	static void LoadTextures();
-	static void BuildShaders();
+	static void LoadInternalTextures();
+	static void LoadShaders();
 
 	std::unique_ptr<Ubpa::UECS::World> runningGameWorld;
 	Ubpa::UECS::World* curGameWorld;
@@ -226,10 +225,6 @@ void Editor::Update() {
 	pImpl->Update();
 }
 
-void Editor::Draw() {
-	pImpl->Draw();
-}
-
 Editor::Impl::~Impl() {
 	if (!gameRT_SRV.IsNull())
 		Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(gameRT_SRV));
@@ -243,6 +238,17 @@ Editor::Impl::~Impl() {
 
 bool Editor::Impl::Init() {
 	ImGUIMngr::Instance().Init(pEditor->MainWnd(), pEditor->uDevice.Get(), DX12App::NumFrameResources, 3);
+	editorImGuiCtx = ImGUIMngr::Instance().GetContexts().at(0);
+	gameImGuiCtx = ImGUIMngr::Instance().GetContexts().at(1);
+	sceneImGuiCtx = ImGUIMngr::Instance().GetContexts().at(2);
+	ImGui::SetCurrentContext(editorImGuiCtx);
+	ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+	ImGui::GetIO().IniFilename = "imgui_App_Editor_editor.ini";
+	ImGui::SetCurrentContext(gameImGuiCtx);
+	ImGui::GetIO().IniFilename = "imgui_App_Editor_game.ini";
+	ImGui::SetCurrentContext(sceneImGuiCtx);
+	ImGui::GetIO().IniFilename = "imgui_App_Editor_scene.ini";
+	ImGui::SetCurrentContext(nullptr);
 	
 	AssetMngr::Instance().SetRootPath(LR"(..\assets)");
 	AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<WorldAssetImporterCreator>());
@@ -260,8 +266,8 @@ bool Editor::Impl::Init() {
 	UDRefl_Register_Core();
 	UDRefl_Register_Render();
 
-	LoadTextures();
-	BuildShaders();
+	LoadInternalTextures();
+	LoadShaders();
 	PipelineBase::InitDesc initDesc;
 	initDesc.device = pEditor->uDevice.Get();
 	initDesc.rtFormat = gameRTFormat;
@@ -269,26 +275,11 @@ bool Editor::Impl::Init() {
 	initDesc.numFrame = DX12App::NumFrameResources;
 	gamePipeline = std::make_unique<StdPipeline>(initDesc);
 	scenePipeline = std::make_unique<StdPipeline>(initDesc);
-	auto delete_func = GPURsrcMngrDX12::Instance().CommitUploadAndPackDelete(pEditor->uCmdQueue.Get());
-	pEditor->GetFrameResourceMngr()->GetCurrentFrameResource()->RegisterResource("delete_func", std::move(delete_func));
-	pEditor->GetFrameResourceMngr()->GetCurrentFrameResource()->DelayUnregisterResource("delete_func");
 
 	gameRT_SRV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(1);
 	gameRT_RTV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Allocate(1);
 	sceneRT_SRV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(1);
 	sceneRT_RTV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Allocate(1);
-
-	editorImGuiCtx = ImGUIMngr::Instance().GetContexts().at(0);
-	gameImGuiCtx = ImGUIMngr::Instance().GetContexts().at(1);
-	sceneImGuiCtx = ImGUIMngr::Instance().GetContexts().at(2);
-	ImGui::SetCurrentContext(editorImGuiCtx);
-	ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-	ImGui::GetIO().IniFilename = "imgui_App_Editor_editor.ini";
-	ImGui::SetCurrentContext(gameImGuiCtx);
-	ImGui::GetIO().IniFilename = "imgui_App_Editor_game.ini";
-	ImGui::SetCurrentContext(sceneImGuiCtx);
-	ImGui::GetIO().IniFilename = "imgui_App_Editor_scene.ini";
-	ImGui::SetCurrentContext(nullptr);
 
 	auto logger = spdlog::synchronous_factory::create<StringsSink>("logger");
 	spdlog::details::registry::instance().set_default_logger(logger);
@@ -531,6 +522,7 @@ void Editor::Impl::Update() {
 			GameTimer::Instance().Reset();
 			// break;
 		}
+		[[fallthrough]];
 		case Impl::GameState::Running:
 			runningGameWorld->Update();
 			ImGui::Begin("in game");
@@ -624,18 +616,18 @@ void Editor::Impl::Update() {
 	// commit upload, delete ...
 	pEditor->uGCmdList->Close();
 	pEditor->uCmdQueue.Execute(pEditor->uGCmdList.Get());
-	auto delete_func = GPURsrcMngrDX12::Instance().CommitUploadAndPackDelete(pEditor->uCmdQueue.Get());
-	pEditor->GetFrameResourceMngr()->GetCurrentFrameResource()->RegisterResource("delete_func", std::move(delete_func));
-	pEditor->GetFrameResourceMngr()->GetCurrentFrameResource()->DelayUnregisterResource("delete_func");
+	auto deletebatch = GPURsrcMngrDX12::Instance().CommitUploadAndTakeDeleteBatch(pEditor->uCmdQueue.Get());
+	pEditor->GetFrameResourceMngr()->GetCurrentFrameResource()->RegisterResource("deletebatch", std::make_shared<UDX12::ResourceDeleteBatch>(std::move(deletebatch)));
+	pEditor->GetFrameResourceMngr()->GetCurrentFrameResource()->DelayUnregisterResource("deletebatch");
 
 	{
 		std::vector<PipelineBase::CameraData> gameCameras;
 		Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::AccessTypeID_of<Camera>} };
 		curGameWorld->RunEntityJob([&](Ubpa::UECS::Entity e) {
 			gameCameras.emplace_back(e, *curGameWorld);
-		}, false, camFilter);
+			}, false, camFilter);
 		assert(gameCameras.empty() || gameCameras.size() == 1); // now only support 0/1 camera
-		if(gameCameras.empty())
+		if (gameCameras.empty())
 			gamePipeline->BeginFrame({ curGameWorld }, { Entity::Invalid(), *curGameWorld });
 		else
 			gamePipeline->BeginFrame({ curGameWorld }, gameCameras.front());
@@ -646,10 +638,10 @@ void Editor::Impl::Update() {
 		Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::AccessTypeID_of<Camera>} };
 		sceneWorld.RunEntityJob([&](Ubpa::UECS::Entity e) {
 			sceneCameras.emplace_back(e, sceneWorld);
-		}, false, camFilter);
+			}, false, camFilter);
 		assert(sceneCameras.empty() || sceneCameras.size() == 1); // now only support 0/1 camera
 		if (sceneCameras.empty())
-			gamePipeline->BeginFrame({ curGameWorld, &sceneWorld }, { Entity::Invalid(), sceneWorld });
+			scenePipeline->BeginFrame({ curGameWorld, &sceneWorld }, { Entity::Invalid(), sceneWorld });
 		else
 			scenePipeline->BeginFrame({ curGameWorld, &sceneWorld }, sceneCameras.front());
 	}
@@ -661,10 +653,7 @@ void Editor::Impl::Update() {
 			flag = true;
 		}
 	}
-}
 
-void Editor::Impl::Draw() {
-	auto cmdAlloc = pEditor->GetCurFrameCommandAllocator();
 	ThrowIfFailed(pEditor->uGCmdList->Reset(cmdAlloc, nullptr));
 
 	{ // game
@@ -711,7 +700,7 @@ void Editor::Impl::Draw() {
 		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), pEditor->uGCmdList.Get());
 		pEditor->uGCmdList.ResourceBarrierTransition(pEditor->CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 	}
-	
+
 	pEditor->uGCmdList->Close();
 	pEditor->uCmdQueue.Execute(pEditor->uGCmdList.Get());
 
@@ -832,7 +821,7 @@ void Editor::Impl::BuildWorld() {
 	}
 }
 
-void Editor::Impl::LoadTextures() {
+void Editor::Impl::LoadInternalTextures() {
 	auto tex2dGUIDs = AssetMngr::Instance().FindAssets(std::wregex{ LR"(_internal\\.*\.(png|jpg|bmp|hdr|tga))" });
 	for (const auto& guid : tex2dGUIDs) {
 		const auto& path = AssetMngr::Instance().GUIDToAssetPath(guid);
@@ -855,7 +844,7 @@ void Editor::Impl::LoadTextures() {
 	}
 }
 
-void Editor::Impl::BuildShaders() {
+void Editor::Impl::LoadShaders() {
 	auto& assetMngr = AssetMngr::Instance();
 	auto shaderGUIDs = assetMngr.FindAssets(std::wregex{ LR"(.*\.shader)" });
 	for (const auto& guid : shaderGUIDs) {

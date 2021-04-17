@@ -1304,8 +1304,9 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::str
 	auto commonBuffer = shaderCBMngr->GetCommonBuffer();
 	auto cameraCBAdress = commonBuffer->GetResource()->GetGPUVirtualAddress()
 		+ renderContext.cameraOffset;
-	
+
 	std::shared_ptr<const Shader> shader;
+	
 	auto Draw = [&](const RenderObject& obj) {
 		const auto& pass = obj.material->shader->passes[obj.passIdx];
 
@@ -1317,12 +1318,25 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::str
 			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*shader));
 		}
 
-		auto matBuffer = shaderCBMngr->GetBuffer(*shader);
+		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress =
+			commonBuffer->GetResource()->GetGPUVirtualAddress()
+			+ renderContext.entity2offset.at(obj.entity.index);
 
 		const auto& shaderCBDesc = renderContext.shaderCBDescMap.at(shader.get());
 
 		auto lightCBAdress = commonBuffer->GetResource()->GetGPUVirtualAddress()
 			+ renderContext.lightOffset;
+		StdPipeline::SetGraphicsRoot_CBV_SRV(cmdList, *shaderCBMngr, shaderCBDesc, *obj.material,
+			{
+				{StdPipeline_cbPerObject, objCBAddress},
+				{StdPipeline_cbPerCamera, cameraCBAdress},
+				{StdPipeline_cbLightArray, lightCBAdress}
+			},
+			{
+				{StdPipeline_srvIBL, ibl},
+				{StdPipeline_srvLTC, ltcHandles.GetGpuHandle()}
+			}
+		);
 
 		auto& meshGPUBuffer = GPURsrcMngrDX12::Instance().GetMeshGPUBuffer(*obj.mesh);
 		const auto& submesh = obj.mesh->GetSubMeshes().at(obj.submeshIdx);
@@ -1347,25 +1361,12 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::str
 			d3d12Topology = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
 			break;
 		default:
+			assert(false);
+			d3d12Topology = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
 			break;
 		}
 		cmdList->IASetPrimitiveTopology(d3d12Topology);
 
-		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress =
-			commonBuffer->GetResource()->GetGPUVirtualAddress()
-			+ renderContext.entity2offset.at(obj.entity.index);
-
-		StdPipeline::SetGraphicsRoot_CBV_SRV(cmdList, *shaderCBMngr, shaderCBDesc, *obj.material,
-			{
-				{StdPipeline_cbPerObject, objCBAddress},
-				{StdPipeline_cbPerCamera, cameraCBAdress},
-				{StdPipeline_cbLightArray, lightCBAdress}
-			},
-			{
-				{StdPipeline_srvIBL, ibl},
-				{StdPipeline_srvLTC, ltcHandles.GetGpuHandle()}
-			}
-		);
 		if (shader->passes[obj.passIdx].renderState.stencilState.enable)
 			cmdList->OMSetStencilRef(shader->passes[obj.passIdx].renderState.stencilState.ref);
 		cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetPSO(GetPSO_ID(
@@ -1381,15 +1382,11 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::str
 		Draw(obj);
 }
 
-StdPipeline::StdPipeline(InitDesc initDesc)
-	:
+StdPipeline::StdPipeline(InitDesc initDesc) :
 	PipelineBase{ initDesc },
-	pImpl{ new Impl{ initDesc } }
-{}
+	pImpl{ new Impl{ initDesc } } {}
 
-StdPipeline::~StdPipeline() {
-	delete pImpl;
-}
+StdPipeline::~StdPipeline() { delete pImpl; }
 
 void StdPipeline::BeginFrame(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData) {
 	// collect some cpu data
