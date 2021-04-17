@@ -18,6 +18,7 @@ namespace Ubpa::Utopia::details {
 	void ShaderImporterRegister_Shader_1();
 	void ShaderImporterRegister_Shader_2();
 	void ShaderImporterRegister_Shader_3();
+	void ShaderImporterRegister_ShaderPass();
 	void ShaderImporterRegister_ShaderProperty();
 	void ShaderImporterRegister_StencilOp();
 	void ShaderImporterRegister_StencilState();

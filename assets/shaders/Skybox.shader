@@ -7,5 +7,8 @@ Shader "StdPipeline/Skybox" {
 	Properties {
 		gSkybox("skybox", Cube) : Black
 	}
-	Pass (VS, PS) {}
+	Pass (VS, PS) {
+		ZTest LEqual
+		ZWriteOff
+	}
 }

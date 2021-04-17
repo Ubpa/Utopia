@@ -26,6 +26,7 @@ void ShaderImporter::RegisterToUDRefl() {
 	details::ShaderImporterRegister_Shader_1();
 	details::ShaderImporterRegister_Shader_2();
 	details::ShaderImporterRegister_Shader_3();
+	details::ShaderImporterRegister_ShaderPass();
 	details::ShaderImporterRegister_ShaderProperty();
 	details::ShaderImporterRegister_StencilOp();
 	details::ShaderImporterRegister_StencilState();

@@ -8,5 +8,8 @@ Shader "StdPipeline/Defer Lighting" {
 		CBV : 0
 		CBV : 1
 	}
-	Pass (VS, PS) {}
+	Pass (VS, PS) {
+		ZTest Greater
+		ZWriteOff
+	}
 }

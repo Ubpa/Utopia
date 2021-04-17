@@ -84,8 +84,6 @@ namespace Ubpa::Utopia {
 			const std::map<std::string_view, D3D12_GPU_DESCRIPTOR_HANDLE>& commonSRVs
 		);
 
-		static void SetPSODescForRenderState(D3D12_GRAPHICS_PIPELINE_STATE_DESC&, const RenderState&);
-
 	protected:
 		virtual void Impl_Resize() = 0;
 

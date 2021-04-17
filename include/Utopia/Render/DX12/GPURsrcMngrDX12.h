@@ -42,8 +42,6 @@ namespace Ubpa::Utopia {
 
 		bool RegisterShader(Shader& shader);
 
-		size_t RegisterPSO(const D3D12_GRAPHICS_PIPELINE_STATE_DESC* desc);
-
 		//
 		// Unregister
 		///////////////
@@ -72,8 +70,13 @@ namespace Ubpa::Utopia {
 		ID3D12ShaderReflection* GetShaderRefl_vs(const Shader& shader, size_t passIdx) const;
 		ID3D12ShaderReflection* GetShaderRefl_ps(const Shader& shader, size_t passIdx) const;
 		ID3D12RootSignature* GetShaderRootSignature(const Shader& shader) const;
-
-		ID3D12PipelineState* GetPSO(size_t id) const;
+		ID3D12PipelineState* GetOrCreateShaderPSO(
+			const Shader& shader,
+			size_t passIdx,
+			size_t layoutID,
+			size_t rtNum,
+			DXGI_FORMAT rtFormat,
+			DXGI_FORMAT dsvFormat = DXGI_FORMAT_D24_UNORM_S8_UINT);
 
 		// 1. point wrap
 		// 2. point clamp

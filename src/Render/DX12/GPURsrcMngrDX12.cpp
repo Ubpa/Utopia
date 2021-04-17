@@ -6,6 +6,7 @@
 #include <Utopia/Render/HLSLFile.h>
 #include <Utopia/Render/Shader.h>
 #include <Utopia/Render/Mesh.h>
+#include <Utopia/Render/DX12/MeshLayoutMngr.h>
 
 #include <unordered_map>
 #include <iostream>
@@ -61,6 +62,22 @@ struct GPURsrcMngrDX12::Impl {
 			Microsoft::WRL::ComPtr<ID3DBlob> psByteCode;
 			Microsoft::WRL::ComPtr<ID3D12ShaderReflection> vsRefl;
 			Microsoft::WRL::ComPtr<ID3D12ShaderReflection> psRefl;
+
+			struct PSOKey {
+				PSOKey() { memset(this, 0, sizeof(PSOKey)); }
+				size_t layoutID;
+				size_t rtNum;
+				DXGI_FORMAT rtFormat;
+				bool operator==(const PSOKey& rhs) const noexcept {
+					return UDX12::FG::detail::bitwise_equal(*this, rhs);
+				}
+			};
+			struct PSOKeyHasher {
+				size_t operator()(const PSOKey& key) const noexcept {
+					return UDX12::FG::detail::hash_of(key);
+				}
+			};
+			std::unordered_map<PSOKey, Microsoft::WRL::ComPtr<ID3D12PipelineState>, PSOKeyHasher> PSOs;
 		};
 		Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature;
 		std::vector<PassData> passes;
@@ -77,7 +94,6 @@ struct GPURsrcMngrDX12::Impl {
 	unordered_map<std::size_t, RenderTargetGPUData> renderTargetMap;
 	unordered_map<std::size_t, ShaderCompileData> shaderMap;
 	unordered_map<std::size_t, UDX12::MeshGPUBuffer> meshMap;
-	vector<ID3D12PipelineState*> PSOs;
 
 	const CD3DX12_STATIC_SAMPLER_DESC pointWrap{
 		0,                               // shaderRegister
@@ -159,9 +175,6 @@ void GPURsrcMngrDX12::Clear(ID3D12CommandQueue* cmdQueue) {
 	pImpl->upload->End(cmdQueue);
 	pImpl->deleteBatch.Release(); // maybe we need to return the delete callback
 
-	for (auto PSO : pImpl->PSOs)
-		PSO->Release();
-
 	pImpl->device = nullptr;
 	delete pImpl->upload;
 
@@ -169,7 +182,6 @@ void GPURsrcMngrDX12::Clear(ID3D12CommandQueue* cmdQueue) {
 	pImpl->textureCubeMap.clear();
 	pImpl->renderTargetMap.clear();
 	pImpl->meshMap.clear();
-	pImpl->PSOs.clear();
 	pImpl->shaderMap.clear();
 
 	pImpl->isInit = false;
@@ -640,16 +652,93 @@ ID3D12RootSignature* GPURsrcMngrDX12::GetShaderRootSignature(const Shader& shade
 	return pImpl->shaderMap.at(shader.GetInstanceID()).rootSignature.Get();
 }
 
-size_t GPURsrcMngrDX12::RegisterPSO(const D3D12_GRAPHICS_PIPELINE_STATE_DESC* desc) {
-	ID3D12PipelineState* pso;
-	pImpl->device->CreateGraphicsPipelineState(desc, IID_PPV_ARGS(&pso));
-	size_t ID = pImpl->PSOs.size();
-	pImpl->PSOs.push_back(pso);
-	return ID;
-}
+ID3D12PipelineState* GPURsrcMngrDX12::GetOrCreateShaderPSO(
+	const Shader& shader,
+	size_t passIdx,
+	size_t layoutID,
+	size_t rtNum,
+	DXGI_FORMAT rtFormat,
+	DXGI_FORMAT dsvFormat)
+{
+	auto starget = pImpl->shaderMap.find(shader.GetInstanceID());
+	if (starget == pImpl->shaderMap.end())
+		return nullptr;
+	auto& shaderdata = starget->second;
+	auto& passdata = shaderdata.passes[passIdx];
 
-ID3D12PipelineState* GPURsrcMngrDX12::GetPSO(size_t id) const {
-	return pImpl->PSOs[id];
+	Impl::ShaderCompileData::PassData::PSOKey key;
+	key.layoutID = layoutID;
+	key.rtNum = rtNum;
+	key.rtFormat = rtFormat;
+	auto psotarget = passdata.PSOs.find(key);
+	if (psotarget == passdata.PSOs.end()) {
+		Microsoft::WRL::ComPtr<ID3D12PipelineState> pso;
+		const D3D12_INPUT_ELEMENT_DESC* layout_ptr;
+		UINT layout_cnt;
+		if (layoutID == static_cast<std::size_t>(-1)) {
+			layout_ptr = nullptr;
+			layout_cnt = 0;
+		}
+		else {
+			const auto& layout = MeshLayoutMngr::Instance().GetMeshLayoutValue(layoutID);
+			layout_ptr = layout.data();
+			layout_cnt = (UINT)layout.size();
+		}
+		auto desc = UDX12::Desc::PSO::MRT(
+			shaderdata.rootSignature.Get(),
+			layout_ptr, layout_cnt,
+			passdata.vsByteCode.Get(),
+			passdata.psByteCode.Get(),
+			(UINT)rtNum,
+			rtFormat,
+			dsvFormat
+		);
+		desc.RasterizerState.FrontCounterClockwise = TRUE;
+		const auto& renderState = shader.passes[passIdx].renderState;
+		desc.RasterizerState.FillMode = static_cast<D3D12_FILL_MODE>(renderState.fillMode);
+		desc.RasterizerState.CullMode = static_cast<D3D12_CULL_MODE>(renderState.cullMode);
+		if (dsvFormat == DXGI_FORMAT_UNKNOWN) {
+			desc.DepthStencilState.DepthEnable = false;
+			desc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC::D3D12_COMPARISON_FUNC_ALWAYS;
+			desc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK::D3D12_DEPTH_WRITE_MASK_ZERO;
+		}
+		else {
+			desc.DepthStencilState.DepthEnable = true;
+			desc.DepthStencilState.DepthFunc = static_cast<D3D12_COMPARISON_FUNC>(renderState.zTest);
+			desc.DepthStencilState.DepthWriteMask = static_cast<D3D12_DEPTH_WRITE_MASK>(renderState.zWrite);
+		}
+
+		for (size_t i = 0; i < 8; i++) {
+			if (renderState.blendStates[i].enable) {
+				desc.BlendState.RenderTarget[i].BlendEnable = TRUE;
+				desc.BlendState.RenderTarget[i].SrcBlend = static_cast<D3D12_BLEND>(renderState.blendStates[i].src);
+				desc.BlendState.RenderTarget[i].DestBlend = static_cast<D3D12_BLEND>(renderState.blendStates[i].dest);
+				desc.BlendState.RenderTarget[i].BlendOp = static_cast<D3D12_BLEND_OP>(renderState.blendStates[i].op);
+				desc.BlendState.RenderTarget[i].SrcBlendAlpha = static_cast<D3D12_BLEND>(renderState.blendStates[i].srcAlpha);
+				desc.BlendState.RenderTarget[i].DestBlendAlpha = static_cast<D3D12_BLEND>(renderState.blendStates[i].destAlpha);
+				desc.BlendState.RenderTarget[i].BlendOpAlpha = static_cast<D3D12_BLEND_OP>(renderState.blendStates[i].opAlpha);
+			}
+		}
+
+		if (renderState.stencilState.enable) {
+			desc.DepthStencilState.StencilEnable = TRUE;
+			desc.DepthStencilState.StencilReadMask = renderState.stencilState.readMask;
+			desc.DepthStencilState.StencilWriteMask = renderState.stencilState.writeMask;
+			D3D12_DEPTH_STENCILOP_DESC stencilDesc;
+			stencilDesc.StencilDepthFailOp = static_cast<D3D12_STENCIL_OP>(renderState.stencilState.depthFailOp);
+			stencilDesc.StencilFailOp = static_cast<D3D12_STENCIL_OP>(renderState.stencilState.failOp);
+			stencilDesc.StencilPassOp = static_cast<D3D12_STENCIL_OP>(renderState.stencilState.passOp);
+			stencilDesc.StencilFunc = static_cast<D3D12_COMPARISON_FUNC>(renderState.stencilState.func);
+			desc.DepthStencilState.FrontFace = stencilDesc;
+			desc.DepthStencilState.BackFace = stencilDesc;
+		}
+		for (size_t i = 0; i < 8; i++)
+			desc.BlendState.RenderTarget[i].RenderTargetWriteMask = renderState.colorMask[i];
+
+		pImpl->device->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&pso));
+		psotarget = passdata.PSOs.emplace(key, std::move(pso)).first;
+	}
+	return psotarget->second.Get();
 }
 
 std::array<CD3DX12_STATIC_SAMPLER_DESC, 6> GPURsrcMngrDX12::GetStaticSamplers() const {
