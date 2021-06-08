@@ -83,6 +83,7 @@ namespace Ubpa::Utopia {
 		// default: use Serilizer to deserialize file at path (<=> guid)
 		virtual AssetImportContext ImportAsset() const;
 
+		virtual void OnFinish() const {}
 	protected:
 		template<typename Impl>
 		static UDRefl::ObjectView TmplThis(const Impl* ptr) {
@@ -125,7 +126,7 @@ namespace Ubpa::Utopia {
 		virtual ~AssetImporterCreator() = default;
 
 		// the guid is not registered into asset mngr yet, but we can store it in assetimporter
-		virtual std::shared_ptr<AssetImporter> CreateAssetImporter(xg::Guid guid) = 0;
+		virtual std::shared_ptr<AssetImporter> CreateAssetImporter(xg::Guid guid, const std::filesystem::path& path) = 0;
 
 		// reserialize
 		virtual std::shared_ptr<AssetImporter> DeserializeAssetImporter(std::string_view json) {
@@ -144,9 +145,9 @@ namespace Ubpa::Utopia {
 	class TAssetImporterCreator : public AssetImporterCreator {
 	public:
 		// the guid is not registered into asset mngr yet, but we can store it in assetimporter
-		virtual std::shared_ptr<AssetImporter> CreateAssetImporter(xg::Guid guid) override final {
+		virtual std::shared_ptr<AssetImporter> CreateAssetImporter(xg::Guid guid, const std::filesystem::path& path) override final {
 			OnceRegisterAssetImporterToUDRefl();
-			return do_CreateAssetImporter(guid);
+			return do_CreateAssetImporter(guid, path);
 		}
 
 		// reserialize
@@ -156,7 +157,7 @@ namespace Ubpa::Utopia {
 		}
 
 	protected:
-		virtual std::shared_ptr<AssetImporter> do_CreateAssetImporter(xg::Guid guid) {
+		virtual std::shared_ptr<AssetImporter> do_CreateAssetImporter(xg::Guid guid, const std::filesystem::path& path) {
 			return std::make_shared<Importer>(guid);
 		}
 		virtual std::shared_ptr<AssetImporter> do_DeserializeAssetImporter(std::string_view json) {

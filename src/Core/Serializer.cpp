@@ -2,6 +2,9 @@
 
 #include <Utopia/Core/AssetMngr.h>
 
+#include <Utopia/Core/Components/Children.h>
+#include <Utopia/Core/Components/Parent.h>
+
 #include <UECS/UECS.hpp>
 #include <UECS/IListener.hpp>
 
@@ -388,7 +391,16 @@ UDRefl::SharedObject Serializer::DeserializeRecursion(const rapidjson::Value& va
 	}
 	else if (type.Is<Entity>()) {
 		assert(content.IsUint64());
-		return Mngr.MakeShared(type, TempArgsView{ ctx.entityIdxMap.at(content.GetUint64()) });
+		size_t idx = content.GetUint64();
+		if (auto target = ctx.entityIdxMap.find(idx); target != ctx.entityIdxMap.end())
+			return Mngr.MakeShared(type, TempArgsView{ target->second });
+		else if (ctx.w) {
+			size_t version = ctx.w->entityMngr.GetEntityVersion(idx);
+			if (ctx.w->entityMngr.Exist(Entity{idx, version}))
+				return Mngr.MakeShared(type, TempArgsView{ Entity{idx, version} });
+		}
+		assert(false);
+		return {};
 	}
 	else if (type.IsArithmetic()) {
 		switch (type.GetID().GetValue())
@@ -539,10 +551,14 @@ UDRefl::SharedObject Serializer::DeserializeRecursion(const rapidjson::Value& va
 			return {};
 		const auto& jsonFields = content.GetObject();
 		for (const auto& [n, var] : obj.GetVars(FieldFlag::Owned)) {
-			var.Invoke<void>(
-				NameIDRegistry::Meta::operator_assignment,
-				TempArgsView{ DeserializeRecursion(jsonFields[n.GetView().data()], ctx) },
-				MethodFlag::Variable);
+			auto target = jsonFields.FindMember(n.GetView().data());
+			if (target != jsonFields.MemberEnd()) {
+				var.Invoke<void>(
+					NameIDRegistry::Meta::operator_assignment,
+					TempArgsView{ DeserializeRecursion(target->value, ctx) },
+					MethodFlag::Variable);
+
+			}
 		}
 		return obj;
 	}
@@ -567,6 +583,27 @@ string Serializer::Serialize(const World* world) {
 	return json;
 }
 
+static void SerializeEntity(Serializer::SerializeContext& ctx, const UECS::World* w, UECS::Entity e) {
+	ctx.writer.StartObject();
+	{
+		ctx.writer.Key(Serializer::Key::Index);
+		ctx.writer.Uint64(e.index);
+		ctx.writer.Key(Serializer::Key::Components);
+		ctx.writer.StartArray();
+		{ // Components
+			for (const auto& cmpt : w->entityMngr.Components(e, AccessMode::LATEST))
+				Serializer::SerializeRecursion({ Mngr.tregistry.Typeof(cmpt.AccessType()), cmpt.Ptr() }, ctx);
+		}
+		ctx.writer.EndArray(); // components
+	}
+	ctx.writer.EndObject();
+
+	if (w->entityMngr.Have(e, Type_of<Children>)) {
+		for (auto child : w->entityMngr.ReadComponent<Children>(e)->value)
+			SerializeEntity(ctx, w, child);
+	}
+}
+
 std::string Serializer::Serialize(const UECS::World* w, std::span<UECS::Entity> entities) {
 	SerializeContext ctx{ pImpl->serializer };
 	ctx.writer.Reset(ctx.sb);
@@ -579,21 +616,8 @@ std::string Serializer::Serialize(const UECS::World* w, std::span<UECS::Entity> 
 			ctx.writer.Key(Serializer::Key::Entities);
 			ctx.writer.StartArray();
 			{ // Entities
-				for (Entity e : entities) {
-					ctx.writer.StartObject();
-					{
-						ctx.writer.Key(Key::Index);
-						ctx.writer.Uint64(e.index);
-						ctx.writer.Key(Key::Components);
-						ctx.writer.StartArray();
-						{ // Components
-							for (const auto& cmpt : w->entityMngr.Components(e, AccessMode::LATEST))
-								Serializer::SerializeRecursion({ Mngr.tregistry.Typeof(cmpt.AccessType()), cmpt.Ptr() }, ctx);
-						}
-						ctx.writer.EndArray(); // components
-					}
-					ctx.writer.EndObject();
-				}
+				for (Entity e : entities)
+					SerializeEntity(ctx, w, e);
 			}
 			ctx.writer.EndArray(); // entities
 		}
@@ -650,7 +674,7 @@ bool Serializer::DeserializeToWorld(UECS::World* world, string_view json) {
 			entityIdxMap.emplace(index, Entity{ newEntityIndex++, 0 });
 	}
 
-	DeserializeContext ctx{ entityIdxMap, pImpl->deserializer };
+	DeserializeContext ctx{ entityIdxMap, pImpl->deserializer, world };
 
 	for (const auto& val_e : entities) {
 		const auto& jsonEntity = val_e.GetObject();
@@ -671,6 +695,16 @@ bool Serializer::DeserializeToWorld(UECS::World* world, string_view json) {
 				NameIDRegistry::Meta::operator_assignment,
 				TempArgsView{ DeserializeRecursion(jsonCmpts[static_cast<SizeType>(i)], ctx) },
 				MethodFlag::Variable);
+		}
+		if (world->entityMngr.Have(entity, TypeID_of<Parent>)) {
+			auto p = world->entityMngr.ReadComponent<Parent>(entity);
+			if (world->entityMngr.Exist(p->value)) {
+				if (!world->entityMngr.Have(p->value, TypeID_of<Children>))
+					world->entityMngr.Attach(p->value, TypeIDs_of<Children>);
+				world->entityMngr.WriteComponent<Children>(p->value)->value.insert(entity);
+			}
+			else
+				world->entityMngr.Detach(entity, TypeIDs_of<Parent>);
 		}
 	}
 

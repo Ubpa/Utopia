@@ -1,5 +1,8 @@
 #include <Utopia/App/Editor/Editor.h>
 
+// DXR
+#include <Utopia/Render/DX12/StdDXRPipeline.h>
+
 #include <Utopia/App/Editor/Components/Hierarchy.h>
 #include <Utopia/App/Editor/Components/Inspector.h>
 #include <Utopia/App/Editor/Components/ProjectViewer.h>
@@ -12,6 +15,7 @@
 #include <Utopia/Render/ShaderImporter.h>
 #include <Utopia/Render/MaterialImporter.h>
 #include <Utopia/Render/MeshImporter.h>
+#include <Utopia/Render/ModelImporter.h>
 
 #include <Utopia/App/Editor/Systems/HierarchySystem.h>
 #include <Utopia/App/Editor/Systems/InspectorSystem.h>
@@ -171,7 +175,7 @@ LRESULT Editor::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			return 0;
 		if (wParam == VK_ESCAPE)
 		{
-			PostQuitMessage(0);
+			//PostQuitMessage(0);
 		}
 		return 0;
 	}
@@ -258,6 +262,7 @@ bool Editor::Impl::Init() {
 	AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<ShaderImporterCreator>());
 	AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<MaterialImporterCreator>());
 	AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<MeshImporterCreator>());
+	AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<ModelImporterCreator>());
 	AssetMngr::Instance().ImportAssetRecursively(LR"(.)");
 	
 	//InitInspectorRegistry();
@@ -273,8 +278,8 @@ bool Editor::Impl::Init() {
 	initDesc.rtFormat = gameRTFormat;
 	initDesc.cmdQueue = pEditor->uCmdQueue.Get();
 	initDesc.numFrame = DX12App::NumFrameResources;
-	gamePipeline = std::make_unique<StdPipeline>(initDesc);
-	scenePipeline = std::make_unique<StdPipeline>(initDesc);
+	gamePipeline = std::make_unique<StdDXRPipeline>(initDesc);
+	scenePipeline = std::make_unique<StdDXRPipeline>(initDesc);
 
 	gameRT_SRV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(1);
 	gameRT_RTV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Allocate(1);
@@ -291,14 +296,15 @@ bool Editor::Impl::Init() {
 
 void Editor::Impl::OnGameResize() {
 	Ubpa::rgbaf background = { 0.f,0.f,0.f,1.f };
-	auto rtType = Ubpa::UDX12::FG::RsrcType::RT2D(gameRTFormat, gameWidth, (UINT)gameHeight, background.data());
+	CD3DX12_CLEAR_VALUE clearvalue(gameRTFormat, background.data());
+	auto desc = Ubpa::UDX12::Desc::RSRC::RT2D(gameWidth, (UINT)gameHeight, gameRTFormat);
 	const auto defaultHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
 	ThrowIfFailed(pEditor->uDevice->CreateCommittedResource(
 		&defaultHeapProp,
 		D3D12_HEAP_FLAG_NONE,
-		&rtType.desc,
+		&desc,
 		D3D12_RESOURCE_STATE_PRESENT,
-		&rtType.clearValue,
+		&clearvalue,
 		IID_PPV_ARGS(gameRT.ReleaseAndGetAddressOf())
 	));
 	pEditor->uDevice->CreateShaderResourceView(gameRT.Get(), nullptr, gameRT_SRV.GetCpuHandle());
@@ -317,14 +323,15 @@ void Editor::Impl::OnGameResize() {
 
 void Editor::Impl::OnSceneResize() {
 	Ubpa::rgbaf background = { 0.f,0.f,0.f,1.f };
-	auto rtType = Ubpa::UDX12::FG::RsrcType::RT2D(sceneRTFormat, sceneWidth, (UINT)sceneHeight, background.data());
+	CD3DX12_CLEAR_VALUE clearvalue(sceneRTFormat, background.data());
+	auto desc = Ubpa::UDX12::Desc::RSRC::RT2D(sceneWidth, (UINT)sceneHeight, sceneRTFormat);
 	const auto defaultHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
 	ThrowIfFailed(pEditor->uDevice->CreateCommittedResource(
 		&defaultHeapProp,
 		D3D12_HEAP_FLAG_NONE,
-		&rtType.desc,
+		&desc,
 		D3D12_RESOURCE_STATE_PRESENT,
-		&rtType.clearValue,
+		&clearvalue,
 		IID_PPV_ARGS(sceneRT.ReleaseAndGetAddressOf())
 	));
 	pEditor->uDevice->CreateShaderResourceView(sceneRT.Get(), nullptr, sceneRT_SRV.GetCpuHandle());
@@ -349,6 +356,8 @@ void Editor::Impl::Update() {
 	ImGui_ImplWin32_NewFrame_Context(sceneImGuiCtx, scenePos, (float)sceneWidth, (float)sceneHeight);
 	ImGui_ImplWin32_NewFrame_Shared();
 
+	bool isGameOpen = false;
+	bool isSceneOpen = false;
 	{ // editor
 		ImGui::SetCurrentContext(editorImGuiCtx);
 		ImGui::NewFrame(); // editor ctx
@@ -416,6 +425,7 @@ void Editor::Impl::Update() {
 		bool isFlush = false;
 		// 1. game window
 		if (ImGui::Begin("Game", nullptr, ImGuiWindowFlags_NoScrollbar)) {
+			isGameOpen = true;
 			auto content_max_minus_local_pos = ImGui::GetContentRegionAvail();
 			auto content_max = ImGui::GetWindowContentRegionMax();
 			auto game_window_pos = ImGui::GetWindowPos();
@@ -446,6 +456,7 @@ void Editor::Impl::Update() {
 
 		// 2. scene window
 		if (ImGui::Begin("Scene", nullptr, ImGuiWindowFlags_NoScrollbar)) {
+			isSceneOpen = true;
 			auto content_max_minus_local_pos = ImGui::GetContentRegionAvail();
 			auto content_max = ImGui::GetWindowContentRegionMax();
 			auto scene_window_pos = ImGui::GetWindowPos();
@@ -525,9 +536,9 @@ void Editor::Impl::Update() {
 		[[fallthrough]];
 		case Impl::GameState::Running:
 			runningGameWorld->Update();
-			ImGui::Begin("in game");
-			ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-			ImGui::End();
+			//ImGui::Begin("in game");
+			//ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
+			//ImGui::End();
 			break;
 		case Impl::GameState::Stopping:
 		{
@@ -569,7 +580,7 @@ void Editor::Impl::Update() {
 
 	auto UpdateRenderResource = [&](Ubpa::UECS::World* w) {
 		w->RunEntityJob([&](MeshFilter* meshFilter, MeshRenderer* meshRenderer) {
-			if (!meshFilter->mesh || meshRenderer->materials.empty())
+			if (!meshFilter->mesh)
 				return;
 
 			GPURsrcMngrDX12::Instance().RegisterMesh(
@@ -615,8 +626,8 @@ void Editor::Impl::Update() {
 
 	// commit upload, delete ...
 	pEditor->uGCmdList->Close();
+	auto deletebatch = GPURsrcMngrDX12::Instance().CommitUploadAndTakeDeleteBatch(pEditor->uCmdQueue.Get()); // upload before execute uGCmdList
 	pEditor->uCmdQueue.Execute(pEditor->uGCmdList.Get());
-	auto deletebatch = GPURsrcMngrDX12::Instance().CommitUploadAndTakeDeleteBatch(pEditor->uCmdQueue.Get());
 	pEditor->GetFrameResourceMngr()->GetCurrentFrameResource()->RegisterResource("deletebatch", std::make_shared<UDX12::ResourceDeleteBatch>(std::move(deletebatch)));
 	pEditor->GetFrameResourceMngr()->GetCurrentFrameResource()->DelayUnregisterResource("deletebatch");
 
@@ -625,7 +636,7 @@ void Editor::Impl::Update() {
 		Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::AccessTypeID_of<Camera>} };
 		curGameWorld->RunEntityJob([&](Ubpa::UECS::Entity e) {
 			gameCameras.emplace_back(e, *curGameWorld);
-			}, false, camFilter);
+		}, false, camFilter);
 		assert(gameCameras.empty() || gameCameras.size() == 1); // now only support 0/1 camera
 		if (gameCameras.empty())
 			gamePipeline->BeginFrame({ curGameWorld }, { Entity::Invalid(), *curGameWorld });
@@ -638,7 +649,7 @@ void Editor::Impl::Update() {
 		Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::AccessTypeID_of<Camera>} };
 		sceneWorld.RunEntityJob([&](Ubpa::UECS::Entity e) {
 			sceneCameras.emplace_back(e, sceneWorld);
-			}, false, camFilter);
+		}, false, camFilter);
 		assert(sceneCameras.empty() || sceneCameras.size() == 1); // now only support 0/1 camera
 		if (sceneCameras.empty())
 			scenePipeline->BeginFrame({ curGameWorld, &sceneWorld }, { Entity::Invalid(), sceneWorld });
@@ -659,7 +670,8 @@ void Editor::Impl::Update() {
 	{ // game
 		ImGui::SetCurrentContext(gameImGuiCtx);
 		if (gameRT) {
-			gamePipeline->Render(gameRT.Get());
+			if(isGameOpen)
+				gamePipeline->Render(gameRT.Get());
 			pEditor->uGCmdList.ResourceBarrierTransition(gameRT.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 			const auto gameRTHandle = gameRT_RTV.GetCpuHandle();
 			pEditor->uGCmdList->OMSetRenderTargets(1, &gameRTHandle, FALSE, NULL);
@@ -675,7 +687,8 @@ void Editor::Impl::Update() {
 	{ // scene
 		ImGui::SetCurrentContext(sceneImGuiCtx);
 		if (sceneRT) {
-			scenePipeline->Render(sceneRT.Get());
+			if(isSceneOpen)
+				scenePipeline->Render(sceneRT.Get());
 			pEditor->uGCmdList.ResourceBarrierTransition(sceneRT.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 			const auto sceneRTHandle = sceneRT_RTV.GetCpuHandle();
 			pEditor->uGCmdList->OMSetRenderTargets(1, &sceneRTHandle, FALSE, NULL);

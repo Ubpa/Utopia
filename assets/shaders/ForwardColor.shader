@@ -1,4 +1,4 @@
-Shader "StdPipeline/Color" {
+Shader "StdPipeline/ForwardColor" {
 	HLSL : "e6e36fe7-6068-4e98-a32a-1632779a5084"
 	RootSignature {
 		CBV : 0

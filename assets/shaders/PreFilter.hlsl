@@ -98,8 +98,8 @@ float4 PS(VertexOut pin) : SV_Target {
 	
     float3 N = normalize(pin.PosL);
     float3 up = float3(0.0, 1.0, 0.0);
-    float3 right = cross(up, N);
-    up = cross(N, right);
+    float3 right = normalize(cross(up, N));
+    up = normalize(cross(N, right));
     
     // make the simplyfying assumption that V equals R equals the normal 
     float3 R = N;

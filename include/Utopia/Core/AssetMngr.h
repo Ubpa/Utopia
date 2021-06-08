@@ -70,6 +70,8 @@ namespace Ubpa::Utopia {
 		template<typename T>
 		std::shared_ptr<T> GUIDToAsset(const xg::Guid&);
 
+		bool ReplaceMainAsset(const xg::Guid&, UDRefl::SharedObject obj);
+
 		// import asset at path (relative)
 		// * generate meta
 		xg::Guid ImportAsset(const std::filesystem::path& path);

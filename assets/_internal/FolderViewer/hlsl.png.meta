@@ -1,1 +1,1 @@
-{"__Type":"Ubpa::Utopia::TextureImporter","__Data":{"mode":{"__Type":"enum{Ubpa::Utopia::TextureImporter::Mode}","__Data":"Texture2D"},"__Guid":"11b2d0ad-dcdc-4953-8e66-ee6dc9ad75f2"}}
+{"__Type":"Ubpa::Utopia::TextureImporter","__Data":{"mode":{"__Type":"enum{Ubpa::Utopia::TextureImporter::Mode}","sRGB":false,"__Data":"Texture2D"},"sRGB":false,"__Guid":"11b2d0ad-dcdc-4953-8e66-ee6dc9ad75f2"}}

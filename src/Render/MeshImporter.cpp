@@ -27,7 +27,7 @@ namespace Ubpa::Utopia::details {
 	static std::shared_ptr<Mesh> LoadObj(const std::filesystem::path& path);
 
 #ifdef UBPA_UTOPIA_USE_ASSIMP
-	static std::shared_ptr<Mesh> AssimpLoadMesh(const std::filesystem::path& path);
+	static std::shared_ptr<Mesh> AssimpLoadMesh(const void* buffer, size_t len, const char* ext);
 	static void AssimpLoadNode(MeshContext& ctx, const aiNode* node, const aiScene* scene);
 	static void AssimpLoadMesh(MeshContext& ctx, const aiMesh* mesh, const aiScene* scene);
 #endif // UBPA_UTOPIA_USE_ASSIMP
@@ -47,13 +47,30 @@ AssetImportContext MeshImporter::ImportAsset() const {
 	if (path.empty())
 		return {};
 
-	auto ext = path.extension();
+	auto ext = path.stem().extension();
+	
 	std::shared_ptr<Mesh> mesh;
 	if (ext == LR"(.obj)")
 		mesh = details::LoadObj(path);
 #ifdef UBPA_UTOPIA_USE_ASSIMP
-	else if (ext == LR"(.ply)" || ext == LR"(.FBX)")
-		mesh = details::AssimpLoadMesh(path);
+	else if (ext == LR"(.ply)" || ext == LR"(.FBX)" || ext == LR"(.FBX)") {
+		std::ifstream ifs(path, std::ios::in | std::ios::binary);
+		assert(ifs.is_open());
+		std::vector<char> buffer;
+
+		ifs.seekg(0, std::ios::end);
+		buffer.resize(ifs.tellg());
+		ifs.seekg(0, std::ios::beg);
+
+		buffer.assign(
+			std::istreambuf_iterator<char>(ifs),
+			std::istreambuf_iterator<char>()
+		);
+
+		auto s_ext = ext.string();
+		auto ai_ext = s_ext.substr(1, s_ext.size() - 1);
+		mesh = details::AssimpLoadMesh(buffer.data(), buffer.size(), ai_ext.c_str());
+	}
 #endif // UBPA_UTOPIA_USE_ASSIMP
 	else
 		assert(false);
@@ -66,11 +83,7 @@ AssetImportContext MeshImporter::ImportAsset() const {
 
 std::vector<std::string> MeshImporterCreator::SupportedExtentions() const {
 	return {
-		".obj",
-#ifdef UBPA_UTOPIA_USE_ASSIMP
-		".ply",
-		".FBX"
-#endif // UBPA_UTOPIA_USE_ASSIMP
+		".mesh"
 	};
 }
 
@@ -100,8 +113,9 @@ std::shared_ptr<Mesh> Ubpa::Utopia::details::BuildMesh(MeshContext ctx) {
 
 std::shared_ptr<Mesh> Ubpa::Utopia::details::LoadObj(const std::filesystem::path& path) {
 	tinyobj::ObjReader reader;
-
-	bool success = reader.ParseFromFile(path.string());
+	tinyobj::ObjReaderConfig config;
+	config.vertex_color = false;
+	bool success = reader.ParseFromFile(path.string(), config);
 
 	if (!reader.Warning().empty())
 		std::cout << reader.Warning() << std::endl;
@@ -158,10 +172,10 @@ std::shared_ptr<Mesh> Ubpa::Utopia::details::LoadObj(const std::filesystem::path
 					ctx.uv.emplace_back(tx, ty);
 				}
 				// Optional: vertex colors
-				tinyobj::real_t red = attrib.colors[3 * idx.vertex_index + 0];
-				tinyobj::real_t green = attrib.colors[3 * idx.vertex_index + 1];
-				tinyobj::real_t blue = attrib.colors[3 * idx.vertex_index + 2];
-				ctx.colors.emplace_back(red, green, blue);
+				//tinyobj::real_t red = attrib.colors[3 * idx.vertex_index + 0];
+				//tinyobj::real_t green = attrib.colors[3 * idx.vertex_index + 1];
+				//tinyobj::real_t blue = attrib.colors[3 * idx.vertex_index + 2];
+				//ctx.colors.emplace_back(red, green, blue);
 
 				face[v] = static_cast<unsigned>(ctx.positions.size() - 1);
 				vertexIndexMap[key_idx] = ctx.positions.size() - 1;
@@ -250,9 +264,9 @@ void Ubpa::Utopia::details::AssimpLoadMesh(MeshContext& ctx, const aiMesh* mesh,
 	}
 }
 
-std::shared_ptr<Mesh> Ubpa::Utopia::details::AssimpLoadMesh(const std::filesystem::path& path) {
+std::shared_ptr<Mesh> Ubpa::Utopia::details::AssimpLoadMesh(const void* buffer, size_t len, const char* ext) {
 	Assimp::Importer importer;
-	const aiScene* scene = importer.ReadFile(path.string(), aiProcess_JoinIdenticalVertices | aiProcess_FlipUVs | aiProcess_Triangulate);
+	const aiScene* scene = importer.ReadFileFromMemory(buffer,len, aiProcess_JoinIdenticalVertices | aiProcess_FlipUVs | aiProcess_Triangulate,ext);
 
 	if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
 		return nullptr;

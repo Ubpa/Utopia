@@ -18,7 +18,7 @@ namespace Ubpa::Utopia {
 			return instance;
 		}
 
-		GPURsrcMngrDX12& Init(ID3D12Device* device);
+		GPURsrcMngrDX12& Init(ID3D12Device* device, bool enable_DXR);
 		void Clear(ID3D12CommandQueue* cmdQueue);
 
 		UDX12::ResourceDeleteBatch CommitUploadAndTakeDeleteBatch(ID3D12CommandQueue* cmdQueue);
@@ -64,6 +64,9 @@ namespace Ubpa::Utopia {
 		ID3D12Resource* GetTextureCubeResource(const TextureCube& texcube) const;
 
 		UDX12::MeshGPUBuffer& GetMeshGPUBuffer(const Mesh& mesh) const;
+		ID3D12Resource* GetMeshBLAS(const Mesh& mesh) const;
+		D3D12_CPU_DESCRIPTOR_HANDLE GetMeshBufferTableCpuHandle(const Mesh& mesh, size_t geometryIdx) const;
+		D3D12_GPU_DESCRIPTOR_HANDLE GetMeshBufferTableGpuHandle(const Mesh& mesh, size_t geometryIdx) const;
 
 		const ID3DBlob* GetShaderByteCode_vs(const Shader& shader, size_t passIdx) const;
 		const ID3DBlob* GetShaderByteCode_ps(const Shader& shader, size_t passIdx) const;

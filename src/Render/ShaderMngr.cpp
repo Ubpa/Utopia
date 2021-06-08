@@ -8,8 +8,11 @@ using namespace Ubpa::Utopia;
 void ShaderMngr::Register(std::shared_ptr<Shader> shader) {
 	std::lock_guard guard{ m };
 	shaderMap[shader->name] = shader;
-	id2name[shader->GetInstanceID()] = shader->name;
-	shader->destroyed.Connect<&ShaderMngr::Unregister>(this);
+
+	id2data.emplace(shader->GetInstanceID(), ConnectData{
+		shader->destroyed.ScopeConnect<&ShaderMngr::Unregister>(this),
+		shader->name
+	});
 }
 
 std::shared_ptr<Shader> ShaderMngr::Get(std::string_view name) const {
@@ -24,11 +27,11 @@ std::shared_ptr<Shader> ShaderMngr::Get(std::string_view name) const {
 
 void ShaderMngr::Unregister(std::size_t id) {
 	std::lock_guard guard{ m };
-	auto target = id2name.find(id);
-	if (target == id2name.end())
+	auto target = id2data.find(id);
+	if (target == id2data.end())
 		return;
-	shaderMap.erase(target->second);
-	id2name.erase(target);
+	shaderMap.erase(target->second.name);
+	id2data.erase(target);
 }
 
 ShaderMngr::~ShaderMngr() {

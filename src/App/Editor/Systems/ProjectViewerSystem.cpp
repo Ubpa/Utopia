@@ -210,17 +210,12 @@ namespace Ubpa::Utopia::details {
 						id = materialID.ptr;
 					else if (ext == ".shader")
 						id = shaderID.ptr;
-					else if (ext == ".world")
+					else if (ext == ".world" || ext == ".obj" || ext == ".fbx")
 						id = worldID.ptr;
 					else if (ext == ".hlsl")
 						id = hlslID.ptr;
-					else if ( ext == ".obj"
-						|| ext == ".ply"
-						|| ext == ".FBX"
-						)
-					{
+					else if ( ext == ".mesh")
 						id = modelID.ptr;
-					}
 					else
 						id = fileID.ptr;
 				}
@@ -354,6 +349,9 @@ void ProjectViewerSystem::OnUpdate(UECS::Schedule& schedule) {
 						i++;
 					} while (std::filesystem::exists(newPath));
 					AssetMngr::Instance().CreateAsset(std::make_shared<TextureCube>(Image(1,1,3)), AssetMngr::Instance().GetRelativePath(newPath));
+				}
+				if (ImGui::MenuItem("Refresh")) {
+					AssetMngr::Instance().ImportAssetRecursively(LR"(.)");
 				}
 				ImGui::EndPopup();
 			}

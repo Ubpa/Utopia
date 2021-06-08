@@ -72,10 +72,10 @@ namespace Ubpa::Utopia {
 		virtual ~DX12App();
 
 		Microsoft::WRL::ComPtr<IDXGIFactory4> mdxgiFactory;
-		Microsoft::WRL::ComPtr<IDXGISwapChain> mSwapChain;
+		Microsoft::WRL::ComPtr<IDXGISwapChain3> mSwapChain;
 
 		// Derived class should set these in derived constructor to customize starting values.
-		std::wstring mMainWndCaption = L"Ubpa D3D App";
+		std::wstring mMainWndCaption = L"Ubpa D3D12 App";
 
 		Ubpa::UDX12::Device uDevice;
 		Ubpa::UDX12::CmdQueue uCmdQueue;
@@ -83,6 +83,11 @@ namespace Ubpa::Utopia {
 
 		// for init, resize, run in "main frame"
 		Microsoft::WRL::ComPtr<ID3D12CommandAllocator> mainCmdAlloc;
+
+		// DXR
+		bool supportDXR{ false };
+		Microsoft::WRL::ComPtr<ID3D12Device5> dxr_device; // same device with uDevice
+		Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList4> dxr_gcmdlist; // same list with uGCmdList
 
 	private:
 		inline static DX12App* mApp{ nullptr };

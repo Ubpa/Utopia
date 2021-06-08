@@ -295,10 +295,17 @@ bool DX12App::InitDirect3D() {
 			IID_PPV_ARGS(&uDevice.raw)));
 	}
 
+	D3D12_FEATURE_DATA_D3D12_OPTIONS5 features5 = {};
+	HRESULT hr = uDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &features5, sizeof(D3D12_FEATURE_DATA_D3D12_OPTIONS5));
+	if (FAILED(hr) || features5.RaytracingTier == D3D12_RAYTRACING_TIER_NOT_SUPPORTED)
+		supportDXR = false;
+	else
+		supportDXR = true;
+
 	ThrowIfFailed(uDevice->CreateFence(mCurrentFence, D3D12_FENCE_FLAG_NONE,
 		IID_PPV_ARGS(&mFence)));
 
-	Ubpa::Utopia::GPURsrcMngrDX12::Instance().Init(uDevice.raw.Get());
+	Ubpa::Utopia::GPURsrcMngrDX12::Instance().Init(uDevice.raw.Get(), supportDXR);
 	Ubpa::UDX12::DescriptorHeapMngr::Instance().Init(uDevice.Get(), 16384, 16384, 16384, 16384, 16384);
 
 	frameRsrcMngr = std::make_unique<Ubpa::UDX12::FrameResourceMngr>(NumFrameResources, uDevice.Get());
@@ -318,6 +325,11 @@ bool DX12App::InitDirect3D() {
 	CreateSwapChain();
 	CreateSwapChainDH();
 
+	if (supportDXR) {
+		ThrowIfFailed(uDevice.raw->QueryInterface(IID_PPV_ARGS(&dxr_device)));
+		ThrowIfFailed(uGCmdList.raw->QueryInterface(IID_PPV_ARGS(&dxr_gcmdlist)));
+	}
+
 	return true;
 }
 
@@ -336,7 +348,7 @@ void DX12App::CreateCommandObjects() {
 		D3D12_COMMAND_LIST_TYPE_DIRECT,
 		mainCmdAlloc.Get(), // Associated command allocator
 		nullptr,                   // Initial PipelineStateObject
-		IID_PPV_ARGS(uGCmdList.raw.GetAddressOf())));
+		IID_PPV_ARGS(&uGCmdList.raw)));
 
 	// Start off in a closed state.  This is because the first time we refer 
 	// to the command list we will Reset it, and it needs to be closed before
@@ -365,11 +377,14 @@ void DX12App::CreateSwapChain() {
 	sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 	sd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 
+	Microsoft::WRL::ComPtr<IDXGISwapChain> swapchain1;
 	// Note: Swap chain uses queue to perform flush.
 	ThrowIfFailed(mdxgiFactory->CreateSwapChain(
 		uCmdQueue.raw.Get(),
 		&sd,
-		mSwapChain.GetAddressOf()));
+		&swapchain1));
+
+	ThrowIfFailed(swapchain1->QueryInterface(IID_PPV_ARGS(&mSwapChain)));
 }
 
 void DX12App::CreateSwapChainDH() {

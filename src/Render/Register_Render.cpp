@@ -38,7 +38,7 @@ void Ubpa::Utopia::UDRefl_Register_Render() {
 
 	// MeshFilter
 	Mngr.RegisterType<MeshFilter>();
-	Mngr.AddField<&MeshFilter::mesh>("mode");
+	Mngr.AddField<&MeshFilter::mesh>("mesh");
 
 	// MeshRenderer
 	Mngr.RegisterType<MeshRenderer>();

@@ -2,6 +2,8 @@
 
 #include <UECS/UECS.hpp>
 
+#include "TsfmLerper.h"
+
 #ifndef NDEBUG
 #include <dxgidebug.h>
 #endif
@@ -18,7 +20,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
         Editor app(hInstance);
         if(!app.Init())
             return 1;
+        
+        Ubpa::TsfmLerper::RegisterUDRefl();
 
+        auto worlds = { app.GetEditorWorld(),app.GetGameWorld(),app.GetSceneWorld() };
+        for (auto w : worlds) {
+            w->entityMngr.cmptTraits.Register<Ubpa::TsfmLerper>();
+            w->systemMngr.RegisterAndActivate<Ubpa::TsfmLerperSystem>();
+        }
+        
 		rst = app.Run();
     }
     catch(Ubpa::UDX12::Util::Exception& e) {

@@ -9,6 +9,8 @@ using namespace Ubpa::Utopia;
 using namespace Ubpa;
 using namespace std;
 
+using svecd = svec<double>;
+
 float _RadicalInverse_VdC(unsigned bits) {
 	// http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
 	// efficient VanDerCorpus calculation.
@@ -25,15 +27,15 @@ valf2 Hammersley(unsigned i, unsigned N) {
 	return { float(i) / float(N), _RadicalInverse_VdC(i) };
 }
 
-svecf SchlickGGX_Sample(valf2 Xi, float roughness) {
-	float a = roughness * roughness;
+svecd SchlickGGX_Sample(valf2 Xi, double roughness) {
+	double a = roughness * roughness;
 
-	float phi = 2 * PI<float> * Xi[0];
-	float cosTheta = sqrt((1.f - Xi[1]) / (1.f + (a * a - 1.f) * Xi[1]));
-	float sinTheta = sqrt(1.f - cosTheta * cosTheta);
+	double phi = 2 * PI<double> * Xi[0];
+	double cosTheta = sqrt((1.f - Xi[1]) / (1.f + (a * a - 1.f) * Xi[1]));
+	double sinTheta = sqrt(1.f - cosTheta * cosTheta);
 
 	// from spherical coordinates to cartesian coordinates - halfway vector
-	svecf H{
+	svecd H{
 		cos(phi) * sinTheta,
 		sin(phi) * sinTheta,
 		cosTheta
@@ -41,61 +43,104 @@ svecf SchlickGGX_Sample(valf2 Xi, float roughness) {
 
 	return H;
 }
+// ref: Sampling the GGX Distribution of Visible Normals
+//      http://jcgt.org/published/0007/04/01/paper.pdf
+// ---------------------------------------------------------------
+// Input Ve: view direction
+// Input alpha: roughness parameters
+// Input U1, U2: uniform random numbers
+// Output Ne: normal sampled with PDF D_Ve(Ne) = G1(Ve) * max(0, dot(Ve, Ne)) * D(Ne) / Ve.z
+svecd SampleGGXVNDF(svecd Ve, double alpha, float U1, float U2)
+{
+	// Section 3.2: transforming the view direction to the hemisphere configuration
+	svecd Vh = svecd(alpha * Ve.x, alpha * Ve.y, Ve.z).normalize();
+	// Section 4.1: orthonormal basis (with special case if cross product is zero)
+	double lensq = Vh.x * Vh.x + Vh.y * Vh.y;
+	svecd T1 = lensq > 0 ? svecd(-Vh.y, Vh.x, 0) * (1/std::sqrt(lensq)) : svecd(1, 0, 0);
+	svecd T2 = Vh.cross(T1);
+	// Section 4.2: parameterization of the projected area
+	double r = sqrt(U1);
+	double phi = 2.0 * PI<double> * U2;
+	double t1 = r * cos(phi);
+	double t2 = r * sin(phi);
+	double s = 0.5 * (1.0 + Vh.z);
+	t2 = (1.0 - s) * sqrt(1.0 - t1 * t1) + s * t2;
+	// Section 4.3: reprojection onto hemisphere
+	svecd Nh = t1 * T1 + t2 * T2 + sqrt(max(0.0, 1.0 - t1 * t1 - t2 * t2)) * Vh;
+	// Section 3.4: transforming the normal back to the ellipsoid configuration
+	svecd Ne = svecd(alpha * Nh.x, alpha * Nh.y, std::max(0., Nh.z)).normalize();
+	return Ne;
+}
 
-float GGX_G(float alpha, vecf3 L, vecf3 V, vecf3 N) {
-	float alpha2 = alpha * alpha;
+double G1(double alpha, double NoV) {
+	double tan2_sthetao = 1 / pow2(NoV) - 1;
+	return 2 / (1 + sqrt(1 + pow2(alpha) * tan2_sthetao));
+}
+double GGX_D(double alpha, double NoH) {
+	double alpha2 = alpha * alpha;
+	double x = 1 + (alpha2 - 1) * NoH * NoH;
+	double denominator = PI<double> * x * x;
+	return alpha2 / denominator;
+}
+double PDF_VNDF(double alpha, double NoV, double NoH, double HoV) {
+	return G1(alpha, NoV) * GGX_D(alpha, NoH) / (4 * NoV);
+	//double cos2_sthetao = Pow2(HoV);
+	//double sin2_sthetao = 1 - cos2_sthetao;
+	//double alpha2 = Pow2(alpha);
+	//return GGX_D(alpha, NoH) / (2 * (HoV + sqrt(cos2_sthetao + alpha2 * sin2_sthetao)));
+}
 
-	float cos_sthetai = L.dot(N);
-	float cos_sthetao = V.dot(N);
+double GGX_G(double alpha, double cos_sthetai, double cos_sthetao) {
+	double alpha2 = alpha * alpha;
 
 	if (cos_sthetai < 0 || cos_sthetao < 0)
 		return 0.f;
 
-	float tan2_sthetai = 1.f / (cos_sthetai * cos_sthetai) - 1.f;
-	float tan2_sthetao = 1.f / (cos_sthetao * cos_sthetao) - 1.f;
+	double tan2_sthetai = 1.f / (cos_sthetai * cos_sthetai) - 1.f;
+	double tan2_sthetao = 1.f / (cos_sthetao * cos_sthetao) - 1.f;
 
 	return 2.f / (sqrt(1.f + alpha2 * tan2_sthetai) + sqrt(1.f + alpha2 * tan2_sthetao));
 }
 
-valf2 IntegrateBRDF(float NdotV, float roughness) {
+valf2 IntegrateBRDF(double NdotV, double roughness) {
+	double alpha = pow2(roughness);
 	// 由于各向同性，随意取一个 V 即可
-	vecf3 V;
-	V[0] = sqrt(1.f - NdotV * NdotV);
-	V[1] = 0.f;
+	svecd V;
+	V[0] = sqrt(1. - NdotV * NdotV);
+	V[1] = 0.;
 	V[2] = NdotV;
 
-	float A = 0.f;
-	float B = 0.f;
+	double A = 0.f;
+	double B = 0.f;
 
-	vecf3 N{ 0,0,1 };
-	vecf3 right{ 1,0,0 };
-	vecf3 up{ 0,1,0 };
+	svecd N{ 0,0,1 };
+	svecd right{ 1,0,0 };
+	svecd up{ 0,1,0 };
 
 	const unsigned int SAMPLE_COUNT = 16384u;
-	for (unsigned int i = 0u; i < SAMPLE_COUNT; ++i)
-	{
-		// generates a sample vector that's biased towards the
-		// preferred alignment direction (importance sampling).
+	for (unsigned int i = 0u; i < SAMPLE_COUNT; ++i) {
 		valf2 Xi = Hammersley(i, SAMPLE_COUNT);
-		svecf sH = SchlickGGX_Sample(Xi, roughness);
-		vecf3 H = sH[0] * right + sH[1] * up + sH[2] * N;
-		vecf3 L = (2.f * V.dot(H) * H - V).normalize();
+		svecd sH = SampleGGXVNDF(V, alpha, Xi.x, Xi.y);
+		svecd H = svecd(sH[0] * right + sH[1] * up + sH[2] * N).normalize();
+		svecd L = (2.f * V.dot(H) * H - V).normalize();
 
-		float NdotL = std::max(L[2], 0.f);
-		float NdotH = std::max(H[2], 0.f);
-		float VdotH = std::max(V.dot(H), 0.f);
+		double NdotL = L.cos_stheta();
+		double NdotV = V.cos_stheta();
+		double NdotH = H.cos_stheta();
+		double VdotH = std::max(V.dot(H), 0.);
 
 		if (NdotL > 0.f) {
-			float G = GGX_G(roughness * roughness, L, V, N);
-			float G_Vis = (G * VdotH) / (NdotH * NdotV);
-			float Fc = pow5(1.f - VdotH);
+			double G = GGX_G(alpha, NdotL, NdotV);
+			double G_Vis = G / G1(alpha, NdotV);
+			double Fc = pow5(1.f - VdotH);
 
 			A += (1.f - Fc) * G_Vis;
 			B += Fc * G_Vis;
 		}
+
 	}
 
-	return valf2{ A, B } / float(SAMPLE_COUNT);
+	return valf2{ A / double(SAMPLE_COUNT), B / double(SAMPLE_COUNT) };
 }
 
 int main() {
@@ -105,14 +150,14 @@ int main() {
 	const size_t N = std::thread::hardware_concurrency();
 	auto work = [&](size_t id) {
 		for (size_t j = id; j < s; j += N) {
-			float v = (j + 0.5f) / s;
+			double v = (j + 0.5) / s;
 			for (size_t i = 0; i < s; i++) {
-				float u = (i + 0.5f) / s;
+				double u = (i + 0.5) / s;
 				auto rst = IntegrateBRDF(u, v);
 				img.At(i, j, 0) = rst[0];
 				img.At(i, j, 1) = rst[1];
 			}
-			cout << ((1 + j) / float(s)) << endl;
+			cout << ((1 + j) / double(s)) << endl;
 		}
 	};
 	std::vector<std::thread> workers;

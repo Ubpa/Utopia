@@ -248,7 +248,7 @@ const rgbaf Image::SampleLinear(const pointf2& uv) const {
 	const rgbaf c11 = At(x1, y1);
 
 	rgbaf c0x = rgbaf::lerp(c00, c01, tx);
-	rgbaf c1x = rgbaf::lerp(c10, c10, tx);
+	rgbaf c1x = rgbaf::lerp(c10, c11, tx);
 	rgbaf cyx = rgbaf::lerp(c0x, c1x, ty);
 
 	return cyx;

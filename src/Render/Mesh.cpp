@@ -278,6 +278,8 @@ void Mesh::UpdateVertexBuffer() {
 			offset += sizeof(decltype(colors)::value_type);
 		}
 	}
+
+	vertexBuffer_dirty = false;
 }
 
 const void* Mesh::GetVertexBufferData() {

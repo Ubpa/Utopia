@@ -63,7 +63,7 @@ struct AssetMngr::Impl {
 				// default
 				guid = xg::newGuid();
 				DefaultAssetImporterCreator ctor;
-				importer = ctor.CreateAssetImporter(guid);
+				importer = ctor.CreateAssetImporter(guid, relpath);
 				std::string metastr = Serializer::Instance().Serialize(importer->This());
 				std::ofstream ofs(metapath);
 				assert(ofs.is_open());
@@ -72,7 +72,7 @@ struct AssetMngr::Impl {
 			}
 			else {
 				guid = xg::newGuid();
-				importer = ctarget->second->CreateAssetImporter(guid);
+				importer = ctarget->second->CreateAssetImporter(guid, relpath);
 				std::string metastr = Serializer::Instance().Serialize(importer->This());
 
 				std::ofstream ofs(metapath);
@@ -253,6 +253,23 @@ UDRefl::SharedObject AssetMngr::GUIDToAsset(const xg::Guid& guid, std::string_vi
 	return {};
 }
 
+bool AssetMngr::ReplaceMainAsset(const xg::Guid& guid, UDRefl::SharedObject obj) {
+	auto [iter_begin, iter_end] = pImpl->guid2asset.equal_range(guid);
+	if (iter_begin == iter_end)
+		return false;
+	auto orig = iter_begin->second;
+	pImpl->assetID2guid.erase(orig.GetPtr());
+	auto ntarget = pImpl->assetID2name.find(orig.GetPtr());
+	auto name = ntarget->second;
+	pImpl->assetID2name.erase(ntarget);
+
+	iter_begin->second = obj;
+	pImpl->assetID2guid.emplace(obj.GetPtr(), guid);
+	pImpl->assetID2name.emplace(obj.GetPtr(), name);
+
+	return true;
+}
+
 xg::Guid AssetMngr::ImportAsset(const std::filesystem::path& path) {
 	assert(path.is_relative());
 
@@ -292,7 +309,8 @@ SharedObject AssetMngr::LoadMainAsset(const std::filesystem::path& path) {
 	auto target = pImpl->guid2asset.find(guid);
 	if (target != pImpl->guid2asset.end())
 		return target->second;
-	auto ctx = pImpl->guid2importer.at(guid)->ImportAsset();
+	auto importer = pImpl->guid2importer.at(guid);
+	auto ctx = importer->ImportAsset();
 	if (ctx.GetAssets().empty())
 		return {};
 	auto mainObj = ctx.GetMainObject();
@@ -304,7 +322,7 @@ SharedObject AssetMngr::LoadMainAsset(const std::filesystem::path& path) {
 			continue;
 		pImpl->guid2asset.emplace(guid, obj);
 	}
-
+	importer->OnFinish();
 	return mainObj;
 }
 
@@ -314,7 +332,8 @@ SharedObject AssetMngr::LoadAsset(const std::filesystem::path& path, Type type) 
 		return {};
 
 	if (!pImpl->guid2asset.contains(guid)) {
-		auto ctx = pImpl->guid2importer.at(guid)->ImportAsset();
+		auto importer = pImpl->guid2importer.at(guid);
+		auto ctx = importer->ImportAsset();
 		if (ctx.GetAssets().empty()) {
 			pImpl->guid2asset.emplace(guid, SharedObject{});
 			return {};
@@ -328,6 +347,7 @@ SharedObject AssetMngr::LoadAsset(const std::filesystem::path& path, Type type) 
 				continue;
 			pImpl->guid2asset.emplace(guid, obj);
 		}
+		importer->OnFinish();
 	}
 
 	auto [iter_begin, iter_end] = pImpl->guid2asset.equal_range(guid);
@@ -344,7 +364,8 @@ std::vector<SharedObject> AssetMngr::LoadAllAssets(const std::filesystem::path& 
 		return {};
 
 	if (!pImpl->guid2asset.contains(guid)) {
-		auto ctx = pImpl->guid2importer.at(guid)->ImportAsset();
+		auto importer = pImpl->guid2importer.at(guid);
+		auto ctx = importer->ImportAsset();
 		if (ctx.GetAssets().empty())
 			return {};
 		auto mainObj = ctx.GetMainObject();
@@ -356,6 +377,7 @@ std::vector<SharedObject> AssetMngr::LoadAllAssets(const std::filesystem::path& 
 				continue;
 			pImpl->guid2asset.emplace(guid, obj);
 		}
+		importer->OnFinish();
 	}
 
 	auto [iter_begin, iter_end] = pImpl->guid2asset.equal_range(guid);
@@ -397,7 +419,7 @@ bool AssetMngr::CreateAsset(SharedObject ptr, const std::filesystem::path& path)
 		return false;
 
 	xg::Guid guid = xg::newGuid();
-	auto importer = ctarget->second->CreateAssetImporter(guid);
+	auto importer = ctarget->second->CreateAssetImporter(guid, path);
 	pImpl->guid2asset.emplace(guid, ptr);
 	pImpl->guid2path.emplace(guid, path);
 	pImpl->path2guid.emplace(path, guid);

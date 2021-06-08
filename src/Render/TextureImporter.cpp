@@ -23,6 +23,7 @@ void TextureImporter::RegisterToUDRefl() {
 	UDRefl::Mngr.AddBases<TextureCube, GPURsrc>();
 
 	UDRefl::Mngr.SimpleAddField<&TextureImporter::mode>("mode");
+	UDRefl::Mngr.SimpleAddField<&TextureImporter::sRGB>("sRGB");
 }
 
 AssetImportContext TextureImporter::ImportAsset() const {
@@ -32,6 +33,16 @@ AssetImportContext TextureImporter::ImportAsset() const {
 		return {};
 
 	Image img(path.string());
+	if (sRGB) {
+		for (size_t y = 0; y < img.GetHeight(); y++) {
+			for (size_t x = 0; x < img.GetWidth(); x++) {
+				for (size_t c = 0; c < img.GetChannel(); c++) {
+					auto& v = img.At(x, y, c);
+					v = gamma_to_linear(v);
+				}
+			}
+		}
+	}
 
 	switch (mode)
 	{
@@ -66,15 +77,42 @@ std::string TextureImporter::ReserializeAsset() const {
 	if (mode == Mode::Texture2D) {
 		if (!asset.GetType().Is<Texture2D>())
 			return {};
-		
-		asset.As<Texture2D>().image.Save(path.string());
+
+		if (sRGB) {
+			Image copied_img = asset.As<Texture2D>().image;
+			for (size_t y = 0; y < copied_img.GetHeight(); y++) {
+				for (size_t x = 0; x < copied_img.GetWidth(); x++) {
+					for (size_t c = 0; c < copied_img.GetChannel(); c++) {
+						auto& v = copied_img.At(x, y, c);
+						v = linear_to_gamma(v);
+					}
+				}
+			}
+			copied_img.Save(path.string());
+		}
+		else
+			asset.As<Texture2D>().image.Save(path.string());
 	}
 	else if (mode == Mode::TextureCube) {
 		if (!asset.GetType().Is<TextureCube>())
 			return {};
 		if (asset.As<TextureCube>().GetSourceMode() != TextureCube::SourceMode::EquirectangularMap)
 			return {};
-		asset.As<TextureCube>().GetEquiRectangularMap().Save(path.string());
+
+		if (sRGB) {
+			Image copied_img = asset.As<TextureCube>().GetEquiRectangularMap();
+			for (size_t y = 0; y < copied_img.GetHeight(); y++) {
+				for (size_t x = 0; x < copied_img.GetWidth(); x++) {
+					for (size_t c = 0; c < copied_img.GetChannel(); c++) {
+						auto& v = copied_img.At(x, y, c);
+						v = linear_to_gamma(v);
+					}
+				}
+			}
+			copied_img.Save(path.string());
+		}
+		else
+			asset.As<TextureCube>().GetEquiRectangularMap().Save(path.string());
 	}
 	else
 		assert(false);
@@ -84,4 +122,12 @@ std::string TextureImporter::ReserializeAsset() const {
 
 std::vector<std::string> TextureImporterCreator::SupportedExtentions() const {
 	return { ".png", ".bmp", ".tga", ".jpg", ".hdr" };
+}
+
+std::shared_ptr<AssetImporter> TextureImporterCreator::do_CreateAssetImporter(xg::Guid guid, const std::filesystem::path& path) {
+	auto importer = std::make_shared<TextureImporter>(guid);
+	if (path.extension() == L".hdr")
+		importer->sRGB = false;
+
+	return importer;
 }

@@ -17,7 +17,7 @@ namespace Ubpa::Utopia {
 		};
 
 		Mode mode{ Mode::Texture2D };
-
+		bool sRGB{ true }; // the image will be converted to linear color space
 	private:
 		friend class TAssetImporterCreator<TextureImporter>;
 		static void RegisterToUDRefl();
@@ -26,5 +26,7 @@ namespace Ubpa::Utopia {
 	class TextureImporterCreator final : public TAssetImporterCreator<TextureImporter> {
 	public:
 		virtual std::vector<std::string> SupportedExtentions() const override;
+	protected:
+		virtual std::shared_ptr<AssetImporter> do_CreateAssetImporter(xg::Guid guid, const std::filesystem::path& path) override;
 	};
 }

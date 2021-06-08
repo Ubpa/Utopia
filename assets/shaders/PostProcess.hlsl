@@ -29,12 +29,16 @@ VertexOut VS(uint vid : SV_VertexID)
     return vout;
 }
 
+float ComputeLuminance(float3 color) {
+    return dot(color, float3(0.299f, 0.587f, 0.114f));
+}
+
 float4 PS(VertexOut pin) : SV_Target
 {
     float4 color = gImage.Sample(gSamplerLinearWrap, pin.TexC);
 	
 	// HDR tonemapping
-	color.rgb = color.rgb / (float3(1.0f, 1.0f, 1.0f) + color.rgb);
+	color.rgb = color.rgb / (1.f + ComputeLuminance(color.rgb));
 	
 	// gamma
 	float x = 1.0f/2.2f;

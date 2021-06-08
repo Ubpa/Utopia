@@ -816,7 +816,6 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 		// we need to create the depth buffer resource with a typeless format.  
 		D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL
 	);
-
 	D3D12_CLEAR_VALUE dsClear;
 	dsClear.Format = dsFormat;
 	dsClear.DepthStencil.Depth = 1.0f;
@@ -825,20 +824,20 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 	auto srvDesc = UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT);
 	auto dsSrvDesc = UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R24_UNORM_X8_TYPELESS);
 	auto dsvDesc = UDX12::Desc::DSV::Basic(dsFormat);
-	auto rsrcType = UDX12::FG::RsrcType::RT2D(DXGI_FORMAT_R32G32B32A32_FLOAT, width, (UINT)height, DirectX::Colors::Black);
+	auto rt2dDesc = UDX12::Desc::RSRC::RT2D(width, (UINT)height, DXGI_FORMAT_R32G32B32A32_FLOAT);
 	const UDX12::FG::RsrcImplDesc_RTV_Null rtvNull;
 	
 	auto iblData = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<IBLData>>("IBL data");
 
 	(*fgRsrcMngr)
-		.RegisterTemporalRsrc(gbuffer0, rsrcType)
-		.RegisterTemporalRsrc(gbuffer1, rsrcType)
-		.RegisterTemporalRsrc(gbuffer2, rsrcType)
-		.RegisterTemporalRsrc(deferDS, { dsClear, dsDesc })
-		.RegisterTemporalRsrc(deferLightedRT, rsrcType)
-		.RegisterTemporalRsrc(deferLightedSkyRT, rsrcType)
-		.RegisterTemporalRsrc(sceneRT, rsrcType)
+		.RegisterTemporalRsrcAutoClear(gbuffer0, rt2dDesc)
+		.RegisterTemporalRsrcAutoClear(gbuffer1, rt2dDesc)
+		.RegisterTemporalRsrcAutoClear(gbuffer2, rt2dDesc)
+		.RegisterTemporalRsrc(deferDS, dsDesc, dsClear)
+		.RegisterTemporalRsrcAutoClear(deferLightedRT, rt2dDesc)
+		//.RegisterTemporalRsrcAutoClear(deferLightedSkyRT, rt2dDesc)
+		//.RegisterTemporalRsrcAutoClear(sceneRT, rt2dDesc)
 
 		.RegisterRsrcTable({
 			{gbuffer0,srvDesc},
@@ -1158,7 +1157,7 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 				0,
 				static_cast<size_t>(-1),
 				1,
-				DXGI_FORMAT_R32G32B32A32_FLOAT,
+				initDesc.rtFormat,
 				DXGI_FORMAT_UNKNOWN)
 			);
 

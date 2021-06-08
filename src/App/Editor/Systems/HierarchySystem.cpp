@@ -150,13 +150,24 @@ void HierarchySystem::OnUpdate(UECS::Schedule& schedule) {
 						hierarchy->selecties.insert(hierarchy->hover);
 
 						for (const auto& e : hierarchy->selecties) {
-							if (hierarchy->world->entityMngr.Exist(e))
+							if (hierarchy->world->entityMngr.Exist(e)) {
+								if (hierarchy->world->entityMngr.Have(e, TypeID_of<Parent>)) {
+									UECS::Entity p = hierarchy->world->entityMngr.ReadComponent<Parent>(e)->value;
+									hierarchy->world->entityMngr.WriteComponent<Children>(p)->value.erase(e);
+								}
 								details::HierarchyDeleteEntityRecursively(hierarchy->world, e);
+							}
 						}
 					}
 
 					if (ImGui::MenuItem("Save Entities"))
 						hierarchy->is_saving_entities = true;
+
+					if (ImGui::MenuItem("Duplicate")) {
+						std::vector<UECS::Entity> entities{ hierarchy->selecties.begin(),hierarchy->selecties.end() };
+						WorldAsset worldasset(hierarchy->world, entities);
+						worldasset.ToWorld(hierarchy->world);
+					}
 				}
 				else {
 					if (ImGui::MenuItem("Create Empty Entity"))

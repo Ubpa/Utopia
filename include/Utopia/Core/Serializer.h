@@ -56,7 +56,6 @@ namespace Ubpa::Utopia {
 		std::string Serialize(UDRefl::ObjectView obj);
 		template<typename UserType>
 		std::string Serialize(const UserType* obj);
-		bool DeserializeToWorld(UECS::World*, std::string_view json);
 
 		static void SerializeRecursion(UDRefl::ObjectView obj, SerializeContext& ctx);
 
@@ -68,6 +67,7 @@ namespace Ubpa::Utopia {
 		struct DeserializeContext {
 			const EntityIdxMap& entityIdxMap;
 			const Visitor<void(void*, const rapidjson::Value&, DeserializeContext&)>& deserializer;
+			const UECS::World* w{ nullptr };
 		};
 		using DeserializeFunc = std::function<void(void*, const rapidjson::Value&, DeserializeContext&)>;
 
@@ -77,6 +77,8 @@ namespace Ubpa::Utopia {
 		void RegisterDeserializeFunction(Func&& func);
 
 		UDRefl::SharedObject Deserialize(std::string_view json);
+
+		bool DeserializeToWorld(UECS::World*, std::string_view json);
 
 		static UDRefl::SharedObject DeserializeRecursion(const rapidjson::Value& value, Serializer::DeserializeContext& ctx);
 

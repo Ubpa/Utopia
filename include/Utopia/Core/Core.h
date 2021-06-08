@@ -10,3 +10,4 @@
 #include "Serializer.h"
 #include "SharedVar.h"
 #include "StringsSink.h"
+#include "WorldAssetImporter.h"

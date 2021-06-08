@@ -1,6 +1,6 @@
 Shader "StdPipeline/Wireframe" {
-	// ForwardColor.hlsl
-	HLSL : "e6e36fe7-6068-4e98-a32a-1632779a5084"
+	// ForwardSimpleColor.hlsl
+	HLSL : "472dc709-ced9-439c-965f-7035c23ee326"
 	RootSignature {
 		CBV : 0
 		CBV : 1

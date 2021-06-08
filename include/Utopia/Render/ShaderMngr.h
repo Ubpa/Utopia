@@ -1,5 +1,7 @@
 #pragma once
 
+#include <USignal/Connection.hpp>
+
 #include <map>
 #include <string>
 #include <memory>
@@ -25,6 +27,10 @@ namespace Ubpa::Utopia {
 		~ShaderMngr();
 		mutable std::shared_mutex m;
 		std::map<std::string, std::weak_ptr<Shader>, std::less<>> shaderMap;
-		std::map<std::size_t, std::string> id2name;
+		struct ConnectData {
+			ScopedConnection<void(std::size_t)> conn;
+			std::string name;
+		};
+		std::map<std::size_t, ConnectData> id2data;
 	};
 }

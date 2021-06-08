@@ -60,6 +60,7 @@ void GameTimer::Reset()
 	mBaseTime = currTime;
 	mPrevTime = currTime;
 	mStopTime = 0;
+	mPausedTime = 0;
 	mStopped  = false;
 }
 

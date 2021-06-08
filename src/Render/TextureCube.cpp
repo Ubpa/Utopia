@@ -83,7 +83,7 @@ void TextureCube::Init(const Image& equirectangularMap) {
 			auto& img = imgs[i];
 			for (size_t y = id; y < s; y += N) {
 				for (size_t x = 0; x < s; x++) {
-					vecf3 p = origin[i] + (x / float(s)) * right[i] + (y / float(s)) * up[i];
+					vecf3 p = origin[i] + (x+0.5f) / s * right[i] + (y+0.5f) / s * up[i];
 					p.normalize_self();
 					pointf2 uv = { std::atan2(p[2], p[0]), std::asin(p[1]) };
 					uv[0] = 0.5f + uv[0] * invAtan[0];

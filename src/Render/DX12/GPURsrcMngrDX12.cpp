@@ -82,8 +82,21 @@ struct GPURsrcMngrDX12::Impl {
 		Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature;
 		std::vector<PassData> passes;
 	};
+	struct DXRMeshData {
+		DXRMeshData() = default;
+		DXRMeshData(const DXRMeshData&) = default;
+		DXRMeshData(DXRMeshData&&) noexcept = default;
+		~DXRMeshData() {
+			if (!allocation.IsNull())
+				UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(allocation));
+		}
+
+		Microsoft::WRL::ComPtr<ID3D12Resource> blas;
+		UDX12::DescriptorHeapAllocation allocation; // {vb, ib}, ...
+	};
 
 	bool isInit{ false };
+	bool enable_DXR{ false };
 	ID3D12Device* device{ nullptr };
 	DirectX::ResourceUploadBatch* upload{ nullptr };
 	bool hasUpload = false;
@@ -94,6 +107,7 @@ struct GPURsrcMngrDX12::Impl {
 	unordered_map<std::size_t, RenderTargetGPUData> renderTargetMap;
 	unordered_map<std::size_t, ShaderCompileData> shaderMap;
 	unordered_map<std::size_t, UDX12::MeshGPUBuffer> meshMap;
+	unordered_map<std::size_t, DXRMeshData> dxrMeshDataMap;
 
 	const CD3DX12_STATIC_SAMPLER_DESC pointWrap{
 		0,                               // shaderRegister
@@ -158,10 +172,12 @@ GPURsrcMngrDX12::~GPURsrcMngrDX12() {
 	delete(pImpl);
 }
 
-GPURsrcMngrDX12& GPURsrcMngrDX12::Init(ID3D12Device* device) {
+GPURsrcMngrDX12& GPURsrcMngrDX12::Init(ID3D12Device* device, bool enable_DXR) {
 	assert(!pImpl->isInit);
 
 	pImpl->device = device;
+	pImpl->enable_DXR = enable_DXR;
+
 	pImpl->upload = new DirectX::ResourceUploadBatch{ device };
 	pImpl->upload->Begin();
 
@@ -182,7 +198,10 @@ void GPURsrcMngrDX12::Clear(ID3D12CommandQueue* cmdQueue) {
 	pImpl->textureCubeMap.clear();
 	pImpl->renderTargetMap.clear();
 	pImpl->meshMap.clear();
+	pImpl->dxrMeshDataMap.clear();
 	pImpl->shaderMap.clear();
+
+	pImpl->enable_DXR = false;
 
 	pImpl->isInit = false;
 }
@@ -350,6 +369,7 @@ ID3D12Resource* GPURsrcMngrDX12::GetTextureCubeResource(const TextureCube& texCu
 }
 
 UDX12::MeshGPUBuffer& GPURsrcMngrDX12::RegisterMesh(ID3D12GraphicsCommandList* cmdList, Mesh& mesh) {
+	bool needCleanVB = false;
 	auto target = pImpl->meshMap.find(mesh.GetInstanceID());
 	if (target == pImpl->meshMap.end()) {
 		mesh.destroyed.Connect<&GPURsrcMngrDX12::UnregisterMesh>(this);
@@ -365,8 +385,7 @@ UDX12::MeshGPUBuffer& GPURsrcMngrDX12::RegisterMesh(ID3D12GraphicsCommandList* c
 				DXGI_FORMAT_R32_UINT
 			);
 			assert(success);
-			mesh.SetClean();
-			return iter->second;
+			target = iter;
 		}
 		else {
 			pImpl->hasUpload = true;
@@ -381,9 +400,9 @@ UDX12::MeshGPUBuffer& GPURsrcMngrDX12::RegisterMesh(ID3D12GraphicsCommandList* c
 				DXGI_FORMAT_R32_UINT
 			);
 			assert(success);
-			mesh.SetClean();
-			mesh.ClearVertexBuffer();
-			return iter->second;
+			//mesh.ClearVertexBuffer();
+			needCleanVB = true;
+			target = iter;
 		}
 	}
 	else {
@@ -401,7 +420,6 @@ UDX12::MeshGPUBuffer& GPURsrcMngrDX12::RegisterMesh(ID3D12GraphicsCommandList* c
 						(UINT)mesh.GetIndices().size(),
 						DXGI_FORMAT_R32_UINT
 					);
-					mesh.SetClean();
 				}
 			}
 			else { // non-editable
@@ -417,9 +435,9 @@ UDX12::MeshGPUBuffer& GPURsrcMngrDX12::RegisterMesh(ID3D12GraphicsCommandList* c
 						DXGI_FORMAT_R32_UINT
 					);
 					meshGpuBuffer.ConvertToStatic(pImpl->deleteBatch);
-					mesh.SetClean();
 				}
-				mesh.ClearVertexBuffer();
+				//mesh.ClearVertexBuffer();
+				needCleanVB = true;
 			}
 		}
 		else { // dynamic
@@ -434,7 +452,6 @@ UDX12::MeshGPUBuffer& GPURsrcMngrDX12::RegisterMesh(ID3D12GraphicsCommandList* c
 						(UINT)mesh.GetIndices().size(),
 						DXGI_FORMAT_R32_UINT
 					);
-					mesh.SetClean();
 				}
 			}
 			else {
@@ -448,15 +465,150 @@ UDX12::MeshGPUBuffer& GPURsrcMngrDX12::RegisterMesh(ID3D12GraphicsCommandList* c
 						(UINT)mesh.GetIndices().size(),
 						DXGI_FORMAT_R32_UINT
 					);
-					mesh.SetClean();
 				}
-				mesh.ClearVertexBuffer();
+				//mesh.ClearVertexBuffer();
+				needCleanVB = true;
 				meshGpuBuffer.ConvertToStatic(pImpl->deleteBatch);
 			}
 		}
-
-		return meshGpuBuffer;
 	}
+
+	// uv, normal, tangent
+	if (pImpl->enable_DXR
+		&& (MeshLayoutMngr::Instance().GetMeshLayoutID(1, 1, 1, 1) == MeshLayoutMngr::Instance().GetMeshLayoutID(mesh)
+			|| MeshLayoutMngr::Instance().GetMeshLayoutID(1, 1, 1, 0) == MeshLayoutMngr::Instance().GetMeshLayoutID(mesh)))
+	{
+		auto& meshGpuBuffer = target->second;
+
+		if (mesh.IsDirty())
+			pImpl->dxrMeshDataMap.erase(mesh.GetInstanceID());
+
+		auto dxrMeshDataTarget = pImpl->dxrMeshDataMap.find(mesh.GetInstanceID());
+		if (dxrMeshDataTarget == pImpl->dxrMeshDataMap.end()) {
+			std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> geomDescs;
+			for (const auto& submesh : mesh.GetSubMeshes()) {
+				assert(submesh.topology == MeshTopology::Triangles && submesh.baseVertex == 0);
+
+				D3D12_RAYTRACING_GEOMETRY_DESC geomDesc;
+				geomDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
+				geomDesc.Triangles.VertexBuffer.StartAddress = meshGpuBuffer.VertexBufferView().BufferLocation;
+				geomDesc.Triangles.VertexBuffer.StrideInBytes = meshGpuBuffer.VertexBufferView().StrideInBytes;
+				geomDesc.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
+				geomDesc.Triangles.VertexCount = meshGpuBuffer.VertexBufferView().SizeInBytes / meshGpuBuffer.VertexBufferView().StrideInBytes;
+				
+				geomDesc.Triangles.IndexBuffer = meshGpuBuffer.IndexBufferView().BufferLocation + sizeof(std::uint32_t) * submesh.indexStart;
+				geomDesc.Triangles.IndexCount = (UINT)submesh.indexCount;
+				geomDesc.Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
+
+				geomDesc.Triangles.Transform3x4 = 0; // identity
+
+				geomDesc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
+
+				geomDescs.push_back(geomDesc);
+			}
+
+			if (!geomDescs.empty()) {
+				// Get the size requirements for the scratch and AS buffers
+				D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
+				inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+				inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_NONE;
+				inputs.NumDescs = (UINT)geomDescs.size();
+				inputs.pGeometryDescs = geomDescs.data();
+				inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
+
+				D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO info = {};
+				Microsoft::WRL::ComPtr<ID3D12Device5> device5;
+				Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList4> gcmdlist4;
+				ThrowIfFailed(pImpl->device->QueryInterface(IID_PPV_ARGS(&device5)));
+				ThrowIfFailed(cmdList->QueryInterface(IID_PPV_ARGS(&gcmdlist4)));
+				device5->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &info);
+				// Create the buffers. They need to support UAV, and since we are going to immediately use them, we create them with an unordered-access state
+				const auto default_heap_properties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+
+				Microsoft::WRL::ComPtr<ID3D12Resource> result_rsrc;
+				{ // create result_rsrc
+					auto desc = CD3DX12_RESOURCE_DESC::Buffer(info.ResultDataMaxSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+					pImpl->device->CreateCommittedResource(
+						&default_heap_properties,
+						D3D12_HEAP_FLAG_NONE,
+						&desc,
+						D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
+						nullptr,
+						IID_PPV_ARGS(&result_rsrc));
+				}
+
+				Microsoft::WRL::ComPtr<ID3D12Resource> scratch_rsrc;
+				{ // create scratch_rsrc
+					auto desc = CD3DX12_RESOURCE_DESC::Buffer(info.ScratchDataSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+					pImpl->device->CreateCommittedResource(
+						&default_heap_properties,
+						D3D12_HEAP_FLAG_NONE,
+						&desc,
+						D3D12_RESOURCE_STATE_COMMON,
+						nullptr,
+						IID_PPV_ARGS(&scratch_rsrc));
+				}
+
+				// Create the bottom-level AS
+				D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC asDesc = {};
+				asDesc.Inputs = inputs;
+				asDesc.DestAccelerationStructureData = result_rsrc->GetGPUVirtualAddress();
+				asDesc.ScratchAccelerationStructureData = scratch_rsrc->GetGPUVirtualAddress();
+
+				gcmdlist4->BuildRaytracingAccelerationStructure(&asDesc, 0, nullptr);
+
+				// We need to insert a UAV barrier before using the acceleration structures in a raytracing operation
+				D3D12_RESOURCE_BARRIER uavBarrier = {};
+				uavBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+				uavBarrier.UAV.pResource = result_rsrc.Get();
+				cmdList->ResourceBarrier(1, &uavBarrier);
+
+				// result_rsrc to dxrMeshDataMap
+				Impl::DXRMeshData dxrMeshData;
+				dxrMeshData.blas = result_rsrc;
+				dxrMeshData.allocation = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(2 * geomDescs.size());
+				for (std::size_t i = 0; i < geomDescs.size(); i++) {
+					{ // vertex buffer
+						D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc = {}; // structure buffer
+						srvdesc.Format = DXGI_FORMAT_UNKNOWN;
+						srvdesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+						srvdesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+						srvdesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+						srvdesc.Buffer.FirstElement = (geomDescs[i].Triangles.VertexBuffer.StartAddress - meshGpuBuffer.VertexBufferView().BufferLocation)
+							/ geomDescs[i].Triangles.VertexBuffer.StrideInBytes;
+						srvdesc.Buffer.NumElements = geomDescs[i].Triangles.VertexCount;
+						srvdesc.Buffer.StructureByteStride = meshGpuBuffer.VertexBufferView().StrideInBytes; // pos(3) + uv(2) + normal(3) + tangent(3) [+ color(3)]
+						pImpl->device->CreateShaderResourceView(meshGpuBuffer.GetVertexBufferResource().Get(), &srvdesc,
+							dxrMeshData.allocation.GetCpuHandle(2 * i));
+					}
+
+					{ // index buffer
+						D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc = {}; // texture 1d
+						srvdesc.Format = DXGI_FORMAT_UNKNOWN;
+						srvdesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+						srvdesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+						srvdesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+						srvdesc.Buffer.FirstElement = (geomDescs[i].Triangles.IndexBuffer - meshGpuBuffer.IndexBufferView().BufferLocation)
+							/ sizeof(std::uint32_t);
+						srvdesc.Buffer.NumElements = geomDescs[i].Triangles.IndexCount;
+						srvdesc.Buffer.StructureByteStride = sizeof(std::uint32_t);
+						pImpl->device->CreateShaderResourceView(meshGpuBuffer.GetIndexBufferResource().Get(), &srvdesc,
+							dxrMeshData.allocation.GetCpuHandle(2 * i + 1));
+					}
+				}
+				pImpl->dxrMeshDataMap.emplace(mesh.GetInstanceID(), std::move(dxrMeshData));
+
+				// clear scratch
+				pImpl->deleteBatch.Add(std::move(scratch_rsrc));
+			}
+		}
+	}
+
+	if (mesh.IsDirty())
+		mesh.SetClean();
+	if (needCleanVB)
+		mesh.ClearVertexBuffer();
+	return target->second;
 }
 
 GPURsrcMngrDX12& GPURsrcMngrDX12::UnregisterMesh(std::size_t ID) {
@@ -465,12 +617,42 @@ GPURsrcMngrDX12& GPURsrcMngrDX12::UnregisterMesh(std::size_t ID) {
 	if (auto target = pImpl->meshMap.find(ID); target != pImpl->meshMap.end()) {
 		target->second.Delete(pImpl->deleteBatch);
 		pImpl->meshMap.erase(target);
+		if (pImpl->enable_DXR) {
+			auto dxrMeshDataTarget = pImpl->dxrMeshDataMap.find(ID);
+			if (dxrMeshDataTarget != pImpl->dxrMeshDataMap.end()) {
+				pImpl->deleteBatch.Add(dxrMeshDataTarget->second.blas);
+				pImpl->dxrMeshDataMap.erase(dxrMeshDataTarget);
+			}
+		}
 	}
 	return *this;
 }
 
 UDX12::MeshGPUBuffer& GPURsrcMngrDX12::GetMeshGPUBuffer(const Mesh& mesh) const {
 	return pImpl->meshMap.at(mesh.GetInstanceID());
+}
+
+ID3D12Resource* GPURsrcMngrDX12::GetMeshBLAS(const Mesh& mesh) const {
+	assert(pImpl->enable_DXR);
+	auto target = pImpl->dxrMeshDataMap.find(mesh.GetInstanceID());
+	if (target == pImpl->dxrMeshDataMap.end())
+		return nullptr;
+	return target->second.blas.Get();
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE GPURsrcMngrDX12::GetMeshBufferTableCpuHandle(const Mesh& mesh, size_t geometryIdx) const {
+	assert(pImpl->enable_DXR);
+	auto target = pImpl->dxrMeshDataMap.find(mesh.GetInstanceID());
+	if (target == pImpl->dxrMeshDataMap.end())
+		return D3D12_CPU_DESCRIPTOR_HANDLE{};
+	return target->second.allocation.GetCpuHandle(2 * geometryIdx);
+}
+D3D12_GPU_DESCRIPTOR_HANDLE GPURsrcMngrDX12::GetMeshBufferTableGpuHandle(const Mesh& mesh, size_t geometryIdx) const {
+	assert(pImpl->enable_DXR);
+	auto target = pImpl->dxrMeshDataMap.find(mesh.GetInstanceID());
+	if (target == pImpl->dxrMeshDataMap.end())
+		return D3D12_GPU_DESCRIPTOR_HANDLE{};
+	return target->second.allocation.GetGpuHandle(2 * geometryIdx);
 }
 
 bool GPURsrcMngrDX12::RegisterShader(Shader& shader) {
