@@ -241,10 +241,10 @@ Editor::Impl::~Impl() {
 }
 
 bool Editor::Impl::Init() {
-	ImGUIMngr::Instance().Init(pEditor->MainWnd(), pEditor->uDevice.Get(), DX12App::NumFrameResources, 3);
-	editorImGuiCtx = ImGUIMngr::Instance().GetContexts().at(0);
-	gameImGuiCtx = ImGUIMngr::Instance().GetContexts().at(1);
-	sceneImGuiCtx = ImGUIMngr::Instance().GetContexts().at(2);
+	ImGUIMngr::Instance().Init(pEditor->MainWnd(), pEditor->uDevice.Get(), DX12App::NumFrameResources);
+	editorImGuiCtx = ImGUIMngr::Instance().CreateContext("editor");
+	gameImGuiCtx = ImGUIMngr::Instance().CreateContext("game");
+	sceneImGuiCtx = ImGUIMngr::Instance().CreateContext("scene");
 	ImGui::SetCurrentContext(editorImGuiCtx);
 	ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 	ImGui::GetIO().IniFilename = "imgui_App_Editor_editor.ini";

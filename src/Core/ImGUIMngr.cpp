@@ -8,9 +8,8 @@ using namespace Ubpa::Utopia;
 
 struct ImGUIMngr::Impl {
 	Ubpa::UDX12::DescriptorHeapAllocation fontDH;
-	std::vector<ImGuiContext*> contexts;
+	std::map<std::string, ImGuiContext*, std::less<>> contexts;
 	ImFontAtlas sharedFontAtlas;
-	StyleColors style;
 };
 
 ImGUIMngr::ImGUIMngr()
@@ -21,10 +20,8 @@ ImGUIMngr::~ImGUIMngr() {
 	delete pImpl;
 }
 
-void ImGUIMngr::Init(void* hwnd, ID3D12Device* device, size_t numFrames, size_t numContexts, StyleColors style) {
+void ImGUIMngr::Init(void* hwnd, ID3D12Device* device, size_t numFrames) {
 	IMGUI_CHECKVERSION();
-
-	pImpl->style = style;
 
 	// Setup Platform/Renderer bindings
 	ImGui_ImplWin32_Init_Shared(hwnd);
@@ -39,44 +36,65 @@ void ImGUIMngr::Init(void* hwnd, ID3D12Device* device, size_t numFrames, size_t 
 		pImpl->fontDH.GetGpuHandle()
 	);
 
-	for (size_t i = 0; i < numContexts; i++) {
-		auto ctx = ImGui::CreateContext(&pImpl->sharedFontAtlas);
-		ImGui_ImplWin32_Init_Context(ctx);
-		ImGui_ImplDX12_Init_Context(ctx);
-		switch (pImpl->style)
-		{
-		case StyleColors::Classic:
-			ImGui::StyleColorsClassic();
-			break;
-		case StyleColors::Dark:
-			ImGui::StyleColorsDark();
-			break;
-		case StyleColors::Light:
-			ImGui::StyleColorsLight();
-			break;
-		default:
-			break;
-		}
-		pImpl->contexts.push_back(ctx);
-	}
-
 	ImGui_ImplDX12_SetSharedFontAtlas(&pImpl->sharedFontAtlas);
 }
 
-const std::vector<ImGuiContext*>& ImGUIMngr::GetContexts() const {
-	return pImpl->contexts;
+ImGuiContext* ImGUIMngr::CreateContext(std::string name, StyleColors style) {
+	auto ctx = ImGui::CreateContext(&pImpl->sharedFontAtlas);
+	ImGui_ImplWin32_Init_Context(ctx);
+	ImGui_ImplDX12_Init_Context(ctx);
+	switch (style)
+	{
+	case StyleColors::Classic:
+		ImGui::StyleColorsClassic();
+		break;
+	case StyleColors::Dark:
+		ImGui::StyleColorsDark();
+		break;
+	case StyleColors::Light:
+		ImGui::StyleColorsLight();
+		break;
+	default:
+		break;
+	}
+	pImpl->contexts.emplace(std::move(name), ctx);
+
+	return ctx;
+}
+
+ImGuiContext* ImGUIMngr::GetContext(std::string_view name) const {
+	auto target = pImpl->contexts.find(name);
+	if (target == pImpl->contexts.end())
+		return nullptr;
+
+	return target->second;
+}
+
+void ImGUIMngr::DestroyContext(std::string_view name) {
+	auto target = pImpl->contexts.find(name);
+	if (target == pImpl->contexts.end())
+		return;
+
+	auto ctx = target->second;
+
+	ImGui_ImplDX12_Shutdown_Context(ctx);
+	ImGui_ImplWin32_Shutdown_Context(ctx);
+	ImGui::DestroyContext(ctx);
+
+	pImpl->contexts.erase(target);
 }
 
 void ImGUIMngr::Clear() {
-	for(const auto& ctx : pImpl->contexts)
+	for(const auto& [name, ctx] : pImpl->contexts)
 		ImGui_ImplDX12_Shutdown_Context(ctx);
+
 	ImGui_ImplDX12_Shutdown_Shared();
 
 	ImGui_ImplWin32_Shutdown_Shared();
-	for (const auto& ctx : pImpl->contexts)
+	for (const auto& [name, ctx] : pImpl->contexts)
 		ImGui_ImplWin32_Shutdown_Context(ctx);
 
-	for (const auto& ctx : pImpl->contexts)
+	for (const auto& [name, ctx] : pImpl->contexts)
 		ImGui::DestroyContext(ctx);
 
 	pImpl->contexts.clear();

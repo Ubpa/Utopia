@@ -23,8 +23,13 @@ namespace Ubpa::Utopia {
 			Light,
 		};
 
-		void Init(void* hwnd, ID3D12Device*, size_t numFrames, size_t numContexts, StyleColors = StyleColors::Dark);
-		const std::vector<ImGuiContext*>& GetContexts() const;
+		void Init(void* hwnd, ID3D12Device*, size_t numFrames);
+
+		ImGuiContext* CreateContext(std::string name, StyleColors = StyleColors::Dark);
+
+		ImGuiContext* GetContext(std::string_view name) const;
+
+		void DestroyContext(std::string_view name);
 
 		void Clear();
 
