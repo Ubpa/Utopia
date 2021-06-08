@@ -17,6 +17,14 @@
 
 namespace Ubpa::Utopia {
 	// ref: https://docs.unity3d.com/ScriptReference/AssetDatabase.html
+	// [import]
+	// 1. create asset importer according to ext
+	// 2. serialize asset importer to a meta file
+	// 3. create link: path <-> guid -> asset importer
+	// [load]
+	// 1. import
+	// 2. importer import asset
+	// 3. importer on finish
 	class AssetMngr {
 	public:
 		static AssetMngr& Instance() {
@@ -65,12 +73,14 @@ namespace Ubpa::Utopia {
 
 		std::vector<UDRefl::SharedObject> GUIDToAllAssets(const xg::Guid&);
 		UDRefl::SharedObject GUIDToMainAsset(const xg::Guid&);
-		UDRefl::SharedObject GUIDToAsset(const xg::Guid&, Type type);
+		UDRefl::SharedObject GUIDToAsset(const xg::Guid&, Type);
 		UDRefl::SharedObject GUIDToAsset(const xg::Guid&, std::string_view name);
 		template<typename T>
 		std::shared_ptr<T> GUIDToAsset(const xg::Guid&);
 
 		bool ReplaceMainAsset(const xg::Guid&, UDRefl::SharedObject obj);
+		bool ReplaceAsset(const xg::Guid&, UDRefl::SharedObject obj, std::string_view name);
+		bool ReplaceAsset(const xg::Guid&, UDRefl::SharedObject obj, Type);
 
 		// import asset at path (relative)
 		// * generate meta
@@ -86,6 +96,9 @@ namespace Ubpa::Utopia {
 		template<typename T>
 		std::shared_ptr<T> LoadAsset(const std::filesystem::path& path);
 
+		// 1. reserialize importer
+		// 2. importer reserialize asset
+		// TODO: support binary file
 		bool ReserializeAsset(const std::filesystem::path& path);
 
 		bool MoveAsset(const std::filesystem::path& src, const std::filesystem::path& dst);
@@ -97,6 +110,7 @@ namespace Ubpa::Utopia {
 		void SetImporterOverride(const std::filesystem::path& path, std::shared_ptr<AssetImporter> importer);
 		std::shared_ptr<AssetImporter> GetImporter(const std::filesystem::path& path);
 
+		// only remove asset
 		void UnloadAsset(const std::filesystem::path& path);
 	private:
 		struct Impl;
