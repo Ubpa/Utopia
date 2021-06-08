@@ -252,7 +252,14 @@ GPURsrcMngrDX12& GPURsrcMngrDX12::RegisterTexture2D(Texture2D& tex2D) {
 		&tex.resource
 	);
 
-	const auto tex2DSRVDesc = UDX12::Desc::SRV::Tex2D(tex.resource->GetDesc().Format);
+	auto tex2DSRVDesc = UDX12::Desc::SRV::Tex2D(tex.resource->GetDesc().Format);
+	std::uint8_t srv_srcs[4];
+	for (std::uint8_t i = 0; i < tex2D.image.GetChannel(); i++)
+		srv_srcs[i] = i;
+	for (std::uint8_t i = tex2D.image.GetChannel(); i < 4; i++)
+		srv_srcs[i] = D3D12_SHADER_COMPONENT_MAPPING_FORCE_VALUE_1;
+	tex2DSRVDesc.Shader4ComponentMapping =
+		D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(srv_srcs[0], srv_srcs[1], srv_srcs[2], srv_srcs[3]);
 	pImpl->device->CreateShaderResourceView(
 		tex.resource.Get(),
 		&tex2DSRVDesc,

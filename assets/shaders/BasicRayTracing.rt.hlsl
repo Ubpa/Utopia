@@ -587,14 +587,14 @@ struct VBData {
 struct VertexData {
     float3 pos;
     float3 normal; // normalized
-    float3 albedo;
+    float4 albedo;
     float roughness;
     float metalness;
 };
 
 StructuredBuffer<VBData> gVertexBuffer : register(t0, space2);
 Buffer<uint> gIndexBuffer : register(t1, space2);
-Texture2D<float3> gAlbedo : register(t2, space2);
+Texture2D<float4> gAlbedo : register(t2, space2);
 Texture2D<float> gRoughness : register(t3, space2);
 Texture2D<float> gMetalness : register(t4, space2);
 Texture2D<float3> gNormal : register(t5, space2);
@@ -616,7 +616,7 @@ VertexData GetVertexData(uint primitive_idx, float2 barycentrics) {
     float3 normal = normalize(w * data0.normal + u * data1.normal + v * data2.normal);
     float2 texc = w * float2(data0.u, data0.v) + u * float2(data1.u, data1.v) + v * float2(data2.u, data2.v);
     
-    float3 albedo = gAlbedo.SampleLevel(gSamplerLinearWrap, texc, 0).rgb;
+    float4 albedo = gAlbedo.SampleLevel(gSamplerLinearWrap, texc, 0).rgba;
     float roughness = gRoughness.SampleLevel(gSamplerLinearWrap, texc, 0).r;
     float metalness = gMetalness.SampleLevel(gSamplerLinearWrap, texc, 0).r;
     // TODO: texture normal
@@ -631,14 +631,22 @@ VertexData GetVertexData(uint primitive_idx, float2 barycentrics) {
     return vd;
 }
 
+
+[shader("anyhit")]
+void IndirectAHS(inout IndirectPayload payload, in BuiltInTriangleIntersectionAttributes attribs) {
+    VertexData data = GetVertexData(PrimitiveIndex(), attribs.barycentrics);
+	if(data.albedo.a < 0.5)
+		IgnoreHit();
+}
+
 [shader("closesthit")]
- void IndirectCHS(inout IndirectPayload payload, in BuiltInTriangleIntersectionAttributes attribs)
+void IndirectCHS(inout IndirectPayload payload, in BuiltInTriangleIntersectionAttributes attribs)
 {
     payload.color = float3(0.f, 0.f, 0.f);
     
     VertexData data = GetVertexData(PrimitiveIndex(), attribs.barycentrics);
     float roughness = data.roughness;
-    float3 albedo = data.albedo;
+    float3 albedo = data.albedo.rgb;
     float metalness = data.metalness;
     
     float3 posW = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();

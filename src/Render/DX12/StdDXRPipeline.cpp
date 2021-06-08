@@ -240,7 +240,7 @@ RootSignatureDesc createIndirectMissShaderRootDesc() {
 
 	return desc;
 }
-RootSignatureDesc createIndirectCHSRootDesc()
+RootSignatureDesc createIndirectRootDesc()
 {
 	constexpr UINT space = 2;
 	// Create the root-signature
@@ -399,14 +399,15 @@ struct DxilLibrary {
 static const WCHAR* kRayGenShader = L"RayGen";
 static const WCHAR* kShadowMissShader = L"ShadowMiss";
 static const WCHAR* kShadowHitGroup = L"ShadowHitGroup";
+static const WCHAR* kIndirectAHS = L"IndirectAHS";
 static const WCHAR* kIndirectCHS = L"IndirectCHS";
 static const WCHAR* kIndirectMissShader = L"IndirectMiss";
 static const WCHAR* kIndirectHitGroup = L"IndirectHitGroup";
 DxilLibrary createDxilLibrary() {
 	// Compile the shader
 	Microsoft::WRL::ComPtr<ID3DBlob> pDxilLib = compileLibrary(*AssetMngr::Instance().LoadAsset<HLSLFile>(LR"(shaders\BasicRayTracing.rt.hlsl)"), L"lib_6_3");
-	const WCHAR* entryPoints[] = { kRayGenShader, kShadowMissShader, kIndirectCHS, kIndirectMissShader };
-	return DxilLibrary(pDxilLib, entryPoints, 4);
+	const WCHAR* entryPoints[] = { kRayGenShader, kShadowMissShader, kIndirectAHS, kIndirectCHS, kIndirectMissShader };
+	return DxilLibrary(pDxilLib, entryPoints, 5);
 }
 struct HitGroup {
 	HitGroup(LPCWSTR ahsExport, LPCWSTR chsExport, const std::wstring& name) : exportName(name)
@@ -547,8 +548,8 @@ Microsoft::WRL::ComPtr<ID3D12StateObject> createRtPipelineState(ID3D12Device5* d
 	subobjects[index++] = shaderConfig.subobject;
 
 	// [7]
-	const WCHAR* shaderExports[] = { kShadowMissShader, kRayGenShader, kIndirectCHS, kIndirectMissShader };
-	ExportAssociation configAssociation(shaderExports, 4, &(subobjects[shaderConfigIndex]));
+	const WCHAR* shaderExports[] = { kShadowMissShader, kRayGenShader, kIndirectAHS, kIndirectCHS, kIndirectMissShader };
+	ExportAssociation configAssociation(shaderExports, 5, &(subobjects[shaderConfigIndex]));
 	subobjects[index++] = configAssociation.subobject;
 
 	// [8]
@@ -566,20 +567,21 @@ Microsoft::WRL::ComPtr<ID3D12StateObject> createRtPipelineState(ID3D12Device5* d
 	subobjects[index++] = root.subobject;
 
 	// [10]
-	// hit group (indirectCHS)
-	HitGroup indirectHitGroup(nullptr, kIndirectCHS, kIndirectHitGroup);
+	// hit group (indirectAHS, indirectCHS)
+	HitGroup indirectHitGroup(kIndirectAHS, kIndirectCHS, kIndirectHitGroup);
 	subobjects[index++] = indirectHitGroup.subObject;
 
 	// [11]
-	// indirect chs root signature
-	uint32_t indirectCHSRootSignatureIndex = index;
-	LocalRootSignature indirectCHSRootSig(device, createIndirectCHSRootDesc().desc);
-	subobjects[index++] = indirectCHSRootSig.subobject;
+	// indirect ahs/chs root signature
+	uint32_t indirectRootSignatureIndex = index;
+	LocalRootSignature indirectRootSig(device, createIndirectRootDesc().desc);
+	subobjects[index++] = indirectRootSig.subobject;
 
 	// [12]
-	// association: std chs root sig <-> std chs
-	ExportAssociation indirectCHSRootAssociation(&kIndirectCHS, 1, &(subobjects[indirectCHSRootSignatureIndex]));
-	subobjects[index++] = indirectCHSRootAssociation.subobject;
+	// association: indirect ahs/chs root sig <-> indirect ahs/chs
+	const WCHAR* indirectExports[] = { kIndirectAHS, kIndirectCHS };
+	ExportAssociation indirectRootAssociation(indirectExports, 2, &(subobjects[indirectRootSignatureIndex]));
+	subobjects[index++] = indirectRootAssociation.subobject;
 
 	// [13]
 	// Create the indirect miss shader local root signature

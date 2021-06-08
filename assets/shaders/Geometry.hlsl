@@ -87,9 +87,12 @@ PixelOut PS(VertexOut pin)
 {
     PixelOut pout;
     
-    float3 albedo    = gAlbedoFactor    * gAlbedoMap   .Sample(gSamplerLinearWrap, pin.TexC).xyz;
-    float  roughness = gRoughnessFactor * gRoughnessMap.Sample(gSamplerPointWrap, pin.TexC).x;
-    float  metalness = gMetalnessFactor * gMetalnessMap.Sample(gSamplerLinearWrap, pin.TexC).x;
+    float4 albedo    = float4(gAlbedoFactor, 1) * gAlbedoMap   .Sample(gSamplerLinearWrap, pin.TexC).xyzw;
+    float  roughness = gRoughnessFactor         * gRoughnessMap.Sample(gSamplerPointWrap,  pin.TexC).x;
+    float  metalness = gMetalnessFactor         * gMetalnessMap.Sample(gSamplerLinearWrap, pin.TexC).x;
+	
+	if(albedo.w < 0.5)
+		discard;
     
     float3 NormalM = gNormalMap.Sample(gSamplerLinearWrap, pin.TexC).xyz;
     float3 NormalS = normalize(2 * NormalM - 1);
@@ -107,9 +110,9 @@ PixelOut PS(VertexOut pin)
     float2 prevTexc = prevPos.xy;
     float normFWidth = fwidth(length(pin.N));
 
-    pout.gbuffer0 = float4(albedo , roughness);
-    pout.gbuffer1 = float4(N      , metalness);
-    pout.gbuffer2 = float4(0, 0, 0, 1        );
+    pout.gbuffer0 = float4(albedo.xyz, roughness);
+    pout.gbuffer1 = float4(N         , metalness);
+    pout.gbuffer2 = float4(0, 0, 0   , 1        );
 
 #ifdef UBPA_STD_RAY_TRACING
     pout.linearZ = float4(Z, maxChangeZ, prevZ, asfloat(DirToOct(pin.NormalL)));
