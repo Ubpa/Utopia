@@ -11,5 +11,6 @@ void Ubpa::Utopia::details::ShaderImporterRegister_ShaderPass() {
 	UDRefl::Mngr.SimpleAddField<&ShaderPass::fragmentName>("fragmentName");
 	UDRefl::Mngr.SimpleAddField<&ShaderPass::renderState>("renderState");
 	UDRefl::Mngr.AddField<&ShaderPass::tags>("tags");
+	UDRefl::Mngr.AddField<&ShaderPass::macros>("macros");
 	UDRefl::Mngr.SimpleAddField<&ShaderPass::queue>("queue");
 }

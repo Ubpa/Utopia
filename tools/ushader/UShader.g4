@@ -124,10 +124,13 @@ ps : ID;
 pass_statement
 	: render_state_setup
 	| tags
+	| macros
 	| queue
 	;
 tags : 'Tags' '{' tag+ '}';
 tag : StringLiteral ':' StringLiteral;
+macros : 'Macros' '{' macro+ '}';
+macro : StringLiteral (':' StringLiteral)?;
 render_state_setup
 	: fill
 	| cull

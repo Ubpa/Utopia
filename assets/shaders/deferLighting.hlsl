@@ -3,6 +3,10 @@
 
 #include "PBR.hlsli"
 
+//    [rgb    a        ]
+// 0  [albedo roughness]
+// 1  [N      metalness]
+// 2  [0      matID    ]
 Texture2D    gbuffer0       : register(t0);
 Texture2D    gbuffer1       : register(t1);
 Texture2D    gbuffer2       : register(t2);
@@ -59,7 +63,7 @@ float4 PS(VertexOut pin) : SV_Target
 	float3 posW = posHW.xyz / posHW.w;
 	
 	float3 albedo = data0.xyz;
-	float3 emission = data2.xyz;
+	//float3 emission = data2.xyz;
 	float roughness = data0.w;
 	
 	float3 N = data1.xyz;
@@ -191,7 +195,7 @@ float4 PS(VertexOut pin) : SV_Target
 	
 	Lo += kD * diffuse + specular;
 
-	Lo += emission;
+	//Lo += emission;
 	
     return float4(Lo, 1.0f);
 }

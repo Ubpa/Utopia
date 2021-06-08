@@ -14,7 +14,6 @@
 namespace Ubpa::Utopia {
 	class HLSLFile;
 
-	// TODO: macros
 	struct Shader : GPURsrc {
 		SharedVar<HLSLFile> hlslFile;
 		std::string name; // e.g. a/b/c/d

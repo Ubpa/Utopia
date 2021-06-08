@@ -6,10 +6,10 @@ Ubpa_DownloadZip_Pro(
 )
 
 Ubpa_DownloadZip_Pro(
-  http://home.ustc.edu.cn/~ustczt/resources/Utopia/UShaderCompiler_deps_20210327.zip
-  UShaderCompiler_deps_20210327.zip
+  http://home.ustc.edu.cn/~ustczt/resources/Utopia/UShaderCompiler_deps_20210608.zip
+  UShaderCompiler_deps_20210608.zip
   ${CMAKE_CURRENT_SOURCE_DIR}/UShaderCompiler/_deps
-  SHA256 51EDC9A9BF0748024F0F4E471E90A70AEE4C08BBA5B439B2D57974A7E0F4D708
+  SHA256 2EDB0AD656C2A5F0FAF05D02C4EE08C579D2BA16E4F13E45434AA0B3D2AF24DC
 )
 
 set(libs_private "")

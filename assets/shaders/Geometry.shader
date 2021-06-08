@@ -24,4 +24,12 @@ Shader "StdPipeline/Geometry" {
 			"LightMode" : "Deferred"
 		}
 	}
+	Pass (VS, PS) {
+		Tags {
+			"LightMode" : "RTDeferred"
+		}
+		Macros {
+			"UBPA_STD_RAY_TRACING"
+		}
+	}
 }

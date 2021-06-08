@@ -11,6 +11,7 @@ namespace Ubpa::Utopia {
 		std::string fragmentName;
 		RenderState renderState;
 		std::map<std::string, std::string, std::less<>> tags;
+		std::map<std::string, std::string, std::less<>> macros;
 
 		// Background 1000
 		// Geometry (default) 2000

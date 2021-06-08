@@ -27,6 +27,10 @@ Shader "StdPipeline/Geometry" {
 		Tags {
 			"LightMode" : "Deferred"
 		}
+		Macros {
+			"A"
+			"B" : "hello"
+		}
 		ZTest Less
 		ZWriteOff
 		Blend[1] (SrcColor, OneMinusSrcAlpha, SrcAlpha, OneMinusSrcAlpha)

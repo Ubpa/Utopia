@@ -278,8 +278,10 @@ bool Editor::Impl::Init() {
 	initDesc.rtFormat = gameRTFormat;
 	initDesc.cmdQueue = pEditor->uCmdQueue.Get();
 	initDesc.numFrame = DX12App::NumFrameResources;
-	gamePipeline = std::make_unique<StdDXRPipeline>(initDesc);
-	scenePipeline = std::make_unique<StdDXRPipeline>(initDesc);
+	//gamePipeline = std::make_unique<StdDXRPipeline>(initDesc);
+	//scenePipeline = std::make_unique<StdDXRPipeline>(initDesc);
+	gamePipeline = std::make_unique<StdPipeline>(initDesc);
+	scenePipeline = std::make_unique<StdPipeline>(initDesc);
 
 	gameRT_SRV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(1);
 	gameRT_RTV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Allocate(1);

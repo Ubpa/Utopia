@@ -664,18 +664,20 @@ bool GPURsrcMngrDX12::RegisterShader(Shader& shader) {
 			return true;
 	}
 
-	D3D_SHADER_MACRO macros[] = {
-		{nullptr, nullptr}
-	};
 	Ubpa::UDX12::D3DInclude d3dInclude{ shader.hlslFile->GetLocalDir(), "../" };
 	Impl::ShaderCompileData shaderCompileData;
 	shaderCompileData.passes.resize(shader.passes.size());
 	for (size_t i = 0; i < shader.passes.size(); i++) {
 		const auto& pass = shader.passes[i];
 		Impl::ShaderCompileData::PassData passdata;
+		std::vector<D3D_SHADER_MACRO> marcos;
+		for (const auto& [name, def] : pass.macros)
+			marcos.push_back(D3D_SHADER_MACRO{ name.c_str(), def.c_str() });
+		marcos.push_back(D3D_SHADER_MACRO{ nullptr,nullptr });
+
 		shaderCompileData.passes[i].vsByteCode = UDX12::Util::CompileShader(
 			shader.hlslFile->GetText(),
-			macros,
+			marcos.data(),
 			pass.vertexName,
 			"vs_5_0",
 			&d3dInclude
@@ -684,7 +686,7 @@ bool GPURsrcMngrDX12::RegisterShader(Shader& shader) {
 			return false;
 		shaderCompileData.passes[i].psByteCode = UDX12::Util::CompileShader(
 			shader.hlslFile->GetText(),
-			macros,
+			marcos.data(),
 			pass.fragmentName,
 			"ps_5_0",
 			&d3dInclude

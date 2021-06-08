@@ -1912,7 +1912,7 @@ void StdDXRPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* 
 			// Specify the buffers we are going to render to.
 			cmdList->OMSetRenderTargets((UINT)rtHandles.size(), rtHandles.data(), false, &dsHandle);
 
-			DrawObjects(cmdList, "Deferred", 5, DXGI_FORMAT_R32G32B32A32_FLOAT);
+			DrawObjects(cmdList, "RTDeferred", 5, DXGI_FORMAT_R32G32B32A32_FLOAT);
 		}
 	);
 

@@ -77,9 +77,10 @@ struct PixelOut {
     float4 gbuffer0 : SV_Target0;
     float4 gbuffer1 : SV_Target1;
     float4 gbuffer2 : SV_Target2;
-
+#ifdef UBPA_STD_RAY_TRACING
     float4 linearZ  : SV_Target3; // x: Z, y: maxChangeZ, z: prevZ, w: objN
     float4 motion   : SV_Target4; // xy: motion (prev -> curr), z: 0, w: normFWidth
+#endif // UBPA_STD_RAY_TRACING
 };
 
 PixelOut PS(VertexOut pin)
@@ -110,8 +111,10 @@ PixelOut PS(VertexOut pin)
     pout.gbuffer1 = float4(N      , metalness);
     pout.gbuffer2 = float4(0, 0, 0, 1        );
 
+#ifdef UBPA_STD_RAY_TRACING
     pout.linearZ = float4(Z, maxChangeZ, prevZ, asfloat(DirToOct(pin.NormalL)));
     pout.motion = float4(currTexc - prevTexc, 0, 1/*normFWidth*/);
+#endif // UBPA_STD_RAY_TRACING
 
     return pout;
 }

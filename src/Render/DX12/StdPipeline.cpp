@@ -691,54 +691,19 @@ void StdPipeline::Impl::UpdateShaderCBs() {
 		}
 	}
 	
-	// TODO
-	std::unordered_set<const Material*> materials;
-	std::shared_ptr<const Shader> shader;
-	const auto& opaques = renderContext.renderQueue.GetOpaques();
-	auto AddOpaque = [&](size_t& index) {
-		if (opaques.size() == index)
-			return false;
-
-		const auto& object = opaques[index];
-
-		if (shader == nullptr)
-			shader = object.material->shader;
-		else if (shader.get() != object.material->shader.get())
-			return false;
-
-		materials.insert(object.material.get());
-		index++;
-
-		return true;
-	};
+	std::unordered_map<const Shader*, std::unordered_set<const Material*>> opaqueMaterialMap;
+	for (const auto& opaque : renderContext.renderQueue.GetOpaques())
+		opaqueMaterialMap[opaque.material->shader.get()].insert(opaque.material.get());
 
 	std::unordered_map<const Shader*, std::unordered_set<const Material*>> transparentMaterialMap;
 	for (const auto& transparent : renderContext.renderQueue.GetTransparents())
 		transparentMaterialMap[transparent.material->shader.get()].insert(transparent.material.get());
 
-	auto Commit = [&]() {
-		if (shader == nullptr)
-			return;
-
-		if (auto target = transparentMaterialMap.find(shader.get()); target != transparentMaterialMap.end()) {
-			for (auto material : target->second)
-				materials.insert(material);
-			transparentMaterialMap.erase(target);
-		}
-
-		renderContext.shaderCBDescMap[shader.get()] =
+	for (const auto& [shader, materials] : opaqueMaterialMap) {
+		renderContext.shaderCBDescMap[shader] =
 			PipelineBase::UpdateShaderCBs(*shaderCBMngr, *shader, materials, commonCBs);
-		shader = nullptr;
-		materials.clear();
-	};
-
-	size_t i = 0;
-	while (i < opaques.size()) {
-		if (AddOpaque(i))
-			continue;
-		Commit();
 	}
-	Commit();
+
 	for (const auto& [shader, materials] : transparentMaterialMap) {
 		renderContext.shaderCBDescMap[shader] =
 			PipelineBase::UpdateShaderCBs(*shaderCBMngr, *shader, materials, commonCBs);

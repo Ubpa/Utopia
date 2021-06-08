@@ -529,6 +529,18 @@ struct UShaderCompiler::Impl {
 			return {};
 		}
 
+		virtual antlrcpp::Any visitMacros(details::UShaderParser::MacrosContext* ctx) override {
+			for (auto macroCtx : ctx->macro()) {
+				auto name_s = macroCtx->StringLiteral(0)->getText();
+				auto value_s = macroCtx->StringLiteral(1) ? macroCtx->StringLiteral(1)->getText() : "\"\"";
+				curPass->macros.emplace(
+					std::string{ StringLiteralContentView(name_s) },
+					std::string{ StringLiteralContentView(value_s) }
+				);
+			}
+			return {};
+		}
+
 		virtual antlrcpp::Any visitCull(details::UShaderParser::CullContext* ctx) override {
 			auto mode = ctx->CullMode()->getText();
 			if (mode == "Front")
