@@ -81,7 +81,7 @@ Microsoft::WRL::ComPtr<ID3D12Resource> createBuffer(
 	ThrowIfFailed(pDevice->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &bufDesc, initState, nullptr, IID_PPV_ARGS(&pBuffer)));
 	return pBuffer;
 }
-Microsoft::WRL::ComPtr<ID3DBlob> compileLibrary(const WCHAR* filename, const WCHAR* targetString) {
+Microsoft::WRL::ComPtr<ID3DBlob> compileLibrary(const HLSLFile& hlsl, const WCHAR* targetString) {
 	// Initialize the helper
 	ThrowIfFailed(gDxcDllHelper.Initialize());
 	Microsoft::WRL::ComPtr<IDxcCompiler> pCompiler;
@@ -90,13 +90,7 @@ Microsoft::WRL::ComPtr<ID3DBlob> compileLibrary(const WCHAR* filename, const WCH
 	ThrowIfFailed(gDxcDllHelper.CreateInstance(CLSID_DxcCompiler, pCompiler.GetAddressOf()));
 	ThrowIfFailed(gDxcDllHelper.CreateInstance(CLSID_DxcLibrary, pLibrary.GetAddressOf()));
 
-	// Open and read the file
-	std::ifstream shaderFile(filename);
-	assert(shaderFile.good());
-
-	std::stringstream strStream;
-	strStream << shaderFile.rdbuf();
-	std::string shader = strStream.str();
+	std::string shader = hlsl.GetText();
 
 	// Create blob from the string
 	Microsoft::WRL::ComPtr<IDxcBlobEncoding> pTextBlob;
@@ -104,7 +98,7 @@ Microsoft::WRL::ComPtr<ID3DBlob> compileLibrary(const WCHAR* filename, const WCH
 
 	// Compile
 	Microsoft::WRL::ComPtr<IDxcOperationResult> pResult;
-	ThrowIfFailed(pCompiler->Compile(pTextBlob.Get(), filename, L"", targetString, nullptr, 0, nullptr, 0, nullptr, &pResult));
+	ThrowIfFailed(pCompiler->Compile(pTextBlob.Get(), L"default_file_name", L"", targetString, nullptr, 0, nullptr, 0, nullptr, &pResult));
 
 	// Verify the result
 	HRESULT resultCode;
@@ -410,7 +404,7 @@ static const WCHAR* kIndirectMissShader = L"IndirectMiss";
 static const WCHAR* kIndirectHitGroup = L"IndirectHitGroup";
 DxilLibrary createDxilLibrary() {
 	// Compile the shader
-	Microsoft::WRL::ComPtr<ID3DBlob> pDxilLib = compileLibrary(L"test_02.rt.hlsl", L"lib_6_3");
+	Microsoft::WRL::ComPtr<ID3DBlob> pDxilLib = compileLibrary(*AssetMngr::Instance().LoadAsset<HLSLFile>(LR"(shaders\BasicRayTracing.rt.hlsl)"), L"lib_6_3");
 	const WCHAR* entryPoints[] = { kRayGenShader, kShadowMissShader, kIndirectCHS, kIndirectMissShader };
 	return DxilLibrary(pDxilLib, entryPoints, 4);
 }
