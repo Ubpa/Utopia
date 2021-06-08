@@ -81,6 +81,10 @@ AssetImportContext MeshImporter::ImportAsset() const {
 	return ctx;
 }
 
+bool MeshImporter::SupportReserializeAsset() const {
+	return false; // TODO
+}
+
 std::vector<std::string> MeshImporterCreator::SupportedExtentions() const {
 	return {
 		".mesh"

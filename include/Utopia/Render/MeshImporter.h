@@ -9,6 +9,7 @@ namespace Ubpa::Utopia {
 		
 		virtual AssetImportContext ImportAsset() const override;
 		static void RegisterToUDRefl();
+		virtual bool SupportReserializeAsset() const override;
 	};
 
 	class MeshImporterCreator final : public TAssetImporterCreator<MeshImporter> {

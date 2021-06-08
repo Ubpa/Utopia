@@ -75,6 +75,8 @@ namespace Ubpa::Utopia {
 			Serializer::SerializeRecursion(This(), ctx);
 		}
 
+		virtual bool SupportReserializeAsset() const { return true; }
+
 		// default: use Serilizer to serialize the main asset
 		// you can save some files in this function
 		// if result is empty, we won't override the file and we just reload it

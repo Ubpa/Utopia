@@ -67,6 +67,10 @@ AssetImportContext ShaderImporter::ImportAsset() const {
 	return ctx;
 }
 
+bool ShaderImporter::SupportReserializeAsset() const {
+	return false;
+}
+
 std::vector<std::string> ShaderImporterCreator::SupportedExtentions() const {
 	return { ".shader" };
 }

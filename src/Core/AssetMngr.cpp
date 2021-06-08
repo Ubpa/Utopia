@@ -479,7 +479,7 @@ bool AssetMngr::ReserializeAsset(const std::filesystem::path& path) {
 		ofs.close();
 	}
 
-	{
+	if(importer->SupportReserializeAsset()) {
 		auto json = importer->ReserializeAsset();
 		if (!json.empty()) {
 			std::ofstream ofs(fullpath);

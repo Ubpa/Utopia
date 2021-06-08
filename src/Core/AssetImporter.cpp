@@ -9,6 +9,9 @@ std::filesystem::path AssetImporter::GetFullPath() const {
 }
 
 std::string AssetImporter::ReserializeAsset() const {
+	if (!SupportReserializeAsset())
+		return {};
+
 	auto asset = AssetMngr::Instance().GUIDToMainAsset(guid);
 	if (!asset.GetType() || !asset.GetPtr())
 		return {};

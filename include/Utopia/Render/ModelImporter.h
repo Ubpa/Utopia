@@ -10,6 +10,7 @@ namespace Ubpa::Utopia {
 		virtual AssetImportContext ImportAsset() const override;
 		static void RegisterToUDRefl();
 		virtual void OnFinish() const override;
+		virtual bool SupportReserializeAsset() const override;
 	};
 
 	class ModelImporterCreator final : public TAssetImporterCreator<ModelImporter> {

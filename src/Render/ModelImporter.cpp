@@ -70,6 +70,10 @@ void ModelImporter::OnFinish() const {
 	AssetMngr::Instance().ReplaceMainAsset(GetGuid(), UDRefl::SharedObject{ Type_of<WorldAsset>, worldasset });
 }
 
+bool ModelImporter::SupportReserializeAsset() const {
+	return false;
+}
+
 std::vector<std::string> ModelImporterCreator::SupportedExtentions() const {
 	return {
 #ifdef UBPA_UTOPIA_USE_ASSIMP
