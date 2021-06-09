@@ -41,8 +41,6 @@ using namespace Ubpa;
 
 #pragma region DXR
 
-#include "dxcapi.use.h"
-static dxc::DxcDllSupport gDxcDllHelper;
 static const D3D12_HEAP_PROPERTIES kUploadHeapProps = {
 	D3D12_HEAP_TYPE_UPLOAD,
 	D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
@@ -80,55 +78,6 @@ Microsoft::WRL::ComPtr<ID3D12Resource> createBuffer(
 	Microsoft::WRL::ComPtr<ID3D12Resource> pBuffer;
 	ThrowIfFailed(pDevice->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &bufDesc, initState, nullptr, IID_PPV_ARGS(&pBuffer)));
 	return pBuffer;
-}
-Microsoft::WRL::ComPtr<ID3DBlob> compileLibrary(const HLSLFile& hlsl, const WCHAR* targetString) {
-	// Initialize the helper
-	ThrowIfFailed(gDxcDllHelper.Initialize());
-	Microsoft::WRL::ComPtr<IDxcCompiler> pCompiler;
-	Microsoft::WRL::ComPtr<IDxcLibrary> pLibrary;
-
-	ThrowIfFailed(gDxcDllHelper.CreateInstance(CLSID_DxcCompiler, pCompiler.GetAddressOf()));
-	ThrowIfFailed(gDxcDllHelper.CreateInstance(CLSID_DxcLibrary, pLibrary.GetAddressOf()));
-
-	std::string shader = hlsl.GetText();
-
-	// Create blob from the string
-	Microsoft::WRL::ComPtr<IDxcBlobEncoding> pTextBlob;
-	ThrowIfFailed(pLibrary->CreateBlobWithEncodingFromPinned((LPBYTE)shader.c_str(), (uint32_t)shader.size(), 0, &pTextBlob));
-
-	// Compile
-	Microsoft::WRL::ComPtr<IDxcOperationResult> pResult;
-	ThrowIfFailed(pCompiler->Compile(pTextBlob.Get(), L"default_file_name", L"", targetString, nullptr, 0, nullptr, 0, nullptr, &pResult));
-
-	// Verify the result
-	HRESULT resultCode;
-	ThrowIfFailed(pResult->GetStatus(&resultCode));
-	if (FAILED(resultCode))
-	{
-		Microsoft::WRL::ComPtr<IDxcBlobEncoding> pError;
-		ThrowIfFailed(pResult->GetErrorBuffer(&pError));
-		OutputDebugStringA((char*)pError->GetBufferPointer());
-		return nullptr;
-	}
-
-	Microsoft::WRL::ComPtr<IDxcBlob> pBlob;
-	ThrowIfFailed(pResult->GetResult(&pBlob));
-	Microsoft::WRL::ComPtr<ID3DBlob> pRstBlob;
-	ThrowIfFailed(pBlob->QueryInterface(IID_PPV_ARGS(&pRstBlob)));
-	return pRstBlob;
-}
-Microsoft::WRL::ComPtr<ID3D12RootSignature> createRootSignature(ID3D12Device* pDevice, const D3D12_ROOT_SIGNATURE_DESC& desc)
-{
-	Microsoft::WRL::ComPtr<ID3DBlob> pSigBlob;
-	Microsoft::WRL::ComPtr<ID3DBlob> pErrorBlob;
-	HRESULT hr = D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1, &pSigBlob, &pErrorBlob);
-	if (FAILED(hr)) {
-		OutputDebugStringA((char*)pErrorBlob->GetBufferPointer());
-		return nullptr;
-	}
-	Microsoft::WRL::ComPtr<ID3D12RootSignature> pRootSig;
-	ThrowIfFailed(pDevice->CreateRootSignature(0, pSigBlob->GetBufferPointer(), pSigBlob->GetBufferSize(), IID_PPV_ARGS(&pRootSig)));
-	return pRootSig;
 }
 struct RootSignatureDesc {
 	D3D12_ROOT_SIGNATURE_DESC desc = {};
@@ -405,7 +354,8 @@ static const WCHAR* kIndirectMissShader = L"IndirectMiss";
 static const WCHAR* kIndirectHitGroup = L"IndirectHitGroup";
 DxilLibrary createDxilLibrary() {
 	// Compile the shader
-	Microsoft::WRL::ComPtr<ID3DBlob> pDxilLib = compileLibrary(*AssetMngr::Instance().LoadAsset<HLSLFile>(LR"(shaders\BasicRayTracing.rt.hlsl)"), L"lib_6_3");
+	auto hlsl = AssetMngr::Instance().LoadAsset<HLSLFile>(LR"(shaders\BasicRayTracing.rt.hlsl)");
+	Microsoft::WRL::ComPtr<ID3DBlob> pDxilLib = UDX12::Util::CompileLibrary(hlsl->GetText().data(), (UINT32)hlsl->GetText().size(), LR"(shaders\BasicRayTracing.rt.hlsl)");
 	const WCHAR* entryPoints[] = { kRayGenShader, kShadowMissShader, kIndirectAHS, kIndirectCHS, kIndirectMissShader };
 	return DxilLibrary(pDxilLib, entryPoints, 5);
 }
@@ -443,7 +393,7 @@ struct LocalRootSignature
 {
 	LocalRootSignature(ID3D12Device* pDevice, const D3D12_ROOT_SIGNATURE_DESC& desc)
 	{
-		pRootSig = createRootSignature(pDevice, desc);
+		pRootSig = UDX12::Device{ Microsoft::WRL::ComPtr<ID3D12Device>(pDevice) }.CreateRootSignature(desc);
 		pInterface = pRootSig.Get();
 		subobject.pDesc = &pInterface;
 		subobject.Type = D3D12_STATE_SUBOBJECT_TYPE_LOCAL_ROOT_SIGNATURE;
@@ -455,7 +405,7 @@ struct LocalRootSignature
 struct GlobalRootSignature {
 	GlobalRootSignature(ID3D12Device* pDevice, const D3D12_ROOT_SIGNATURE_DESC& desc)
 	{
-		pRootSig = createRootSignature(pDevice, desc);
+		pRootSig = UDX12::Device{ Microsoft::WRL::ComPtr<ID3D12Device>(pDevice) }.CreateRootSignature(desc);
 		pInterface = pRootSig.Get();
 		subobject.pDesc = &pInterface;
 		subobject.Type = D3D12_STATE_SUBOBJECT_TYPE_GLOBAL_ROOT_SIGNATURE;
@@ -694,7 +644,7 @@ struct StdDXRPipeline::Impl {
 		auto grsdesc = creatGlobalRootDesc();
 		grsdesc.desc.NumStaticSamplers = (UINT)samplers.size();
 		grsdesc.desc.pStaticSamplers = samplers.data();
-		mpGlobalRootSig = createRootSignature(initDesc.device, grsdesc.desc);
+		mpGlobalRootSig = UDX12::Device{ Microsoft::WRL::ComPtr<ID3D12Device>(initDesc.device) }.CreateRootSignature(grsdesc.desc);
 		BuildTextures();
 		BuildFrameResources();
 		BuildShaders();

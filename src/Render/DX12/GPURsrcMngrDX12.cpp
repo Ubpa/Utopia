@@ -687,7 +687,8 @@ bool GPURsrcMngrDX12::RegisterShader(Shader& shader) {
 			marcos.data(),
 			pass.vertexName,
 			"vs_5_0",
-			&d3dInclude
+			&d3dInclude,
+			shader.name.data()
 		);
 		if (!shaderCompileData.passes[i].vsByteCode)
 			return false;
@@ -696,7 +697,8 @@ bool GPURsrcMngrDX12::RegisterShader(Shader& shader) {
 			marcos.data(),
 			pass.fragmentName,
 			"ps_5_0",
-			&d3dInclude
+			&d3dInclude,
+			shader.name.data()
 		);
 		if (!shaderCompileData.passes[i].psByteCode)
 			pImpl->shaderMap.erase(shader.GetInstanceID());
@@ -783,27 +785,11 @@ bool GPURsrcMngrDX12::RegisterShader(Shader& shader) {
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
 	);
 
-	ID3DBlob* serializedRootSig = nullptr;
-	ID3DBlob* errorBlob = nullptr;
+	shaderCompileData.rootSignature = UDX12::Device{ Microsoft::WRL::ComPtr<ID3D12Device>(pImpl->device) }
+		.CreateRootSignature(rootSigDesc);
 
-	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
-		&serializedRootSig, &errorBlob);
-
-	if (errorBlob != nullptr) {
-		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
-		errorBlob->Release();
+	if (!shaderCompileData.rootSignature)
 		return false;
-	}
-	ThrowIfFailed(hr);
-
-	ThrowIfFailed(pImpl->device->CreateRootSignature(
-		0,
-		serializedRootSig->GetBufferPointer(),
-		serializedRootSig->GetBufferSize(),
-		IID_PPV_ARGS(&shaderCompileData.rootSignature)
-	));
-
-	serializedRootSig->Release();
 
 	pImpl->shaderMap.emplace(shader.GetInstanceID(), std::move(shaderCompileData));
 

@@ -188,6 +188,8 @@ Editor::Editor(HINSTANCE hInstance)
 {}
 
 Editor::~Editor() {
+	FlushCommandQueue();
+
 	ImGUIMngr::Instance().Clear();
 
 	delete pImpl;
