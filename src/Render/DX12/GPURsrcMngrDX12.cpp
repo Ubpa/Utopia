@@ -2,6 +2,7 @@
 
 #include <Utopia/Render/Texture2D.h>
 #include <Utopia/Render/TextureCube.h>
+#include <Utopia/Render/RenderTargetTexture2D.h>
 #include <Utopia/Core/Image.h>
 #include <Utopia/Render/HLSLFile.h>
 #include <Utopia/Render/Shader.h>
@@ -41,18 +42,18 @@ struct GPURsrcMngrDX12::Impl {
 		Microsoft::WRL::ComPtr<ID3D12Resource> resource;
 		UDX12::DescriptorHeapAllocation allocationSRV;
 	};
-	struct RenderTargetGPUData {
-		RenderTargetGPUData() = default;
-		RenderTargetGPUData(const RenderTargetGPUData&) = default;
-		RenderTargetGPUData(RenderTargetGPUData&&) noexcept = default;
-		~RenderTargetGPUData() {
+	struct RenderTargetTexture2DGPUData {
+		RenderTargetTexture2DGPUData() = default;
+		RenderTargetTexture2DGPUData(const RenderTargetTexture2DGPUData&) = default;
+		RenderTargetTexture2DGPUData(RenderTargetTexture2DGPUData&&) noexcept = default;
+		~RenderTargetTexture2DGPUData() {
 			if (!allocationSRV.IsNull())
 				UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(allocationSRV));
 			if (!allocationRTV.IsNull())
 				UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Free(std::move(allocationRTV));
 		}
 
-		Microsoft::WRL::ComPtr<ID3D12Resource> resources;
+		Microsoft::WRL::ComPtr<ID3D12Resource> resource;
 		UDX12::DescriptorHeapAllocation allocationSRV;
 		UDX12::DescriptorHeapAllocation allocationRTV;
 	};
@@ -104,7 +105,7 @@ struct GPURsrcMngrDX12::Impl {
 
 	unordered_map<std::size_t, Texture2DGPUData> texture2DMap;
 	unordered_map<std::size_t, TextureCubeGPUData> textureCubeMap;
-	unordered_map<std::size_t, RenderTargetGPUData> renderTargetMap;
+	unordered_map<std::size_t, RenderTargetTexture2DGPUData> rtTexture2DMap;
 	unordered_map<std::size_t, ShaderCompileData> shaderMap;
 	unordered_map<std::size_t, UDX12::MeshGPUBuffer> meshMap;
 	unordered_map<std::size_t, DXRMeshData> dxrMeshDataMap;
@@ -196,7 +197,7 @@ void GPURsrcMngrDX12::Clear(ID3D12CommandQueue* cmdQueue) {
 
 	pImpl->texture2DMap.clear();
 	pImpl->textureCubeMap.clear();
-	pImpl->renderTargetMap.clear();
+	pImpl->rtTexture2DMap.clear();
 	pImpl->meshMap.clear();
 	pImpl->dxrMeshDataMap.clear();
 	pImpl->shaderMap.clear();
@@ -352,6 +353,64 @@ GPURsrcMngrDX12& GPURsrcMngrDX12::UnregisterTextureCube(std::size_t ID) {
 			UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(*alloc));
 		});
 		pImpl->textureCubeMap.erase(target);
+	}
+	return *this;
+}
+
+GPURsrcMngrDX12& GPURsrcMngrDX12::RegisterRenderTargetTexture2D(RenderTargetTexture2D& rtTex2D) {
+	if (rtTex2D.IsDirty())
+		UnregisterRenderTargetTexture2D(rtTex2D.GetInstanceID());
+	else {
+		auto target = pImpl->rtTexture2DMap.find(rtTex2D.GetInstanceID());
+		if (target != pImpl->rtTexture2DMap.end())
+			return *this;
+	}
+
+	Impl::RenderTargetTexture2DGPUData data;
+
+	DXGI_FORMAT formatMap[] = {
+		DXGI_FORMAT_R32_FLOAT,
+		DXGI_FORMAT_R32G32_FLOAT,
+		DXGI_FORMAT_R32G32B32_FLOAT,
+		DXGI_FORMAT_R32G32B32A32_FLOAT,
+	};
+	DXGI_FORMAT format = formatMap[rtTex2D.image.GetChannel()];
+	Ubpa::rgbaf background = { 0.f,0.f,0.f,1.f };
+	CD3DX12_CLEAR_VALUE clearvalue(format, background.data());
+	auto desc = Ubpa::UDX12::Desc::RSRC::RT2D(rtTex2D.image.GetWidth(), (UINT)rtTex2D.image.GetHeight(), format);
+	const auto defaultHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+	ThrowIfFailed(pImpl->device->CreateCommittedResource(
+		&defaultHeapProp,
+		D3D12_HEAP_FLAG_NONE,
+		&desc,
+		D3D12_RESOURCE_STATE_PRESENT,
+		&clearvalue,
+		IID_PPV_ARGS(&data.resource)
+	));
+
+	data.allocationSRV = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(1);
+	data.allocationRTV = UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Allocate(1);
+	pImpl->device->CreateShaderResourceView(data.resource.Get(), nullptr, data.allocationSRV.GetCpuHandle());
+	pImpl->device->CreateRenderTargetView(data.resource.Get(), nullptr, data.allocationRTV.GetCpuHandle());
+
+	pImpl->rtTexture2DMap.emplace(rtTex2D.GetInstanceID(), std::move(data));
+
+	rtTex2D.SetClean();
+	rtTex2D.destroyed.Connect<&GPURsrcMngrDX12::UnregisterRenderTargetTexture2D>(this);
+
+	return *this;
+}
+
+GPURsrcMngrDX12& GPURsrcMngrDX12::UnregisterRenderTargetTexture2D(std::size_t ID) {
+	static std::mutex m;
+	std::lock_guard guard{ m };
+	if (auto target = pImpl->rtTexture2DMap.find(ID); target != pImpl->rtTexture2DMap.end()) {
+		auto& tex = target->second;
+		pImpl->deleteBatch.Add(std::move(tex.resource));
+		pImpl->deleteBatch.AddCallback([alloc = std::make_shared<UDX12::DescriptorHeapAllocation>(std::move(tex.allocationSRV))]() {
+			UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(*alloc));
+		});
+		pImpl->rtTexture2DMap.erase(target);
 	}
 	return *this;
 }

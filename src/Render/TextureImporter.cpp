@@ -2,6 +2,7 @@
 
 #include <Utopia/Render/Texture2D.h>
 #include <Utopia/Render/TextureCube.h>
+#include <Utopia/Render/RenderTargetTexture2D.h>
 
 #include <Utopia/Core/AssetMngr.h>
 
@@ -15,12 +16,15 @@ void TextureImporter::RegisterToUDRefl() {
 	UDRefl::Mngr.RegisterType<TextureImporter::Mode>();
 	UDRefl::Mngr.SimpleAddField<TextureImporter::Mode::Texture2D>("Texture2D");
 	UDRefl::Mngr.SimpleAddField<TextureImporter::Mode::TextureCube>("TextureCube");
+	UDRefl::Mngr.SimpleAddField<TextureImporter::Mode::RenderTargetTexture2D>("RenderTargetTexture2D");
 
 	UDRefl::Mngr.RegisterType<GPURsrc>();
 	UDRefl::Mngr.RegisterType<Texture2D>();
 	UDRefl::Mngr.AddBases<Texture2D, GPURsrc>();
 	UDRefl::Mngr.RegisterType<TextureCube>();
 	UDRefl::Mngr.AddBases<TextureCube, GPURsrc>();
+	UDRefl::Mngr.RegisterType<RenderTargetTexture2D>();
+	UDRefl::Mngr.AddBases<RenderTargetTexture2D, Texture2D>();
 
 	UDRefl::Mngr.SimpleAddField<&TextureImporter::mode>("mode");
 	UDRefl::Mngr.SimpleAddField<&TextureImporter::sRGB>("sRGB");
@@ -47,17 +51,24 @@ AssetImportContext TextureImporter::ImportAsset() const {
 	switch (mode)
 	{
 	case Ubpa::Utopia::TextureImporter::Mode::Texture2D: {
-		Texture2D t;
-		t.image = std::move(img);
-		auto tex = std::make_shared<Texture2D>(std::move(t));
-		ctx.AddObject("main", UDRefl::SharedObject{ Type_of<Texture2D>, tex });
-	}
+		Texture2D tex;
+		tex.image = std::move(img);
+		auto ptex = std::make_shared<Texture2D>(std::move(tex));
+		ctx.AddObject("main", UDRefl::SharedObject{ Type_of<Texture2D>, ptex });
 		break;
+	}
 	case Ubpa::Utopia::TextureImporter::Mode::TextureCube: {
 		auto tex = std::make_shared<TextureCube>(std::move(img));
 		ctx.AddObject("main", UDRefl::SharedObject{ Type_of<TextureCube>, tex });
-	}
 		break;
+	}
+	case Ubpa::Utopia::TextureImporter::Mode::RenderTargetTexture2D: {
+		RenderTargetTexture2D tex;
+		tex.image = std::move(img);
+		auto ptex = std::make_shared<RenderTargetTexture2D>(std::move(tex));
+		ctx.AddObject("main", UDRefl::SharedObject{ Type_of<RenderTargetTexture2D>, ptex });
+		break;
+	}
 	default:
 		assert(false);
 		return {};
@@ -92,6 +103,25 @@ std::string TextureImporter::ReserializeAsset() const {
 		}
 		else
 			asset.As<Texture2D>().image.Save(path.string());
+	}
+	else if (mode == Mode::RenderTargetTexture2D) {
+		if (!asset.GetType().Is<RenderTargetTexture2D>())
+			return {};
+
+		if (sRGB) {
+			Image copied_img = asset.As<RenderTargetTexture2D>().image;
+			for (size_t y = 0; y < copied_img.GetHeight(); y++) {
+				for (size_t x = 0; x < copied_img.GetWidth(); x++) {
+					for (size_t c = 0; c < copied_img.GetChannel(); c++) {
+						auto& v = copied_img.At(x, y, c);
+						v = linear_to_gamma(v);
+					}
+				}
+			}
+			copied_img.Save(path.string());
+		}
+		else
+			asset.As<RenderTargetTexture2D>().image.Save(path.string());
 	}
 	else if (mode == Mode::TextureCube) {
 		if (!asset.GetType().Is<TextureCube>())

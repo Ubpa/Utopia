@@ -8,6 +8,7 @@
 namespace Ubpa::Utopia {
 	struct Texture2D;
 	class TextureCube;
+	struct RenderTargetTexture2D;
 	struct Shader;
 	class Mesh;
 
@@ -31,6 +32,8 @@ namespace Ubpa::Utopia {
 
 		GPURsrcMngrDX12& RegisterTextureCube(TextureCube& texcube);
 
+		GPURsrcMngrDX12& RegisterRenderTargetTexture2D(RenderTargetTexture2D& rttex2D);
+
 		// [sync]
 		// - (maybe) construct resized upload buffer
 		// - (maybe) construct resized default buffer
@@ -48,6 +51,7 @@ namespace Ubpa::Utopia {
 
 		GPURsrcMngrDX12& UnregisterTexture2D(std::size_t ID);
 		GPURsrcMngrDX12& UnregisterTextureCube(std::size_t ID);
+		GPURsrcMngrDX12& UnregisterRenderTargetTexture2D(std::size_t ID);
 		GPURsrcMngrDX12& UnregisterMesh(std::size_t ID);
 		GPURsrcMngrDX12& UnregisterShader(std::size_t ID);
 

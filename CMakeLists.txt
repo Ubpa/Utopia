@@ -12,7 +12,7 @@ set(Ubpa_USRefl_Build_AutoRefl TRUE CACHE BOOL "use auto refl" FORCE)
 
 Ubpa_AddDep(URapidJSON 0.0.4)
 Ubpa_AddDep(UVisitor   0.1.0)
-Ubpa_AddDep(UGM        0.7.2)
+Ubpa_AddDep(UGM        0.7.4)
 Ubpa_AddDep(UECS       0.16.0)
 Ubpa_AddDep(UDX12      0.1.1)
 Ubpa_AddDep(UDRefl     0.10.4)

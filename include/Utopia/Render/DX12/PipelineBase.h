@@ -27,7 +27,6 @@ namespace Ubpa::Utopia {
 			size_t numFrame;
 			ID3D12Device* device;
 			ID3D12CommandQueue* cmdQueue;
-			DXGI_FORMAT rtFormat;
 		};
 		struct CameraData {
 			CameraData(UECS::Entity entity, const UECS::World& world)
@@ -40,26 +39,15 @@ namespace Ubpa::Utopia {
 
 		virtual ~PipelineBase() = default;
 
-		// data : cpu -> gpu
-		// run in update
-		virtual void BeginFrame(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData) = 0;
-		// run in draw
-		virtual void Render(ID3D12Resource* rt) = 0;
-		// run at the end of draw
-		virtual void EndFrame() = 0;
+		virtual void Render(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData, ID3D12Resource* rt) = 0;
 
-		void Resize(
-			size_t width,
-			size_t height,
-			D3D12_VIEWPORT screenViewport,
-			D3D12_RECT scissorRect
-		) {
-			resizeData.width = width;
-			resizeData.height = height;
-			resizeData.screenViewport = screenViewport;
-			resizeData.scissorRect = scissorRect;
-			Impl_Resize();
-		}
+	protected:
+		const InitDesc initDesc;
+
+	public:
+		//
+		// Utils
+		//////////
 
 		struct ShaderCBDesc {
 			// whole size == materialCBSize * indexMap.size()
@@ -83,20 +71,5 @@ namespace Ubpa::Utopia {
 			const std::map<std::string_view, D3D12_GPU_VIRTUAL_ADDRESS>& commonCBs,
 			const std::map<std::string_view, D3D12_GPU_DESCRIPTOR_HANDLE>& commonSRVs
 		);
-
-	protected:
-		virtual void Impl_Resize() = 0;
-
-		struct ResizeData {
-			size_t width{ 0 };
-			size_t height{ 0 };
-			D3D12_VIEWPORT screenViewport;
-			D3D12_RECT scissorRect;
-		};
-		const InitDesc initDesc;
-		const ResizeData& GetResizeData() const { return resizeData; }
-
-	private:
-		ResizeData resizeData;
 	};
 }

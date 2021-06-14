@@ -212,26 +212,18 @@ struct StdPipeline::Impl {
 
 	const DXGI_FORMAT dsFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
+	size_t lastWidth = 0;
+	size_t lastHeight = 0;
+
 	void BuildTextures();
 	void BuildFrameResources();
 	void BuildShaders();
 
-	struct PartialPSODesc {
-		PartialPSODesc() { memset(this, 0, sizeof(PartialPSODesc)); }
-		size_t shaderID;
-		size_t passIndex;
-		size_t layoutID;
-		size_t rtNum;
-		DXGI_FORMAT rtFormat;
-		bool operator==(const PartialPSODesc& rhs) const noexcept {
-			return UDX12::FG::detail::bitwise_equal(*this, rhs);
-		}
-	};
-
-	void UpdateRenderContext(const std::vector<const UECS::World*>& worlds, const ResizeData& resizeData, const CameraData& cameraData);
+	void UpdateRenderContext(const std::vector<const UECS::World*>& worlds, size_t width, size_t height, const CameraData& cameraData);
 	void UpdateShaderCBs();
-	void Render(const ResizeData& resizeData, ID3D12Resource* rtb);
+	void Render(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData, ID3D12Resource* rtb);
 	void DrawObjects(ID3D12GraphicsCommandList*, std::string_view lightMode, size_t rtNum, DXGI_FORMAT rtFormat);
+	void Resize(size_t width, size_t height);
 };
 
 StdPipeline::Impl::~Impl() {
@@ -244,6 +236,29 @@ StdPipeline::Impl::~Impl() {
 	GPURsrcMngrDX12::Instance().UnregisterTexture2D(ltcTexes[0].GetInstanceID());
 	GPURsrcMngrDX12::Instance().UnregisterTexture2D(ltcTexes[1].GetInstanceID());
 	UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(ltcHandles));
+}
+
+void StdPipeline::Impl::Resize(size_t width, size_t height) {
+	if (lastWidth == width && lastHeight == height)
+		return;
+
+	lastWidth = width;
+	lastHeight = height;
+	for (auto& frsrc : frameRsrcMngr.GetFrameResources()) {
+		if (frsrc.get() == frameRsrcMngr.GetCurrentFrameResource()) {
+			frameRsrcMngr.GetCurrentFrameResource()
+				->GetResource<std::shared_ptr<UDX12::FG::RsrcMngr>>("FrameGraphRsrcMngr")
+				->Clear();
+		}
+		else {
+			frsrc->DelayUpdateResource(
+				"FrameGraphRsrcMngr",
+				[](std::shared_ptr<UDX12::FG::RsrcMngr> rsrcMngr) {
+					rsrcMngr->Clear();
+				}
+			);
+		}
+	}
 }
 
 void StdPipeline::Impl::BuildTextures() {
@@ -429,7 +444,7 @@ void StdPipeline::Impl::BuildShaders() {
 
 void StdPipeline::Impl::UpdateRenderContext(
 	const std::vector<const UECS::World*>& worlds,
-	const ResizeData& resizeData,
+	size_t width, size_t height,
 	const CameraData& cameraData
 ) {
 	renderContext.renderQueue.Clear();
@@ -449,8 +464,8 @@ void StdPipeline::Impl::UpdateRenderContext(
 		renderContext.cameraConstants.ViewProj = renderContext.cameraConstants.Proj * renderContext.cameraConstants.View;
 		renderContext.cameraConstants.InvViewProj = renderContext.cameraConstants.InvView * renderContext.cameraConstants.InvProj;
 		renderContext.cameraConstants.EyePosW = cmptTranslation->value.as<pointf3>();
-		renderContext.cameraConstants.RenderTargetSize = { resizeData.width, resizeData.height };
-		renderContext.cameraConstants.InvRenderTargetSize = { 1.0f / resizeData.width, 1.0f / resizeData.height };
+		renderContext.cameraConstants.RenderTargetSize = { width, height };
+		renderContext.cameraConstants.InvRenderTargetSize = { 1.0f / width, 1.0f / height };
 
 		renderContext.cameraConstants.NearZ = cmptCamera->clippingPlaneMin;
 		renderContext.cameraConstants.FarZ = cmptCamera->clippingPlaneMax;
@@ -710,9 +725,24 @@ void StdPipeline::Impl::UpdateShaderCBs() {
 	}
 }
 
-void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb) {
-	size_t width = resizeData.width;
-	size_t height = resizeData.height;
+void StdPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData, ID3D12Resource* rtb) {
+	assert(rtb);
+	
+	size_t width = rtb->GetDesc().Width;
+	size_t height = rtb->GetDesc().Height;
+	CD3DX12_VIEWPORT viewport(0.f, 0.f, width, height);
+	D3D12_RECT scissorRect(0.f, 0.f, width, height);
+
+	// collect some cpu data
+	UpdateRenderContext(worlds, width, height, cameraData);
+
+	// Cycle through the circular frame resource array.
+	// Has the GPU finished processing the commands of the current frame resource?
+	// If not, wait until the GPU has completed commands up to this fence point.
+	frameRsrcMngr.BeginFrame();
+
+	// cpu -> gpu
+	UpdateShaderCBs();
 
 	auto cmdAlloc = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<Microsoft::WRL::ComPtr<ID3D12CommandAllocator>>("CommandAllocator");
@@ -722,6 +752,9 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 	auto fgRsrcMngr = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<UDX12::FG::RsrcMngr>>("FrameGraphRsrcMngr");
 	fgRsrcMngr->NewFrame();
+
+	Resize(width, height);
+
 	fgExecutor.NewFrame();;
 
 	auto gbuffer0 = fg.RegisterResourceNode("GBuffer0");
@@ -849,8 +882,8 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
 			cmdList->SetDescriptorHeaps(1, &heap);
-			cmdList->RSSetViewports(1, &resizeData.screenViewport);
-			cmdList->RSSetScissorRects(1, &resizeData.scissorRect);
+			cmdList->RSSetViewports(1, &viewport);
+			cmdList->RSSetScissorRects(1, &scissorRect);
 
 			auto gb0 = rsrcs.find(gbuffer0)->second;
 			auto gb1 = rsrcs.find(gbuffer1)->second;
@@ -998,8 +1031,8 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
 			cmdList->SetDescriptorHeaps(1, &heap);
-			cmdList->RSSetViewports(1, &resizeData.screenViewport);
-			cmdList->RSSetScissorRects(1, &resizeData.scissorRect);
+			cmdList->RSSetViewports(1, &viewport);
+			cmdList->RSSetScissorRects(1, &scissorRect);
 
 			auto gb0 = rsrcs.at(gbuffer0);
 			auto gb1 = rsrcs.at(gbuffer1);
@@ -1071,8 +1104,8 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 				DXGI_FORMAT_R32G32B32A32_FLOAT)
 			);
 
-			cmdList->RSSetViewports(1, &resizeData.screenViewport);
-			cmdList->RSSetScissorRects(1, &resizeData.scissorRect);
+			cmdList->RSSetViewports(1, &viewport);
+			cmdList->RSSetScissorRects(1, &scissorRect);
 
 			auto rt = rsrcs.find(deferLightedSkyRT)->second;
 			auto ds = rsrcs.find(deferDS)->second;
@@ -1099,8 +1132,8 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
 			cmdList->SetDescriptorHeaps(1, &heap);
-			cmdList->RSSetViewports(1, &resizeData.screenViewport);
-			cmdList->RSSetScissorRects(1, &resizeData.scissorRect);
+			cmdList->RSSetViewports(1, &viewport);
+			cmdList->RSSetScissorRects(1, &scissorRect);
 
 			auto rt = rsrcs.find(sceneRT)->second;
 			auto ds = rsrcs.find(forwardDS)->second;
@@ -1122,14 +1155,14 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 				0,
 				static_cast<size_t>(-1),
 				1,
-				initDesc.rtFormat,
+				rtb->GetDesc().Format,
 				DXGI_FORMAT_UNKNOWN)
 			);
 
 			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
 			cmdList->SetDescriptorHeaps(1, &heap);
-			cmdList->RSSetViewports(1, &resizeData.screenViewport);
-			cmdList->RSSetScissorRects(1, &resizeData.scissorRect);
+			cmdList->RSSetViewports(1, &viewport);
+			cmdList->RSSetScissorRects(1, &scissorRect);
 
 			auto rt = rsrcs.find(presentedRT)->second;
 			auto img = rsrcs.find(sceneRT)->second;
@@ -1163,6 +1196,8 @@ void StdPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb
 		crst,
 		*fgRsrcMngr
 	);
+
+	frameRsrcMngr.EndFrame(initDesc.cmdQueue);
 }
 
 void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::string_view lightMode, size_t rtNum, DXGI_FORMAT rtFormat) {
@@ -1269,34 +1304,7 @@ StdPipeline::StdPipeline(InitDesc initDesc) :
 
 StdPipeline::~StdPipeline() { delete pImpl; }
 
-void StdPipeline::BeginFrame(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData) {
-	// collect some cpu data
-	pImpl->UpdateRenderContext(worlds, GetResizeData(), cameraData);
-
-	// Cycle through the circular frame resource array.
-	// Has the GPU finished processing the commands of the current frame resource?
-	// If not, wait until the GPU has completed commands up to this fence point.
-	pImpl->frameRsrcMngr.BeginFrame();
-
-	// cpu -> gpu
-	pImpl->UpdateShaderCBs();
+void StdPipeline::Render(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData, ID3D12Resource* rt) {
+	pImpl->Render(worlds, cameraData, rt);
 }
 
-void StdPipeline::Render(ID3D12Resource* rt) {
-	pImpl->Render(GetResizeData(), rt);
-}
-
-void StdPipeline::EndFrame() {
-	pImpl->frameRsrcMngr.EndFrame(initDesc.cmdQueue);
-}
-
-void StdPipeline::Impl_Resize() {
-	for (auto& frsrc : pImpl->frameRsrcMngr.GetFrameResources()) {
-		frsrc->DelayUpdateResource(
-			"FrameGraphRsrcMngr",
-			[](std::shared_ptr<UDX12::FG::RsrcMngr> rsrcMngr) {
-				rsrcMngr->Clear();
-			}
-		);
-	}
-}

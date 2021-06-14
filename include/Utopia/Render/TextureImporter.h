@@ -13,7 +13,8 @@ namespace Ubpa::Utopia {
 
 		enum class Mode {
 			Texture2D,
-			TextureCube
+			TextureCube,
+			RenderTargetTexture2D
 		};
 
 		Mode mode{ Mode::Texture2D };

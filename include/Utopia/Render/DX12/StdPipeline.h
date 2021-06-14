@@ -8,18 +8,7 @@ namespace Ubpa::Utopia {
 		StdPipeline(InitDesc desc);
 		virtual ~StdPipeline();
 
-		// data : cpu -> gpu
-		// run in update
-		virtual void BeginFrame(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData) override;
-
-		// run in draw
-		virtual void Render(ID3D12Resource* rt) override;
-
-		// run at the end of draw
-		virtual void EndFrame() override;
-
-	protected:
-		virtual void Impl_Resize() override;
+		virtual void Render(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData, ID3D12Resource* rt) override;
 
 	private:
 		struct Impl;

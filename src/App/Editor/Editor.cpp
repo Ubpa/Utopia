@@ -277,7 +277,6 @@ bool Editor::Impl::Init() {
 	LoadShaders();
 	PipelineBase::InitDesc initDesc;
 	initDesc.device = pEditor->uDevice.Get();
-	initDesc.rtFormat = gameRTFormat;
 	initDesc.cmdQueue = pEditor->uCmdQueue.Get();
 	initDesc.numFrame = DX12App::NumFrameResources;
 	//gamePipeline = std::make_unique<StdDXRPipeline>(initDesc);
@@ -313,16 +312,6 @@ void Editor::Impl::OnGameResize() {
 	));
 	pEditor->uDevice->CreateShaderResourceView(gameRT.Get(), nullptr, gameRT_SRV.GetCpuHandle());
 	pEditor->uDevice->CreateRenderTargetView(gameRT.Get(), nullptr, gameRT_RTV.GetCpuHandle());
-
-	assert(gamePipeline);
-	D3D12_VIEWPORT viewport;
-	viewport.TopLeftX = 0;
-	viewport.TopLeftY = 0;
-	viewport.Width = static_cast<float>(gameWidth);
-	viewport.Height = static_cast<float>(gameHeight);
-	viewport.MinDepth = 0.0f;
-	viewport.MaxDepth = 1.0f;
-	gamePipeline->Resize(gameWidth, gameHeight, viewport, { 0, 0, (LONG)gameWidth, (LONG)gameHeight });
 }
 
 void Editor::Impl::OnSceneResize() {
@@ -340,16 +329,6 @@ void Editor::Impl::OnSceneResize() {
 	));
 	pEditor->uDevice->CreateShaderResourceView(sceneRT.Get(), nullptr, sceneRT_SRV.GetCpuHandle());
 	pEditor->uDevice->CreateRenderTargetView(sceneRT.Get(), nullptr, sceneRT_RTV.GetCpuHandle());
-
-	assert(scenePipeline);
-	D3D12_VIEWPORT viewport;
-	viewport.TopLeftX = 0;
-	viewport.TopLeftY = 0;
-	viewport.Width = static_cast<float>(sceneWidth);
-	viewport.Height = static_cast<float>(sceneHeight);
-	viewport.MinDepth = 0.0f;
-	viewport.MaxDepth = 1.0f;
-	scenePipeline->Resize(sceneWidth, sceneHeight, viewport, { 0, 0, (LONG)sceneWidth, (LONG)sceneHeight });
 }
 
 void Editor::Impl::Update() {
@@ -636,32 +615,6 @@ void Editor::Impl::Update() {
 	pEditor->GetFrameResourceMngr()->GetCurrentFrameResource()->DelayUnregisterResource("deletebatch");
 
 	{
-		std::vector<PipelineBase::CameraData> gameCameras;
-		Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::AccessTypeID_of<Camera>} };
-		curGameWorld->RunEntityJob([&](Ubpa::UECS::Entity e) {
-			gameCameras.emplace_back(e, *curGameWorld);
-		}, false, camFilter);
-		assert(gameCameras.empty() || gameCameras.size() == 1); // now only support 0/1 camera
-		if (gameCameras.empty())
-			gamePipeline->BeginFrame({ curGameWorld }, { Entity::Invalid(), *curGameWorld });
-		else
-			gamePipeline->BeginFrame({ curGameWorld }, gameCameras.front());
-	}
-
-	{
-		std::vector<PipelineBase::CameraData> sceneCameras;
-		Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::AccessTypeID_of<Camera>} };
-		sceneWorld.RunEntityJob([&](Ubpa::UECS::Entity e) {
-			sceneCameras.emplace_back(e, sceneWorld);
-		}, false, camFilter);
-		assert(sceneCameras.empty() || sceneCameras.size() == 1); // now only support 0/1 camera
-		if (sceneCameras.empty())
-			scenePipeline->BeginFrame({ curGameWorld, &sceneWorld }, { Entity::Invalid(), sceneWorld });
-		else
-			scenePipeline->BeginFrame({ curGameWorld, &sceneWorld }, sceneCameras.front());
-	}
-
-	{
 		static bool flag = false;
 		if (!flag) {
 			OutputDebugStringA(curGameWorld->GenUpdateFrameGraph().Dump().c_str());
@@ -674,8 +627,18 @@ void Editor::Impl::Update() {
 	{ // game
 		ImGui::SetCurrentContext(gameImGuiCtx);
 		if (gameRT) {
-			if(isGameOpen)
-				gamePipeline->Render(gameRT.Get());
+			if (isGameOpen) {
+				std::vector<PipelineBase::CameraData> gameCameras;
+				Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::AccessTypeID_of<Camera>} };
+				curGameWorld->RunEntityJob([&](Ubpa::UECS::Entity e) {
+					gameCameras.emplace_back(e, *curGameWorld);
+					}, false, camFilter);
+				assert(gameCameras.empty() || gameCameras.size() == 1); // now only support 0/1 camera
+				if (gameCameras.empty())
+					gamePipeline->Render({ curGameWorld }, { Entity::Invalid(), *curGameWorld }, gameRT.Get());
+				else
+					gamePipeline->Render({ curGameWorld }, gameCameras.front(), gameRT.Get());
+			}
 			pEditor->uGCmdList.ResourceBarrierTransition(gameRT.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 			const auto gameRTHandle = gameRT_RTV.GetCpuHandle();
 			pEditor->uGCmdList->OMSetRenderTargets(1, &gameRTHandle, FALSE, NULL);
@@ -691,8 +654,19 @@ void Editor::Impl::Update() {
 	{ // scene
 		ImGui::SetCurrentContext(sceneImGuiCtx);
 		if (sceneRT) {
-			if(isSceneOpen)
-				scenePipeline->Render(sceneRT.Get());
+			if (isSceneOpen) {
+
+				std::vector<PipelineBase::CameraData> sceneCameras;
+				Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::AccessTypeID_of<Camera>} };
+				sceneWorld.RunEntityJob([&](Ubpa::UECS::Entity e) {
+					sceneCameras.emplace_back(e, sceneWorld);
+					}, false, camFilter);
+				assert(sceneCameras.empty() || sceneCameras.size() == 1); // now only support 0/1 camera
+				if (sceneCameras.empty())
+					scenePipeline->Render({ curGameWorld, &sceneWorld }, { Entity::Invalid(), sceneWorld }, sceneRT.Get());
+				else
+					scenePipeline->Render({ curGameWorld, &sceneWorld }, sceneCameras.front(), sceneRT.Get());
+			}
 			pEditor->uGCmdList.ResourceBarrierTransition(sceneRT.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 			const auto sceneRTHandle = sceneRT_RTV.GetCpuHandle();
 			pEditor->uGCmdList->OMSetRenderTargets(1, &sceneRTHandle, FALSE, NULL);
@@ -723,8 +697,6 @@ void Editor::Impl::Update() {
 
 	pEditor->SwapBackBuffer();
 
-	gamePipeline->EndFrame();
-	scenePipeline->EndFrame();
 	pEditor->GetFrameResourceMngr()->EndFrame(pEditor->uCmdQueue.Get());
 	ImGui_ImplWin32_EndFrame();
 }

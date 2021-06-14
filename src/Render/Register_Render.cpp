@@ -17,6 +17,7 @@ void Ubpa::Utopia::UDRefl_Register_Render() {
 	Mngr.SimpleAddField<&Camera::clippingPlaneMin>("clippingPlaneMin");
 	Mngr.SimpleAddField<&Camera::clippingPlaneMax>("clippingPlaneMax");
 	Mngr.SimpleAddField<&Camera::prjectionMatrix>("prjectionMatrix");
+	Mngr.SimpleAddField<&Camera::renderTarget>("renderTarget");
 
 	// Light
 	Mngr.RegisterType<Light::Mode>();

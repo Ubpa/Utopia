@@ -856,14 +856,18 @@ struct StdDXRPipeline::Impl {
 		void Reserve(ID3D12Device* device, const D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO& new_info, std::size_t new_cnt_instances);
 	};
 
+	size_t lastWidth = 0;
+	size_t lastHeight = 0;
+
 	void BuildTextures();
 	void BuildFrameResources();
 	void BuildShaders();
 
-	void UpdateRenderContext(const std::vector<const UECS::World*>& worlds, const ResizeData& resizeData, const CameraData& cameraData);
+	void UpdateRenderContext(const std::vector<const UECS::World*>& worlds, size_t width, size_t height, const CameraData& cameraData);
 	void UpdateShaderCBs();
-	void Render(const ResizeData& resizeData, ID3D12Resource* rtb);
+	void Render(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData, ID3D12Resource* rtb);
 	void DrawObjects(ID3D12GraphicsCommandList*, std::string_view lightMode, size_t rtNum, DXGI_FORMAT rtFormat);
+	void Resize(size_t width, size_t height);
 };
 
 void StdDXRPipeline::Impl::TLASData::Reserve(ID3D12Device* device,
@@ -1124,7 +1128,7 @@ void StdDXRPipeline::Impl::BuildShaders() {
 
 void StdDXRPipeline::Impl::UpdateRenderContext(
 	const std::vector<const UECS::World*>& worlds,
-	const ResizeData& resizeData,
+	size_t width, size_t height,
 	const CameraData& cameraData
 ) {
 	renderContext.renderQueue.Clear();
@@ -1146,8 +1150,8 @@ void StdDXRPipeline::Impl::UpdateRenderContext(
 		newcameraConstants.InvViewProj = newcameraConstants.InvView * newcameraConstants.InvProj;
 		newcameraConstants.PrevViewProj = renderContext.cameraConstants.ViewProj;
 		newcameraConstants.EyePosW = cmptTranslation->value.as<pointf3>();
-		newcameraConstants.RenderTargetSize = { resizeData.width, resizeData.height };
-		newcameraConstants.InvRenderTargetSize = { 1.0f / resizeData.width, 1.0f / resizeData.height };
+		newcameraConstants.RenderTargetSize = { width, height };
+		newcameraConstants.InvRenderTargetSize = { 1.0f / width, 1.0f / height };
 
 		newcameraConstants.NearZ = cmptCamera->clippingPlaneMin;
 		newcameraConstants.FarZ = cmptCamera->clippingPlaneMax;
@@ -1417,9 +1421,24 @@ void StdDXRPipeline::Impl::UpdateShaderCBs() {
 	}
 }
 
-void StdDXRPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* rtb) {
-	size_t width = resizeData.width;
-	size_t height = resizeData.height;
+void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData, ID3D12Resource* rtb) {
+	assert(rtb);
+
+	size_t width = rtb->GetDesc().Width;
+	size_t height = rtb->GetDesc().Height;
+	CD3DX12_VIEWPORT viewport(0.f, 0.f, width, height);
+	D3D12_RECT scissorRect(0.f, 0.f, width, height);
+
+	// collect some cpu data
+	UpdateRenderContext(worlds, width, height, cameraData);
+
+	// Cycle through the circular frame resource array.
+	// Has the GPU finished processing the commands of the current frame resource?
+	// If not, wait until the GPU has completed commands up to this fence point.
+	frameRsrcMngr.BeginFrame();
+
+	// cpu -> gpu
+	UpdateShaderCBs();
 
 	auto cmdAlloc = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<Microsoft::WRL::ComPtr<ID3D12CommandAllocator>>("CommandAllocator");
@@ -1444,6 +1463,9 @@ void StdDXRPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* 
 	auto fgRsrcMngr = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<UDX12::FG::RsrcMngr>>("FrameGraphRsrcMngr");
 	fgRsrcMngr->NewFrame();
+
+	Resize(width, height);
+
 	fgExecutor.NewFrame();
 
 	auto rtSRsrc = frameRsrcMngr.GetCurrentFrameResource()->GetResource<Microsoft::WRL::ComPtr<ID3D12Resource>>("rtSRsrc");
@@ -1835,8 +1857,8 @@ void StdDXRPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* 
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
 			cmdList->SetDescriptorHeaps(1, &heap);
-			cmdList->RSSetViewports(1, &resizeData.screenViewport);
-			cmdList->RSSetScissorRects(1, &resizeData.scissorRect);
+			cmdList->RSSetViewports(1, &viewport);
+			cmdList->RSSetScissorRects(1, &scissorRect);
 
 			auto gb0 = rsrcs.at(gbuffer0);
 			auto gb1 = rsrcs.at(gbuffer1);
@@ -1990,8 +2012,8 @@ void StdDXRPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* 
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
 			cmdList->SetDescriptorHeaps(1, &heap);
-			cmdList->RSSetViewports(1, &resizeData.screenViewport);
-			cmdList->RSSetScissorRects(1, &resizeData.scissorRect);
+			cmdList->RSSetViewports(1, &viewport);
+			cmdList->RSSetScissorRects(1, &scissorRect);
 
 			auto gb0 = rsrcs.at(gbuffer0); // table {gb0, gb1, gb2}
 			//auto gb1 = rsrcs.at(gbuffer1);
@@ -2063,8 +2085,8 @@ void StdDXRPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* 
 				DXGI_FORMAT_R32G32B32A32_FLOAT)
 			);
 
-			cmdList->RSSetViewports(1, &resizeData.screenViewport);
-			cmdList->RSSetScissorRects(1, &resizeData.scissorRect);
+			cmdList->RSSetViewports(1, &viewport);
+			cmdList->RSSetScissorRects(1, &scissorRect);
 
 			auto rt = rsrcs.find(deferLightedSkyRT)->second;
 			auto ds = rsrcs.find(deferDS)->second;
@@ -2091,8 +2113,8 @@ void StdDXRPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* 
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
 			cmdList->SetDescriptorHeaps(1, &heap);
-			cmdList->RSSetViewports(1, &resizeData.screenViewport);
-			cmdList->RSSetScissorRects(1, &resizeData.scissorRect);
+			cmdList->RSSetViewports(1, &viewport);
+			cmdList->RSSetScissorRects(1, &scissorRect);
 
 			auto rt = rsrcs.find(sceneRT)->second;
 			auto ds = rsrcs.find(forwardDS)->second;
@@ -2327,8 +2349,8 @@ void StdDXRPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* 
 
 			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
 			cmdList->SetDescriptorHeaps(1, &heap);
-			cmdList->RSSetViewports(1, &resizeData.screenViewport);
-			cmdList->RSSetScissorRects(1, &resizeData.scissorRect);
+			cmdList->RSSetViewports(1, &viewport);
+			cmdList->RSSetScissorRects(1, &scissorRect);
 
 			auto in_table = rsrcs.at(prevRTResult); // 6
 			auto out_table = rsrcs.at(accRTResult); // 4
@@ -2367,8 +2389,8 @@ void StdDXRPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* 
 
 			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
 			cmdList->SetDescriptorHeaps(1, &heap);
-			cmdList->RSSetViewports(1, &resizeData.screenViewport);
-			cmdList->RSSetScissorRects(1, &resizeData.scissorRect);
+			cmdList->RSSetViewports(1, &viewport);
+			cmdList->RSSetScissorRects(1, &scissorRect);
 
 			// {rtS, rtU, cm, hl}
 			auto rtS = rsrcs.at(accRTResult);
@@ -2450,8 +2472,8 @@ void StdDXRPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* 
 
 					auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
 					cmdList->SetDescriptorHeaps(1, &heap);
-					cmdList->RSSetViewports(1, &resizeData.screenViewport);
-					cmdList->RSSetScissorRects(1, &resizeData.scissorRect);
+					cmdList->RSSetViewports(1, &viewport);
+					cmdList->RSSetScissorRects(1, &scissorRect);
 
 					// {rtS, rtU}
 					auto rtS = rsrcs.at(fg.GetPassNodes()[rtATrousDenoisePasses[i]].Outputs()[0]);
@@ -2503,8 +2525,8 @@ void StdDXRPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* 
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
 			cmdList->SetDescriptorHeaps(1, &heap);
-			cmdList->RSSetViewports(1, &resizeData.screenViewport);
-			cmdList->RSSetScissorRects(1, &resizeData.scissorRect);
+			cmdList->RSSetViewports(1, &viewport);
+			cmdList->RSSetScissorRects(1, &scissorRect);
 
 			auto gb0 = rsrcs.at(gbuffer0); // table {gb0, gb1, gb2}
 			//auto gb1 = rsrcs.at(gbuffer1);
@@ -2566,8 +2588,8 @@ void StdDXRPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* 
 
 			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
 			cmdList->SetDescriptorHeaps(1, &heap);
-			cmdList->RSSetViewports(1, &resizeData.screenViewport);
-			cmdList->RSSetScissorRects(1, &resizeData.scissorRect);
+			cmdList->RSSetViewports(1, &viewport);
+			cmdList->RSSetScissorRects(1, &scissorRect);
 
 			auto taa_in = rsrcs.at(taaPrevResult); // table {prev, curr}
 			auto taa_mt = rsrcs.at(motion);
@@ -2613,14 +2635,14 @@ void StdDXRPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* 
 				0,
 				static_cast<size_t>(-1),
 				1,
-				initDesc.rtFormat,
+				rtb->GetDesc().Format,
 				DXGI_FORMAT_UNKNOWN)
 			);
 
 			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
 			cmdList->SetDescriptorHeaps(1, &heap);
-			cmdList->RSSetViewports(1, &resizeData.screenViewport);
-			cmdList->RSSetScissorRects(1, &resizeData.scissorRect);
+			cmdList->RSSetViewports(1, &viewport);
+			cmdList->RSSetScissorRects(1, &scissorRect);
 
 			auto rt = rsrcs.find(presentedRT)->second;
 			auto img = rsrcs.find(taaResult)->second;
@@ -2654,6 +2676,8 @@ void StdDXRPipeline::Impl::Render(const ResizeData& resizeData, ID3D12Resource* 
 		crst,
 		*fgRsrcMngr
 	);
+
+	frameRsrcMngr.EndFrame(initDesc.cmdQueue);
 }
 
 void StdDXRPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::string_view lightMode, size_t rtNum, DXGI_FORMAT rtFormat) {
@@ -2760,37 +2784,24 @@ StdDXRPipeline::StdDXRPipeline(InitDesc initDesc) :
 
 StdDXRPipeline::~StdDXRPipeline() { delete pImpl; }
 
-void StdDXRPipeline::BeginFrame(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData) {
-	// collect some cpu data
-	pImpl->UpdateRenderContext(worlds, GetResizeData(), cameraData);
-
-	// Cycle through the circular frame resource array.
-	// Has the GPU finished processing the commands of the current frame resource?
-	// If not, wait until the GPU has completed commands up to this fence point.
-	pImpl->frameRsrcMngr.BeginFrame();
-
-	// cpu -> gpu
-	pImpl->UpdateShaderCBs();
+void StdDXRPipeline::Render(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData, ID3D12Resource* rt) {
+	pImpl->Render(worlds, cameraData, rt);
 }
 
-void StdDXRPipeline::Render(ID3D12Resource* rt) {
-	pImpl->Render(GetResizeData(), rt);
-}
+void StdDXRPipeline::Impl::Resize(size_t width, size_t height) {
+	if (lastWidth == width && lastHeight == height)
+		return;
+	lastWidth = width;
+	lastHeight = height;
 
-void StdDXRPipeline::EndFrame() {
-	pImpl->frameRsrcMngr.EndFrame(initDesc.cmdQueue);
-}
-
-void StdDXRPipeline::Impl_Resize() {
-	const auto& resize_data = GetResizeData();
 	D3D12_RESOURCE_DESC rtResultDesc = {};
 	{ // fill rtResultType
 		rtResultDesc.DepthOrArraySize = 1;
 		rtResultDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 		rtResultDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 		rtResultDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS | D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
-		rtResultDesc.Width = resize_data.width;
-		rtResultDesc.Height = (UINT)resize_data.height;
+		rtResultDesc.Width = width;
+		rtResultDesc.Height = (UINT)height;
 		rtResultDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 		rtResultDesc.MipLevels = 1;
 		rtResultDesc.SampleDesc.Count = 1;
@@ -2801,13 +2812,13 @@ void StdDXRPipeline::Impl_Resize() {
 		historyLengthDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 		historyLengthDesc.Format = DXGI_FORMAT_R32_UINT;
 		historyLengthDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-		historyLengthDesc.Width = resize_data.width;
-		historyLengthDesc.Height = (UINT)resize_data.height;
+		historyLengthDesc.Width = width;
+		historyLengthDesc.Height = (UINT)height;
 		historyLengthDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 		historyLengthDesc.MipLevels = 1;
 		historyLengthDesc.SampleDesc.Count = 1;
 	}
-	auto rt2dDesc = UDX12::Desc::RSRC::RT2D(resize_data.width, (UINT)resize_data.height, DXGI_FORMAT_R32G32B32A32_FLOAT);
+	auto rt2dDesc = UDX12::Desc::RSRC::RT2D(width, (UINT)height, DXGI_FORMAT_R32G32B32A32_FLOAT);
 
 	Microsoft::WRL::ComPtr<ID3D12Resource> rtURsrc;
 	Microsoft::WRL::ComPtr<ID3D12Resource> rtSRsrc;
@@ -2877,7 +2888,7 @@ void StdDXRPipeline::Impl_Resize() {
 		IID_PPV_ARGS(&taaPrevRsrc)
 	);
 
-	for (auto& frsrc : pImpl->frameRsrcMngr.GetFrameResources()) {
+	for (auto& frsrc : frameRsrcMngr.GetFrameResources()) {
 		frsrc->DelayUpdateResource(
 			"FrameGraphRsrcMngr",
 			[](std::shared_ptr<UDX12::FG::RsrcMngr> rsrcMngr) {

@@ -1,6 +1,8 @@
 #pragma once
 
 #include <UGM/transform.hpp>
+#include "../RenderTargetTexture2D.h"
+#include "../../Core/SharedVar.h"
 
 namespace Ubpa::Utopia {
 	struct Camera {
@@ -13,5 +15,11 @@ namespace Ubpa::Utopia {
 		float clippingPlaneMax{ 1000.f };
 
 		transformf prjectionMatrix;
+
+		// if renderTarget is nullptr:
+		//   the camera will render the scene to the default render target
+		// else:
+		//   the camera will render to it
+		SharedVar<RenderTargetTexture2D> renderTarget;
 	};
 }
