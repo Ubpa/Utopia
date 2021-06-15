@@ -1138,9 +1138,9 @@ void StdDXRPipeline::Impl::UpdateRenderContext(
 
 	if (cameraData.entity.Valid()) { // camera
 		CameraConstants newcameraConstants;
-		auto cmptCamera = cameraData.world.entityMngr.ReadComponent<Camera>(cameraData.entity);
-		auto cmptW2L = cameraData.world.entityMngr.ReadComponent<WorldToLocal>(cameraData.entity);
-		auto cmptTranslation = cameraData.world.entityMngr.ReadComponent<Translation>(cameraData.entity);
+		auto cmptCamera = cameraData.world->entityMngr.ReadComponent<Camera>(cameraData.entity);
+		auto cmptW2L = cameraData.world->entityMngr.ReadComponent<WorldToLocal>(cameraData.entity);
+		auto cmptTranslation = cameraData.world->entityMngr.ReadComponent<Translation>(cameraData.entity);
 
 		newcameraConstants.View = cmptW2L->value;
 		newcameraConstants.InvView = newcameraConstants.View.inverse();

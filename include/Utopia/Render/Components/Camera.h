@@ -21,5 +21,6 @@ namespace Ubpa::Utopia {
 		// else:
 		//   the camera will render to it
 		SharedVar<RenderTargetTexture2D> renderTarget;
+		int order{ 0 };
 	};
 }

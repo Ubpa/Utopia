@@ -29,10 +29,10 @@ namespace Ubpa::Utopia {
 			ID3D12CommandQueue* cmdQueue;
 		};
 		struct CameraData {
-			CameraData(UECS::Entity entity, const UECS::World& world)
+			CameraData(UECS::Entity entity, const UECS::World* world)
 				: entity{ entity }, world{ world } {}
 			UECS::Entity entity;
-			const UECS::World& world;
+			const UECS::World* world;
 		};
 
 		PipelineBase(InitDesc initDesc) : initDesc{ initDesc } {}

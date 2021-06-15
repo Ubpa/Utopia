@@ -15,7 +15,7 @@ Ubpa_AddDep(UVisitor   0.1.0)
 Ubpa_AddDep(UGM        0.7.4)
 Ubpa_AddDep(UECS       0.16.0)
 Ubpa_AddDep(UDX12      0.1.1)
-Ubpa_AddDep(UDRefl     0.10.4)
+Ubpa_AddDep(UDRefl     0.10.5)
 Ubpa_AddDep(UANTLR     0.3.0)
 Ubpa_AddDep(USignal    0.3.1)
 

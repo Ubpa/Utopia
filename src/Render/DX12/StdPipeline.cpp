@@ -453,17 +453,17 @@ void StdPipeline::Impl::UpdateRenderContext(
 	renderContext.shaderCBDescMap.clear();
 
 	if(cameraData.entity.Valid()) { // camera
-		auto cmptCamera = cameraData.world.entityMngr.ReadComponent<Camera>(cameraData.entity);
-		auto cmptW2L = cameraData.world.entityMngr.ReadComponent<WorldToLocal>(cameraData.entity);
-		auto cmptTranslation = cameraData.world.entityMngr.ReadComponent<Translation>(cameraData.entity);
+		auto cmptCamera = cameraData.world->entityMngr.ReadComponent<Camera>(cameraData.entity);
+		auto cmptW2L = cameraData.world->entityMngr.ReadComponent<WorldToLocal>(cameraData.entity);
+		auto cmptTranslation = cameraData.world->entityMngr.ReadComponent<Translation>(cameraData.entity);
 		
-		renderContext.cameraConstants.View = cmptW2L->value;
+		renderContext.cameraConstants.View = cmptW2L ? cmptW2L->value : transformf::eye();
 		renderContext.cameraConstants.InvView = renderContext.cameraConstants.View.inverse();
 		renderContext.cameraConstants.Proj = cmptCamera->prjectionMatrix;
 		renderContext.cameraConstants.InvProj = renderContext.cameraConstants.Proj.inverse();
 		renderContext.cameraConstants.ViewProj = renderContext.cameraConstants.Proj * renderContext.cameraConstants.View;
 		renderContext.cameraConstants.InvViewProj = renderContext.cameraConstants.InvView * renderContext.cameraConstants.InvProj;
-		renderContext.cameraConstants.EyePosW = cmptTranslation->value.as<pointf3>();
+		renderContext.cameraConstants.EyePosW = cmptTranslation ? cmptTranslation->value.as<pointf3>() : pointf3{ 0.f };
 		renderContext.cameraConstants.RenderTargetSize = { width, height };
 		renderContext.cameraConstants.InvRenderTargetSize = { 1.0f / width, 1.0f / height };
 

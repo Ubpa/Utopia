@@ -3,12 +3,25 @@
 #include <Utopia/Render/Components/Components.h>
 #include <Utopia/Render/Systems/Systems.h>
 
+#include <Utopia/Render/Texture2D.h>
+#include <Utopia/Render/TextureCube.h>
+#include <Utopia/Render/RenderTargetTexture2D.h>
+
 #include <UDRefl/UDRefl.hpp>
 
 using namespace Ubpa::Utopia;
 using namespace Ubpa::UDRefl;
 
 void Ubpa::Utopia::UDRefl_Register_Render() {
+	// Texture
+	UDRefl::Mngr.RegisterType<GPURsrc>();
+	UDRefl::Mngr.RegisterType<Texture2D>();
+	UDRefl::Mngr.AddBases<Texture2D, GPURsrc>();
+	UDRefl::Mngr.RegisterType<TextureCube>();
+	UDRefl::Mngr.AddBases<TextureCube, GPURsrc>();
+	UDRefl::Mngr.RegisterType<RenderTargetTexture2D>();
+	UDRefl::Mngr.AddBases<RenderTargetTexture2D, Texture2D>();
+
 	// Camera
 	// TODO: attrs
 	Mngr.RegisterType<Camera>();
@@ -17,7 +30,8 @@ void Ubpa::Utopia::UDRefl_Register_Render() {
 	Mngr.SimpleAddField<&Camera::clippingPlaneMin>("clippingPlaneMin");
 	Mngr.SimpleAddField<&Camera::clippingPlaneMax>("clippingPlaneMax");
 	Mngr.SimpleAddField<&Camera::prjectionMatrix>("prjectionMatrix");
-	Mngr.SimpleAddField<&Camera::renderTarget>("renderTarget");
+	Mngr.AddField<&Camera::renderTarget>("renderTarget");
+	Mngr.SimpleAddField<&Camera::order>("order");
 
 	// Light
 	Mngr.RegisterType<Light::Mode>();

@@ -631,13 +631,20 @@ void Editor::Impl::Update() {
 				std::vector<PipelineBase::CameraData> gameCameras;
 				Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::AccessTypeID_of<Camera>} };
 				curGameWorld->RunEntityJob([&](Ubpa::UECS::Entity e) {
-					gameCameras.emplace_back(e, *curGameWorld);
-					}, false, camFilter);
+					gameCameras.emplace_back(e, curGameWorld);
+				}, false, camFilter);
 				assert(gameCameras.empty() || gameCameras.size() == 1); // now only support 0/1 camera
 				if (gameCameras.empty())
-					gamePipeline->Render({ curGameWorld }, { Entity::Invalid(), *curGameWorld }, gameRT.Get());
-				else
-					gamePipeline->Render({ curGameWorld }, gameCameras.front(), gameRT.Get());
+					gamePipeline->Render({ curGameWorld }, { Entity::Invalid(), curGameWorld }, gameRT.Get());
+				else {
+					std::sort(gameCameras.begin(), gameCameras.end(), [](const PipelineBase::CameraData& left, const PipelineBase::CameraData& right) {
+						return left.world->entityMngr.ReadComponent<Camera>(left.entity)->order
+							< right.world->entityMngr.ReadComponent<Camera>(right.entity)->order;
+					});
+					for (const auto& camera : gameCameras) {
+						gamePipeline->Render({ curGameWorld }, gameCameras.front(), gameRT.Get());
+					}
+				}
 			}
 			pEditor->uGCmdList.ResourceBarrierTransition(gameRT.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 			const auto gameRTHandle = gameRT_RTV.GetCpuHandle();
@@ -659,11 +666,11 @@ void Editor::Impl::Update() {
 				std::vector<PipelineBase::CameraData> sceneCameras;
 				Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::AccessTypeID_of<Camera>} };
 				sceneWorld.RunEntityJob([&](Ubpa::UECS::Entity e) {
-					sceneCameras.emplace_back(e, sceneWorld);
-					}, false, camFilter);
+					sceneCameras.emplace_back(e, &sceneWorld);
+				}, false, camFilter);
 				assert(sceneCameras.empty() || sceneCameras.size() == 1); // now only support 0/1 camera
 				if (sceneCameras.empty())
-					scenePipeline->Render({ curGameWorld, &sceneWorld }, { Entity::Invalid(), sceneWorld }, sceneRT.Get());
+					scenePipeline->Render({ curGameWorld, &sceneWorld }, { Entity::Invalid(), &sceneWorld }, sceneRT.Get());
 				else
 					scenePipeline->Render({ curGameWorld, &sceneWorld }, sceneCameras.front(), sceneRT.Get());
 			}

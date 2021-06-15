@@ -281,6 +281,14 @@ namespace Ubpa::Utopia {
         SharedVar& operator=(UDRefl::SharedObject obj) noexcept {
             if (obj.GetType().Is<T>())
                 ptr = std::reinterpret_pointer_cast<T>(obj.GetBuffer());
+            else if (auto casted_obj = obj.StaticCast_DerivedToBase(Type_of<T>); casted_obj.GetType().Valid() && (!obj.GetPtr()||casted_obj.GetPtr()))
+                ptr = std::reinterpret_pointer_cast<T>(casted_obj.GetBuffer());
+            else {
+                //if constexpr (std::is_polymorphic_v<T>) {
+                    if (auto casted_obj = obj.DynamicCast_BaseToDerived(Type_of<T>); casted_obj.GetType().Valid() && (!obj.GetPtr() || casted_obj.GetPtr()))
+                        ptr = std::reinterpret_pointer_cast<T>(casted_obj.GetBuffer());
+                //}
+            }
             return *this;
         }
 
