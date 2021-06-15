@@ -29,8 +29,6 @@ namespace Ubpa::Utopia {
 			ID3D12CommandQueue* cmdQueue;
 		};
 		struct CameraData {
-			CameraData(UECS::Entity entity, const UECS::World* world)
-				: entity{ entity }, world{ world } {}
 			UECS::Entity entity;
 			const UECS::World* world;
 		};
@@ -39,7 +37,7 @@ namespace Ubpa::Utopia {
 
 		virtual ~PipelineBase() = default;
 
-		virtual void Render(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData, ID3D12Resource* rt) = 0;
+		virtual void Render(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData, ID3D12Resource* default_rtb) = 0;
 
 	protected:
 		const InitDesc initDesc;

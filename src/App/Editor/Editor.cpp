@@ -633,7 +633,6 @@ void Editor::Impl::Update() {
 				curGameWorld->RunEntityJob([&](Ubpa::UECS::Entity e) {
 					gameCameras.emplace_back(e, curGameWorld);
 				}, false, camFilter);
-				assert(gameCameras.empty() || gameCameras.size() == 1); // now only support 0/1 camera
 				if (gameCameras.empty())
 					gamePipeline->Render({ curGameWorld }, { Entity::Invalid(), curGameWorld }, gameRT.Get());
 				else {

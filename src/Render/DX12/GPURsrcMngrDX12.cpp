@@ -218,8 +218,10 @@ UDX12::ResourceDeleteBatch GPURsrcMngrDX12::CommitUploadAndTakeDeleteBatch(ID3D1
 }
 
 GPURsrcMngrDX12& GPURsrcMngrDX12::RegisterTexture2D(Texture2D& tex2D) {
-	if (tex2D.IsDirty())
+	if (tex2D.IsDirty()) {
 		UnregisterTexture2D(tex2D.GetInstanceID());
+		UnregisterRenderTargetTexture2D(tex2D.GetInstanceID());
+	}
 	else {
 		auto target = pImpl->texture2DMap.find(tex2D.GetInstanceID());
 		if (target != pImpl->texture2DMap.end())
@@ -358,8 +360,10 @@ GPURsrcMngrDX12& GPURsrcMngrDX12::UnregisterTextureCube(std::size_t ID) {
 }
 
 GPURsrcMngrDX12& GPURsrcMngrDX12::RegisterRenderTargetTexture2D(RenderTargetTexture2D& rtTex2D) {
-	if (rtTex2D.IsDirty())
+	if (rtTex2D.IsDirty()) {
+		UnregisterTexture2D(rtTex2D.GetInstanceID());
 		UnregisterRenderTargetTexture2D(rtTex2D.GetInstanceID());
+	}
 	else {
 		auto target = pImpl->rtTexture2DMap.find(rtTex2D.GetInstanceID());
 		if (target != pImpl->rtTexture2DMap.end())
@@ -397,6 +401,7 @@ GPURsrcMngrDX12& GPURsrcMngrDX12::RegisterRenderTargetTexture2D(RenderTargetText
 
 	rtTex2D.SetClean();
 	rtTex2D.destroyed.Connect<&GPURsrcMngrDX12::UnregisterRenderTargetTexture2D>(this);
+	rtTex2D.destroyed.Connect<&GPURsrcMngrDX12::UnregisterTexture2D>(this);
 
 	return *this;
 }
@@ -416,22 +421,45 @@ GPURsrcMngrDX12& GPURsrcMngrDX12::UnregisterRenderTargetTexture2D(std::size_t ID
 }
 
 D3D12_CPU_DESCRIPTOR_HANDLE GPURsrcMngrDX12::GetTexture2DSrvCpuHandle(const Texture2D& tex2D) const {
-	return pImpl->texture2DMap.find(tex2D.GetInstanceID())->second.allocationSRV.GetCpuHandle(0);
+	// render target [first]
+	if (auto target = pImpl->rtTexture2DMap.find(tex2D.GetInstanceID()); target != pImpl->rtTexture2DMap.end())
+		return target->second.allocationSRV.GetCpuHandle();
+
+	return pImpl->texture2DMap.at(tex2D.GetInstanceID()).allocationSRV.GetCpuHandle(0);
 }
 D3D12_GPU_DESCRIPTOR_HANDLE GPURsrcMngrDX12::GetTexture2DSrvGpuHandle(const Texture2D& tex2D) const {
-	return pImpl->texture2DMap.find(tex2D.GetInstanceID())->second.allocationSRV.GetGpuHandle(0);
+	// render target [first]
+	if (auto target = pImpl->rtTexture2DMap.find(tex2D.GetInstanceID()); target != pImpl->rtTexture2DMap.end())
+		return target->second.allocationSRV.GetGpuHandle();
+	return pImpl->texture2DMap.at(tex2D.GetInstanceID()).allocationSRV.GetGpuHandle(0);
 }
 ID3D12Resource* GPURsrcMngrDX12::GetTexture2DResource(const Texture2D& tex2D) const {
-	return pImpl->texture2DMap.find(tex2D.GetInstanceID())->second.resource.Get();
+	// render target [first]
+	if (auto target = pImpl->rtTexture2DMap.find(tex2D.GetInstanceID()); target != pImpl->rtTexture2DMap.end())
+		return target->second.resource.Get();
+	return pImpl->texture2DMap.at(tex2D.GetInstanceID()).resource.Get();
 }
 D3D12_CPU_DESCRIPTOR_HANDLE GPURsrcMngrDX12::GetTextureCubeSrvCpuHandle(const TextureCube& texCube) const {
-	return pImpl->textureCubeMap.find(texCube.GetInstanceID())->second.allocationSRV.GetCpuHandle(0);
+	return pImpl->textureCubeMap.at(texCube.GetInstanceID()).allocationSRV.GetCpuHandle(0);
 }
 D3D12_GPU_DESCRIPTOR_HANDLE GPURsrcMngrDX12::GetTextureCubeSrvGpuHandle(const TextureCube& texCube) const {
-	return pImpl->textureCubeMap.find(texCube.GetInstanceID())->second.allocationSRV.GetGpuHandle(0);
+	return pImpl->textureCubeMap.at(texCube.GetInstanceID()).allocationSRV.GetGpuHandle(0);
 }
 ID3D12Resource* GPURsrcMngrDX12::GetTextureCubeResource(const TextureCube& texCube) const {
-	return pImpl->textureCubeMap.find(texCube.GetInstanceID())->second.resource.Get();
+	return pImpl->textureCubeMap.at(texCube.GetInstanceID()).resource.Get();
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE GPURsrcMngrDX12::GetRenderTargetTexture2DSrvCpuHandle(const RenderTargetTexture2D& rtTex2D) const {
+	return pImpl->rtTexture2DMap.at(rtTex2D.GetInstanceID()).allocationSRV.GetCpuHandle();
+}
+D3D12_GPU_DESCRIPTOR_HANDLE GPURsrcMngrDX12::GetRenderTargetTexture2DSrvGpuHandle(const RenderTargetTexture2D& rtTex2D) const {
+	return pImpl->rtTexture2DMap.at(rtTex2D.GetInstanceID()).allocationSRV.GetGpuHandle();
+}
+D3D12_CPU_DESCRIPTOR_HANDLE GPURsrcMngrDX12::GetRenderTargetTexture2DRtvCpuHandle(const RenderTargetTexture2D& rtTex2D) const {
+	return pImpl->rtTexture2DMap.at(rtTex2D.GetInstanceID()).allocationRTV.GetCpuHandle();
+}
+ID3D12Resource* GPURsrcMngrDX12::GetRenderTargetTexture2DResource(const RenderTargetTexture2D& rtTex2D) const {
+	return pImpl->rtTexture2DMap.at(rtTex2D.GetInstanceID()).resource.Get();
 }
 
 UDX12::MeshGPUBuffer& GPURsrcMngrDX12::RegisterMesh(ID3D12GraphicsCommandList* cmdList, Mesh& mesh) {

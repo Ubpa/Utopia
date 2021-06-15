@@ -725,9 +725,18 @@ void StdPipeline::Impl::UpdateShaderCBs() {
 	}
 }
 
-void StdPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData, ID3D12Resource* rtb) {
-	assert(rtb);
-	
+void StdPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData, ID3D12Resource* default_rtb) {
+	ID3D12Resource* rtb = default_rtb;
+	{ // set rtb
+		if (cameraData.entity.Valid()) {
+			auto camera_rtb = cameraData.world->entityMngr.ReadComponent<Camera>(cameraData.entity)->renderTarget;
+			if (camera_rtb) {
+				GPURsrcMngrDX12::Instance().RegisterRenderTargetTexture2D(*camera_rtb);
+				rtb = GPURsrcMngrDX12::Instance().GetRenderTargetTexture2DResource(*camera_rtb);
+			}
+		}
+		assert(rtb);
+	}
 	size_t width = rtb->GetDesc().Width;
 	size_t height = rtb->GetDesc().Height;
 	CD3DX12_VIEWPORT viewport(0.f, 0.f, width, height);
@@ -1304,7 +1313,7 @@ StdPipeline::StdPipeline(InitDesc initDesc) :
 
 StdPipeline::~StdPipeline() { delete pImpl; }
 
-void StdPipeline::Render(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData, ID3D12Resource* rt) {
-	pImpl->Render(worlds, cameraData, rt);
+void StdPipeline::Render(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData, ID3D12Resource* default_rtb) {
+	pImpl->Render(worlds, cameraData, default_rtb);
 }
 

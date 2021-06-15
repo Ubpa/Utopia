@@ -67,6 +67,11 @@ namespace Ubpa::Utopia {
 		D3D12_GPU_DESCRIPTOR_HANDLE GetTextureCubeSrvGpuHandle(const TextureCube& texcube) const;
 		ID3D12Resource* GetTextureCubeResource(const TextureCube& texcube) const;
 
+		D3D12_CPU_DESCRIPTOR_HANDLE GetRenderTargetTexture2DSrvCpuHandle(const RenderTargetTexture2D& rtTex2D) const;
+		D3D12_GPU_DESCRIPTOR_HANDLE GetRenderTargetTexture2DSrvGpuHandle(const RenderTargetTexture2D& rtTex2D) const;
+		D3D12_CPU_DESCRIPTOR_HANDLE GetRenderTargetTexture2DRtvCpuHandle(const RenderTargetTexture2D& rtTex2D) const;
+		ID3D12Resource* GetRenderTargetTexture2DResource(const RenderTargetTexture2D& rtTex2D) const;
+
 		UDX12::MeshGPUBuffer& GetMeshGPUBuffer(const Mesh& mesh) const;
 		ID3D12Resource* GetMeshBLAS(const Mesh& mesh) const;
 		D3D12_CPU_DESCRIPTOR_HANDLE GetMeshBufferTableCpuHandle(const Mesh& mesh, size_t geometryIdx) const;

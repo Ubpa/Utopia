@@ -424,6 +424,20 @@ void InspectorRegistry::InspectRecursively(std::string_view name, UDRefl::Object
 				}
 				else
 					ImGui::Button("nullptr");
+
+				if (ImGui::IsItemClicked(ImGuiMouseButton_Right))
+					ImGui::OpenPopup("InspectorRegistry_SharedObject_Menu");
+			}
+
+			if (ImGui::BeginPopup("InspectorRegistry_SharedObject_Menu")) {
+				if (ImGui::MenuItem("Clear")) {
+					SharedObject nullobj;
+					objv.Invoke<void>(
+						NameIDRegistry::Meta::operator_assignment,
+						TempArgsView{ ObjectView{Type_of<SharedObject>,&nullobj} },
+						MethodFlag::Variable);
+				}
+				ImGui::EndPopup();
 			}
 
 			if (ImGui::BeginDragDropTarget()) { // to button
@@ -463,6 +477,20 @@ void InspectorRegistry::InspectRecursively(std::string_view name, UDRefl::Object
 				}
 				else
 					ImGui::Button("nullptr");
+
+				if (ImGui::IsItemClicked(ImGuiMouseButton_Right))
+					ImGui::OpenPopup("InspectorRegistry_SharedVar_Menu");
+			}
+
+			if (ImGui::BeginPopup("InspectorRegistry_SharedVar_Menu")) {
+				if (ImGui::MenuItem("Clear")) {
+					SharedObject nullobj;
+					objv.Invoke<void>(
+						NameIDRegistry::Meta::operator_assignment,
+						TempArgsView{ ObjectView{Type_of<SharedObject>,&nullobj} },
+						MethodFlag::Variable);
+				}
+				ImGui::EndPopup();
 			}
 
 			if (ImGui::BeginDragDropTarget()) { // to button
