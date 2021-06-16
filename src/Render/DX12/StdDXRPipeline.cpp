@@ -2792,8 +2792,8 @@ StdDXRPipeline::StdDXRPipeline(InitDesc initDesc) :
 
 StdDXRPipeline::~StdDXRPipeline() { delete pImpl; }
 
-void StdDXRPipeline::Render(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData, ID3D12Resource* default_rtb) {
-	pImpl->Render(worlds, cameraData, default_rtb);
+void StdDXRPipeline::Render(const std::vector<const UECS::World*>& worlds, std::span<const CameraData> cameras, ID3D12Resource* default_rtb) {
+	pImpl->Render(worlds, cameras.front(), default_rtb);
 }
 
 void StdDXRPipeline::Impl::Resize(size_t width, size_t height) {

@@ -10,6 +10,7 @@
 #include <unordered_set>
 #include <vector>
 #include <memory>
+#include <span>
 
 namespace Ubpa::UECS {
 	class World;
@@ -34,7 +35,7 @@ namespace Ubpa::Utopia {
 
 		virtual ~IPipeline() = default;
 
-		virtual void Render(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData, ID3D12Resource* default_rtb) = 0;
+		virtual void Render(const std::vector<const UECS::World*>& worlds, std::span<const CameraData> cameraData, ID3D12Resource* default_rtb) = 0;
 
 	public:
 		//

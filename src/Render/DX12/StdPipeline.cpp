@@ -1,6 +1,7 @@
 #include <Utopia/Render/DX12/StdPipeline.h>
 
 #include "../_deps/LTCTex.h"
+#include <Utopia/Render/DX12/CameraRsrcMngr.h>
 
 #include <Utopia/Render/DX12/GPURsrcMngrDX12.h>
 #include <Utopia/Render/DX12/MeshLayoutMngr.h>
@@ -57,17 +58,19 @@ struct StdPipeline::Impl {
 		transformf InvWorld;
 	};
 	struct CameraConstants {
-		transformf View;
+		val<float, 16> View;
 
-		transformf InvView;
+		val<float, 16> InvView;
 
-		transformf Proj;
+		val<float, 16> Proj;
 
-		transformf InvProj;
+		val<float, 16> InvProj;
 
-		transformf ViewProj;
+		val<float, 16> ViewProj;
 
-		transformf InvViewProj;
+		val<float, 16> InvViewProj;
+
+		val<float, 16> PrevViewProj;
 
 		pointf3 EyePosW;
 		float _pad0;
@@ -150,10 +153,12 @@ struct StdPipeline::Impl {
 	};
 	UDX12::DescriptorHeapAllocation defaultIBLSRVDH; // 3
 
+	// current frame data
 	struct RenderContext {
 		RenderQueue renderQueue;
 
-		CameraConstants cameraConstants;
+		CameraRsrcMngr crossFrameCameraRsrcs;
+		static constexpr const char key_CameraConstants[] = "CameraConstants";
 
 		std::unordered_map<const Shader*, IPipeline::ShaderCBDesc> shaderCBDescMap; // shader ID -> desc
 
@@ -161,10 +166,9 @@ struct StdPipeline::Impl {
 		LightArray lights;
 
 		// common
-		size_t cameraOffset = 0;
-		size_t lightOffset = UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
-		size_t objectOffset = UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants))
-			+ UDX12::Util::CalcConstantBufferByteSize(sizeof(LightArray));
+		size_t cameraOffset;
+		size_t lightOffset;
+		size_t objectOffset;
 		struct EntityData {
 			valf<16> l2w;
 			valf<16> w2l;
@@ -211,18 +215,15 @@ struct StdPipeline::Impl {
 
 	const DXGI_FORMAT dsFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
-	size_t lastWidth = 0;
-	size_t lastHeight = 0;
-
 	void BuildTextures();
 	void BuildFrameResources();
 	void BuildShaders();
 
-	void UpdateRenderContext(const std::vector<const UECS::World*>& worlds, size_t width, size_t height, const CameraData& cameraData);
+	void UpdateRenderContext(const std::vector<const UECS::World*>& worlds, size_t width, size_t height, std::span<const CameraData> cameras);
 	void UpdateShaderCBs();
-	void Render(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData, ID3D12Resource* rtb);
-	void DrawObjects(ID3D12GraphicsCommandList*, std::string_view lightMode, size_t rtNum, DXGI_FORMAT rtFormat);
-	void Resize(size_t width, size_t height);
+	void Render(const std::vector<const UECS::World*>& worlds, std::span<const CameraData> cameras, ID3D12Resource* rtb);
+	void CameraRender(const CameraData& cameraData, ID3D12Resource* rtb);
+	void DrawObjects(ID3D12GraphicsCommandList*, std::string_view lightMode, size_t rtNum, DXGI_FORMAT rtFormat, D3D12_GPU_VIRTUAL_ADDRESS cameraCBAdress);
 };
 
 StdPipeline::Impl::~Impl() {
@@ -235,22 +236,6 @@ StdPipeline::Impl::~Impl() {
 	GPURsrcMngrDX12::Instance().UnregisterTexture2D(ltcTexes[0].GetInstanceID());
 	GPURsrcMngrDX12::Instance().UnregisterTexture2D(ltcTexes[1].GetInstanceID());
 	UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(ltcHandles));
-}
-
-void StdPipeline::Impl::Resize(size_t width, size_t height) {
-	if (lastWidth == width && lastHeight == height)
-		return;
-
-	lastWidth = width;
-	lastHeight = height;
-	for (auto& frsrc : frameRsrcMngr.GetFrameResources()) {
-		frsrc->DelayUpdateResource(
-			"FrameGraphRsrcMngr",
-			[](std::shared_ptr<UDX12::FG::RsrcMngr> rsrcMngr) {
-				rsrcMngr->Clear();
-			}
-		);
-	}
 }
 
 void StdPipeline::Impl::BuildTextures() {
@@ -305,8 +290,8 @@ void StdPipeline::Impl::BuildFrameResources() {
 		fr->RegisterResource("ShaderCB", std::make_shared<UDX12::DynamicUploadVector>(initDesc.device));
 		fr->RegisterResource("CommonShaderCB", std::make_shared<UDX12::DynamicUploadVector>(initDesc.device));
 
-		auto fgRsrcMngr = std::make_shared<UDX12::FG::RsrcMngr>();
-		fr->RegisterResource("FrameGraphRsrcMngr", fgRsrcMngr);
+		fr->RegisterResource("CameraRsrcMngr", std::make_shared<CameraRsrcMngr>());
+		fr->RegisterResource("FrameGraphRsrcMngr", std::make_shared<UDX12::FG::RsrcMngr>());
 
 		D3D12_CLEAR_VALUE clearColor;
 		clearColor.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
@@ -436,33 +421,48 @@ void StdPipeline::Impl::BuildShaders() {
 
 void StdPipeline::Impl::UpdateRenderContext(
 	const std::vector<const UECS::World*>& worlds,
-	size_t width, size_t height,
-	const CameraData& cameraData
+	size_t width, size_t height, // default render target size
+	std::span<const CameraData> cameras
 ) {
 	renderContext.renderQueue.Clear();
 	renderContext.entity2data.clear();
 	renderContext.entity2offset.clear();
 	renderContext.shaderCBDescMap.clear();
 
-	if(cameraData.entity.Valid()) { // camera
-		auto cmptCamera = cameraData.world->entityMngr.ReadComponent<Camera>(cameraData.entity);
-		auto cmptW2L = cameraData.world->entityMngr.ReadComponent<WorldToLocal>(cameraData.entity);
-		auto cmptTranslation = cameraData.world->entityMngr.ReadComponent<Translation>(cameraData.entity);
-		
-		renderContext.cameraConstants.View = cmptW2L ? cmptW2L->value : transformf::eye();
-		renderContext.cameraConstants.InvView = renderContext.cameraConstants.View.inverse();
-		renderContext.cameraConstants.Proj = cmptCamera->prjectionMatrix;
-		renderContext.cameraConstants.InvProj = renderContext.cameraConstants.Proj.inverse();
-		renderContext.cameraConstants.ViewProj = renderContext.cameraConstants.Proj * renderContext.cameraConstants.View;
-		renderContext.cameraConstants.InvViewProj = renderContext.cameraConstants.InvView * renderContext.cameraConstants.InvProj;
-		renderContext.cameraConstants.EyePosW = cmptTranslation ? cmptTranslation->value.as<pointf3>() : pointf3{ 0.f };
-		renderContext.cameraConstants.RenderTargetSize = { width, height };
-		renderContext.cameraConstants.InvRenderTargetSize = { 1.0f / width, 1.0f / height };
+	renderContext.crossFrameCameraRsrcs.Update(cameras);
 
-		renderContext.cameraConstants.NearZ = cmptCamera->clippingPlaneMin;
-		renderContext.cameraConstants.FarZ = cmptCamera->clippingPlaneMax;
-		renderContext.cameraConstants.TotalTime = GameTimer::Instance().TotalTime();
-		renderContext.cameraConstants.DeltaTime = GameTimer::Instance().DeltaTime();
+	for (const auto& camera : cameras) {
+		auto& cameraRsrc = renderContext.crossFrameCameraRsrcs.Get(camera);
+		if (!cameraRsrc.HaveResource(RenderContext::key_CameraConstants))
+			cameraRsrc.RegisterResource(RenderContext::key_CameraConstants, CameraConstants{});
+		auto& cameraConstants = cameraRsrc.GetResource<CameraConstants>(RenderContext::key_CameraConstants);
+
+		auto cmptCamera = camera.world->entityMngr.ReadComponent<Camera>(camera.entity);
+		auto cmptW2L = camera.world->entityMngr.ReadComponent<WorldToLocal>(camera.entity);
+		auto cmptTranslation = camera.world->entityMngr.ReadComponent<Translation>(camera.entity);
+		size_t rt_width = width, rt_height = height;
+		if (cmptCamera->renderTarget) {
+			rt_width = cmptCamera->renderTarget->image.GetWidth();
+			rt_height = cmptCamera->renderTarget->image.GetHeight();
+		}
+
+		transformf view = cmptW2L ? cmptW2L->value : transformf::eye();
+		transformf proj = cmptCamera->prjectionMatrix;
+		cameraConstants.View = view;
+		cameraConstants.InvView = view.inverse();
+		cameraConstants.Proj = proj;
+		cameraConstants.InvProj = proj.inverse();
+		cameraConstants.PrevViewProj = cameraConstants.ViewProj;
+		cameraConstants.ViewProj = proj * view;
+		cameraConstants.InvViewProj = view.inverse() * proj.inverse();
+		cameraConstants.EyePosW = cmptTranslation ? cmptTranslation->value.as<pointf3>() : pointf3{ 0.f };
+		cameraConstants.RenderTargetSize = { rt_width, rt_height };
+		cameraConstants.InvRenderTargetSize = { 1.0f / rt_width, 1.0f / rt_height };
+
+		cameraConstants.NearZ = cmptCamera->clippingPlaneMin;
+		cameraConstants.FarZ = cmptCamera->clippingPlaneMax;
+		cameraConstants.TotalTime = GameTimer::Instance().TotalTime();
+		cameraConstants.DeltaTime = GameTimer::Instance().DeltaTime();
 	}
 
 	{ // object
@@ -535,7 +535,6 @@ void StdPipeline::Impl::UpdateRenderContext(
 				false
 			);
 		}
-		renderContext.renderQueue.Sort(renderContext.cameraConstants.EyePosW);
 	}
 
 	{ // light
@@ -679,13 +678,25 @@ void StdPipeline::Impl::UpdateShaderCBs() {
 	commonShaderCB->Clear();
 
 	{ // camera, lights, objects
+		renderContext.cameraOffset = 0;
+		renderContext.lightOffset = renderContext.cameraOffset
+			+ renderContext.crossFrameCameraRsrcs.Size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
+		renderContext.objectOffset = renderContext.lightOffset
+			+ UDX12::Util::CalcConstantBufferByteSize(sizeof(LightArray));
+
 		commonShaderCB->Resize(
-			UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants))
+			renderContext.crossFrameCameraRsrcs.Size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants))
 			+ UDX12::Util::CalcConstantBufferByteSize(sizeof(LightArray))
 			+ renderContext.entity2data.size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(ObjectConstants))
 		);
 
-		commonShaderCB->Set(renderContext.cameraOffset, &renderContext.cameraConstants, sizeof(CameraConstants));
+		for (size_t i = 0; i < renderContext.crossFrameCameraRsrcs.Size(); i++) {
+			commonShaderCB->Set(
+				renderContext.cameraOffset + i * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants)), 
+				&renderContext.crossFrameCameraRsrcs.Get(i).GetResource<CameraConstants>(RenderContext::key_CameraConstants),
+				sizeof(CameraConstants)
+			);
+		}
 
 		// light array
 		commonShaderCB->Set(renderContext.lightOffset, &renderContext.lights, sizeof(LightArray));
@@ -721,7 +732,10 @@ void StdPipeline::Impl::UpdateShaderCBs() {
 	}
 }
 
-void StdPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData, ID3D12Resource* default_rtb) {
+void StdPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Resource* default_rtb) {
+	auto cmdAlloc = frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<Microsoft::WRL::ComPtr<ID3D12CommandAllocator>>("CommandAllocator");
+	size_t cameraIdx = renderContext.crossFrameCameraRsrcs.Index(cameraData);
 	ID3D12Resource* rtb = default_rtb;
 	{ // set rtb
 		if (cameraData.entity.Valid()) {
@@ -738,26 +752,13 @@ void StdPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds, co
 	CD3DX12_VIEWPORT viewport(0.f, 0.f, width, height);
 	D3D12_RECT scissorRect(0.f, 0.f, width, height);
 
-	Resize(width, height);
-
-	// collect some cpu data
-	UpdateRenderContext(worlds, width, height, cameraData);
-
-	// Cycle through the circular frame resource array.
-	// Has the GPU finished processing the commands of the current frame resource?
-	// If not, wait until the GPU has completed commands up to this fence point.
-	frameRsrcMngr.BeginFrame();
-
-	// cpu -> gpu
-	UpdateShaderCBs();
-
-	auto cmdAlloc = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<Microsoft::WRL::ComPtr<ID3D12CommandAllocator>>("CommandAllocator");
-	cmdAlloc->Reset();
-
 	fg.Clear();
-	auto fgRsrcMngr = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<std::shared_ptr<UDX12::FG::RsrcMngr>>("FrameGraphRsrcMngr");
+
+	auto cameraRsrcMngr = frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<std::shared_ptr<CameraRsrcMngr>>("CameraRsrcMngr");
+	if (!cameraRsrcMngr->Get(cameraData).HaveResource("FrameGraphRsrcMngr"))
+		cameraRsrcMngr->Get(cameraData).RegisterResource("FrameGraphRsrcMngr", std::make_shared<UDX12::FG::RsrcMngr>());
+	auto fgRsrcMngr = cameraRsrcMngr->Get(cameraData).GetResource<std::shared_ptr<UDX12::FG::RsrcMngr>>("FrameGraphRsrcMngr");
 	fgRsrcMngr->NewFrame();
 
 	fgExecutor.NewFrame();;
@@ -780,11 +781,6 @@ void StdPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds, co
 		"GBuffer Pass",
 		{},
 		{ gbuffer0,gbuffer1,gbuffer2,deferDS }
-	);
-	auto iblPass = fg.RegisterPassNode(
-		"IBL",
-		{ },
-		{ irradianceMap, prefilterMap }
 	);
 	auto deferLightingPass = fg.RegisterPassNode(
 		"Defer Lighting",
@@ -829,7 +825,7 @@ void StdPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds, co
 	auto dsvDesc = UDX12::Desc::DSV::Basic(dsFormat);
 	auto rt2dDesc = UDX12::Desc::RSRC::RT2D(width, (UINT)height, DXGI_FORMAT_R32G32B32A32_FLOAT);
 	const UDX12::FG::RsrcImplDesc_RTV_Null rtvNull;
-	
+
 	auto iblData = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<IBLData>>("IBL data");
 
@@ -856,9 +852,6 @@ void StdPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds, co
 		.RegisterPassRsrc(gbPass, gbuffer1, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
 		.RegisterPassRsrc(gbPass, gbuffer2, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
 		.RegisterPassRsrc(gbPass, deferDS, D3D12_RESOURCE_STATE_DEPTH_WRITE, dsvDesc)
-
-		.RegisterPassRsrcState(iblPass, irradianceMap, D3D12_RESOURCE_STATE_RENDER_TARGET)
-		.RegisterPassRsrcState(iblPass, prefilterMap, D3D12_RESOURCE_STATE_RENDER_TARGET)
 
 		.RegisterPassRsrc(deferLightingPass, gbuffer0, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
 		.RegisterPassRsrc(deferLightingPass, gbuffer1, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
@@ -910,9 +903,232 @@ void StdPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds, co
 			// Specify the buffers we are going to render to.
 			cmdList->OMSetRenderTargets((UINT)rtHandles.size(), rtHandles.data(), false, &dsHandle);
 
-			DrawObjects(cmdList, "Deferred", 3, DXGI_FORMAT_R32G32B32A32_FLOAT);
+			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
+				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
+				->GetResource()->GetGPUVirtualAddress()
+				+ renderContext.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
+			DrawObjects(cmdList, "Deferred", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, cameraCBAdress);
 		}
 	);
+
+	fgExecutor.RegisterPassFunc(
+		deferLightingPass,
+		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
+			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
+			cmdList->SetDescriptorHeaps(1, &heap);
+			cmdList->RSSetViewports(1, &viewport);
+			cmdList->RSSetScissorRects(1, &scissorRect);
+
+			auto gb0 = rsrcs.at(gbuffer0);
+			auto gb1 = rsrcs.at(gbuffer1);
+			auto gb2 = rsrcs.at(gbuffer2);
+			auto ds = rsrcs.find(deferDS)->second;
+
+			auto rt = rsrcs.at(deferLightedRT);
+
+			//cmdList->CopyResource(bb.resource, rt.resource);
+
+			// Clear the render texture and depth buffer.
+			cmdList->ClearRenderTargetView(rt.info.null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
+
+			// Specify the buffers we are going to render to.
+			cmdList->OMSetRenderTargets(1, &rt.info.null_info_rtv.cpuHandle, false, &ds.info.desc2info_dsv.at(dsvDesc).cpuHandle);
+
+			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*deferLightingShader));
+			cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetOrCreateShaderPSO(
+				*deferLightingShader,
+				0,
+				static_cast<size_t>(-1),
+				1,
+				DXGI_FORMAT_R32G32B32A32_FLOAT)
+			);
+
+			cmdList->SetGraphicsRootDescriptorTable(0, gb0.info.desc2info_srv.at(srvDesc).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(1, ds.info.desc2info_srv.at(dsSrvDesc).gpuHandle);
+
+			// irradiance, prefilter, BRDF LUT
+			if (renderContext.skybox.ptr == defaultSkybox.ptr)
+				cmdList->SetGraphicsRootDescriptorTable(2, defaultIBLSRVDH.GetGpuHandle());
+			else
+				cmdList->SetGraphicsRootDescriptorTable(2, iblData->SRVDH.GetGpuHandle());
+
+			cmdList->SetGraphicsRootDescriptorTable(3, ltcHandles.GetGpuHandle());
+
+			auto cbLights = frameRsrcMngr.GetCurrentFrameResource()
+				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
+				->GetResource()->GetGPUVirtualAddress() + renderContext.lightOffset;
+			cmdList->SetGraphicsRootConstantBufferView(4, cbLights);
+
+			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
+				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
+				->GetResource()->GetGPUVirtualAddress()
+				+ renderContext.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
+			cmdList->SetGraphicsRootConstantBufferView(5, cameraCBAdress);
+
+			cmdList->IASetVertexBuffers(0, 0, nullptr);
+			cmdList->IASetIndexBuffer(nullptr);
+			cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+			cmdList->DrawInstanced(6, 1, 0, 0);
+		}
+	);
+
+	fgExecutor.RegisterPassFunc(
+		skyboxPass,
+		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
+			if (renderContext.skybox.ptr == defaultSkybox.ptr)
+				return;
+
+			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
+			cmdList->SetDescriptorHeaps(1, &heap);
+
+			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*skyboxShader));
+			cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetOrCreateShaderPSO(
+				*skyboxShader,
+				0,
+				static_cast<size_t>(-1),
+				1,
+				DXGI_FORMAT_R32G32B32A32_FLOAT)
+			);
+
+			cmdList->RSSetViewports(1, &viewport);
+			cmdList->RSSetScissorRects(1, &scissorRect);
+
+			auto rt = rsrcs.find(deferLightedSkyRT)->second;
+			auto ds = rsrcs.find(deferDS)->second;
+
+			// Specify the buffers we are going to render to.
+			cmdList->OMSetRenderTargets(1, &rt.info.null_info_rtv.cpuHandle, false, &ds.info.desc2info_dsv.at(dsvDesc).cpuHandle);
+
+			cmdList->SetGraphicsRootDescriptorTable(0, renderContext.skybox);
+
+			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
+				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
+				->GetResource()->GetGPUVirtualAddress()
+				+ renderContext.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
+			cmdList->SetGraphicsRootConstantBufferView(1, cameraCBAdress);
+
+			cmdList->IASetVertexBuffers(0, 0, nullptr);
+			cmdList->IASetIndexBuffer(nullptr);
+			cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+			cmdList->DrawInstanced(36, 1, 0, 0);
+		}
+	);
+
+	fgExecutor.RegisterPassFunc(
+		forwardPass,
+		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
+			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
+			cmdList->SetDescriptorHeaps(1, &heap);
+			cmdList->RSSetViewports(1, &viewport);
+			cmdList->RSSetScissorRects(1, &scissorRect);
+
+			auto rt = rsrcs.find(sceneRT)->second;
+			auto ds = rsrcs.find(forwardDS)->second;
+
+			auto dsHandle = ds.info.desc2info_dsv.at(dsvDesc).cpuHandle;
+
+			cmdList->OMSetRenderTargets(1, &rt.info.null_info_rtv.cpuHandle, false, &dsHandle);
+
+			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
+				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
+				->GetResource()->GetGPUVirtualAddress()
+				+ renderContext.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
+			DrawObjects(cmdList, "Forward", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, cameraCBAdress);
+		}
+	);
+
+	fgExecutor.RegisterPassFunc(
+		postprocessPass,
+		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
+			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*postprocessShader));
+			cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetOrCreateShaderPSO(
+				*postprocessShader,
+				0,
+				static_cast<size_t>(-1),
+				1,
+				rtb->GetDesc().Format,
+				DXGI_FORMAT_UNKNOWN)
+			);
+
+			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
+			cmdList->SetDescriptorHeaps(1, &heap);
+			cmdList->RSSetViewports(1, &viewport);
+			cmdList->RSSetScissorRects(1, &scissorRect);
+
+			auto rt = rsrcs.find(presentedRT)->second;
+			auto img = rsrcs.find(sceneRT)->second;
+
+			// Clear the render texture and depth buffer.
+			cmdList->ClearRenderTargetView(rt.info.null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
+
+			// Specify the buffers we are going to render to.
+			cmdList->OMSetRenderTargets(1, &rt.info.null_info_rtv.cpuHandle, false, nullptr);
+
+			cmdList->SetGraphicsRootDescriptorTable(0, img.info.desc2info_srv.at(srvDesc).gpuHandle);
+
+			cmdList->IASetVertexBuffers(0, 0, nullptr);
+			cmdList->IASetIndexBuffer(nullptr);
+			cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+			cmdList->DrawInstanced(6, 1, 0, 0);
+		}
+	);
+
+	static bool flag{ false };
+	if (!flag) {
+		OutputDebugStringA(fg.ToGraphvizGraph().Dump().c_str());
+		flag = true;
+	}
+
+	auto [success, crst] = fgCompiler.Compile(fg);
+	fgExecutor.Execute(
+		initDesc.device,
+		initDesc.cmdQueue,
+		cmdAlloc.Get(),
+		crst,
+		*fgRsrcMngr
+	);
+}
+
+void StdPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds, std::span<const CameraData> cameras, ID3D12Resource* default_rtb) {
+	// Cycle through the circular frame resource array.
+	// Has the GPU finished processing the commands of the current frame resource?
+	// If not, wait until the GPU has completed commands up to this fence point.
+	frameRsrcMngr.BeginFrame();
+
+	// collect some cpu data
+	UpdateRenderContext(worlds, default_rtb->GetDesc().Width, default_rtb->GetDesc().Height, cameras);
+
+	// cpu -> gpu
+	UpdateShaderCBs();
+
+	auto cmdAlloc = frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<Microsoft::WRL::ComPtr<ID3D12CommandAllocator>>("CommandAllocator");
+	cmdAlloc->Reset();
+
+	fg.Clear();
+	auto fgRsrcMngr = frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<std::shared_ptr<UDX12::FG::RsrcMngr>>("FrameGraphRsrcMngr");
+	fgRsrcMngr->NewFrame();
+
+	fgExecutor.NewFrame();;
+
+	auto irradianceMap = fg.RegisterResourceNode("Irradiance Map");
+	auto prefilterMap = fg.RegisterResourceNode("PreFilter Map");
+	auto iblPass = fg.RegisterPassNode(
+		"IBL",
+		{ },
+		{ irradianceMap, prefilterMap }
+	);
+	
+	auto iblData = frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<std::shared_ptr<IBLData>>("IBL data");
+
+	(*fgRsrcMngr)
+		.RegisterImportedRsrc(irradianceMap, { iblData->irradianceMapResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
+		.RegisterImportedRsrc(prefilterMap, { iblData->prefilterMapResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
+		.RegisterPassRsrcState(iblPass, irradianceMap, D3D12_RESOURCE_STATE_RENDER_TARGET)
+		.RegisterPassRsrcState(iblPass, prefilterMap, D3D12_RESOURCE_STATE_RENDER_TARGET)
+		;
 
 	fgExecutor.RegisterPassFunc(
 		iblPass,
@@ -1027,162 +1243,6 @@ void StdPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds, co
 		}
 	);
 
-	fgExecutor.RegisterPassFunc(
-		deferLightingPass,
-		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
-			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
-			cmdList->SetDescriptorHeaps(1, &heap);
-			cmdList->RSSetViewports(1, &viewport);
-			cmdList->RSSetScissorRects(1, &scissorRect);
-
-			auto gb0 = rsrcs.at(gbuffer0);
-			auto gb1 = rsrcs.at(gbuffer1);
-			auto gb2 = rsrcs.at(gbuffer2);
-			auto ds = rsrcs.find(deferDS)->second;
-
-			auto rt = rsrcs.at(deferLightedRT);
-
-			//cmdList->CopyResource(bb.resource, rt.resource);
-
-			// Clear the render texture and depth buffer.
-			cmdList->ClearRenderTargetView(rt.info.null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
-
-			// Specify the buffers we are going to render to.
-			cmdList->OMSetRenderTargets(1, &rt.info.null_info_rtv.cpuHandle, false, &ds.info.desc2info_dsv.at(dsvDesc).cpuHandle);
-
-			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*deferLightingShader));
-			cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetOrCreateShaderPSO(
-				*deferLightingShader,
-				0,
-				static_cast<size_t>(-1),
-				1,
-				DXGI_FORMAT_R32G32B32A32_FLOAT)
-			);
-
-			cmdList->SetGraphicsRootDescriptorTable(0, gb0.info.desc2info_srv.at(srvDesc).gpuHandle);
-			cmdList->SetGraphicsRootDescriptorTable(1, ds.info.desc2info_srv.at(dsSrvDesc).gpuHandle);
-
-			// irradiance, prefilter, BRDF LUT
-			if (renderContext.skybox.ptr == defaultSkybox.ptr)
-				cmdList->SetGraphicsRootDescriptorTable(2, defaultIBLSRVDH.GetGpuHandle());
-			else
-				cmdList->SetGraphicsRootDescriptorTable(2, iblData->SRVDH.GetGpuHandle());
-
-			cmdList->SetGraphicsRootDescriptorTable(3, ltcHandles.GetGpuHandle());
-
-			auto cbLights = frameRsrcMngr.GetCurrentFrameResource()
-				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
-				->GetResource()->GetGPUVirtualAddress() + renderContext.lightOffset;
-			cmdList->SetGraphicsRootConstantBufferView(4, cbLights);
-
-			auto cbPerCamera = frameRsrcMngr.GetCurrentFrameResource()
-				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
-				->GetResource();
-			cmdList->SetGraphicsRootConstantBufferView(5, cbPerCamera->GetGPUVirtualAddress());
-
-			cmdList->IASetVertexBuffers(0, 0, nullptr);
-			cmdList->IASetIndexBuffer(nullptr);
-			cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-			cmdList->DrawInstanced(6, 1, 0, 0);
-		}
-	);
-
-	fgExecutor.RegisterPassFunc(
-		skyboxPass,
-		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
-			if (renderContext.skybox.ptr == defaultSkybox.ptr)
-				return;
-
-			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
-			cmdList->SetDescriptorHeaps(1, &heap);
-
-			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*skyboxShader));
-			cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetOrCreateShaderPSO(
-				*skyboxShader,
-				0,
-				static_cast<size_t>(-1),
-				1,
-				DXGI_FORMAT_R32G32B32A32_FLOAT)
-			);
-
-			cmdList->RSSetViewports(1, &viewport);
-			cmdList->RSSetScissorRects(1, &scissorRect);
-
-			auto rt = rsrcs.find(deferLightedSkyRT)->second;
-			auto ds = rsrcs.find(deferDS)->second;
-
-			// Specify the buffers we are going to render to.
-			cmdList->OMSetRenderTargets(1, &rt.info.null_info_rtv.cpuHandle, false, &ds.info.desc2info_dsv.at(dsvDesc).cpuHandle);
-
-			cmdList->SetGraphicsRootDescriptorTable(0, renderContext.skybox);
-
-			auto cbPerCamera = frameRsrcMngr.GetCurrentFrameResource()
-				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
-				->GetResource();
-			cmdList->SetGraphicsRootConstantBufferView(1, cbPerCamera->GetGPUVirtualAddress());
-
-			cmdList->IASetVertexBuffers(0, 0, nullptr);
-			cmdList->IASetIndexBuffer(nullptr);
-			cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-			cmdList->DrawInstanced(36, 1, 0, 0);
-		}
-	);
-
-	fgExecutor.RegisterPassFunc(
-		forwardPass,
-		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
-			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
-			cmdList->SetDescriptorHeaps(1, &heap);
-			cmdList->RSSetViewports(1, &viewport);
-			cmdList->RSSetScissorRects(1, &scissorRect);
-
-			auto rt = rsrcs.find(sceneRT)->second;
-			auto ds = rsrcs.find(forwardDS)->second;
-
-			auto dsHandle = ds.info.desc2info_dsv.at(dsvDesc).cpuHandle;
-
-			cmdList->OMSetRenderTargets(1, &rt.info.null_info_rtv.cpuHandle, false, &dsHandle);
-
-			DrawObjects(cmdList, "Forward", 1, DXGI_FORMAT_R32G32B32A32_FLOAT);
-		}
-	);
-
-	fgExecutor.RegisterPassFunc(
-		postprocessPass,
-		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
-			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*postprocessShader));
-			cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetOrCreateShaderPSO(
-				*postprocessShader,
-				0,
-				static_cast<size_t>(-1),
-				1,
-				rtb->GetDesc().Format,
-				DXGI_FORMAT_UNKNOWN)
-			);
-
-			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
-			cmdList->SetDescriptorHeaps(1, &heap);
-			cmdList->RSSetViewports(1, &viewport);
-			cmdList->RSSetScissorRects(1, &scissorRect);
-
-			auto rt = rsrcs.find(presentedRT)->second;
-			auto img = rsrcs.find(sceneRT)->second;
-
-			// Clear the render texture and depth buffer.
-			cmdList->ClearRenderTargetView(rt.info.null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
-
-			// Specify the buffers we are going to render to.
-			cmdList->OMSetRenderTargets(1, &rt.info.null_info_rtv.cpuHandle, false, nullptr);
-
-			cmdList->SetGraphicsRootDescriptorTable(0, img.info.desc2info_srv.at(srvDesc).gpuHandle);
-
-			cmdList->IASetVertexBuffers(0, 0, nullptr);
-			cmdList->IASetIndexBuffer(nullptr);
-			cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-			cmdList->DrawInstanced(6, 1, 0, 0);
-		}
-	);
-
 	static bool flag{ false };
 	if (!flag) {
 		OutputDebugStringA(fg.ToGraphvizGraph().Dump().c_str());
@@ -1198,10 +1258,13 @@ void StdPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds, co
 		*fgRsrcMngr
 	);
 
+	for (const auto& camera : cameras)
+		CameraRender(camera, default_rtb);
+
 	frameRsrcMngr.EndFrame(initDesc.cmdQueue);
 }
 
-void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::string_view lightMode, size_t rtNum, DXGI_FORMAT rtFormat) {
+void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::string_view lightMode, size_t rtNum, DXGI_FORMAT rtFormat, D3D12_GPU_VIRTUAL_ADDRESS cameraCBAdress) {
 	auto& shaderCB = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("ShaderCB");
 	auto& commonShaderCB = frameRsrcMngr.GetCurrentFrameResource()
@@ -1215,9 +1278,6 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::str
 			->GetResource<std::shared_ptr<IBLData>>("IBL data");
 		ibl = iblData->SRVDH.GetGpuHandle();
 	}
-
-	auto cameraCBAdress = commonShaderCB->GetResource()->GetGPUVirtualAddress()
-		+ renderContext.cameraOffset;
 
 	std::shared_ptr<const Shader> shader;
 	
@@ -1305,7 +1365,7 @@ StdPipeline::StdPipeline(InitDesc initDesc) :
 
 StdPipeline::~StdPipeline() { delete pImpl; }
 
-void StdPipeline::Render(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData, ID3D12Resource* default_rtb) {
-	pImpl->Render(worlds, cameraData, default_rtb);
+void StdPipeline::Render(const std::vector<const UECS::World*>& worlds, std::span<const CameraData> cameras, ID3D12Resource* default_rtb) {
+	pImpl->Render(worlds, cameras, default_rtb);
 }
 
