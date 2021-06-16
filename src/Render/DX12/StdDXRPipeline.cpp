@@ -1,6 +1,7 @@
 #include <Utopia/Render/DX12/StdDXRPipeline.h>
 
 #include "../_deps/LTCTex.h"
+#include <Utopia/Render/DX12/CameraRsrcMngr.h>
 
 #include <Utopia/Render/DX12/GPURsrcMngrDX12.h>
 #include <Utopia/Render/DX12/MeshLayoutMngr.h>
@@ -656,22 +657,22 @@ struct StdDXRPipeline::Impl {
 		transformf InvWorld;
 	};
 	struct CameraConstants {
-		transformf View;
+		val<float, 16> View;
 
-		transformf InvView;
+		val<float, 16> InvView;
 
-		transformf Proj;
+		val<float, 16> Proj;
 
-		transformf InvProj;
+		val<float, 16> InvProj;
 
-		transformf ViewProj;
+		val<float, 16> ViewProj;
 
-		transformf InvViewProj;
+		val<float, 16> InvViewProj;
 
-		transformf PrevViewProj;
+		val<float, 16> PrevViewProj;
 
 		pointf3 EyePosW;
-		std::uint32_t FrameCount{ 0 };
+		unsigned int FrameCount{ 0 };
 
 		valf2 RenderTargetSize;
 		valf2 InvRenderTargetSize;
@@ -680,7 +681,6 @@ struct StdDXRPipeline::Impl {
 		float FarZ;
 		float TotalTime;
 		float DeltaTime;
-
 	};
 
 	struct ShaderLight {
@@ -751,11 +751,12 @@ struct StdDXRPipeline::Impl {
 	};
 	UDX12::DescriptorHeapAllocation defaultIBLSRVDH; // 3
 
+	// current frame data
 	struct RenderContext {
 		RenderQueue renderQueue;
 
-		bool cameraChange;
-		CameraConstants cameraConstants;
+		CameraRsrcMngr crossFrameCameraRsrcs;
+		static constexpr const char key_CameraConstants[] = "CameraConstants";
 
 		std::unordered_map<const Shader*, IPipeline::ShaderCBDesc> shaderCBDescMap; // shader ID -> desc
 
@@ -763,9 +764,9 @@ struct StdDXRPipeline::Impl {
 		LightArray lights;
 
 		// common
-		size_t cameraOffset = 0;
-		size_t lightOffset = cameraOffset + UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
-		size_t objectOffset = lightOffset + UDX12::Util::CalcConstantBufferByteSize(sizeof(LightArray));
+		size_t cameraOffset;
+		size_t lightOffset;
+		size_t objectOffset;
 		struct EntityData {
 			valf<16> l2w;
 			valf<16> w2l;
@@ -774,6 +775,8 @@ struct StdDXRPipeline::Impl {
 		};
 		std::unordered_map<size_t, EntityData> entity2data;
 		std::unordered_map<size_t, size_t> entity2offset;
+
+		size_t hitgroupsize;
 	};
 
 	const InitDesc initDesc;
@@ -838,9 +841,6 @@ struct StdDXRPipeline::Impl {
 	std::size_t mHitGroupTableEntrySize;
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> mpGlobalRootSig;
 	Shader placeholder_rtshader; // a place holder for cbuffer
-	struct RTConfig {
-		int gFrameCnt;
-	};
 	struct TLASData {
 		TLASData(ID3D12Device5* device, ID3D12StateObject* rtpso, std::size_t entrySize) : instanceDescs(device, 0), hitGroupTable(device, 0)  {
 			raygenDescriptors = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(2); // u0 rt result, u1 rt u result
@@ -860,18 +860,30 @@ struct StdDXRPipeline::Impl {
 		void Reserve(ID3D12Device* device, const D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO& new_info, std::size_t new_cnt_instances);
 	};
 
-	size_t lastWidth = 0;
-	size_t lastHeight = 0;
+	static constexpr const char key_CameraResizeData[] = "CameraResizeData";
+	static constexpr const char key_CameraResizeData_Backup[] = "CameraResizeData_Backup";
+	struct CameraResizeData {
+		size_t width{ 0 };
+		size_t height{ 0 };
+
+		Microsoft::WRL::ComPtr<ID3D12Resource> taaPrevRsrc;
+		Microsoft::WRL::ComPtr<ID3D12Resource> rtSRsrc;
+		Microsoft::WRL::ComPtr<ID3D12Resource> rtURsrc;
+		Microsoft::WRL::ComPtr<ID3D12Resource> rtColorMoment;
+		Microsoft::WRL::ComPtr<ID3D12Resource> rtHistoryLength;
+		Microsoft::WRL::ComPtr<ID3D12Resource> rtLinearZ;
+	};
 
 	void BuildTextures();
 	void BuildFrameResources();
 	void BuildShaders();
 
-	void UpdateRenderContext(const std::vector<const UECS::World*>& worlds, size_t width, size_t height, const CameraData& cameraData);
+	void UpdateRenderContext(const std::vector<const UECS::World*>& worlds, size_t width, size_t height, std::span<const CameraData> cameras);
 	void UpdateShaderCBs();
-	void Render(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData, ID3D12Resource* rtb);
-	void DrawObjects(ID3D12GraphicsCommandList*, std::string_view lightMode, size_t rtNum, DXGI_FORMAT rtFormat);
-	void Resize(size_t width, size_t height);
+	void Render(const std::vector<const UECS::World*>& worlds, std::span<const CameraData> cameras, ID3D12Resource* rtb);
+	void CameraRender(const CameraData& cameraData, ID3D12Resource* rtb);
+	void DrawObjects(ID3D12GraphicsCommandList*, std::string_view lightMode, size_t rtNum, DXGI_FORMAT rtFormat, D3D12_GPU_VIRTUAL_ADDRESS cameraCBAdress);
+	void UpdateCameraResource(const CameraData& cameraData, size_t width, size_t height);
 };
 
 void StdDXRPipeline::Impl::TLASData::Reserve(ID3D12Device* device,
@@ -982,8 +994,8 @@ void StdDXRPipeline::Impl::BuildFrameResources() {
 		fr->RegisterResource("ShaderCB", std::make_shared<UDX12::DynamicUploadVector>(initDesc.device));
 		fr->RegisterResource("CommonShaderCB", std::make_shared<UDX12::DynamicUploadVector>(initDesc.device));
 
-		auto fgRsrcMngr = std::make_shared<UDX12::FG::RsrcMngr>();
-		fr->RegisterResource("FrameGraphRsrcMngr", fgRsrcMngr);
+		fr->RegisterResource("CameraRsrcMngr", std::make_shared<CameraRsrcMngr>());
+		fr->RegisterResource("FrameGraphRsrcMngr", std::make_shared<UDX12::FG::RsrcMngr>());
 
 		D3D12_CLEAR_VALUE clearColor;
 		clearColor.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
@@ -1051,16 +1063,6 @@ void StdDXRPipeline::Impl::BuildFrameResources() {
 		fr->RegisterResource("IBL data", iblData);
 
 		fr->RegisterResource("TLASData", std::make_shared<TLASData>(dxr_device.Get(), rtpso.Get(), mRayGenAndMissShaderTableEntrySize));
-
-		fr->RegisterResource("taaPrevRsrc", Microsoft::WRL::ComPtr<ID3D12Resource>{});
-
-		// create resuource in resize
-		fr->RegisterResource("rtSRsrc", Microsoft::WRL::ComPtr<ID3D12Resource>{});
-		fr->RegisterResource("rtURsrc", Microsoft::WRL::ComPtr<ID3D12Resource>{});
-		fr->RegisterResource("rtColorMoment", Microsoft::WRL::ComPtr<ID3D12Resource>{});
-		fr->RegisterResource("rtHistoryLength", Microsoft::WRL::ComPtr<ID3D12Resource>{});
-		fr->RegisterResource("rtLinearZ", Microsoft::WRL::ComPtr<ID3D12Resource>{});
-		fr->RegisterResource("RTConfig", RTConfig{ -1 });
 	}
 }
 
@@ -1142,42 +1144,49 @@ void StdDXRPipeline::Impl::BuildShaders() {
 
 void StdDXRPipeline::Impl::UpdateRenderContext(
 	const std::vector<const UECS::World*>& worlds,
-	size_t width, size_t height,
-	const CameraData& cameraData
+	size_t width, size_t height, // default render target size
+	std::span<const CameraData> cameras
 ) {
 	renderContext.renderQueue.Clear();
 	renderContext.entity2data.clear();
 	renderContext.entity2offset.clear();
 	renderContext.shaderCBDescMap.clear();
 
-	if (cameraData.entity.Valid()) { // camera
-		CameraConstants newcameraConstants;
-		auto cmptCamera = cameraData.world->entityMngr.ReadComponent<Camera>(cameraData.entity);
-		auto cmptW2L = cameraData.world->entityMngr.ReadComponent<WorldToLocal>(cameraData.entity);
-		auto cmptTranslation = cameraData.world->entityMngr.ReadComponent<Translation>(cameraData.entity);
+	renderContext.crossFrameCameraRsrcs.Update(cameras);
 
-		newcameraConstants.View = cmptW2L->value;
-		newcameraConstants.InvView = newcameraConstants.View.inverse();
-		newcameraConstants.Proj = cmptCamera->prjectionMatrix;
-		newcameraConstants.InvProj = newcameraConstants.Proj.inverse();
-		newcameraConstants.ViewProj = newcameraConstants.Proj * newcameraConstants.View;
-		newcameraConstants.InvViewProj = newcameraConstants.InvView * newcameraConstants.InvProj;
-		newcameraConstants.PrevViewProj = renderContext.cameraConstants.ViewProj;
-		newcameraConstants.EyePosW = cmptTranslation->value.as<pointf3>();
-		newcameraConstants.RenderTargetSize = { width, height };
-		newcameraConstants.InvRenderTargetSize = { 1.0f / width, 1.0f / height };
+	for (const auto& camera : cameras) {
+		auto& cameraRsrc = renderContext.crossFrameCameraRsrcs.Get(camera);
+		if (!cameraRsrc.HaveResource(RenderContext::key_CameraConstants))
+			cameraRsrc.RegisterResource(RenderContext::key_CameraConstants, CameraConstants{});
+		auto& cameraConstants = cameraRsrc.GetResource<CameraConstants>(RenderContext::key_CameraConstants);
 
-		newcameraConstants.NearZ = cmptCamera->clippingPlaneMin;
-		newcameraConstants.FarZ = cmptCamera->clippingPlaneMax;
-		newcameraConstants.TotalTime = GameTimer::Instance().TotalTime();
-		newcameraConstants.DeltaTime = GameTimer::Instance().DeltaTime();
+		auto cmptCamera = camera.world->entityMngr.ReadComponent<Camera>(camera.entity);
+		auto cmptW2L = camera.world->entityMngr.ReadComponent<WorldToLocal>(camera.entity);
+		auto cmptTranslation = camera.world->entityMngr.ReadComponent<Translation>(camera.entity);
+		size_t rt_width = width, rt_height = height;
+		if (cmptCamera->renderTarget) {
+			rt_width = cmptCamera->renderTarget->image.GetWidth();
+			rt_height = cmptCamera->renderTarget->image.GetHeight();
+		}
 
-		newcameraConstants.FrameCount = renderContext.cameraConstants.FrameCount + 1;
+		transformf view = cmptW2L ? cmptW2L->value : transformf::eye();
+		transformf proj = cmptCamera->prjectionMatrix;
+		cameraConstants.View = view;
+		cameraConstants.InvView = view.inverse();
+		cameraConstants.Proj = proj;
+		cameraConstants.InvProj = proj.inverse();
+		cameraConstants.PrevViewProj = cameraConstants.ViewProj;
+		cameraConstants.ViewProj = proj * view;
+		cameraConstants.InvViewProj = view.inverse() * proj.inverse();
+		cameraConstants.EyePosW = cmptTranslation ? cmptTranslation->value.as<pointf3>() : pointf3{ 0.f };
+		cameraConstants.FrameCount = cameraConstants.FrameCount + 1;
+		cameraConstants.RenderTargetSize = { rt_width, rt_height };
+		cameraConstants.InvRenderTargetSize = { 1.0f / rt_width, 1.0f / rt_height };
 
-		renderContext.cameraChange = renderContext.cameraConstants.ViewProj != newcameraConstants.ViewProj
-			|| renderContext.cameraConstants.RenderTargetSize != newcameraConstants.RenderTargetSize;
-
-		renderContext.cameraConstants = newcameraConstants;
+		cameraConstants.NearZ = cmptCamera->clippingPlaneMin;
+		cameraConstants.FarZ = cmptCamera->clippingPlaneMax;
+		cameraConstants.TotalTime = GameTimer::Instance().TotalTime();
+		cameraConstants.DeltaTime = GameTimer::Instance().DeltaTime();
 	}
 
 	{ // object
@@ -1254,7 +1263,6 @@ void StdDXRPipeline::Impl::UpdateRenderContext(
 				false
 			);
 		}
-		renderContext.renderQueue.Sort(renderContext.cameraConstants.EyePosW);
 	}
 
 	{ // light
@@ -1397,13 +1405,25 @@ void StdDXRPipeline::Impl::UpdateShaderCBs() {
 	commonShaderCB->Clear();
 
 	{ // camera, lights, objects
+		renderContext.cameraOffset = 0;
+		renderContext.lightOffset = renderContext.cameraOffset
+			+ renderContext.crossFrameCameraRsrcs.Size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
+		renderContext.objectOffset = renderContext.lightOffset
+			+ UDX12::Util::CalcConstantBufferByteSize(sizeof(LightArray));
+
 		commonShaderCB->Resize(
-			UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants))
+			renderContext.crossFrameCameraRsrcs.Size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants))
 			+ UDX12::Util::CalcConstantBufferByteSize(sizeof(LightArray))
 			+ renderContext.entity2data.size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(ObjectConstants))
 		);
 
-		commonShaderCB->Set(renderContext.cameraOffset, &renderContext.cameraConstants, sizeof(CameraConstants));
+		for (size_t i = 0; i < renderContext.crossFrameCameraRsrcs.Size(); i++) {
+			commonShaderCB->Set(
+				renderContext.cameraOffset + i * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants)),
+				&renderContext.crossFrameCameraRsrcs.Get(i).GetResource<CameraConstants>(RenderContext::key_CameraConstants),
+				sizeof(CameraConstants)
+			);
+		}
 
 		// light array
 		commonShaderCB->Set(renderContext.lightOffset, &renderContext.lights, sizeof(LightArray));
@@ -1439,7 +1459,10 @@ void StdDXRPipeline::Impl::UpdateShaderCBs() {
 	}
 }
 
-void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData, ID3D12Resource* default_rtb) {
+void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Resource* default_rtb) {
+	auto cmdAlloc = frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<Microsoft::WRL::ComPtr<ID3D12CommandAllocator>>("CommandAllocator");
+	size_t cameraIdx = renderContext.crossFrameCameraRsrcs.Index(cameraData);
 	ID3D12Resource* rtb = default_rtb;
 	{ // set rtb
 		if (cameraData.entity.Valid()) {
@@ -1451,63 +1474,33 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 		}
 		assert(rtb);
 	}
-
 	size_t width = rtb->GetDesc().Width;
 	size_t height = rtb->GetDesc().Height;
 	CD3DX12_VIEWPORT viewport(0.f, 0.f, width, height);
 	D3D12_RECT scissorRect(0.f, 0.f, width, height);
 
-	Resize(width, height);
-
-	// collect some cpu data
-	UpdateRenderContext(worlds, width, height, cameraData);
-
-	// Cycle through the circular frame resource array.
-	// Has the GPU finished processing the commands of the current frame resource?
-	// If not, wait until the GPU has completed commands up to this fence point.
-	frameRsrcMngr.BeginFrame();
-
-	// cpu -> gpu
-	UpdateShaderCBs();
-
-	auto cmdAlloc = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<Microsoft::WRL::ComPtr<ID3D12CommandAllocator>>("CommandAllocator");
-	cmdAlloc->Reset();
-
-	auto tlasBuffers = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<std::shared_ptr<TLASData>>("TLASData");
-	{ // tlas buffers reverse
-		D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
-		inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
-		inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_UPDATE;
-		inputs.NumDescs = (UINT)renderContext.entity2data.size(); // upper bound
-		inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
-		inputs.InstanceDescs = tlasBuffers->instanceDescs.GetResource() ? tlasBuffers->instanceDescs.GetResource()->GetGPUVirtualAddress() : 0;
-
-		D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO info;
-		dxr_device->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &info);
-		tlasBuffers->Reserve(initDesc.device, info, renderContext.renderQueue.GetOpaques().size());
-	}
+	UpdateCameraResource(cameraData, width, height);
 
 	fg.Clear();
 
-	auto fgRsrcMngr = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<std::shared_ptr<UDX12::FG::RsrcMngr>>("FrameGraphRsrcMngr");
+	auto cameraRsrcMngr = frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<std::shared_ptr<CameraRsrcMngr>>("CameraRsrcMngr");
+	if (!cameraRsrcMngr->Get(cameraData).HaveResource("FrameGraphRsrcMngr"))
+		cameraRsrcMngr->Get(cameraData).RegisterResource("FrameGraphRsrcMngr", std::make_shared<UDX12::FG::RsrcMngr>());
+	auto fgRsrcMngr = cameraRsrcMngr->Get(cameraData).GetResource<std::shared_ptr<UDX12::FG::RsrcMngr>>("FrameGraphRsrcMngr");
 	fgRsrcMngr->NewFrame();
 
 	fgExecutor.NewFrame();
+	const auto& cameraResizeData = cameraRsrcMngr->Get(cameraData).GetResource<CameraResizeData>(key_CameraResizeData);
+	auto rtSRsrc = cameraResizeData.rtSRsrc;
+	auto rtURsrc = cameraResizeData.rtURsrc;
+	auto rtColorMoment = cameraResizeData.rtColorMoment;
+	auto rtHistoryLength = cameraResizeData.rtHistoryLength;
+	auto rtLinearZ = cameraResizeData.rtLinearZ;
+	auto taaPrevRsrc = cameraResizeData.taaPrevRsrc;
 
-	auto rtSRsrc = frameRsrcMngr.GetCurrentFrameResource()->GetResource<Microsoft::WRL::ComPtr<ID3D12Resource>>("rtSRsrc");
-	auto rtURsrc = frameRsrcMngr.GetCurrentFrameResource()->GetResource<Microsoft::WRL::ComPtr<ID3D12Resource>>("rtURsrc");
-	auto rtColorMoment = frameRsrcMngr.GetCurrentFrameResource()->GetResource<Microsoft::WRL::ComPtr<ID3D12Resource>>("rtColorMoment");
-	auto rtHistoryLength = frameRsrcMngr.GetCurrentFrameResource()->GetResource<Microsoft::WRL::ComPtr<ID3D12Resource>>("rtHistoryLength");
-	auto rtLinearZ = frameRsrcMngr.GetCurrentFrameResource()->GetResource<Microsoft::WRL::ComPtr<ID3D12Resource>>("rtLinearZ");
-	assert(rtSRsrc);
-	assert(rtURsrc);
-	assert(rtColorMoment);
-	assert(rtHistoryLength);
-	assert(rtLinearZ);
-	auto taaPrevRsrc = frameRsrcMngr.GetCurrentFrameResource()->GetResource<Microsoft::WRL::ComPtr<ID3D12Resource>>("taaPrevRsrc");
+	auto tlasBuffers = frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<std::shared_ptr<TLASData>>("TLASData");
 
 	auto gbuffer0 = fg.RegisterResourceNode("GBuffer0");
 	auto gbuffer1 = fg.RegisterResourceNode("GBuffer1");
@@ -1557,11 +1550,6 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 		{},
 		{ gbuffer0,gbuffer1,gbuffer2,linearZ,motion,deferDS }
 	);
-	auto tlasPass = fg.RegisterPassNode(
-		"TLAS Pass",
-		{},
-		{ TLAS }
-	);
 	auto rtPass = fg.RegisterPassNode(
 		"RT Pass",
 		{ gbuffer0,gbuffer1,gbuffer2,deferDS,TLAS },
@@ -1578,11 +1566,6 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 		"Filter Moments Pass",
 		{ accRTResult, accRTUResult, colorMoment, historyLength, gbuffer1, linearZ },
 		{ fAccRTResult, fAccRTUResult }
-	);
-	auto iblPass = fg.RegisterPassNode(
-		"IBL",
-		{ },
-		{ irradianceMap, prefilterMap }
 	);
 	auto deferLightingPass = fg.RegisterPassNode(
 		"Defer Lighting",
@@ -1763,9 +1746,6 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 		.RegisterPassRsrc(gbPass, motion, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
 		.RegisterPassRsrc(gbPass, deferDS, D3D12_RESOURCE_STATE_DEPTH_WRITE, dsvDesc)
 
-		.RegisterPassRsrcState(iblPass, irradianceMap, D3D12_RESOURCE_STATE_RENDER_TARGET)
-		.RegisterPassRsrcState(iblPass, prefilterMap, D3D12_RESOURCE_STATE_RENDER_TARGET)
-
 		.RegisterRsrcTable({
 			{gbuffer0,srvDesc},
 			{gbuffer1,srvDesc},
@@ -1783,8 +1763,6 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 
 		.RegisterPassRsrc(skyboxPass, deferDS, D3D12_RESOURCE_STATE_DEPTH_READ, dsvDesc)
 		.RegisterPassRsrc(skyboxPass, deferLightedSkyRT, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
-
-		.RegisterPassRsrcState(tlasPass, TLAS, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE)
 
 		.RegisterRsrcHandle(rtResult, tex2dUAVDesc, tlasBuffers->raygenDescriptors.GetCpuHandle(0), tlasBuffers->raygenDescriptors.GetGpuHandle(0), false)
 		.RegisterRsrcHandle(rtUResult, tex2dUAVDesc, tlasBuffers->raygenDescriptors.GetCpuHandle(1), tlasBuffers->raygenDescriptors.GetGpuHandle(1), false)
@@ -1810,7 +1788,7 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 			{ accRTUResult, tex2dUAVDesc },
 			{ colorMoment, tex2dUAVDesc },
 			{ historyLength, tex2dUAVDesc },
-		})
+			})
 		.RegisterPassRsrc(reprojectPass, prevLinearZ, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
 		.RegisterPassRsrc(reprojectPass, linearZ, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
 		.RegisterPassRsrc(reprojectPass, prevRTResult, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
@@ -1821,7 +1799,7 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 		.RegisterPassRsrc(reprojectPass, accRTUResult, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, tex2dUAVDesc)
 		.RegisterPassRsrc(reprojectPass, colorMoment, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, tex2dUAVDesc)
 		.RegisterPassRsrc(reprojectPass, historyLength, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, tex2dUAVDesc)
-		
+
 		.RegisterRsrcTable({
 			{ accRTResult, srvDesc },
 			{ accRTUResult, srvDesc },
@@ -1863,7 +1841,7 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 		.RegisterPassRsrcState(forwardPass, prefilterMap, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
 		.RegisterPassRsrc(forwardPass, forwardDS, D3D12_RESOURCE_STATE_DEPTH_WRITE, dsvDesc)
 		.RegisterPassRsrc(forwardPass, sceneRT, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
-			
+
 		.RegisterRsrcTable({
 			{ taaPrevResult,srvDesc },
 			{ sceneRT,srvDesc },
@@ -1914,122 +1892,11 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 			// Specify the buffers we are going to render to.
 			cmdList->OMSetRenderTargets((UINT)rtHandles.size(), rtHandles.data(), false, &dsHandle);
 
-			DrawObjects(cmdList, "RTDeferred", 5, DXGI_FORMAT_R32G32B32A32_FLOAT);
-		}
-	);
-
-	fgExecutor.RegisterPassFunc(
-		iblPass,
-		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& /*rsrcs*/) {
-			if (iblData->lastSkybox.ptr == renderContext.skybox.ptr) {
-				if (iblData->nextIdx >= 6 * (1 + IBLData::PreFilterMapMipLevels))
-					return;
-			}
-			else {
-				if (renderContext.skybox.ptr == defaultSkybox.ptr) {
-					iblData->lastSkybox.ptr = defaultSkybox.ptr;
-					return;
-				}
-				iblData->lastSkybox = renderContext.skybox;
-				iblData->nextIdx = 0;
-			}
-
-			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
-			cmdList->SetDescriptorHeaps(1, &heap);
-
-			if (iblData->nextIdx < 6) { // irradiance
-				cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*irradianceShader));
-				cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetOrCreateShaderPSO(
-					*irradianceShader,
-					0,
-					static_cast<size_t>(-1),
-					1,
-					DXGI_FORMAT_R32G32B32A32_FLOAT,
-					DXGI_FORMAT_UNKNOWN)
-				);
-
-				D3D12_VIEWPORT viewport;
-				viewport.MinDepth = 0.f;
-				viewport.MaxDepth = 1.f;
-				viewport.TopLeftX = 0.f;
-				viewport.TopLeftY = 0.f;
-				viewport.Width = Impl::IBLData::IrradianceMapSize;
-				viewport.Height = Impl::IBLData::IrradianceMapSize;
-				D3D12_RECT rect = { 0,0,Impl::IBLData::IrradianceMapSize,Impl::IBLData::IrradianceMapSize };
-				cmdList->RSSetViewports(1, &viewport);
-				cmdList->RSSetScissorRects(1, &rect);
-
-				cmdList->SetGraphicsRootDescriptorTable(0, renderContext.skybox);
-				//for (UINT i = 0; i < 6; i++) {
-				UINT i = static_cast<UINT>(iblData->nextIdx);
-				// Specify the buffers we are going to render to.
-				const auto iblRTVHandle = iblData->RTVsDH.GetCpuHandle(i);
-				cmdList->OMSetRenderTargets(1, &iblRTVHandle, false, nullptr);
-				auto address = crossFrameShaderCB.GetResource()->GetGPUVirtualAddress()
-					+ offset_quad
-					+ i * UDX12::Util::CalcConstantBufferByteSize(sizeof(QuadPositionLs));
-				cmdList->SetGraphicsRootConstantBufferView(1, address);
-
-				cmdList->IASetVertexBuffers(0, 0, nullptr);
-				cmdList->IASetIndexBuffer(nullptr);
-				cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-				cmdList->DrawInstanced(6, 1, 0, 0);
-				//}
-			}
-			else { // prefilter
-				cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*prefilterShader));
-				cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetOrCreateShaderPSO(
-					*prefilterShader,
-					0,
-					static_cast<size_t>(-1),
-					1,
-					DXGI_FORMAT_R32G32B32A32_FLOAT,
-					DXGI_FORMAT_UNKNOWN)
-				);
-
-				cmdList->SetGraphicsRootDescriptorTable(0, renderContext.skybox);
-				//size_t size = Impl::IBLData::PreFilterMapSize;
-				//for (UINT mip = 0; mip < Impl::IBLData::PreFilterMapMipLevels; mip++) {
-				UINT mip = static_cast<UINT>((iblData->nextIdx - 6) / 6);
-				size_t size = Impl::IBLData::PreFilterMapSize >> mip;
-				auto mipinfo = crossFrameShaderCB.GetResource()->GetGPUVirtualAddress()
-					+ offset_mipinfo
-					+ mip * UDX12::Util::CalcConstantBufferByteSize(sizeof(MipInfo));
-				cmdList->SetGraphicsRootConstantBufferView(2, mipinfo);
-
-				D3D12_VIEWPORT viewport;
-				viewport.MinDepth = 0.f;
-				viewport.MaxDepth = 1.f;
-				viewport.TopLeftX = 0.f;
-				viewport.TopLeftY = 0.f;
-				viewport.Width = (float)size;
-				viewport.Height = (float)size;
-				D3D12_RECT rect = { 0,0,(LONG)size,(LONG)size };
-				cmdList->RSSetViewports(1, &viewport);
-				cmdList->RSSetScissorRects(1, &rect);
-
-				//for (UINT i = 0; i < 6; i++) {
-				UINT i = iblData->nextIdx % 6;
-				auto positionLs = crossFrameShaderCB.GetResource()->GetGPUVirtualAddress()
-					+ offset_quad
-					+ i * UDX12::Util::CalcConstantBufferByteSize(sizeof(QuadPositionLs));
-				cmdList->SetGraphicsRootConstantBufferView(1, positionLs);
-
-				// Specify the buffers we are going to render to.
-				const auto iblRTVHandle = iblData->RTVsDH.GetCpuHandle(6 * (1 + mip) + i);
-				cmdList->OMSetRenderTargets(1, &iblRTVHandle, false, nullptr);
-
-				cmdList->IASetVertexBuffers(0, 0, nullptr);
-				cmdList->IASetIndexBuffer(nullptr);
-				cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-				cmdList->DrawInstanced(6, 1, 0, 0);
-				//}
-
-				size /= 2;
-				//}
-			}
-
-			iblData->nextIdx++;
+			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
+				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
+				->GetResource()->GetGPUVirtualAddress()
+				+ renderContext.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
+			DrawObjects(cmdList, "RTDeferred", 5, DXGI_FORMAT_R32G32B32A32_FLOAT, cameraCBAdress);
 		}
 	);
 
@@ -2149,120 +2016,11 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 
 			cmdList->OMSetRenderTargets(1, &rt.info.null_info_rtv.cpuHandle, false, &dsHandle);
 
-			DrawObjects(cmdList, "Forward", 1, DXGI_FORMAT_R32G32B32A32_FLOAT);
-		}
-	);
-
-	size_t hitgroupsize = 1;
-	fgExecutor.RegisterPassFunc(
-		tlasPass,
-		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
-			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
-			cmdList->SetDescriptorHeaps(1, &heap);
-
-			Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList4> dxr_cmdlist;
-			ThrowIfFailed(cmdList->QueryInterface(IID_PPV_ARGS(&dxr_cmdlist)));
-			size_t cnt = 0;
-
-			std::vector<std::size_t> entities;
-			size_t submeshCnt = 0;
-			for (const auto& [id, data] : renderContext.entity2data) {
-				// check
-				{ // 2 step
-					// 1. material valid
-
-					bool valid = true;
-					size_t N = std::min(data.mesh->GetSubMeshes().size(), data.materials.size());
-					for (size_t i = 0; i < N; i++) {
-						if (data.materials[i] && data.materials[i]->shader->name != "StdPipeline/Geometry") {
-							valid = false;
-							break;
-						}
-					}
-					if (!valid)
-						continue;
-
-					// 2. mesh valid
-					if (!GPURsrcMngrDX12::Instance().GetMeshBLAS(*data.mesh))
-						continue;
-				}
-
-				D3D12_RAYTRACING_INSTANCE_DESC desc;
-				desc.InstanceID = cnt;
-				desc.InstanceContributionToHitGroupIndex = submeshCnt;
-				desc.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
-				auto l2wT = transformf(renderContext.entity2data.at(id).l2w).transpose();
-				memcpy(desc.Transform, l2wT.data(), sizeof(desc.Transform));
-				desc.AccelerationStructure = GPURsrcMngrDX12::Instance().GetMeshBLAS(*data.mesh)->GetGPUVirtualAddress();
-				desc.InstanceMask = 0xFF;
-				tlasBuffers->instanceDescs.Set((cnt++) * sizeof(D3D12_RAYTRACING_INSTANCE_DESC), &desc);
-
-				entities.push_back(id);
-				submeshCnt += data.mesh->GetSubMeshes().size();
-			}
-
-			// fill shader table
-			{
-				Microsoft::WRL::ComPtr<ID3D12StateObjectProperties> pRtsoProps;
-				rtpso->QueryInterface(IID_PPV_ARGS(&pRtsoProps));
-
-				hitgroupsize = 1 + submeshCnt;
-				tlasBuffers->hitGroupTable.FastReserve(mHitGroupTableEntrySize * hitgroupsize);
-				tlasBuffers->hitGroupTable.Set(0, pRtsoProps->GetShaderIdentifier(kShadowHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-				size_t tableIdx = 0;
-
-				struct RootTable {
-					UINT64 buffer_table;
-					UINT64 albedo_table;
-					UINT64 roughness_table;
-					UINT64 metalness_table;
-					UINT64 normal_table;
-				};
-				for (const auto& id : entities) {
-					const auto& data = renderContext.entity2data[id];
-					for (size_t i = 0; i < data.mesh->GetSubMeshes().size(); i++) {
-						tlasBuffers->hitGroupTable.Set(mHitGroupTableEntrySize* (1 + tableIdx),
-							pRtsoProps->GetShaderIdentifier(kIndirectHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-						if (i < data.materials.size() && data.materials[i]) {
-							RootTable rootTable{
-							.buffer_table = GPURsrcMngrDX12::Instance().GetMeshBufferTableGpuHandle(*data.mesh, i).ptr,
-							.albedo_table = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*std::get<SharedVar<Texture2D>>(data.materials[i]->properties.at("gAlbedoMap").value)).ptr,
-							.roughness_table = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*std::get<SharedVar<Texture2D>>(data.materials[i]->properties.at("gRoughnessMap").value)).ptr,
-							.metalness_table = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*std::get<SharedVar<Texture2D>>(data.materials[i]->properties.at("gMetalnessMap").value)).ptr,
-							.normal_table = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*std::get<SharedVar<Texture2D>>(data.materials[i]->properties.at("gNormalMap").value)).ptr
-							};
-							tlasBuffers->hitGroupTable.Set(mHitGroupTableEntrySize* (1 + (tableIdx++)) + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES, &rootTable);
-						}
-						else { // error material
-							RootTable rootTable{
-								.buffer_table = GPURsrcMngrDX12::Instance().GetMeshBufferTableGpuHandle(*data.mesh, i).ptr,
-								.albedo_table = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*errorTex).ptr,
-								.roughness_table = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*whiteTex).ptr,
-								.metalness_table = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*blackTex).ptr,
-								.normal_table = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*dnormalTex).ptr
-							};
-							tlasBuffers->hitGroupTable.Set(mHitGroupTableEntrySize* (1 + (tableIdx++)) + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES, &rootTable);
-						}
-					}
-				}
-				assert(hitgroupsize == tableIdx + 1);
-			}
-
-			if (entities.size() == 0)
-				return;
-
-			D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
-			inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
-			inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_NONE;
-			inputs.NumDescs = (UINT)entities.size();
-			inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
-			inputs.InstanceDescs = tlasBuffers->instanceDescs.GetResource()->GetGPUVirtualAddress();
-			D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC asDesc = {};
-			asDesc.Inputs = inputs;
-			asDesc.DestAccelerationStructureData = tlasBuffers->pResult->GetGPUVirtualAddress();
-			asDesc.ScratchAccelerationStructureData = tlasBuffers->pScratch->GetGPUVirtualAddress();
-
-			dxr_cmdlist->BuildRaytracingAccelerationStructure(&asDesc, 0, nullptr);
+			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
+				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
+				->GetResource()->GetGPUVirtualAddress()
+				+ renderContext.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
+			DrawObjects(cmdList, "Forward", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, cameraCBAdress);
 		}
 	);
 
@@ -2291,7 +2049,7 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 			auto& commonShaderCB = frameRsrcMngr.GetCurrentFrameResource()
 				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB");
 			auto cameraCBAdress = commonShaderCB->GetResource()->GetGPUVirtualAddress()
-				+ renderContext.cameraOffset;
+				+ renderContext.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
 
 			auto cbLights = commonShaderCB->GetResource()->GetGPUVirtualAddress()
 				+ renderContext.lightOffset;
@@ -2305,7 +2063,7 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 
 				// rt uav, rtU uav
 				// *(uint64_t*)(pData + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + 0)
-				
+
 				// gbuffers
 				*(uint64_t*)(pData + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + 8) = gb0.info.desc2info_srv.at(srvDesc).gpuHandle.ptr;
 
@@ -2322,7 +2080,7 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 				////////////
 
 				*(uint64_t*)(pData + 2 * mRayGenAndMissShaderTableEntrySize + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) = renderContext.skybox.ptr;
-				
+
 				tlasBuffers->shaderTable->Unmap(0, nullptr);
 			}
 
@@ -2339,11 +2097,11 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 			// Hit is the third entry in the shader-table
 			raytraceDesc.HitGroupTable.StartAddress = tlasBuffers->hitGroupTable.GetResource()->GetGPUVirtualAddress();
 			raytraceDesc.HitGroupTable.StrideInBytes = mHitGroupTableEntrySize;
-			raytraceDesc.HitGroupTable.SizeInBytes = mHitGroupTableEntrySize * hitgroupsize;
+			raytraceDesc.HitGroupTable.SizeInBytes = mHitGroupTableEntrySize * renderContext.hitgroupsize;
 
 			// Bind the root signature
 			dxr_cmdlist->SetComputeRootSignature(mpGlobalRootSig.Get());
-			
+
 			// Dispatch
 			dxr_cmdlist->SetPipelineState1(rtpso.Get());
 			dxr_cmdlist->SetComputeRootDescriptorTable(0, tlas.info.desc2info_srv.at(tlasSrvDesc).gpuHandle);
@@ -2382,7 +2140,7 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
 				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
 				->GetResource()->GetGPUVirtualAddress()
-				+ renderContext.cameraOffset;
+				+ renderContext.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
 			cmdList->SetGraphicsRootConstantBufferView(2, cameraCBAdress);
 
 			cmdList->IASetVertexBuffers(0, 0, nullptr);
@@ -2440,7 +2198,7 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
 				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
 				->GetResource()->GetGPUVirtualAddress()
-				+ renderContext.cameraOffset;
+				+ renderContext.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
 			cmdList->SetGraphicsRootConstantBufferView(3, cameraCBAdress);
 
 			cmdList->IASetVertexBuffers(0, 0, nullptr);
@@ -2510,7 +2268,7 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 					auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
 						->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
 						->GetResource()->GetGPUVirtualAddress()
-						+ renderContext.cameraOffset;
+						+ renderContext.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
 					cmdList->SetGraphicsRootConstantBufferView(3, cameraCBAdress);
 
 					auto atrousConfigCBAdress = crossFrameShaderCB
@@ -2571,7 +2329,7 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
 				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
 				->GetResource()->GetGPUVirtualAddress()
-				+ renderContext.cameraOffset;
+				+ renderContext.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
 			cmdList->SetGraphicsRootConstantBufferView(4, cameraCBAdress);
 
 			cmdList->IASetVertexBuffers(0, 0, nullptr);
@@ -2615,7 +2373,7 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
 				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
 				->GetResource()->GetGPUVirtualAddress()
-				+ renderContext.cameraOffset;
+				+ renderContext.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
 			cmdList->SetGraphicsRootConstantBufferView(2, cameraCBAdress);
 
 			cmdList->IASetVertexBuffers(0, 0, nullptr);
@@ -2684,11 +2442,335 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 		crst,
 		*fgRsrcMngr
 	);
+}
+
+void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds, std::span<const CameraData> cameras, ID3D12Resource* default_rtb) {
+	// Cycle through the circular frame resource array.
+	// Has the GPU finished processing the commands of the current frame resource?
+	// If not, wait until the GPU has completed commands up to this fence point.
+	frameRsrcMngr.BeginFrame();
+
+	// collect some cpu data
+	UpdateRenderContext(worlds, default_rtb->GetDesc().Width, default_rtb->GetDesc().Height, cameras);
+
+	// cpu -> gpu
+	UpdateShaderCBs();
+
+	auto cmdAlloc = frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<Microsoft::WRL::ComPtr<ID3D12CommandAllocator>>("CommandAllocator");
+	cmdAlloc->Reset();
+
+	frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<std::shared_ptr<CameraRsrcMngr>>("CameraRsrcMngr")
+		->Update(cameras);
+
+	fg.Clear();
+	auto fgRsrcMngr = frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<std::shared_ptr<UDX12::FG::RsrcMngr>>("FrameGraphRsrcMngr");
+	fgRsrcMngr->NewFrame();
+
+	fgExecutor.NewFrame();
+
+	auto tlasBuffers = frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<std::shared_ptr<TLASData>>("TLASData");
+	{ // tlas buffers reverse
+		D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
+		inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+		inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_UPDATE;
+		inputs.NumDescs = (UINT)renderContext.entity2data.size(); // upper bound
+		inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
+		inputs.InstanceDescs = tlasBuffers->instanceDescs.GetResource() ? tlasBuffers->instanceDescs.GetResource()->GetGPUVirtualAddress() : 0;
+
+		D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO info;
+		dxr_device->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &info);
+		tlasBuffers->Reserve(initDesc.device, info, renderContext.renderQueue.GetOpaques().size());
+	}
+
+	auto irradianceMap = fg.RegisterResourceNode("Irradiance Map");
+	auto prefilterMap = fg.RegisterResourceNode("PreFilter Map");
+	auto TLAS = fg.RegisterResourceNode("TLAS");
+
+	auto tlasPass = fg.RegisterPassNode(
+		"TLAS Pass",
+		{},
+		{ TLAS }
+	);
+	auto iblPass = fg.RegisterPassNode(
+		"IBL",
+		{ },
+		{ irradianceMap, prefilterMap }
+	);
+
+	D3D12_SHADER_RESOURCE_VIEW_DESC tlasSrvDesc = {};
+	{ // fill tlasSrvDesc
+		tlasSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_RAYTRACING_ACCELERATION_STRUCTURE;
+		tlasSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		tlasSrvDesc.RaytracingAccelerationStructure.Location = tlasBuffers->pResult->GetGPUVirtualAddress();
+	}
+
+	auto iblData = frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<std::shared_ptr<IBLData>>("IBL data");
+
+	(*fgRsrcMngr)
+		.RegisterImportedRsrc(irradianceMap, { iblData->irradianceMapResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
+		.RegisterImportedRsrc(prefilterMap, { iblData->prefilterMapResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
+		.RegisterImportedRsrc(TLAS, { nullptr /*special for TLAS*/, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE })
+
+		.RegisterPassRsrcState(iblPass, irradianceMap, D3D12_RESOURCE_STATE_RENDER_TARGET)
+		.RegisterPassRsrcState(iblPass, prefilterMap, D3D12_RESOURCE_STATE_RENDER_TARGET)
+
+		.RegisterPassRsrcState(tlasPass, TLAS, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE)
+		;
+
+	fgExecutor.RegisterPassFunc(
+		iblPass,
+		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& /*rsrcs*/) {
+			if (iblData->lastSkybox.ptr == renderContext.skybox.ptr) {
+				if (iblData->nextIdx >= 6 * (1 + IBLData::PreFilterMapMipLevels))
+					return;
+			}
+			else {
+				if (renderContext.skybox.ptr == defaultSkybox.ptr) {
+					iblData->lastSkybox.ptr = defaultSkybox.ptr;
+					return;
+				}
+				iblData->lastSkybox = renderContext.skybox;
+				iblData->nextIdx = 0;
+			}
+
+			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
+			cmdList->SetDescriptorHeaps(1, &heap);
+
+			if (iblData->nextIdx < 6) { // irradiance
+				cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*irradianceShader));
+				cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetOrCreateShaderPSO(
+					*irradianceShader,
+					0,
+					static_cast<size_t>(-1),
+					1,
+					DXGI_FORMAT_R32G32B32A32_FLOAT,
+					DXGI_FORMAT_UNKNOWN)
+				);
+
+				D3D12_VIEWPORT viewport;
+				viewport.MinDepth = 0.f;
+				viewport.MaxDepth = 1.f;
+				viewport.TopLeftX = 0.f;
+				viewport.TopLeftY = 0.f;
+				viewport.Width = Impl::IBLData::IrradianceMapSize;
+				viewport.Height = Impl::IBLData::IrradianceMapSize;
+				D3D12_RECT rect = { 0,0,Impl::IBLData::IrradianceMapSize,Impl::IBLData::IrradianceMapSize };
+				cmdList->RSSetViewports(1, &viewport);
+				cmdList->RSSetScissorRects(1, &rect);
+
+				cmdList->SetGraphicsRootDescriptorTable(0, renderContext.skybox);
+				//for (UINT i = 0; i < 6; i++) {
+				UINT i = static_cast<UINT>(iblData->nextIdx);
+				// Specify the buffers we are going to render to.
+				const auto iblRTVHandle = iblData->RTVsDH.GetCpuHandle(i);
+				cmdList->OMSetRenderTargets(1, &iblRTVHandle, false, nullptr);
+				auto address = crossFrameShaderCB.GetResource()->GetGPUVirtualAddress()
+					+ offset_quad
+					+ i * UDX12::Util::CalcConstantBufferByteSize(sizeof(QuadPositionLs));
+				cmdList->SetGraphicsRootConstantBufferView(1, address);
+
+				cmdList->IASetVertexBuffers(0, 0, nullptr);
+				cmdList->IASetIndexBuffer(nullptr);
+				cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+				cmdList->DrawInstanced(6, 1, 0, 0);
+				//}
+			}
+			else { // prefilter
+				cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*prefilterShader));
+				cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetOrCreateShaderPSO(
+					*prefilterShader,
+					0,
+					static_cast<size_t>(-1),
+					1,
+					DXGI_FORMAT_R32G32B32A32_FLOAT,
+					DXGI_FORMAT_UNKNOWN)
+				);
+
+				cmdList->SetGraphicsRootDescriptorTable(0, renderContext.skybox);
+				//size_t size = Impl::IBLData::PreFilterMapSize;
+				//for (UINT mip = 0; mip < Impl::IBLData::PreFilterMapMipLevels; mip++) {
+				UINT mip = static_cast<UINT>((iblData->nextIdx - 6) / 6);
+				size_t size = Impl::IBLData::PreFilterMapSize >> mip;
+				auto mipinfo = crossFrameShaderCB.GetResource()->GetGPUVirtualAddress()
+					+ offset_mipinfo
+					+ mip * UDX12::Util::CalcConstantBufferByteSize(sizeof(MipInfo));
+				cmdList->SetGraphicsRootConstantBufferView(2, mipinfo);
+
+				D3D12_VIEWPORT viewport;
+				viewport.MinDepth = 0.f;
+				viewport.MaxDepth = 1.f;
+				viewport.TopLeftX = 0.f;
+				viewport.TopLeftY = 0.f;
+				viewport.Width = (float)size;
+				viewport.Height = (float)size;
+				D3D12_RECT rect = { 0,0,(LONG)size,(LONG)size };
+				cmdList->RSSetViewports(1, &viewport);
+				cmdList->RSSetScissorRects(1, &rect);
+
+				//for (UINT i = 0; i < 6; i++) {
+				UINT i = iblData->nextIdx % 6;
+				auto positionLs = crossFrameShaderCB.GetResource()->GetGPUVirtualAddress()
+					+ offset_quad
+					+ i * UDX12::Util::CalcConstantBufferByteSize(sizeof(QuadPositionLs));
+				cmdList->SetGraphicsRootConstantBufferView(1, positionLs);
+
+				// Specify the buffers we are going to render to.
+				const auto iblRTVHandle = iblData->RTVsDH.GetCpuHandle(6 * (1 + mip) + i);
+				cmdList->OMSetRenderTargets(1, &iblRTVHandle, false, nullptr);
+
+				cmdList->IASetVertexBuffers(0, 0, nullptr);
+				cmdList->IASetIndexBuffer(nullptr);
+				cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+				cmdList->DrawInstanced(6, 1, 0, 0);
+				//}
+
+				size /= 2;
+				//}
+			}
+
+			iblData->nextIdx++;
+		}
+	);
+
+	fgExecutor.RegisterPassFunc(
+		tlasPass,
+		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
+			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
+			cmdList->SetDescriptorHeaps(1, &heap);
+
+			Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList4> dxr_cmdlist;
+			ThrowIfFailed(cmdList->QueryInterface(IID_PPV_ARGS(&dxr_cmdlist)));
+			size_t cnt = 0;
+
+			std::vector<std::size_t> entities;
+			size_t submeshCnt = 0;
+			for (const auto& [id, data] : renderContext.entity2data) {
+				// check
+				{ // 2 step
+					// 1. material valid
+
+					bool valid = true;
+					size_t N = std::min(data.mesh->GetSubMeshes().size(), data.materials.size());
+					for (size_t i = 0; i < N; i++) {
+						if (data.materials[i] && data.materials[i]->shader->name != "StdPipeline/Geometry") {
+							valid = false;
+							break;
+						}
+					}
+					if (!valid)
+						continue;
+
+					// 2. mesh valid
+					if (!GPURsrcMngrDX12::Instance().GetMeshBLAS(*data.mesh))
+						continue;
+				}
+
+				D3D12_RAYTRACING_INSTANCE_DESC desc;
+				desc.InstanceID = cnt;
+				desc.InstanceContributionToHitGroupIndex = submeshCnt;
+				desc.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
+				auto l2wT = transformf(renderContext.entity2data.at(id).l2w).transpose();
+				memcpy(desc.Transform, l2wT.data(), sizeof(desc.Transform));
+				desc.AccelerationStructure = GPURsrcMngrDX12::Instance().GetMeshBLAS(*data.mesh)->GetGPUVirtualAddress();
+				desc.InstanceMask = 0xFF;
+				tlasBuffers->instanceDescs.Set((cnt++) * sizeof(D3D12_RAYTRACING_INSTANCE_DESC), &desc);
+
+				entities.push_back(id);
+				submeshCnt += data.mesh->GetSubMeshes().size();
+			}
+
+			// fill shader table
+			{
+				Microsoft::WRL::ComPtr<ID3D12StateObjectProperties> pRtsoProps;
+				rtpso->QueryInterface(IID_PPV_ARGS(&pRtsoProps));
+
+				renderContext.hitgroupsize = 1 + submeshCnt;
+				tlasBuffers->hitGroupTable.FastReserve(mHitGroupTableEntrySize * renderContext.hitgroupsize);
+				tlasBuffers->hitGroupTable.Set(0, pRtsoProps->GetShaderIdentifier(kShadowHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+				size_t tableIdx = 0;
+
+				struct RootTable {
+					UINT64 buffer_table;
+					UINT64 albedo_table;
+					UINT64 roughness_table;
+					UINT64 metalness_table;
+					UINT64 normal_table;
+				};
+				for (const auto& id : entities) {
+					const auto& data = renderContext.entity2data[id];
+					for (size_t i = 0; i < data.mesh->GetSubMeshes().size(); i++) {
+						tlasBuffers->hitGroupTable.Set(mHitGroupTableEntrySize* (1 + tableIdx),
+							pRtsoProps->GetShaderIdentifier(kIndirectHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+						if (i < data.materials.size() && data.materials[i]) {
+							RootTable rootTable{
+							.buffer_table = GPURsrcMngrDX12::Instance().GetMeshBufferTableGpuHandle(*data.mesh, i).ptr,
+							.albedo_table = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*std::get<SharedVar<Texture2D>>(data.materials[i]->properties.at("gAlbedoMap").value)).ptr,
+							.roughness_table = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*std::get<SharedVar<Texture2D>>(data.materials[i]->properties.at("gRoughnessMap").value)).ptr,
+							.metalness_table = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*std::get<SharedVar<Texture2D>>(data.materials[i]->properties.at("gMetalnessMap").value)).ptr,
+							.normal_table = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*std::get<SharedVar<Texture2D>>(data.materials[i]->properties.at("gNormalMap").value)).ptr
+							};
+							tlasBuffers->hitGroupTable.Set(mHitGroupTableEntrySize* (1 + (tableIdx++)) + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES, &rootTable);
+						}
+						else { // error material
+							RootTable rootTable{
+								.buffer_table = GPURsrcMngrDX12::Instance().GetMeshBufferTableGpuHandle(*data.mesh, i).ptr,
+								.albedo_table = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*errorTex).ptr,
+								.roughness_table = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*whiteTex).ptr,
+								.metalness_table = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*blackTex).ptr,
+								.normal_table = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*dnormalTex).ptr
+							};
+							tlasBuffers->hitGroupTable.Set(mHitGroupTableEntrySize* (1 + (tableIdx++)) + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES, &rootTable);
+						}
+					}
+				}
+				assert(renderContext.hitgroupsize == tableIdx + 1);
+			}
+
+			if (entities.size() == 0)
+				return;
+
+			D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
+			inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+			inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_NONE;
+			inputs.NumDescs = (UINT)entities.size();
+			inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
+			inputs.InstanceDescs = tlasBuffers->instanceDescs.GetResource()->GetGPUVirtualAddress();
+			D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC asDesc = {};
+			asDesc.Inputs = inputs;
+			asDesc.DestAccelerationStructureData = tlasBuffers->pResult->GetGPUVirtualAddress();
+			asDesc.ScratchAccelerationStructureData = tlasBuffers->pScratch->GetGPUVirtualAddress();
+
+			dxr_cmdlist->BuildRaytracingAccelerationStructure(&asDesc, 0, nullptr);
+		}
+	);
+
+	static bool flag{ false };
+	if (!flag) {
+		OutputDebugStringA(fg.ToGraphvizGraph().Dump().c_str());
+		flag = true;
+	}
+
+	auto [success, crst] = fgCompiler.Compile(fg);
+	fgExecutor.Execute(
+		initDesc.device,
+		initDesc.cmdQueue,
+		cmdAlloc.Get(),
+		crst,
+		*fgRsrcMngr
+	);
+
+	for (const auto& camera : cameras)
+		CameraRender(camera, default_rtb);
 
 	frameRsrcMngr.EndFrame(initDesc.cmdQueue);
 }
 
-void StdDXRPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::string_view lightMode, size_t rtNum, DXGI_FORMAT rtFormat) {
+void StdDXRPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::string_view lightMode, size_t rtNum, DXGI_FORMAT rtFormat, D3D12_GPU_VIRTUAL_ADDRESS cameraCBAdress) {
 	auto& shaderCB = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("ShaderCB");
 	auto& commonShaderCB = frameRsrcMngr.GetCurrentFrameResource()
@@ -2702,9 +2784,6 @@ void StdDXRPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::
 			->GetResource<std::shared_ptr<IBLData>>("IBL data");
 		ibl = iblData->SRVDH.GetGpuHandle();
 	}
-
-	auto cameraCBAdress = commonShaderCB->GetResource()->GetGPUVirtualAddress()
-		+ renderContext.cameraOffset;
 
 	std::shared_ptr<const Shader> shader;
 
@@ -2793,14 +2872,21 @@ StdDXRPipeline::StdDXRPipeline(InitDesc initDesc) :
 StdDXRPipeline::~StdDXRPipeline() { delete pImpl; }
 
 void StdDXRPipeline::Render(const std::vector<const UECS::World*>& worlds, std::span<const CameraData> cameras, ID3D12Resource* default_rtb) {
-	pImpl->Render(worlds, cameras.front(), default_rtb);
+	pImpl->Render(worlds, cameras, default_rtb);
 }
 
-void StdDXRPipeline::Impl::Resize(size_t width, size_t height) {
-	if (lastWidth == width && lastHeight == height)
+void StdDXRPipeline::Impl::UpdateCameraResource(const CameraData& cameraData, size_t width, size_t height)  {
+	auto cameraRsrcMngr = frameRsrcMngr.GetCurrentFrameResource()->GetResource<std::shared_ptr<CameraRsrcMngr>>("CameraRsrcMngr");
+	if(cameraRsrcMngr->Get(cameraData).HaveResource(key_CameraResizeData_Backup))
+		cameraRsrcMngr->Get(cameraData).UnregisterResource(key_CameraResizeData_Backup);
+	if (!cameraRsrcMngr->Get(cameraData).HaveResource(key_CameraResizeData))
+		cameraRsrcMngr->Get(cameraData).RegisterResource(key_CameraResizeData, CameraResizeData{});
+	auto& cameraResizeData = cameraRsrcMngr->Get(cameraData).GetResource<CameraResizeData>(key_CameraResizeData);
+	if (cameraResizeData.width == width && cameraResizeData.height == height)
 		return;
-	lastWidth = width;
-	lastHeight = height;
+
+	cameraResizeData.width = width;
+	cameraResizeData.height = height;
 
 	D3D12_RESOURCE_DESC rtResultDesc = {};
 	{ // fill rtResultType
@@ -2896,48 +2982,30 @@ void StdDXRPipeline::Impl::Resize(size_t width, size_t height) {
 		IID_PPV_ARGS(&taaPrevRsrc)
 	);
 
+	cameraResizeData.rtURsrc = rtURsrc;
+	cameraResizeData.rtSRsrc = rtSRsrc;
+	cameraResizeData.rtColorMoment = rtColorMoment;
+	cameraResizeData.rtHistoryLength = rtHistoryLength;
+	cameraResizeData.rtLinearZ = rtLinearZ;
+	cameraResizeData.taaPrevRsrc = taaPrevRsrc;
+
 	for (auto& frsrc : frameRsrcMngr.GetFrameResources()) {
-		frsrc->DelayUpdateResource(
-			"FrameGraphRsrcMngr",
-			[](std::shared_ptr<UDX12::FG::RsrcMngr> rsrcMngr) {
-				rsrcMngr->Clear();
-			}
-		);
-		frsrc->DelayUpdateResource(
-			"rtSRsrc",
-			[rtSRsrc](Microsoft::WRL::ComPtr<ID3D12Resource>& rsrc) {
-				rsrc = rtSRsrc;
-			}
-		);
-		frsrc->DelayUpdateResource(
-			"rtURsrc",
-			[rtURsrc](Microsoft::WRL::ComPtr<ID3D12Resource>& rsrc) {
-				rsrc = rtURsrc;
-			}
-		);
-		frsrc->DelayUpdateResource(
-			"rtColorMoment",
-			[rtColorMoment](Microsoft::WRL::ComPtr<ID3D12Resource>& rsrc) {
-				rsrc = rtColorMoment;
-			}
-		);
-		frsrc->DelayUpdateResource(
-			"rtHistoryLength",
-			[rtHistoryLength](Microsoft::WRL::ComPtr<ID3D12Resource>& rsrc) {
-				rsrc = rtHistoryLength;
-			}
-		);
-		frsrc->DelayUpdateResource(
-			"rtLinearZ",
-			[rtLinearZ](Microsoft::WRL::ComPtr<ID3D12Resource>& rsrc) {
-				rsrc = rtLinearZ;
-			}
-		);
-		frsrc->DelayUpdateResource(
-			"taaPrevRsrc",
-			[taaPrevRsrc](Microsoft::WRL::ComPtr<ID3D12Resource>& rsrc) {
-				rsrc = taaPrevRsrc;
-			}
-		);
+		if (frsrc.get() == frameRsrcMngr.GetCurrentFrameResource())
+			continue;
+
+		auto cameraRsrcMngr = frsrc->GetResource<std::shared_ptr<CameraRsrcMngr>>("CameraRsrcMngr");
+		if(!cameraRsrcMngr->Contain(cameraData))
+			continue;
+
+		if (!cameraRsrcMngr->Get(cameraData).HaveResource(key_CameraResizeData))
+			continue;
+
+		if (!cameraRsrcMngr->Get(cameraData).HaveResource(key_CameraResizeData_Backup))
+			cameraRsrcMngr->Get(cameraData).RegisterResource(key_CameraResizeData_Backup, CameraResizeData{});
+
+		cameraRsrcMngr->Get(cameraData).GetResource<CameraResizeData>(key_CameraResizeData_Backup) =
+			cameraRsrcMngr->Get(cameraData).GetResource<CameraResizeData>(key_CameraResizeData);
+
+		cameraRsrcMngr->Get(cameraData).GetResource<CameraResizeData>(key_CameraResizeData) = cameraResizeData;
 	}
 }

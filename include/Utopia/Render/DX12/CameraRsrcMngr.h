@@ -38,7 +38,8 @@ namespace Ubpa::Utopia {
 	class CameraRsrcMngr {
 	public:
 		void Update(std::span<const IPipeline::CameraData> cameras);
-		CameraResource& Get(const IPipeline::CameraData& camera) { return cameraRsrcs[camera]; }
+		bool Contain(const IPipeline::CameraData& camera) const { return cameraRsrcs.contains(camera); }
+		CameraResource& Get(const IPipeline::CameraData& camera) { return cameraRsrcs.at(camera); }
 		CameraResource& Get(size_t i) { return (cameraRsrcs.data() + i)->second; }
 		size_t Size() const noexcept { return cameraRsrcs.size(); }
 		size_t Index(const IPipeline::CameraData& camera) const { return (size_t)(cameraRsrcs.find(camera) - cameraRsrcs.begin()); }

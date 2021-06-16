@@ -73,7 +73,7 @@ struct StdPipeline::Impl {
 		val<float, 16> PrevViewProj;
 
 		pointf3 EyePosW;
-		float _pad0;
+		unsigned int FrameCount{ 0 };
 
 		valf2 RenderTargetSize;
 		valf2 InvRenderTargetSize;
@@ -456,6 +456,7 @@ void StdPipeline::Impl::UpdateRenderContext(
 		cameraConstants.ViewProj = proj * view;
 		cameraConstants.InvViewProj = view.inverse() * proj.inverse();
 		cameraConstants.EyePosW = cmptTranslation ? cmptTranslation->value.as<pointf3>() : pointf3{ 0.f };
+		cameraConstants.FrameCount = cameraConstants.FrameCount + 1;
 		cameraConstants.RenderTargetSize = { rt_width, rt_height };
 		cameraConstants.InvRenderTargetSize = { 1.0f / rt_width, 1.0f / rt_height };
 
@@ -1104,6 +1105,10 @@ void StdPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds, st
 	auto cmdAlloc = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<Microsoft::WRL::ComPtr<ID3D12CommandAllocator>>("CommandAllocator");
 	cmdAlloc->Reset();
+
+	frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<std::shared_ptr<CameraRsrcMngr>>("CameraRsrcMngr")
+		->Update(cameras);
 
 	fg.Clear();
 	auto fgRsrcMngr = frameRsrcMngr.GetCurrentFrameResource()

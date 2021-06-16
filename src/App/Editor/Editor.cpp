@@ -279,10 +279,10 @@ bool Editor::Impl::Init() {
 	initDesc.device = pEditor->uDevice.Get();
 	initDesc.cmdQueue = pEditor->uCmdQueue.Get();
 	initDesc.numFrame = DX12App::NumFrameResources;
-	gamePipeline = std::make_unique<StdDXRPipeline>(initDesc);
-	//scenePipeline = std::make_unique<StdDXRPipeline>(initDesc);
-	//gamePipeline = std::make_unique<StdPipeline>(initDesc);
-	scenePipeline = std::make_unique<StdPipeline>(initDesc);
+	//gamePipeline = std::make_unique<StdDXRPipeline>(initDesc);
+	scenePipeline = std::make_unique<StdDXRPipeline>(initDesc);
+	gamePipeline = std::make_unique<StdPipeline>(initDesc);
+	//scenePipeline = std::make_unique<StdPipeline>(initDesc);
 
 	gameRT_SRV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(1);
 	gameRT_RTV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Allocate(1);
@@ -633,16 +633,12 @@ void Editor::Impl::Update() {
 				curGameWorld->RunEntityJob([&](Ubpa::UECS::Entity e) {
 					gameCameras.emplace_back(e, curGameWorld);
 				}, false, camFilter);
-				if (gameCameras.empty())
-					gamePipeline->Render({ curGameWorld }, { Entity::Invalid(), curGameWorld }, gameRT.Get());
-				else {
+				if (!gameCameras.empty()) {
 					std::sort(gameCameras.begin(), gameCameras.end(), [](const IPipeline::CameraData& left, const IPipeline::CameraData& right) {
 						return left.world->entityMngr.ReadComponent<Camera>(left.entity)->order
 							< right.world->entityMngr.ReadComponent<Camera>(right.entity)->order;
 					});
-					for (const auto& camera : gameCameras) {
-						gamePipeline->Render({ curGameWorld }, gameCameras.front(), gameRT.Get());
-					}
+					gamePipeline->Render({ curGameWorld }, gameCameras, gameRT.Get());
 				}
 			}
 			pEditor->uGCmdList.ResourceBarrierTransition(gameRT.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -667,11 +663,13 @@ void Editor::Impl::Update() {
 				sceneWorld.RunEntityJob([&](Ubpa::UECS::Entity e) {
 					sceneCameras.emplace_back(e, &sceneWorld);
 				}, false, camFilter);
-				assert(sceneCameras.empty() || sceneCameras.size() == 1); // now only support 0/1 camera
-				if (sceneCameras.empty())
-					scenePipeline->Render({ curGameWorld, &sceneWorld }, { Entity::Invalid(), &sceneWorld }, sceneRT.Get());
-				else
-					scenePipeline->Render({ curGameWorld, &sceneWorld }, sceneCameras.front(), sceneRT.Get());
+				if (!sceneCameras.empty()) {
+					std::sort(sceneCameras.begin(), sceneCameras.end(), [](const IPipeline::CameraData& left, const IPipeline::CameraData& right) {
+						return left.world->entityMngr.ReadComponent<Camera>(left.entity)->order
+							< right.world->entityMngr.ReadComponent<Camera>(right.entity)->order;
+					});
+					scenePipeline->Render({ curGameWorld, &sceneWorld }, sceneCameras, sceneRT.Get());
+				}
 			}
 			pEditor->uGCmdList.ResourceBarrierTransition(sceneRT.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 			const auto sceneRTHandle = sceneRT_RTV.GetCpuHandle();
