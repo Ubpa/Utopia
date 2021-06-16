@@ -18,7 +18,6 @@ namespace Ubpa::UECS {
 namespace Ubpa::Utopia {
 	struct Material;
 	struct Shader;
-	class ShaderCBMngrDX12;
 	struct RenderState;
 
 	class IPipeline {
@@ -45,21 +44,22 @@ namespace Ubpa::Utopia {
 		struct ShaderCBDesc {
 			// whole size == materialCBSize * indexMap.size()
 			// offset = indexMap[material] * materialCBSize + offsetMap[register index]
-
+			size_t begin_offset;
 			size_t materialCBSize{ 0 };
 			std::map<size_t, size_t> offsetMap; // register index -> local offset
 			std::unordered_map<size_t, size_t> indexMap; // material ID -> index
 		};
 		static ShaderCBDesc UpdateShaderCBs(
-			ShaderCBMngrDX12& shaderCBMngr,
+			UDX12::DynamicUploadVector& cb,
 			const Shader& shader,
 			const std::unordered_set<const Material*>& materials,
 			const std::set<std::string_view>& commonCBs
 		);
+
 		static void SetGraphicsRoot_CBV_SRV(
 			ID3D12GraphicsCommandList* cmdList,
-			ShaderCBMngrDX12& shaderCBMngr,
-			const ShaderCBDesc& shaderCBDescconst,
+			UDX12::DynamicUploadVector& cb,
+			const ShaderCBDesc& shaderCBDesc,
 			const Material& material,
 			const std::map<std::string_view, D3D12_GPU_VIRTUAL_ADDRESS>& commonCBs,
 			const std::map<std::string_view, D3D12_GPU_DESCRIPTOR_HANDLE>& commonSRVs

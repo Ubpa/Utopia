@@ -4,17 +4,17 @@
 #include <Utopia/Render/Shader.h>
 
 #include <Utopia/Render/DX12/GPURsrcMngrDX12.h>
-#include <Utopia/Render/DX12/ShaderCBMngrDX12.h>
 
 using namespace Ubpa::Utopia;
 
 IPipeline::ShaderCBDesc IPipeline::UpdateShaderCBs(
-	ShaderCBMngrDX12& shaderCBMngr,
+	UDX12::DynamicUploadVector& uploadbuffer,
 	const Shader& shader,
 	const std::unordered_set<const Material*>& materials,
 	const std::set<std::string_view>& commonCBs)
 {
 	IPipeline::ShaderCBDesc rst;
+	rst.begin_offset = uploadbuffer.Size();
 
 	auto CalculateSize = [&](ID3D12ShaderReflection* refl) {
 		D3D12_SHADER_DESC shaderDesc;
@@ -45,12 +45,12 @@ IPipeline::ShaderCBDesc IPipeline::UpdateShaderCBs(
 		CalculateSize(GPURsrcMngrDX12::Instance().GetShaderRefl_ps(shader, i));
 	}
 
-	auto buffer = shaderCBMngr.GetBuffer(shader);
-	buffer->FastReserve(rst.materialCBSize * materials.size());
 	for (auto material : materials) {
 		size_t idx = rst.indexMap.size();
 		rst.indexMap[material->GetInstanceID()] = idx;
 	}
+
+	uploadbuffer.Resize(uploadbuffer.Size() + rst.materialCBSize * materials.size());
 
 	auto UpdateShaderCBsForRefl = [&](std::set<size_t>& flags, const Material& material, ID3D12ShaderReflection* refl) {
 		size_t index = rst.indexMap.at(material.GetInstanceID());
@@ -74,7 +74,7 @@ IPipeline::ShaderCBDesc IPipeline::UpdateShaderCBs(
 			
 			flags.insert(rsrcDesc.BindPoint);
 
-			size_t offset = rst.materialCBSize * index + rst.offsetMap.at(rsrcDesc.BindPoint);
+			size_t offset = rst.begin_offset + rst.materialCBSize * index + rst.offsetMap.at(rsrcDesc.BindPoint);
 
 			for (UINT j = 0; j < cbDesc.Variables; j++) {
 				auto var = cb->GetVariableByIndex(j);
@@ -90,13 +90,13 @@ IPipeline::ShaderCBDesc IPipeline::UpdateShaderCBs(
 					if constexpr (std::is_same_v<Value, bool>) {
 						auto v = static_cast<unsigned int>(value);
 						assert(varDesc.Size == sizeof(unsigned int));
-						buffer->Set(offset + varDesc.StartOffset, &v, sizeof(unsigned int));
+						uploadbuffer.Set(offset + varDesc.StartOffset, &v, sizeof(unsigned int));
 					}
 					else if constexpr (std::is_same_v<Value, SharedVar<Texture2D>> || std::is_same_v<Value, SharedVar<TextureCube>>)
 						assert(false);
 					else {
 						assert(varDesc.Size == sizeof(Value));
-						buffer->Set(offset + varDesc.StartOffset, &value, varDesc.Size);
+						uploadbuffer.Set(offset + varDesc.StartOffset, &value, varDesc.Size);
 					}
 				}, target->second.value);
 			}
@@ -116,15 +116,14 @@ IPipeline::ShaderCBDesc IPipeline::UpdateShaderCBs(
 
 void IPipeline::SetGraphicsRoot_CBV_SRV(
 	ID3D12GraphicsCommandList* cmdList,
-	ShaderCBMngrDX12& shaderCBMngr,
-	const ShaderCBDesc& shaderCBDescconst,
+	UDX12::DynamicUploadVector& uploadbuffer,
+	const ShaderCBDesc& shaderCBDesc,
 	const Material& material,
 	const std::map<std::string_view, D3D12_GPU_VIRTUAL_ADDRESS>& commonCBs,
 	const std::map<std::string_view, D3D12_GPU_DESCRIPTOR_HANDLE>& commonSRVs
 ) {
-	auto buffer = shaderCBMngr.GetBuffer(*material.shader);
-	size_t cbPos = buffer->GetResource()->GetGPUVirtualAddress()
-		+ shaderCBDescconst.indexMap.at(material.GetInstanceID()) * shaderCBDescconst.materialCBSize;
+	size_t cbPos = uploadbuffer.GetResource()->GetGPUVirtualAddress()
+		+ shaderCBDesc.begin_offset + shaderCBDesc.indexMap.at(material.GetInstanceID()) * shaderCBDesc.materialCBSize;
 
 	auto SetGraphicsRoot_Refl = [&](ID3D12ShaderReflection* refl) {
 		D3D12_SHADER_DESC shaderDesc;
@@ -198,7 +197,7 @@ void IPipeline::SetGraphicsRoot_CBV_SRV(
 				UINT idx = GetCBVRootParamIndex(rsrcDesc.BindPoint);
 				D3D12_GPU_VIRTUAL_ADDRESS adress;
 
-				if (auto target = shaderCBDescconst.offsetMap.find(rsrcDesc.BindPoint); target != shaderCBDescconst.offsetMap.end())
+				if (auto target = shaderCBDesc.offsetMap.find(rsrcDesc.BindPoint); target != shaderCBDesc.offsetMap.end())
 					adress = cbPos + target->second;
 				else if (auto target = commonCBs.find(rsrcDesc.Name); target != commonCBs.end())
 					adress = target->second;

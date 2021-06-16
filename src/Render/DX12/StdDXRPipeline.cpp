@@ -4,7 +4,6 @@
 
 #include <Utopia/Render/DX12/GPURsrcMngrDX12.h>
 #include <Utopia/Render/DX12/MeshLayoutMngr.h>
-#include <Utopia/Render/DX12/ShaderCBMngrDX12.h>
 #include <Utopia/Render/ShaderMngr.h>
 #include <Utopia/Render/Texture2D.h>
 #include <Utopia/Render/TextureCube.h>
@@ -608,8 +607,8 @@ struct StdDXRPipeline::Impl {
 	Impl(InitDesc initDesc) :
 		initDesc{ initDesc },
 		frameRsrcMngr{ initDesc.numFrame, initDesc.device },
-		fg{ "Standard Pipeline" },
-		crossFrameShaderCBMngr{ initDesc.device }
+		fg{ "Standard RT Pipeline" },
+		crossFrameShaderCB{ initDesc.device }
 	{
 		ThrowIfFailed(initDesc.device->QueryInterface(IID_PPV_ARGS(&dxr_device)));
 		rtpso = createRtPipelineState(dxr_device.Get());
@@ -821,7 +820,12 @@ struct StdDXRPipeline::Impl {
 	std::shared_ptr<Shader> taaShader;
 	std::shared_ptr<Shader> filterMomentsShader;
 
-	ShaderCBMngrDX12 crossFrameShaderCBMngr;
+	struct ATrousConfig { int gKernelStep; };
+	static constexpr std::size_t ATrousN = 5;
+	static constexpr size_t offset_quad = 0;
+	static constexpr size_t offset_mipinfo = offset_quad + 6 * UDX12::Util::CalcConstantBufferByteSize(sizeof(QuadPositionLs));
+	static constexpr size_t offset_atrousconfig = offset_mipinfo + IBLData::PreFilterMapMipLevels * UDX12::Util::CalcConstantBufferByteSize(sizeof(MipInfo));
+	UDX12::DynamicUploadVector crossFrameShaderCB;
 
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
 
@@ -975,7 +979,8 @@ void StdDXRPipeline::Impl::BuildFrameResources() {
 
 		fr->RegisterResource("CommandAllocator", std::move(allocator));
 
-		fr->RegisterResource("ShaderCBMngrDX12", std::make_shared<ShaderCBMngrDX12>(initDesc.device));
+		fr->RegisterResource("ShaderCB", std::make_shared<UDX12::DynamicUploadVector>(initDesc.device));
+		fr->RegisterResource("CommonShaderCB", std::make_shared<UDX12::DynamicUploadVector>(initDesc.device));
 
 		auto fgRsrcMngr = std::make_shared<UDX12::FG::RsrcMngr>();
 		fr->RegisterResource("FrameGraphRsrcMngr", fgRsrcMngr);
@@ -1100,10 +1105,13 @@ void StdDXRPipeline::Impl::BuildShaders() {
 		{ 0, 2, 0}, // -z
 	};
 
-	auto buffer = crossFrameShaderCBMngr.GetCommonBuffer();
 	constexpr auto quadPositionsSize = UDX12::Util::CalcConstantBufferByteSize(sizeof(QuadPositionLs));
 	constexpr auto mipInfoSize = UDX12::Util::CalcConstantBufferByteSize(sizeof(MipInfo));
-	buffer->FastReserve(6 * quadPositionsSize + IBLData::PreFilterMapMipLevels * mipInfoSize);
+	crossFrameShaderCB.Resize(
+		6 * quadPositionsSize
+		+ IBLData::PreFilterMapMipLevels * mipInfoSize
+		+ ATrousN * UDX12::Util::CalcConstantBufferByteSize(sizeof(ATrousConfig))
+	);
 	for (size_t i = 0; i < 6; i++) {
 		QuadPositionLs positionLs;
 		auto p0 = origin[i];
@@ -1113,7 +1121,7 @@ void StdDXRPipeline::Impl::BuildShaders() {
 		positionLs.positionL4x = { p0[0], p1[0], p2[0], p3[0] };
 		positionLs.positionL4y = { p0[1], p1[1], p2[1], p3[1] };
 		positionLs.positionL4z = { p0[2], p1[2], p2[2], p3[2] };
-		buffer->Set(i * quadPositionsSize, &positionLs, sizeof(QuadPositionLs));
+		crossFrameShaderCB.Set(i * quadPositionsSize, &positionLs, sizeof(QuadPositionLs));
 	}
 	size_t size = IBLData::PreFilterMapSize;
 	for (UINT i = 0; i < IBLData::PreFilterMapMipLevels; i++) {
@@ -1121,8 +1129,14 @@ void StdDXRPipeline::Impl::BuildShaders() {
 		info.roughness = i / float(IBLData::PreFilterMapMipLevels - 1);
 		info.resolution = (float)size;
 
-		buffer->Set(6 * quadPositionsSize + i * mipInfoSize, &info, sizeof(MipInfo));
+		crossFrameShaderCB.Set(6 * quadPositionsSize + i * mipInfoSize, &info, sizeof(MipInfo));
 		size /= 2;
+	}
+	for (size_t i = 0; i < ATrousN; i++) {
+		ATrousConfig config;
+		config.gKernelStep = (int)(i + 1);
+		crossFrameShaderCB.Set(6 * quadPositionsSize
+			+ IBLData::PreFilterMapMipLevels * mipInfoSize, &config, sizeof(ATrousConfig));
 	}
 }
 
@@ -1374,21 +1388,25 @@ void StdDXRPipeline::Impl::UpdateRenderContext(
 }
 
 void StdDXRPipeline::Impl::UpdateShaderCBs() {
-	auto& shaderCBMngr = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<std::shared_ptr<ShaderCBMngrDX12>>("ShaderCBMngrDX12");
+	auto& shaderCB = frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("ShaderCB");
+	auto& commonShaderCB = frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB");
+
+	shaderCB->Clear();
+	commonShaderCB->Clear();
 
 	{ // camera, lights, objects
-		auto buffer = shaderCBMngr->GetCommonBuffer();
-		buffer->FastReserve(
+		commonShaderCB->Resize(
 			UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants))
 			+ UDX12::Util::CalcConstantBufferByteSize(sizeof(LightArray))
 			+ renderContext.entity2data.size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(ObjectConstants))
 		);
 
-		buffer->Set(renderContext.cameraOffset, &renderContext.cameraConstants, sizeof(CameraConstants));
+		commonShaderCB->Set(renderContext.cameraOffset, &renderContext.cameraConstants, sizeof(CameraConstants));
 
 		// light array
-		buffer->Set(renderContext.lightOffset, &renderContext.lights, sizeof(LightArray));
+		commonShaderCB->Set(renderContext.lightOffset, &renderContext.lights, sizeof(LightArray));
 
 		// objects
 		size_t offset = renderContext.objectOffset;
@@ -1397,7 +1415,7 @@ void StdDXRPipeline::Impl::UpdateShaderCBs() {
 			objectConstants.World = data.l2w;
 			objectConstants.InvWorld = data.w2l;
 			renderContext.entity2offset[idx] = offset;
-			buffer->Set(offset, &objectConstants, sizeof(ObjectConstants));
+			commonShaderCB->Set(offset, &objectConstants, sizeof(ObjectConstants));
 			offset += UDX12::Util::CalcConstantBufferByteSize(sizeof(ObjectConstants));
 		}
 	}
@@ -1412,12 +1430,12 @@ void StdDXRPipeline::Impl::UpdateShaderCBs() {
 
 	for (const auto& [shader, materials] : opaqueMaterialMap) {
 		renderContext.shaderCBDescMap[shader] =
-			IPipeline::UpdateShaderCBs(*shaderCBMngr, *shader, materials, commonCBs);
+			IPipeline::UpdateShaderCBs(*shaderCB, *shader, materials, commonCBs);
 	}
 
 	for (const auto& [shader, materials] : transparentMaterialMap) {
 		renderContext.shaderCBDescMap[shader] =
-			IPipeline::UpdateShaderCBs(*shaderCBMngr, *shader, materials, commonCBs);
+			IPipeline::UpdateShaderCBs(*shaderCB, *shader, materials, commonCBs);
 	}
 }
 
@@ -1438,6 +1456,8 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 	size_t height = rtb->GetDesc().Height;
 	CD3DX12_VIEWPORT viewport(0.f, 0.f, width, height);
 	D3D12_RECT scissorRect(0.f, 0.f, width, height);
+
+	Resize(width, height);
 
 	// collect some cpu data
 	UpdateRenderContext(worlds, width, height, cameraData);
@@ -1470,11 +1490,10 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 	}
 
 	fg.Clear();
+
 	auto fgRsrcMngr = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<UDX12::FG::RsrcMngr>>("FrameGraphRsrcMngr");
 	fgRsrcMngr->NewFrame();
-
-	Resize(width, height);
 
 	fgExecutor.NewFrame();
 
@@ -1523,7 +1542,6 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 	auto taaPrevResult = fg.RegisterResourceNode("TAA Prev Result");
 	auto taaResult = fg.RegisterResourceNode("TAA Result");
 	auto taaResult_copyrt = fg.RegisterResourceNode("TAA Result Copy Target");
-	constexpr std::size_t ATrousN = 5;
 	std::array<std::size_t, ATrousN> rtATrousDenoiseResults;
 	for (std::size_t i = 0; i < ATrousN; i++)
 		rtATrousDenoiseResults[i] = fg.RegisterResourceNode("RT ATrous denoised result " + std::to_string(i));
@@ -1941,15 +1959,14 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 				cmdList->RSSetViewports(1, &viewport);
 				cmdList->RSSetScissorRects(1, &rect);
 
-				auto buffer = crossFrameShaderCBMngr.GetCommonBuffer();
-
 				cmdList->SetGraphicsRootDescriptorTable(0, renderContext.skybox);
 				//for (UINT i = 0; i < 6; i++) {
 				UINT i = static_cast<UINT>(iblData->nextIdx);
 				// Specify the buffers we are going to render to.
 				const auto iblRTVHandle = iblData->RTVsDH.GetCpuHandle(i);
 				cmdList->OMSetRenderTargets(1, &iblRTVHandle, false, nullptr);
-				auto address = buffer->GetResource()->GetGPUVirtualAddress()
+				auto address = crossFrameShaderCB.GetResource()->GetGPUVirtualAddress()
+					+ offset_quad
 					+ i * UDX12::Util::CalcConstantBufferByteSize(sizeof(QuadPositionLs));
 				cmdList->SetGraphicsRootConstantBufferView(1, address);
 
@@ -1970,15 +1987,13 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 					DXGI_FORMAT_UNKNOWN)
 				);
 
-				auto buffer = crossFrameShaderCBMngr.GetCommonBuffer();
-
 				cmdList->SetGraphicsRootDescriptorTable(0, renderContext.skybox);
 				//size_t size = Impl::IBLData::PreFilterMapSize;
 				//for (UINT mip = 0; mip < Impl::IBLData::PreFilterMapMipLevels; mip++) {
 				UINT mip = static_cast<UINT>((iblData->nextIdx - 6) / 6);
 				size_t size = Impl::IBLData::PreFilterMapSize >> mip;
-				auto mipinfo = buffer->GetResource()->GetGPUVirtualAddress()
-					+ 6 * UDX12::Util::CalcConstantBufferByteSize(sizeof(QuadPositionLs))
+				auto mipinfo = crossFrameShaderCB.GetResource()->GetGPUVirtualAddress()
+					+ offset_mipinfo
 					+ mip * UDX12::Util::CalcConstantBufferByteSize(sizeof(MipInfo));
 				cmdList->SetGraphicsRootConstantBufferView(2, mipinfo);
 
@@ -1995,7 +2010,8 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 
 				//for (UINT i = 0; i < 6; i++) {
 				UINT i = iblData->nextIdx % 6;
-				auto positionLs = buffer->GetResource()->GetGPUVirtualAddress()
+				auto positionLs = crossFrameShaderCB.GetResource()->GetGPUVirtualAddress()
+					+ offset_quad
 					+ i * UDX12::Util::CalcConstantBufferByteSize(sizeof(QuadPositionLs));
 				cmdList->SetGraphicsRootConstantBufferView(1, positionLs);
 
@@ -2061,13 +2077,13 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 			cmdList->SetGraphicsRootDescriptorTable(3, ltcHandles.GetGpuHandle());
 
 			auto cbLights = frameRsrcMngr.GetCurrentFrameResource()
-				->GetResource<std::shared_ptr<ShaderCBMngrDX12>>("ShaderCBMngrDX12")
-				->GetCommonBuffer()->GetResource()->GetGPUVirtualAddress() + renderContext.lightOffset;
+				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
+				->GetResource()->GetGPUVirtualAddress() + renderContext.lightOffset;
 			cmdList->SetGraphicsRootConstantBufferView(4, cbLights);
 
 			auto cbPerCamera = frameRsrcMngr.GetCurrentFrameResource()
-				->GetResource<std::shared_ptr<ShaderCBMngrDX12>>("ShaderCBMngrDX12")
-				->GetCommonBuffer()->GetResource();
+				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
+				->GetResource();
 			cmdList->SetGraphicsRootConstantBufferView(5, cbPerCamera->GetGPUVirtualAddress());
 
 			cmdList->IASetVertexBuffers(0, 0, nullptr);
@@ -2107,8 +2123,8 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 			cmdList->SetGraphicsRootDescriptorTable(0, renderContext.skybox);
 
 			auto cbPerCamera = frameRsrcMngr.GetCurrentFrameResource()
-				->GetResource<std::shared_ptr<ShaderCBMngrDX12>>("ShaderCBMngrDX12")
-				->GetCommonBuffer()->GetResource();
+				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
+				->GetResource();
 			cmdList->SetGraphicsRootConstantBufferView(1, cbPerCamera->GetGPUVirtualAddress());
 
 			cmdList->IASetVertexBuffers(0, 0, nullptr);
@@ -2270,23 +2286,15 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 			raytraceDesc.Height = (UINT)height;
 			raytraceDesc.Depth = (UINT)1;
 
-			auto& shaderCBMngr = frameRsrcMngr.GetCurrentFrameResource()
-				->GetResource<std::shared_ptr<ShaderCBMngrDX12>>("ShaderCBMngrDX12");
-			auto commonBuffer = shaderCBMngr->GetCommonBuffer();
-			auto cameraCBAdress = commonBuffer->GetResource()->GetGPUVirtualAddress()
+			auto& shaderCB = frameRsrcMngr.GetCurrentFrameResource()
+				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("ShaderCB");
+			auto& commonShaderCB = frameRsrcMngr.GetCurrentFrameResource()
+				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB");
+			auto cameraCBAdress = commonShaderCB->GetResource()->GetGPUVirtualAddress()
 				+ renderContext.cameraOffset;
 
-			auto cbLights = commonBuffer->GetResource()->GetGPUVirtualAddress()
+			auto cbLights = commonShaderCB->GetResource()->GetGPUVirtualAddress()
 				+ renderContext.lightOffset;
-
-			auto* cbuffer = shaderCBMngr->GetBuffer(placeholder_rtshader);
-			cbuffer->FastReserve(UDX12::Util::CalcConstantBufferByteSize(sizeof(RTConfig)));
-			RTConfig& rtconfig = frameRsrcMngr.GetCurrentFrameResource()->GetResource<RTConfig>("RTConfig");
-			if (renderContext.cameraChange)
-				rtconfig.gFrameCnt = 0;
-			else
-				rtconfig.gFrameCnt++;
-			cbuffer->Set(0, &rtconfig);
 
 			{ // fill shader table every frame
 				uint8_t* pData;
@@ -2370,10 +2378,10 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 
 			cmdList->SetGraphicsRootDescriptorTable(0, in_table.info.desc2info_srv.at(srvDesc).gpuHandle);
 			cmdList->SetGraphicsRootDescriptorTable(1, out_table.info.desc2info_uav.at(tex2dUAVDesc).gpuHandle);
-			auto& shaderCBMngr = frameRsrcMngr.GetCurrentFrameResource()
-				->GetResource<std::shared_ptr<ShaderCBMngrDX12>>("ShaderCBMngrDX12");
-			auto commonBuffer = shaderCBMngr->GetCommonBuffer();
-			auto cameraCBAdress = commonBuffer->GetResource()->GetGPUVirtualAddress()
+
+			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
+				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
+				->GetResource()->GetGPUVirtualAddress()
 				+ renderContext.cameraOffset;
 			cmdList->SetGraphicsRootConstantBufferView(2, cameraCBAdress);
 
@@ -2426,11 +2434,12 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 			cmdList->SetGraphicsRootDescriptorTable(1, gb1.info.desc2info_srv.at(srvDesc).gpuHandle);
 			cmdList->SetGraphicsRootDescriptorTable(2, lz.info.desc2info_srv.at(srvDesc).gpuHandle);
 
-			auto& shaderCBMngr = frameRsrcMngr.GetCurrentFrameResource()
-				->GetResource<std::shared_ptr<ShaderCBMngrDX12>>("ShaderCBMngrDX12");
+			auto& shaderCB = frameRsrcMngr.GetCurrentFrameResource()
+				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("ShaderCB");
 
-			auto commonBuffer = shaderCBMngr->GetCommonBuffer();
-			auto cameraCBAdress = commonBuffer->GetResource()->GetGPUVirtualAddress()
+			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
+				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
+				->GetResource()->GetGPUVirtualAddress()
 				+ renderContext.cameraOffset;
 			cmdList->SetGraphicsRootConstantBufferView(3, cameraCBAdress);
 
@@ -2459,13 +2468,6 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 	);
 
 	{ // denoise passes
-		auto& shaderCBMngr = frameRsrcMngr.GetCurrentFrameResource()
-			->GetResource<std::shared_ptr<ShaderCBMngrDX12>>("ShaderCBMngrDX12");
-		auto* configBuffer = shaderCBMngr->GetBuffer(*atrousShader);
-		struct ATrousConfig {
-			int gKernelStep;
-		};
-		configBuffer->FastReserve(ATrousN* UDX12::Util::CalcConstantBufferByteSize(sizeof(ATrousConfig)));
 		for (std::size_t i = 0; i < ATrousN; i++) {
 			fgExecutor.RegisterPassFunc(
 				rtATrousDenoisePasses[i],
@@ -2505,21 +2507,17 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 					cmdList->SetGraphicsRootDescriptorTable(1, gb1.info.desc2info_srv.at(srvDesc).gpuHandle);
 					cmdList->SetGraphicsRootDescriptorTable(2, lz.info.desc2info_srv.at(srvDesc).gpuHandle);
 
-					auto& shaderCBMngr = frameRsrcMngr.GetCurrentFrameResource()
-						->GetResource<std::shared_ptr<ShaderCBMngrDX12>>("ShaderCBMngrDX12");
-
-					auto commonBuffer = shaderCBMngr->GetCommonBuffer();
-					auto cameraCBAdress = commonBuffer->GetResource()->GetGPUVirtualAddress()
+					auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
+						->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
+						->GetResource()->GetGPUVirtualAddress()
 						+ renderContext.cameraOffset;
 					cmdList->SetGraphicsRootConstantBufferView(3, cameraCBAdress);
 
-					auto* configBuffer = shaderCBMngr->GetBuffer(*atrousShader);
-					std::size_t offset = i * UDX12::Util::CalcConstantBufferByteSize(sizeof(ATrousConfig));
-					{
-						ATrousConfig config{ int(i + 1) };
-						configBuffer->Set(offset, &config);
-					}
-					cmdList->SetGraphicsRootConstantBufferView(4, configBuffer->GetResource()->GetGPUVirtualAddress() + offset);
+					auto atrousConfigCBAdress = crossFrameShaderCB
+						.GetResource()->GetGPUVirtualAddress()
+						+ offset_atrousconfig
+						+ i * UDX12::Util::CalcConstantBufferByteSize(sizeof(ATrousConfig));
+					cmdList->SetGraphicsRootConstantBufferView(4, atrousConfigCBAdress);
 
 					cmdList->IASetVertexBuffers(0, 0, nullptr);
 					cmdList->IASetIndexBuffer(nullptr);
@@ -2569,10 +2567,10 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 			cmdList->SetGraphicsRootDescriptorTable(1, gb0.info.desc2info_srv.at(srvDesc).gpuHandle);
 			cmdList->SetGraphicsRootDescriptorTable(2, ds.info.desc2info_srv.at(dsSrvDesc).gpuHandle);
 			cmdList->SetGraphicsRootDescriptorTable(3, iblData->SRVDH.GetGpuHandle(2));
-			auto& shaderCBMngr = frameRsrcMngr.GetCurrentFrameResource()
-				->GetResource<std::shared_ptr<ShaderCBMngrDX12>>("ShaderCBMngrDX12");
-			auto commonBuffer = shaderCBMngr->GetCommonBuffer();
-			auto cameraCBAdress = commonBuffer->GetResource()->GetGPUVirtualAddress()
+
+			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
+				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
+				->GetResource()->GetGPUVirtualAddress()
 				+ renderContext.cameraOffset;
 			cmdList->SetGraphicsRootConstantBufferView(4, cameraCBAdress);
 
@@ -2613,10 +2611,10 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 
 			cmdList->SetGraphicsRootDescriptorTable(0, taa_in.info.desc2info_srv.at(srvDesc).gpuHandle);
 			cmdList->SetGraphicsRootDescriptorTable(1, taa_mt.info.desc2info_srv.at(srvDesc).gpuHandle);
-			auto& shaderCBMngr = frameRsrcMngr.GetCurrentFrameResource()
-				->GetResource<std::shared_ptr<ShaderCBMngrDX12>>("ShaderCBMngrDX12");
-			auto commonBuffer = shaderCBMngr->GetCommonBuffer();
-			auto cameraCBAdress = commonBuffer->GetResource()->GetGPUVirtualAddress()
+
+			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
+				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
+				->GetResource()->GetGPUVirtualAddress()
 				+ renderContext.cameraOffset;
 			cmdList->SetGraphicsRootConstantBufferView(2, cameraCBAdress);
 
@@ -2691,8 +2689,10 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 }
 
 void StdDXRPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::string_view lightMode, size_t rtNum, DXGI_FORMAT rtFormat) {
-	auto& shaderCBMngr = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<std::shared_ptr<ShaderCBMngrDX12>>("ShaderCBMngrDX12");
+	auto& shaderCB = frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("ShaderCB");
+	auto& commonShaderCB = frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB");
 
 	D3D12_GPU_DESCRIPTOR_HANDLE ibl;
 	if (renderContext.skybox.ptr == defaultSkybox.ptr)
@@ -2703,8 +2703,7 @@ void StdDXRPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::
 		ibl = iblData->SRVDH.GetGpuHandle();
 	}
 
-	auto commonBuffer = shaderCBMngr->GetCommonBuffer();
-	auto cameraCBAdress = commonBuffer->GetResource()->GetGPUVirtualAddress()
+	auto cameraCBAdress = commonShaderCB->GetResource()->GetGPUVirtualAddress()
 		+ renderContext.cameraOffset;
 
 	std::shared_ptr<const Shader> shader;
@@ -2721,14 +2720,14 @@ void StdDXRPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::
 		}
 
 		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress =
-			commonBuffer->GetResource()->GetGPUVirtualAddress()
+			commonShaderCB->GetResource()->GetGPUVirtualAddress()
 			+ renderContext.entity2offset.at(obj.entity.index);
 
 		const auto& shaderCBDesc = renderContext.shaderCBDescMap.at(shader.get());
 
-		auto lightCBAdress = commonBuffer->GetResource()->GetGPUVirtualAddress()
+		auto lightCBAdress = commonShaderCB->GetResource()->GetGPUVirtualAddress()
 			+ renderContext.lightOffset;
-		StdDXRPipeline::SetGraphicsRoot_CBV_SRV(cmdList, *shaderCBMngr, shaderCBDesc, *obj.material,
+		StdDXRPipeline::SetGraphicsRoot_CBV_SRV(cmdList, *shaderCB, shaderCBDesc, *obj.material,
 			{
 				{StdDXRPipeline_cbPerObject, objCBAddress},
 				{StdDXRPipeline_cbPerCamera, cameraCBAdress},
