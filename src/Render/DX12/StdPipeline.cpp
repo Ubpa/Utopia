@@ -156,7 +156,7 @@ struct StdPipeline::Impl {
 
 		CameraConstants cameraConstants;
 
-		std::unordered_map<const Shader*, PipelineBase::ShaderCBDesc> shaderCBDescMap; // shader ID -> desc
+		std::unordered_map<const Shader*, IPipeline::ShaderCBDesc> shaderCBDescMap; // shader ID -> desc
 
 		D3D12_GPU_DESCRIPTOR_HANDLE skybox;
 		LightArray lights;
@@ -716,12 +716,12 @@ void StdPipeline::Impl::UpdateShaderCBs() {
 
 	for (const auto& [shader, materials] : opaqueMaterialMap) {
 		renderContext.shaderCBDescMap[shader] =
-			PipelineBase::UpdateShaderCBs(*shaderCBMngr, *shader, materials, commonCBs);
+			IPipeline::UpdateShaderCBs(*shaderCBMngr, *shader, materials, commonCBs);
 	}
 
 	for (const auto& [shader, materials] : transparentMaterialMap) {
 		renderContext.shaderCBDescMap[shader] =
-			PipelineBase::UpdateShaderCBs(*shaderCBMngr, *shader, materials, commonCBs);
+			IPipeline::UpdateShaderCBs(*shaderCBMngr, *shader, materials, commonCBs);
 	}
 }
 
@@ -1308,7 +1308,6 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::str
 }
 
 StdPipeline::StdPipeline(InitDesc initDesc) :
-	PipelineBase{ initDesc },
 	pImpl{ new Impl{ initDesc } } {}
 
 StdPipeline::~StdPipeline() { delete pImpl; }

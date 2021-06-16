@@ -15,7 +15,7 @@ Ubpa::UDX12::DynamicUploadBuffer* ShaderCBMngrDX12::GetBuffer(const Shader& shad
 	auto rst = bufferMap.emplace_hint(
 		target,
 		shader.GetInstanceID(),
-		std::make_unique<UDX12::DynamicUploadBuffer>(device)
+		std::make_unique<UDX12::DynamicUploadBuffer>(device, 0)
 	);
 	return rst->second.get();
 }
@@ -29,7 +29,7 @@ Ubpa::UDX12::DynamicUploadBuffer* ShaderCBMngrDX12::GetCommonBuffer() {
 	auto rst = bufferMap.emplace_hint(
 		target,
 		ID,
-		std::make_unique<UDX12::DynamicUploadBuffer>(device)
+		std::make_unique<UDX12::DynamicUploadBuffer>(device, 0)
 	);
 	return rst->second.get();
 }

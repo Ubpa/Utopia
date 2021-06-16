@@ -758,7 +758,7 @@ struct StdDXRPipeline::Impl {
 		bool cameraChange;
 		CameraConstants cameraConstants;
 
-		std::unordered_map<const Shader*, PipelineBase::ShaderCBDesc> shaderCBDescMap; // shader ID -> desc
+		std::unordered_map<const Shader*, IPipeline::ShaderCBDesc> shaderCBDescMap; // shader ID -> desc
 
 		D3D12_GPU_DESCRIPTOR_HANDLE skybox;
 		LightArray lights;
@@ -838,7 +838,7 @@ struct StdDXRPipeline::Impl {
 		int gFrameCnt;
 	};
 	struct TLASData {
-		TLASData(ID3D12Device5* device, ID3D12StateObject* rtpso, std::size_t entrySize) : instanceDescs(device), hitGroupTable(device)  {
+		TLASData(ID3D12Device5* device, ID3D12StateObject* rtpso, std::size_t entrySize) : instanceDescs(device, 0), hitGroupTable(device, 0)  {
 			raygenDescriptors = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(2); // u0 rt result, u1 rt u result
 			shaderTable = createShaderTable(device, rtpso, raygenDescriptors.GetGpuHandle(), entrySize);
 		}
@@ -1412,12 +1412,12 @@ void StdDXRPipeline::Impl::UpdateShaderCBs() {
 
 	for (const auto& [shader, materials] : opaqueMaterialMap) {
 		renderContext.shaderCBDescMap[shader] =
-			PipelineBase::UpdateShaderCBs(*shaderCBMngr, *shader, materials, commonCBs);
+			IPipeline::UpdateShaderCBs(*shaderCBMngr, *shader, materials, commonCBs);
 	}
 
 	for (const auto& [shader, materials] : transparentMaterialMap) {
 		renderContext.shaderCBDescMap[shader] =
-			PipelineBase::UpdateShaderCBs(*shaderCBMngr, *shader, materials, commonCBs);
+			IPipeline::UpdateShaderCBs(*shaderCBMngr, *shader, materials, commonCBs);
 	}
 }
 
@@ -2789,7 +2789,6 @@ void StdDXRPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::
 }
 
 StdDXRPipeline::StdDXRPipeline(InitDesc initDesc) :
-	PipelineBase{ initDesc },
 	pImpl{ new Impl{ initDesc } } {}
 
 StdDXRPipeline::~StdDXRPipeline() { delete pImpl; }

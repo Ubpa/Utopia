@@ -1,4 +1,4 @@
-#include <Utopia/Render/DX12/PipelineBase.h>
+#include <Utopia/Render/DX12/IPipeline.h>
 
 #include <Utopia/Render/Material.h>
 #include <Utopia/Render/Shader.h>
@@ -8,13 +8,13 @@
 
 using namespace Ubpa::Utopia;
 
-PipelineBase::ShaderCBDesc PipelineBase::UpdateShaderCBs(
+IPipeline::ShaderCBDesc IPipeline::UpdateShaderCBs(
 	ShaderCBMngrDX12& shaderCBMngr,
 	const Shader& shader,
 	const std::unordered_set<const Material*>& materials,
 	const std::set<std::string_view>& commonCBs)
 {
-	PipelineBase::ShaderCBDesc rst;
+	IPipeline::ShaderCBDesc rst;
 
 	auto CalculateSize = [&](ID3D12ShaderReflection* refl) {
 		D3D12_SHADER_DESC shaderDesc;
@@ -114,7 +114,7 @@ PipelineBase::ShaderCBDesc PipelineBase::UpdateShaderCBs(
 	return rst;
 }
 
-void PipelineBase::SetGraphicsRoot_CBV_SRV(
+void IPipeline::SetGraphicsRoot_CBV_SRV(
 	ID3D12GraphicsCommandList* cmdList,
 	ShaderCBMngrDX12& shaderCBMngr,
 	const ShaderCBDesc& shaderCBDescconst,

@@ -21,7 +21,7 @@ namespace Ubpa::Utopia {
 	class ShaderCBMngrDX12;
 	struct RenderState;
 
-	class PipelineBase {
+	class IPipeline {
 	public:
 		struct InitDesc {
 			size_t numFrame;
@@ -33,14 +33,9 @@ namespace Ubpa::Utopia {
 			const UECS::World* world;
 		};
 
-		PipelineBase(InitDesc initDesc) : initDesc{ initDesc } {}
-
-		virtual ~PipelineBase() = default;
+		virtual ~IPipeline() = default;
 
 		virtual void Render(const std::vector<const UECS::World*>& worlds, const CameraData& cameraData, ID3D12Resource* default_rtb) = 0;
-
-	protected:
-		const InitDesc initDesc;
 
 	public:
 		//

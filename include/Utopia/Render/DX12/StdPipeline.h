@@ -1,9 +1,9 @@
 #pragma once
 
-#include "PipelineBase.h"
+#include "IPipeline.h"
 
 namespace Ubpa::Utopia {
-	class StdPipeline final : public PipelineBase {
+	class StdPipeline final : public IPipeline {
 	public:
 		StdPipeline(InitDesc desc);
 		virtual ~StdPipeline();

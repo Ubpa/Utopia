@@ -91,7 +91,7 @@ struct Editor::Impl {
 	const DXGI_FORMAT gameRTFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 	Ubpa::UDX12::DescriptorHeapAllocation gameRT_SRV;
 	Ubpa::UDX12::DescriptorHeapAllocation gameRT_RTV;
-	std::unique_ptr<PipelineBase> gamePipeline;
+	std::unique_ptr<IPipeline> gamePipeline;
 
 	void OnSceneResize();
 	size_t sceneWidth{ 0 }, sceneHeight{ 0 };
@@ -100,7 +100,7 @@ struct Editor::Impl {
 	const DXGI_FORMAT sceneRTFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 	Ubpa::UDX12::DescriptorHeapAllocation sceneRT_SRV;
 	Ubpa::UDX12::DescriptorHeapAllocation sceneRT_RTV;
-	std::unique_ptr<PipelineBase> scenePipeline;
+	std::unique_ptr<IPipeline> scenePipeline;
 
 	bool show_demo_window = true;
 	bool show_another_window = false;
@@ -275,7 +275,7 @@ bool Editor::Impl::Init() {
 
 	LoadInternalTextures();
 	LoadShaders();
-	PipelineBase::InitDesc initDesc;
+	IPipeline::InitDesc initDesc;
 	initDesc.device = pEditor->uDevice.Get();
 	initDesc.cmdQueue = pEditor->uCmdQueue.Get();
 	initDesc.numFrame = DX12App::NumFrameResources;
@@ -628,7 +628,7 @@ void Editor::Impl::Update() {
 		ImGui::SetCurrentContext(gameImGuiCtx);
 		if (gameRT) {
 			if (isGameOpen) {
-				std::vector<PipelineBase::CameraData> gameCameras;
+				std::vector<IPipeline::CameraData> gameCameras;
 				Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::AccessTypeID_of<Camera>} };
 				curGameWorld->RunEntityJob([&](Ubpa::UECS::Entity e) {
 					gameCameras.emplace_back(e, curGameWorld);
@@ -636,7 +636,7 @@ void Editor::Impl::Update() {
 				if (gameCameras.empty())
 					gamePipeline->Render({ curGameWorld }, { Entity::Invalid(), curGameWorld }, gameRT.Get());
 				else {
-					std::sort(gameCameras.begin(), gameCameras.end(), [](const PipelineBase::CameraData& left, const PipelineBase::CameraData& right) {
+					std::sort(gameCameras.begin(), gameCameras.end(), [](const IPipeline::CameraData& left, const IPipeline::CameraData& right) {
 						return left.world->entityMngr.ReadComponent<Camera>(left.entity)->order
 							< right.world->entityMngr.ReadComponent<Camera>(right.entity)->order;
 					});
@@ -662,7 +662,7 @@ void Editor::Impl::Update() {
 		if (sceneRT) {
 			if (isSceneOpen) {
 
-				std::vector<PipelineBase::CameraData> sceneCameras;
+				std::vector<IPipeline::CameraData> sceneCameras;
 				Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::AccessTypeID_of<Camera>} };
 				sceneWorld.RunEntityJob([&](Ubpa::UECS::Entity e) {
 					sceneCameras.emplace_back(e, &sceneWorld);
