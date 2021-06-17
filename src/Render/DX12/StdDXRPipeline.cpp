@@ -863,6 +863,9 @@ struct StdDXRPipeline::Impl {
 	static constexpr const char key_CameraResizeData[] = "CameraResizeData";
 	static constexpr const char key_CameraResizeData_Backup[] = "CameraResizeData_Backup";
 	struct CameraResizeData {
+		~CameraResizeData() {
+			height = 0;
+		}
 		size_t width{ 0 };
 		size_t height{ 0 };
 
@@ -1137,8 +1140,7 @@ void StdDXRPipeline::Impl::BuildShaders() {
 	for (size_t i = 0; i < ATrousN; i++) {
 		ATrousConfig config;
 		config.gKernelStep = (int)(i + 1);
-		crossFrameShaderCB.Set(6 * quadPositionsSize
-			+ IBLData::PreFilterMapMipLevels * mipInfoSize, &config, sizeof(ATrousConfig));
+		crossFrameShaderCB.Set(offset_atrousconfig + i * UDX12::Util::CalcConstantBufferByteSize(sizeof(ATrousConfig)), &config, sizeof(ATrousConfig));
 	}
 }
 
@@ -2881,10 +2883,10 @@ void StdDXRPipeline::Impl::UpdateCameraResource(const CameraData& cameraData, si
 		cameraRsrcMngr->Get(cameraData).UnregisterResource(key_CameraResizeData_Backup);
 	if (!cameraRsrcMngr->Get(cameraData).HaveResource(key_CameraResizeData))
 		cameraRsrcMngr->Get(cameraData).RegisterResource(key_CameraResizeData, CameraResizeData{});
-	auto& cameraResizeData = cameraRsrcMngr->Get(cameraData).GetResource<CameraResizeData>(key_CameraResizeData);
-	if (cameraResizeData.width == width && cameraResizeData.height == height)
+	const auto& currCameraResizeData = cameraRsrcMngr->Get(cameraData).GetResource<CameraResizeData>(key_CameraResizeData);
+	if (currCameraResizeData.width == width && currCameraResizeData.height == height)
 		return;
-
+	CameraResizeData cameraResizeData;
 	cameraResizeData.width = width;
 	cameraResizeData.height = height;
 
@@ -2982,12 +2984,15 @@ void StdDXRPipeline::Impl::UpdateCameraResource(const CameraData& cameraData, si
 		IID_PPV_ARGS(&taaPrevRsrc)
 	);
 
-	cameraResizeData.rtURsrc = rtURsrc;
-	cameraResizeData.rtSRsrc = rtSRsrc;
-	cameraResizeData.rtColorMoment = rtColorMoment;
-	cameraResizeData.rtHistoryLength = rtHistoryLength;
-	cameraResizeData.rtLinearZ = rtLinearZ;
-	cameraResizeData.taaPrevRsrc = taaPrevRsrc;
+	cameraResizeData.rtURsrc = std::move(rtURsrc);
+	cameraResizeData.rtSRsrc = std::move(rtSRsrc);
+	cameraResizeData.rtColorMoment = std::move(rtColorMoment);
+	cameraResizeData.rtHistoryLength = std::move(rtHistoryLength);
+	cameraResizeData.rtLinearZ = std::move(rtLinearZ);
+	cameraResizeData.taaPrevRsrc = std::move(taaPrevRsrc);
+
+	cameraRsrcMngr->Get(cameraData).UnregisterResource(key_CameraResizeData);
+	cameraRsrcMngr->Get(cameraData).RegisterResource(key_CameraResizeData, std::move(cameraResizeData));
 
 	for (auto& frsrc : frameRsrcMngr.GetFrameResources()) {
 		if (frsrc.get() == frameRsrcMngr.GetCurrentFrameResource())
@@ -2998,14 +3003,15 @@ void StdDXRPipeline::Impl::UpdateCameraResource(const CameraData& cameraData, si
 			continue;
 
 		if (!cameraRsrcMngr->Get(cameraData).HaveResource(key_CameraResizeData))
-			continue;
+			cameraRsrcMngr->Get(cameraData).RegisterResource(key_CameraResizeData, CameraResizeData{});
 
-		if (!cameraRsrcMngr->Get(cameraData).HaveResource(key_CameraResizeData_Backup))
-			cameraRsrcMngr->Get(cameraData).RegisterResource(key_CameraResizeData_Backup, CameraResizeData{});
-
-		cameraRsrcMngr->Get(cameraData).GetResource<CameraResizeData>(key_CameraResizeData_Backup) =
-			cameraRsrcMngr->Get(cameraData).GetResource<CameraResizeData>(key_CameraResizeData);
-
+		if (!cameraRsrcMngr->Get(cameraData).HaveResource(key_CameraResizeData_Backup)){
+			cameraRsrcMngr->Get(cameraData).RegisterResource(
+				key_CameraResizeData_Backup,
+				std::move(cameraRsrcMngr->Get(cameraData).GetResource<CameraResizeData>(key_CameraResizeData))
+			);
+		}
+		
 		cameraRsrcMngr->Get(cameraData).GetResource<CameraResizeData>(key_CameraResizeData) = cameraResizeData;
 	}
 }
