@@ -3,6 +3,7 @@
 #include <UGM/transform.hpp>
 #include "../RenderTargetTexture2D.h"
 #include "../../Core/SharedVar.h"
+#include "../DX12/IPipeline.h"
 
 namespace Ubpa::Utopia {
 	struct Camera {
@@ -22,5 +23,13 @@ namespace Ubpa::Utopia {
 		//   the camera will render to it
 		SharedVar<RenderTargetTexture2D> renderTarget;
 		int order{ 0 };
+
+		enum class PipelineMode {
+			Std,
+			StdDXR,
+			Custom
+		};
+		PipelineMode pipeline_mode{ PipelineMode::Std };
+		SharedVar<IPipeline> custom_pipeline;
 	};
 }

@@ -7,6 +7,9 @@
 #include <Utopia/Render/TextureCube.h>
 #include <Utopia/Render/RenderTargetTexture2D.h>
 
+#include <Utopia/Render/DX12/StdPipeline.h>
+#include <Utopia/Render/DX12/StdDXRPipeline.h>
+
 #include <UDRefl/UDRefl.hpp>
 
 using namespace Ubpa::Utopia;
@@ -24,6 +27,12 @@ void Ubpa::Utopia::UDRefl_Register_Render() {
 
 	// Camera
 	// TODO: attrs
+
+	Mngr.RegisterType<Camera::PipelineMode>();
+	Mngr.AddField<Camera::PipelineMode::Custom>("Custom");
+	Mngr.AddField<Camera::PipelineMode::Std>("Std");
+	Mngr.AddField<Camera::PipelineMode::StdDXR>("StdDXR");
+
 	Mngr.RegisterType<Camera>();
 	Mngr.SimpleAddField<&Camera::aspect>("aspect");
 	Mngr.SimpleAddField<&Camera::fov>("fov");
@@ -32,6 +41,8 @@ void Ubpa::Utopia::UDRefl_Register_Render() {
 	Mngr.SimpleAddField<&Camera::prjectionMatrix>("prjectionMatrix");
 	Mngr.AddField<&Camera::renderTarget>("renderTarget");
 	Mngr.SimpleAddField<&Camera::order>("order");
+	Mngr.SimpleAddField<&Camera::pipeline_mode>("pipeline_mode");
+	Mngr.AddField<&Camera::custom_pipeline>("custom_pipeline");
 
 	// Light
 	Mngr.RegisterType<Light::Mode>();
@@ -62,6 +73,13 @@ void Ubpa::Utopia::UDRefl_Register_Render() {
 	// Skybox
 	Mngr.RegisterType<Skybox>();
 	Mngr.AddField<&Skybox::material>("materials");
+
+	// Pipeline
+	Mngr.RegisterType<IPipeline>();
+	Mngr.RegisterType<StdPipeline>();
+	Mngr.AddBases<StdPipeline, IPipeline>();
+	Mngr.RegisterType<StdDXRPipeline>();
+	Mngr.AddBases<StdDXRPipeline, IPipeline>();
 }
 
 void Ubpa::Utopia::World_Register_Render(UECS::World* world) {

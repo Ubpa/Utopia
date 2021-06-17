@@ -35,6 +35,7 @@ namespace Ubpa::Utopia {
 
 		virtual ~IPipeline() = default;
 
+		virtual void Init(InitDesc desc) = 0;
 		virtual void Render(const std::vector<const UECS::World*>& worlds, std::span<const CameraData> cameraData, ID3D12Resource* default_rtb) = 0;
 
 	public:

@@ -16,6 +16,7 @@
 #include <Utopia/Render/MaterialImporter.h>
 #include <Utopia/Render/MeshImporter.h>
 #include <Utopia/Render/ModelImporter.h>
+#include <Utopia/Render/DX12/PipelineImporter.h>
 
 #include <Utopia/App/Editor/Systems/HierarchySystem.h>
 #include <Utopia/App/Editor/Systems/InspectorSystem.h>
@@ -91,7 +92,6 @@ struct Editor::Impl {
 	const DXGI_FORMAT gameRTFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 	Ubpa::UDX12::DescriptorHeapAllocation gameRT_SRV;
 	Ubpa::UDX12::DescriptorHeapAllocation gameRT_RTV;
-	std::unique_ptr<IPipeline> gamePipeline;
 
 	void OnSceneResize();
 	size_t sceneWidth{ 0 }, sceneHeight{ 0 };
@@ -100,7 +100,9 @@ struct Editor::Impl {
 	const DXGI_FORMAT sceneRTFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 	Ubpa::UDX12::DescriptorHeapAllocation sceneRT_SRV;
 	Ubpa::UDX12::DescriptorHeapAllocation sceneRT_RTV;
-	std::unique_ptr<IPipeline> scenePipeline;
+
+	std::shared_ptr<StdPipeline> stdPipeline;
+	std::shared_ptr<StdDXRPipeline> stdDXRPipeline;
 
 	bool show_demo_window = true;
 	bool show_another_window = false;
@@ -191,6 +193,7 @@ Editor::~Editor() {
 	FlushCommandQueue();
 
 	ImGUIMngr::Instance().Clear();
+	AssetMngr::Instance().Clear();
 
 	delete pImpl;
 }
@@ -265,6 +268,7 @@ bool Editor::Impl::Init() {
 	AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<MaterialImporterCreator>());
 	AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<MeshImporterCreator>());
 	AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<ModelImporterCreator>());
+	AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<PipelineImporterCreator>());
 	AssetMngr::Instance().ImportAssetRecursively(LR"(.)");
 	
 	//InitInspectorRegistry();
@@ -275,14 +279,16 @@ bool Editor::Impl::Init() {
 
 	LoadInternalTextures();
 	LoadShaders();
+
+	// load pipelines
+	stdPipeline = AssetMngr::Instance().LoadAsset<StdPipeline>(LR"(_internal\pipelines\StdPipeline.pipeline)");
+	stdDXRPipeline = AssetMngr::Instance().LoadAsset<StdDXRPipeline>(LR"(_internal\pipelines\StdDXRPipeline.pipeline)");
 	IPipeline::InitDesc initDesc;
 	initDesc.device = pEditor->uDevice.Get();
 	initDesc.cmdQueue = pEditor->uCmdQueue.Get();
 	initDesc.numFrame = DX12App::NumFrameResources;
-	//gamePipeline = std::make_unique<StdDXRPipeline>(initDesc);
-	scenePipeline = std::make_unique<StdDXRPipeline>(initDesc);
-	gamePipeline = std::make_unique<StdPipeline>(initDesc);
-	//scenePipeline = std::make_unique<StdPipeline>(initDesc);
+	stdPipeline->Init(initDesc);
+	stdDXRPipeline->Init(initDesc);
 
 	gameRT_SRV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(1);
 	gameRT_RTV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Allocate(1);
@@ -624,21 +630,42 @@ void Editor::Impl::Update() {
 
 	ThrowIfFailed(pEditor->uGCmdList->Reset(cmdAlloc, nullptr));
 
+	IPipeline::InitDesc initDesc;
+	initDesc.device = pEditor->uDevice.Get();
+	initDesc.cmdQueue = pEditor->uCmdQueue.Get();
+	initDesc.numFrame = DX12App::NumFrameResources;
 	{ // game
 		ImGui::SetCurrentContext(gameImGuiCtx);
 		if (gameRT) {
 			if (isGameOpen) {
-				std::vector<IPipeline::CameraData> gameCameras;
-				Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::AccessTypeID_of<Camera>} };
-				curGameWorld->RunEntityJob([&](Ubpa::UECS::Entity e) {
-					gameCameras.emplace_back(e, curGameWorld);
-				}, false, camFilter);
-				if (!gameCameras.empty()) {
-					std::sort(gameCameras.begin(), gameCameras.end(), [](const IPipeline::CameraData& left, const IPipeline::CameraData& right) {
+				std::map<IPipeline*, std::vector<IPipeline::CameraData>> gameCameras;
+				curGameWorld->RunEntityJob([&](Ubpa::UECS::Entity e, Camera* cam) {
+					IPipeline* pipeline;
+					switch (cam->pipeline_mode) {
+					case Camera::PipelineMode::Std:
+						pipeline = stdPipeline.get();
+						break;
+					case Camera::PipelineMode::StdDXR:
+						pipeline = stdDXRPipeline.get();
+						break;
+					case Camera::PipelineMode::Custom:
+						pipeline = cam->custom_pipeline.get();
+						if(!pipeline)
+							pipeline = stdPipeline.get(); // default
+						break;
+					}
+					gameCameras[pipeline].emplace_back(e, curGameWorld);
+				}, false);
+				for (auto& [pipeline, cameras] : gameCameras) {
+					if (cameras.empty())
+						continue;
+
+					std::sort(cameras.begin(), cameras.end(), [](const IPipeline::CameraData& left, const IPipeline::CameraData& right) {
 						return left.world->entityMngr.ReadComponent<Camera>(left.entity)->order
 							< right.world->entityMngr.ReadComponent<Camera>(right.entity)->order;
 					});
-					gamePipeline->Render({ curGameWorld }, gameCameras, gameRT.Get());
+					pipeline->Init(initDesc);
+					pipeline->Render({ curGameWorld }, cameras, gameRT.Get());
 				}
 			}
 			pEditor->uGCmdList.ResourceBarrierTransition(gameRT.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -657,18 +684,34 @@ void Editor::Impl::Update() {
 		ImGui::SetCurrentContext(sceneImGuiCtx);
 		if (sceneRT) {
 			if (isSceneOpen) {
+				std::map<IPipeline*, std::vector<IPipeline::CameraData>> sceneCameras;
+				sceneWorld.RunEntityJob([&](Ubpa::UECS::Entity e, Camera* cam) {
+					IPipeline* pipeline;
+					switch (cam->pipeline_mode) {
+					case Camera::PipelineMode::Std:
+						pipeline = stdPipeline.get();
+						break;
+					case Camera::PipelineMode::StdDXR:
+						pipeline = stdDXRPipeline.get();
+						break;
+					case Camera::PipelineMode::Custom:
+						pipeline = cam->custom_pipeline.get();
+						if (!pipeline)
+							pipeline = stdPipeline.get(); // default
+						break;
+					}
+					sceneCameras[pipeline].emplace_back(e, &sceneWorld);
+				}, false);
+				for (auto& [pipeline, cameras] : sceneCameras) {
+					if (cameras.empty())
+						continue;
 
-				std::vector<IPipeline::CameraData> sceneCameras;
-				Ubpa::UECS::ArchetypeFilter camFilter{ {Ubpa::UECS::AccessTypeID_of<Camera>} };
-				sceneWorld.RunEntityJob([&](Ubpa::UECS::Entity e) {
-					sceneCameras.emplace_back(e, &sceneWorld);
-				}, false, camFilter);
-				if (!sceneCameras.empty()) {
-					std::sort(sceneCameras.begin(), sceneCameras.end(), [](const IPipeline::CameraData& left, const IPipeline::CameraData& right) {
+					std::sort(cameras.begin(), cameras.end(), [](const IPipeline::CameraData& left, const IPipeline::CameraData& right) {
 						return left.world->entityMngr.ReadComponent<Camera>(left.entity)->order
 							< right.world->entityMngr.ReadComponent<Camera>(right.entity)->order;
 					});
-					scenePipeline->Render({ curGameWorld, &sceneWorld }, sceneCameras, sceneRT.Get());
+					pipeline->Init(initDesc);
+					pipeline->Render({ curGameWorld, &sceneWorld }, cameras, sceneRT.Get());
 				}
 			}
 			pEditor->uGCmdList.ResourceBarrierTransition(sceneRT.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);

@@ -1365,8 +1365,10 @@ void StdPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::str
 		Draw(obj);
 }
 
-StdPipeline::StdPipeline(InitDesc initDesc) :
-	pImpl{ new Impl{ initDesc } } {}
+void StdPipeline::Init(InitDesc desc) {
+	if(!pImpl)
+		pImpl = new Impl{ desc };
+}
 
 StdPipeline::~StdPipeline() { delete pImpl; }
 

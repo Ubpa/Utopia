@@ -23,7 +23,7 @@ public:
 		auto myasset = std::make_shared<MyAsset>();
 		myasset->data = initdata;
 		ctx.AddObject(name, UDRefl::SharedObject{ Type_of<MyAsset>, myasset });
-		ctx.AddObject("default", UDRefl::SharedObject{ Type_of<DefaultAsset>, std::make_shared<DefaultAsset>() });
+		ctx.AddObject("main", UDRefl::SharedObject{ Type_of<DefaultAsset>, std::make_shared<DefaultAsset>() });
 		ctx.SetMainObjectID(name);
 
 		return ctx;

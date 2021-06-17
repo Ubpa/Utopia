@@ -2868,8 +2868,10 @@ void StdDXRPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::
 		Draw(obj);
 }
 
-StdDXRPipeline::StdDXRPipeline(InitDesc initDesc) :
-	pImpl{ new Impl{ initDesc } } {}
+void StdDXRPipeline::Init(InitDesc desc) {
+	if (!pImpl)
+		pImpl = new Impl{ desc };
+}
 
 StdDXRPipeline::~StdDXRPipeline() { delete pImpl; }
 
