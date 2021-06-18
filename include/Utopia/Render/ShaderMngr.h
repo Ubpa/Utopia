@@ -21,6 +21,7 @@ namespace Ubpa::Utopia {
 		void Unregister(std::size_t id);
 		std::shared_ptr<Shader> Get(std::string_view name) const;
 		const std::map<std::string, std::weak_ptr<Shader>, std::less<>> GetShaderMap() const noexcept { return shaderMap; }
+		void Clear();
 
 	private:
 		ShaderMngr() = default;

@@ -412,8 +412,12 @@ GPURsrcMngrDX12& GPURsrcMngrDX12::UnregisterRenderTargetTexture2D(std::size_t ID
 	if (auto target = pImpl->rtTexture2DMap.find(ID); target != pImpl->rtTexture2DMap.end()) {
 		auto& tex = target->second;
 		pImpl->deleteBatch.Add(std::move(tex.resource));
-		pImpl->deleteBatch.AddCallback([alloc = std::make_shared<UDX12::DescriptorHeapAllocation>(std::move(tex.allocationSRV))]() {
-			UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(*alloc));
+		pImpl->deleteBatch.AddCallback(
+			[allocSRV = std::make_shared<UDX12::DescriptorHeapAllocation>(std::move(tex.allocationSRV)),
+			allocRTV = std::make_shared<UDX12::DescriptorHeapAllocation>(std::move(tex.allocationRTV))]()
+		{
+			UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(*allocSRV));
+			UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Free(std::move(*allocRTV));
 		});
 		pImpl->rtTexture2DMap.erase(target);
 	}

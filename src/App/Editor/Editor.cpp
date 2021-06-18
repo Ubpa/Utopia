@@ -280,15 +280,8 @@ bool Editor::Impl::Init() {
 	LoadInternalTextures();
 	LoadShaders();
 
-	// load pipelines
 	stdPipeline = AssetMngr::Instance().LoadAsset<StdPipeline>(LR"(_internal\pipelines\StdPipeline.pipeline)");
 	stdDXRPipeline = AssetMngr::Instance().LoadAsset<StdDXRPipeline>(LR"(_internal\pipelines\StdDXRPipeline.pipeline)");
-	IPipeline::InitDesc initDesc;
-	initDesc.device = pEditor->uDevice.Get();
-	initDesc.cmdQueue = pEditor->uCmdQueue.Get();
-	initDesc.numFrame = DX12App::NumFrameResources;
-	stdPipeline->Init(initDesc);
-	stdDXRPipeline->Init(initDesc);
 
 	gameRT_SRV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(1);
 	gameRT_RTV = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Allocate(1);

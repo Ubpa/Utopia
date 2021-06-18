@@ -34,6 +34,17 @@ void ShaderMngr::Unregister(std::size_t id) {
 	id2data.erase(target);
 }
 
+void ShaderMngr::Clear() {
+	std::lock_guard guard{ m };
+	for (const auto& [name, shader] : shaderMap) {
+		if (shader.expired())
+			continue;
+		shader.lock()->destroyed.Disconnect(this);
+	}
+	id2data.clear();
+	shaderMap.clear();
+}
+
 ShaderMngr::~ShaderMngr() {
 	for (const auto& [name, shader] : shaderMap) {
 		if (shader.expired())
