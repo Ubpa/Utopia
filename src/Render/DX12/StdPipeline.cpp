@@ -199,7 +199,6 @@ struct StdPipeline::Impl {
 
 	UDX12::FrameResourceMngr frameRsrcMngr;
 
-	UDX12::FG::Executor fgExecutor;
 	UFG::Compiler fgCompiler;
 	UFG::FrameGraph fg;
 
@@ -280,18 +279,12 @@ void StdPipeline::Impl::BuildTextures() {
 
 void StdPipeline::Impl::BuildFrameResources() {
 	for (const auto& fr : frameRsrcMngr.GetFrameResources()) {
-		Microsoft::WRL::ComPtr<ID3D12CommandAllocator> allocator;
-		ThrowIfFailed(initDesc.device->CreateCommandAllocator(
-			D3D12_COMMAND_LIST_TYPE_DIRECT,
-			IID_PPV_ARGS(&allocator)));
-
-		fr->RegisterResource("CommandAllocator", std::move(allocator));
-
 		fr->RegisterResource("ShaderCB", std::make_shared<UDX12::DynamicUploadVector>(initDesc.device));
 		fr->RegisterResource("CommonShaderCB", std::make_shared<UDX12::DynamicUploadVector>(initDesc.device));
 
 		fr->RegisterResource("CameraRsrcMngr", std::make_shared<CameraRsrcMngr>());
-		fr->RegisterResource("FrameGraphRsrcMngr", std::make_shared<UDX12::FG::RsrcMngr>());
+		fr->RegisterResource("FrameGraphRsrcMngr", std::make_shared<UDX12::FG::RsrcMngr>(initDesc.device));
+		fr->RegisterResource("FrameGraphExecutor", std::make_shared<UDX12::FG::Executor>(initDesc.device));
 
 		D3D12_CLEAR_VALUE clearColor;
 		clearColor.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
@@ -734,8 +727,6 @@ void StdPipeline::Impl::UpdateShaderCBs() {
 }
 
 void StdPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Resource* default_rtb) {
-	auto cmdAlloc = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<Microsoft::WRL::ComPtr<ID3D12CommandAllocator>>("CommandAllocator");
 	size_t cameraIdx = renderContext.crossFrameCameraRsrcs.Index(cameraData);
 	ID3D12Resource* rtb = default_rtb;
 	{ // set rtb
@@ -757,12 +748,16 @@ void StdPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Resourc
 
 	auto cameraRsrcMngr = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<CameraRsrcMngr>>("CameraRsrcMngr");
+
 	if (!cameraRsrcMngr->Get(cameraData).HaveResource("FrameGraphRsrcMngr"))
-		cameraRsrcMngr->Get(cameraData).RegisterResource("FrameGraphRsrcMngr", std::make_shared<UDX12::FG::RsrcMngr>());
+		cameraRsrcMngr->Get(cameraData).RegisterResource("FrameGraphRsrcMngr", std::make_shared<UDX12::FG::RsrcMngr>(initDesc.device));
 	auto fgRsrcMngr = cameraRsrcMngr->Get(cameraData).GetResource<std::shared_ptr<UDX12::FG::RsrcMngr>>("FrameGraphRsrcMngr");
 	fgRsrcMngr->NewFrame();
 
-	fgExecutor.NewFrame();;
+	if (!cameraRsrcMngr->Get(cameraData).HaveResource("FrameGraphExecutor"))
+		cameraRsrcMngr->Get(cameraData).RegisterResource("FrameGraphExecutor", std::make_shared<UDX12::FG::Executor>(initDesc.device));
+	auto fgExecutor = cameraRsrcMngr->Get(cameraData).GetResource<std::shared_ptr<UDX12::FG::Executor>>("FrameGraphExecutor");
+	fgExecutor->NewFrame();
 
 	auto gbuffer0 = fg.RegisterResourceNode("GBuffer0");
 	auto gbuffer1 = fg.RegisterResourceNode("GBuffer1");
@@ -876,7 +871,7 @@ void StdPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Resourc
 		.RegisterPassRsrc(postprocessPass, presentedRT, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
 		;
 
-	fgExecutor.RegisterPassFunc(
+	fgExecutor->RegisterPassFunc(
 		gbPass,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
@@ -884,17 +879,17 @@ void StdPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Resourc
 			cmdList->RSSetViewports(1, &viewport);
 			cmdList->RSSetScissorRects(1, &scissorRect);
 
-			auto gb0 = rsrcs.find(gbuffer0)->second;
-			auto gb1 = rsrcs.find(gbuffer1)->second;
-			auto gb2 = rsrcs.find(gbuffer2)->second;
-			auto ds = rsrcs.find(deferDS)->second;
+			auto gb0 = rsrcs.at(gbuffer0);
+			auto gb1 = rsrcs.at(gbuffer1);
+			auto gb2 = rsrcs.at(gbuffer2);
+			auto ds = rsrcs.at(deferDS);
 
 			std::array rtHandles{
-				gb0.info.null_info_rtv.cpuHandle,
-				gb1.info.null_info_rtv.cpuHandle,
-				gb2.info.null_info_rtv.cpuHandle
+				gb0.info->null_info_rtv.cpuHandle,
+				gb1.info->null_info_rtv.cpuHandle,
+				gb2.info->null_info_rtv.cpuHandle
 			};
-			auto dsHandle = ds.info.desc2info_dsv.at(dsvDesc).cpuHandle;
+			auto dsHandle = ds.info->desc2info_dsv.at(dsvDesc).cpuHandle;
 			// Clear the render texture and depth buffer.
 			cmdList->ClearRenderTargetView(rtHandles[0], DirectX::Colors::Black, 0, nullptr);
 			cmdList->ClearRenderTargetView(rtHandles[1], DirectX::Colors::Black, 0, nullptr);
@@ -912,7 +907,7 @@ void StdPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Resourc
 		}
 	);
 
-	fgExecutor.RegisterPassFunc(
+	fgExecutor->RegisterPassFunc(
 		deferLightingPass,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
@@ -923,17 +918,17 @@ void StdPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Resourc
 			auto gb0 = rsrcs.at(gbuffer0);
 			auto gb1 = rsrcs.at(gbuffer1);
 			auto gb2 = rsrcs.at(gbuffer2);
-			auto ds = rsrcs.find(deferDS)->second;
+			auto ds = rsrcs.at(deferDS);
 
 			auto rt = rsrcs.at(deferLightedRT);
 
 			//cmdList->CopyResource(bb.resource, rt.resource);
 
 			// Clear the render texture and depth buffer.
-			cmdList->ClearRenderTargetView(rt.info.null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
+			cmdList->ClearRenderTargetView(rt.info->null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
 
 			// Specify the buffers we are going to render to.
-			cmdList->OMSetRenderTargets(1, &rt.info.null_info_rtv.cpuHandle, false, &ds.info.desc2info_dsv.at(dsvDesc).cpuHandle);
+			cmdList->OMSetRenderTargets(1, &rt.info->null_info_rtv.cpuHandle, false, &ds.info->desc2info_dsv.at(dsvDesc).cpuHandle);
 
 			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*deferLightingShader));
 			cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetOrCreateShaderPSO(
@@ -944,8 +939,8 @@ void StdPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Resourc
 				DXGI_FORMAT_R32G32B32A32_FLOAT)
 			);
 
-			cmdList->SetGraphicsRootDescriptorTable(0, gb0.info.desc2info_srv.at(srvDesc).gpuHandle);
-			cmdList->SetGraphicsRootDescriptorTable(1, ds.info.desc2info_srv.at(dsSrvDesc).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(0, gb0.info->desc2info_srv.at(srvDesc).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(1, ds.info->desc2info_srv.at(dsSrvDesc).gpuHandle);
 
 			// irradiance, prefilter, BRDF LUT
 			if (renderContext.skybox.ptr == defaultSkybox.ptr)
@@ -973,7 +968,7 @@ void StdPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Resourc
 		}
 	);
 
-	fgExecutor.RegisterPassFunc(
+	fgExecutor->RegisterPassFunc(
 		skyboxPass,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 			if (renderContext.skybox.ptr == defaultSkybox.ptr)
@@ -994,11 +989,11 @@ void StdPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Resourc
 			cmdList->RSSetViewports(1, &viewport);
 			cmdList->RSSetScissorRects(1, &scissorRect);
 
-			auto rt = rsrcs.find(deferLightedSkyRT)->second;
-			auto ds = rsrcs.find(deferDS)->second;
+			auto rt = rsrcs.at(deferLightedSkyRT);
+			auto ds = rsrcs.at(deferDS);
 
 			// Specify the buffers we are going to render to.
-			cmdList->OMSetRenderTargets(1, &rt.info.null_info_rtv.cpuHandle, false, &ds.info.desc2info_dsv.at(dsvDesc).cpuHandle);
+			cmdList->OMSetRenderTargets(1, &rt.info->null_info_rtv.cpuHandle, false, &ds.info->desc2info_dsv.at(dsvDesc).cpuHandle);
 
 			cmdList->SetGraphicsRootDescriptorTable(0, renderContext.skybox);
 
@@ -1015,7 +1010,7 @@ void StdPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Resourc
 		}
 	);
 
-	fgExecutor.RegisterPassFunc(
+	fgExecutor->RegisterPassFunc(
 		forwardPass,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
@@ -1023,12 +1018,12 @@ void StdPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Resourc
 			cmdList->RSSetViewports(1, &viewport);
 			cmdList->RSSetScissorRects(1, &scissorRect);
 
-			auto rt = rsrcs.find(sceneRT)->second;
-			auto ds = rsrcs.find(forwardDS)->second;
+			auto rt = rsrcs.at(sceneRT);
+			auto ds = rsrcs.at(forwardDS);
 
-			auto dsHandle = ds.info.desc2info_dsv.at(dsvDesc).cpuHandle;
+			auto dsHandle = ds.info->desc2info_dsv.at(dsvDesc).cpuHandle;
 
-			cmdList->OMSetRenderTargets(1, &rt.info.null_info_rtv.cpuHandle, false, &dsHandle);
+			cmdList->OMSetRenderTargets(1, &rt.info->null_info_rtv.cpuHandle, false, &dsHandle);
 
 			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
 				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
@@ -1038,7 +1033,7 @@ void StdPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Resourc
 		}
 	);
 
-	fgExecutor.RegisterPassFunc(
+	fgExecutor->RegisterPassFunc(
 		postprocessPass,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*postprocessShader));
@@ -1056,16 +1051,16 @@ void StdPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Resourc
 			cmdList->RSSetViewports(1, &viewport);
 			cmdList->RSSetScissorRects(1, &scissorRect);
 
-			auto rt = rsrcs.find(presentedRT)->second;
-			auto img = rsrcs.find(sceneRT)->second;
+			auto rt = rsrcs.at(presentedRT);
+			auto img = rsrcs.at(sceneRT);
 
 			// Clear the render texture and depth buffer.
-			cmdList->ClearRenderTargetView(rt.info.null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
+			cmdList->ClearRenderTargetView(rt.info->null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
 
 			// Specify the buffers we are going to render to.
-			cmdList->OMSetRenderTargets(1, &rt.info.null_info_rtv.cpuHandle, false, nullptr);
+			cmdList->OMSetRenderTargets(1, &rt.info->null_info_rtv.cpuHandle, false, nullptr);
 
-			cmdList->SetGraphicsRootDescriptorTable(0, img.info.desc2info_srv.at(srvDesc).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(0, img.info->desc2info_srv.at(srvDesc).gpuHandle);
 
 			cmdList->IASetVertexBuffers(0, 0, nullptr);
 			cmdList->IASetIndexBuffer(nullptr);
@@ -1080,11 +1075,9 @@ void StdPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Resourc
 		flag = true;
 	}
 
-	auto [success, crst] = fgCompiler.Compile(fg);
-	fgExecutor.Execute(
-		initDesc.device,
+	auto crst = fgCompiler.Compile(fg);
+	fgExecutor->Execute(
 		initDesc.cmdQueue,
-		cmdAlloc.Get(),
 		crst,
 		*fgRsrcMngr
 	);
@@ -1102,10 +1095,6 @@ void StdPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds, st
 	// cpu -> gpu
 	UpdateShaderCBs();
 
-	auto cmdAlloc = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<Microsoft::WRL::ComPtr<ID3D12CommandAllocator>>("CommandAllocator");
-	cmdAlloc->Reset();
-
 	frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<CameraRsrcMngr>>("CameraRsrcMngr")
 		->Update(cameras);
@@ -1115,7 +1104,9 @@ void StdPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds, st
 		->GetResource<std::shared_ptr<UDX12::FG::RsrcMngr>>("FrameGraphRsrcMngr");
 	fgRsrcMngr->NewFrame();
 
-	fgExecutor.NewFrame();;
+	auto fgExecutor = frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<std::shared_ptr<UDX12::FG::Executor>>("FrameGraphExecutor");
+	fgExecutor->NewFrame();
 
 	auto irradianceMap = fg.RegisterResourceNode("Irradiance Map");
 	auto prefilterMap = fg.RegisterResourceNode("PreFilter Map");
@@ -1135,7 +1126,7 @@ void StdPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds, st
 		.RegisterPassRsrcState(iblPass, prefilterMap, D3D12_RESOURCE_STATE_RENDER_TARGET)
 		;
 
-	fgExecutor.RegisterPassFunc(
+	fgExecutor->RegisterPassFunc(
 		iblPass,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& /*rsrcs*/) {
 			if (iblData->lastSkybox.ptr == renderContext.skybox.ptr) {
@@ -1254,11 +1245,9 @@ void StdPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds, st
 		flag = true;
 	}
 
-	auto [success, crst] = fgCompiler.Compile(fg);
-	fgExecutor.Execute(
-		initDesc.device,
+	auto crst = fgCompiler.Compile(fg);
+	fgExecutor->Execute(
 		initDesc.cmdQueue,
-		cmdAlloc.Get(),
 		crst,
 		*fgRsrcMngr
 	);

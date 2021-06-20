@@ -110,6 +110,8 @@ struct GPURsrcMngrDX12::Impl {
 	unordered_map<std::size_t, UDX12::MeshGPUBuffer> meshMap;
 	unordered_map<std::size_t, DXRMeshData> dxrMeshDataMap;
 
+	std::mutex mutex_shaderMap;
+
 	const CD3DX12_STATIC_SAMPLER_DESC pointWrap{
 		0,                               // shaderRegister
 		D3D12_FILTER_MIN_MAG_MIP_POINT,  // filter
@@ -754,8 +756,13 @@ D3D12_GPU_DESCRIPTOR_HANDLE GPURsrcMngrDX12::GetMeshBufferTableGpuHandle(const M
 }
 
 bool GPURsrcMngrDX12::RegisterShader(Shader& shader) {
-	if (shader.IsDirty())
+	std::unique_lock<std::mutex> lk{ pImpl->mutex_shaderMap };
+
+	if (shader.IsDirty()) {
+		lk.unlock();
 		UnregisterShader(shader.GetInstanceID());
+		lk.lock();
+	}
 	else {
 		auto target = pImpl->shaderMap.find(shader.GetInstanceID());
 		if (target != pImpl->shaderMap.end())
@@ -891,8 +898,7 @@ bool GPURsrcMngrDX12::RegisterShader(Shader& shader) {
 }
 
 GPURsrcMngrDX12& GPURsrcMngrDX12::UnregisterShader(std::size_t ID) {
-	static std::mutex m;
-	std::lock_guard guard{ m };
+	std::lock_guard guard{ pImpl->mutex_shaderMap };
 	if (auto target = pImpl->shaderMap.find(ID); target != pImpl->shaderMap.end()) {
 		pImpl->deleteBatch.AddCallback([data = std::move(target->second)]() {});
 		pImpl->shaderMap.erase(target);
@@ -901,22 +907,27 @@ GPURsrcMngrDX12& GPURsrcMngrDX12::UnregisterShader(std::size_t ID) {
 }
 
 const ID3DBlob* GPURsrcMngrDX12::GetShaderByteCode_vs(const Shader& shader, size_t passIdx) const {
+	std::lock_guard guard{ pImpl->mutex_shaderMap };
 	return pImpl->shaderMap.at(shader.GetInstanceID()).passes[passIdx].vsByteCode.Get();
 }
 
 const ID3DBlob* GPURsrcMngrDX12::GetShaderByteCode_ps(const Shader& shader, size_t passIdx) const {
+	std::lock_guard guard{ pImpl->mutex_shaderMap };
 	return pImpl->shaderMap.at(shader.GetInstanceID()).passes[passIdx].psByteCode.Get();
 }
 
 ID3D12ShaderReflection* GPURsrcMngrDX12::GetShaderRefl_vs(const Shader& shader, size_t passIdx) const {
+	std::lock_guard guard{ pImpl->mutex_shaderMap };
 	return pImpl->shaderMap.at(shader.GetInstanceID()).passes[passIdx].vsRefl.Get();
 }
 
 ID3D12ShaderReflection* GPURsrcMngrDX12::GetShaderRefl_ps(const Shader& shader, size_t passIdx) const {
+	std::lock_guard guard{ pImpl->mutex_shaderMap };
 	return pImpl->shaderMap.at(shader.GetInstanceID()).passes[passIdx].psRefl.Get();
 }
 
 ID3D12RootSignature* GPURsrcMngrDX12::GetShaderRootSignature(const Shader& shader) const {
+	std::lock_guard guard{ pImpl->mutex_shaderMap };
 	return pImpl->shaderMap.at(shader.GetInstanceID()).rootSignature.Get();
 }
 
@@ -928,6 +939,8 @@ ID3D12PipelineState* GPURsrcMngrDX12::GetOrCreateShaderPSO(
 	DXGI_FORMAT rtFormat,
 	DXGI_FORMAT dsvFormat)
 {
+	std::lock_guard guard{ pImpl->mutex_shaderMap };
+
 	auto starget = pImpl->shaderMap.find(shader.GetInstanceID());
 	if (starget == pImpl->shaderMap.end())
 		return nullptr;

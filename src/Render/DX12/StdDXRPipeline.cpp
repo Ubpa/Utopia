@@ -806,7 +806,6 @@ struct StdDXRPipeline::Impl {
 
 	UDX12::FrameResourceMngr frameRsrcMngr;
 
-	UDX12::FG::Executor fgExecutor;
 	UFG::Compiler fgCompiler;
 	UFG::FrameGraph fg;
 
@@ -987,18 +986,12 @@ void StdDXRPipeline::Impl::BuildTextures() {
 
 void StdDXRPipeline::Impl::BuildFrameResources() {
 	for (const auto& fr : frameRsrcMngr.GetFrameResources()) {
-		Microsoft::WRL::ComPtr<ID3D12CommandAllocator> allocator;
-		ThrowIfFailed(initDesc.device->CreateCommandAllocator(
-			D3D12_COMMAND_LIST_TYPE_DIRECT,
-			IID_PPV_ARGS(&allocator)));
-
-		fr->RegisterResource("CommandAllocator", std::move(allocator));
-
 		fr->RegisterResource("ShaderCB", std::make_shared<UDX12::DynamicUploadVector>(initDesc.device));
 		fr->RegisterResource("CommonShaderCB", std::make_shared<UDX12::DynamicUploadVector>(initDesc.device));
 
 		fr->RegisterResource("CameraRsrcMngr", std::make_shared<CameraRsrcMngr>());
-		fr->RegisterResource("FrameGraphRsrcMngr", std::make_shared<UDX12::FG::RsrcMngr>());
+		fr->RegisterResource("FrameGraphRsrcMngr", std::make_shared<UDX12::FG::RsrcMngr>(initDesc.device));
+		fr->RegisterResource("FrameGraphExecutor", std::make_shared<UDX12::FG::Executor>(initDesc.device));
 
 		D3D12_CLEAR_VALUE clearColor;
 		clearColor.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
@@ -1462,8 +1455,6 @@ void StdDXRPipeline::Impl::UpdateShaderCBs() {
 }
 
 void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Resource* default_rtb) {
-	auto cmdAlloc = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<Microsoft::WRL::ComPtr<ID3D12CommandAllocator>>("CommandAllocator");
 	size_t cameraIdx = renderContext.crossFrameCameraRsrcs.Index(cameraData);
 	ID3D12Resource* rtb = default_rtb;
 	{ // set rtb
@@ -1488,11 +1479,15 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 	auto cameraRsrcMngr = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<CameraRsrcMngr>>("CameraRsrcMngr");
 	if (!cameraRsrcMngr->Get(cameraData).HaveResource("FrameGraphRsrcMngr"))
-		cameraRsrcMngr->Get(cameraData).RegisterResource("FrameGraphRsrcMngr", std::make_shared<UDX12::FG::RsrcMngr>());
+		cameraRsrcMngr->Get(cameraData).RegisterResource("FrameGraphRsrcMngr", std::make_shared<UDX12::FG::RsrcMngr>(initDesc.device));
 	auto fgRsrcMngr = cameraRsrcMngr->Get(cameraData).GetResource<std::shared_ptr<UDX12::FG::RsrcMngr>>("FrameGraphRsrcMngr");
 	fgRsrcMngr->NewFrame();
 
-	fgExecutor.NewFrame();
+	if (!cameraRsrcMngr->Get(cameraData).HaveResource("FrameGraphExecutor"))
+		cameraRsrcMngr->Get(cameraData).RegisterResource("FrameGraphExecutor", std::make_shared<UDX12::FG::Executor>(initDesc.device));
+	auto fgExecutor = cameraRsrcMngr->Get(cameraData).GetResource<std::shared_ptr<UDX12::FG::Executor>>("FrameGraphExecutor");
+	fgExecutor->NewFrame();
+
 	const auto& cameraResizeData = cameraRsrcMngr->Get(cameraData).GetResource<CameraResizeData>(key_CameraResizeData);
 	auto rtSRsrc = cameraResizeData.rtSRsrc;
 	auto rtURsrc = cameraResizeData.rtURsrc;
@@ -1860,7 +1855,7 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 		.RegisterPassRsrc(postprocessPass, presentedRT, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
 		;
 
-	fgExecutor.RegisterPassFunc(
+	fgExecutor->RegisterPassFunc(
 		gbPass,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
@@ -1876,13 +1871,13 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 			auto ds = rsrcs.at(deferDS);
 
 			std::array rtHandles{
-				gb0.info.null_info_rtv.cpuHandle,
-				gb1.info.null_info_rtv.cpuHandle,
-				gb2.info.null_info_rtv.cpuHandle,
-				lZ.info.null_info_rtv.cpuHandle,
-				mt.info.null_info_rtv.cpuHandle,
+				gb0.info->null_info_rtv.cpuHandle,
+				gb1.info->null_info_rtv.cpuHandle,
+				gb2.info->null_info_rtv.cpuHandle,
+				lZ.info->null_info_rtv.cpuHandle,
+				mt.info->null_info_rtv.cpuHandle,
 			};
-			auto dsHandle = ds.info.desc2info_dsv.at(dsvDesc).cpuHandle;
+			auto dsHandle = ds.info->desc2info_dsv.at(dsvDesc).cpuHandle;
 			// Clear the render texture and depth buffer.
 			cmdList->ClearRenderTargetView(rtHandles[0], gbuffer_clearvalue.Color, 0, nullptr);
 			cmdList->ClearRenderTargetView(rtHandles[1], gbuffer_clearvalue.Color, 0, nullptr);
@@ -1902,7 +1897,7 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 		}
 	);
 
-	fgExecutor.RegisterPassFunc(
+	fgExecutor->RegisterPassFunc(
 		deferLightingPass,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
@@ -1913,17 +1908,17 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 			auto gb0 = rsrcs.at(gbuffer0); // table {gb0, gb1, gb2}
 			//auto gb1 = rsrcs.at(gbuffer1);
 			//auto gb2 = rsrcs.at(gbuffer2);
-			auto ds = rsrcs.find(deferDS)->second;
+			auto ds = rsrcs.at(deferDS);
 
 			auto rt = rsrcs.at(deferLightedRT);
 
 			//cmdList->CopyResource(bb.resource, rt.resource);
 
 			// Clear the render texture and depth buffer.
-			cmdList->ClearRenderTargetView(rt.info.null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
+			cmdList->ClearRenderTargetView(rt.info->null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
 
 			// Specify the buffers we are going to render to.
-			cmdList->OMSetRenderTargets(1, &rt.info.null_info_rtv.cpuHandle, false, &ds.info.desc2info_dsv.at(dsvDesc).cpuHandle);
+			cmdList->OMSetRenderTargets(1, &rt.info->null_info_rtv.cpuHandle, false, &ds.info->desc2info_dsv.at(dsvDesc).cpuHandle);
 
 			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*deferLightingShader));
 			cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetOrCreateShaderPSO(
@@ -1934,8 +1929,8 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 				DXGI_FORMAT_R32G32B32A32_FLOAT)
 			);
 
-			cmdList->SetGraphicsRootDescriptorTable(0, gb0.info.desc2info_srv.at(srvDesc).gpuHandle);
-			cmdList->SetGraphicsRootDescriptorTable(1, ds.info.desc2info_srv.at(dsSrvDesc).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(0, gb0.info->desc2info_srv.at(srvDesc).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(1, ds.info->desc2info_srv.at(dsSrvDesc).gpuHandle);
 
 			// irradiance, prefilter, BRDF LUT
 			if (renderContext.skybox.ptr == defaultSkybox.ptr)
@@ -1962,7 +1957,7 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 		}
 	);
 
-	fgExecutor.RegisterPassFunc(
+	fgExecutor->RegisterPassFunc(
 		skyboxPass,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 			if (renderContext.skybox.ptr == defaultSkybox.ptr)
@@ -1983,11 +1978,11 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 			cmdList->RSSetViewports(1, &viewport);
 			cmdList->RSSetScissorRects(1, &scissorRect);
 
-			auto rt = rsrcs.find(deferLightedSkyRT)->second;
-			auto ds = rsrcs.find(deferDS)->second;
+			auto rt = rsrcs.at(deferLightedSkyRT);
+			auto ds = rsrcs.at(deferDS);
 
 			// Specify the buffers we are going to render to.
-			cmdList->OMSetRenderTargets(1, &rt.info.null_info_rtv.cpuHandle, false, &ds.info.desc2info_dsv.at(dsvDesc).cpuHandle);
+			cmdList->OMSetRenderTargets(1, &rt.info->null_info_rtv.cpuHandle, false, &ds.info->desc2info_dsv.at(dsvDesc).cpuHandle);
 
 			cmdList->SetGraphicsRootDescriptorTable(0, renderContext.skybox);
 
@@ -2003,7 +1998,7 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 		}
 	);
 
-	fgExecutor.RegisterPassFunc(
+	fgExecutor->RegisterPassFunc(
 		forwardPass,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
@@ -2011,12 +2006,12 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 			cmdList->RSSetViewports(1, &viewport);
 			cmdList->RSSetScissorRects(1, &scissorRect);
 
-			auto rt = rsrcs.find(sceneRT)->second;
-			auto ds = rsrcs.find(forwardDS)->second;
+			auto rt = rsrcs.at(sceneRT);
+			auto ds = rsrcs.at(forwardDS);
 
-			auto dsHandle = ds.info.desc2info_dsv.at(dsvDesc).cpuHandle;
+			auto dsHandle = ds.info->desc2info_dsv.at(dsvDesc).cpuHandle;
 
-			cmdList->OMSetRenderTargets(1, &rt.info.null_info_rtv.cpuHandle, false, &dsHandle);
+			cmdList->OMSetRenderTargets(1, &rt.info->null_info_rtv.cpuHandle, false, &dsHandle);
 
 			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
 				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
@@ -2026,7 +2021,7 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 		}
 	);
 
-	fgExecutor.RegisterPassFunc(
+	fgExecutor->RegisterPassFunc(
 		rtPass,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 			Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList4> dxr_cmdlist;
@@ -2039,7 +2034,7 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 			auto gb0 = rsrcs.at(gbuffer0); // table {gb0, gb1, gb2}
 			//auto gb1 = rsrcs.at(gbuffer1);
 			//auto gb2 = rsrcs.at(gbuffer2);
-			auto ds = rsrcs.find(deferDS)->second;
+			auto ds = rsrcs.at(deferDS);
 
 			D3D12_DISPATCH_RAYS_DESC raytraceDesc = {};
 			raytraceDesc.Width = (UINT)width;
@@ -2067,10 +2062,10 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 				// *(uint64_t*)(pData + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + 0)
 
 				// gbuffers
-				*(uint64_t*)(pData + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + 8) = gb0.info.desc2info_srv.at(srvDesc).gpuHandle.ptr;
+				*(uint64_t*)(pData + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + 8) = gb0.info->desc2info_srv.at(srvDesc).gpuHandle.ptr;
 
 				// depth
-				*(uint64_t*)(pData + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + 16) = ds.info.desc2info_srv.at(dsSrvDesc).gpuHandle.ptr;
+				*(uint64_t*)(pData + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + 16) = ds.info->desc2info_srv.at(dsSrvDesc).gpuHandle.ptr;
 
 				// brdf lut
 				*(uint64_t*)(pData + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + 24) = iblData->SRVDH.GetGpuHandle(2).ptr;
@@ -2106,13 +2101,13 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 
 			// Dispatch
 			dxr_cmdlist->SetPipelineState1(rtpso.Get());
-			dxr_cmdlist->SetComputeRootDescriptorTable(0, tlas.info.desc2info_srv.at(tlasSrvDesc).gpuHandle);
+			dxr_cmdlist->SetComputeRootDescriptorTable(0, tlas.info->desc2info_srv.at(tlasSrvDesc).gpuHandle);
 			dxr_cmdlist->SetComputeRootConstantBufferView(1, cbLights);
 			dxr_cmdlist->DispatchRays(&raytraceDesc);
 		}
 	);
 
-	fgExecutor.RegisterPassFunc(
+	fgExecutor->RegisterPassFunc(
 		reprojectPass,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*rtReprojectShader));
@@ -2136,8 +2131,8 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 			// Specify the buffers we are going to render to.
 			cmdList->OMSetRenderTargets(0, nullptr, false, nullptr);
 
-			cmdList->SetGraphicsRootDescriptorTable(0, in_table.info.desc2info_srv.at(srvDesc).gpuHandle);
-			cmdList->SetGraphicsRootDescriptorTable(1, out_table.info.desc2info_uav.at(tex2dUAVDesc).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(0, in_table.info->desc2info_srv.at(srvDesc).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(1, out_table.info->desc2info_uav.at(tex2dUAVDesc).gpuHandle);
 
 			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
 				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
@@ -2152,7 +2147,7 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 		}
 	);
 
-	fgExecutor.RegisterPassFunc(
+	fgExecutor->RegisterPassFunc(
 		filterMomentsPass,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*filterMomentsShader));
@@ -2183,16 +2178,16 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 			auto rt1 = rsrcs.at(fAccRTUResult);
 
 			// Clear the render texture and depth buffer.
-			//cmdList->ClearRenderTargetView(rt0.info.null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
-			//cmdList->ClearRenderTargetView(rt1.info.null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
+			//cmdList->ClearRenderTargetView(rt0.info->null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
+			//cmdList->ClearRenderTargetView(rt1.info->null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
 
 			// Specify the buffers we are going to render to.
-			D3D12_CPU_DESCRIPTOR_HANDLE rts[2] = { rt0.info.null_info_rtv.cpuHandle, rt1.info.null_info_rtv.cpuHandle };
+			D3D12_CPU_DESCRIPTOR_HANDLE rts[2] = { rt0.info->null_info_rtv.cpuHandle, rt1.info->null_info_rtv.cpuHandle };
 			cmdList->OMSetRenderTargets(2, rts, false, nullptr);
 
-			cmdList->SetGraphicsRootDescriptorTable(0, rtS.info.desc2info_srv.at(srvDesc).gpuHandle);
-			cmdList->SetGraphicsRootDescriptorTable(1, gb1.info.desc2info_srv.at(srvDesc).gpuHandle);
-			cmdList->SetGraphicsRootDescriptorTable(2, lz.info.desc2info_srv.at(srvDesc).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(0, rtS.info->desc2info_srv.at(srvDesc).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(1, gb1.info->desc2info_srv.at(srvDesc).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(2, lz.info->desc2info_srv.at(srvDesc).gpuHandle);
 
 			auto& shaderCB = frameRsrcMngr.GetCurrentFrameResource()
 				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("ShaderCB");
@@ -2210,7 +2205,7 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 		}
 	);
 
-	fgExecutor.RegisterPassFunc(
+	fgExecutor->RegisterPassFunc(
 		copyPass,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 			std::pair<std::size_t, std::size_t> inouts[] = {
@@ -2229,7 +2224,7 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 
 	{ // denoise passes
 		for (std::size_t i = 0; i < ATrousN; i++) {
-			fgExecutor.RegisterPassFunc(
+			fgExecutor->RegisterPassFunc(
 				rtATrousDenoisePasses[i],
 				[&, i](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 					cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*atrousShader));
@@ -2256,16 +2251,16 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 					auto lz = rsrcs.at(linearZ);
 
 					// Clear the render texture and depth buffer.
-					cmdList->ClearRenderTargetView(rtS.info.null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
-					cmdList->ClearRenderTargetView(rtU.info.null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
+					cmdList->ClearRenderTargetView(rtS.info->null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
+					cmdList->ClearRenderTargetView(rtU.info->null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
 
 					// Specify the buffers we are going to render to.
-					D3D12_CPU_DESCRIPTOR_HANDLE rts[2] = { rtS.info.null_info_rtv.cpuHandle, rtU.info.null_info_rtv.cpuHandle };
+					D3D12_CPU_DESCRIPTOR_HANDLE rts[2] = { rtS.info->null_info_rtv.cpuHandle, rtU.info->null_info_rtv.cpuHandle };
 					cmdList->OMSetRenderTargets(2, rts, false, nullptr);
 
-					cmdList->SetGraphicsRootDescriptorTable(0, imgS.info.desc2info_srv.at(srvDesc).gpuHandle);
-					cmdList->SetGraphicsRootDescriptorTable(1, gb1.info.desc2info_srv.at(srvDesc).gpuHandle);
-					cmdList->SetGraphicsRootDescriptorTable(2, lz.info.desc2info_srv.at(srvDesc).gpuHandle);
+					cmdList->SetGraphicsRootDescriptorTable(0, imgS.info->desc2info_srv.at(srvDesc).gpuHandle);
+					cmdList->SetGraphicsRootDescriptorTable(1, gb1.info->desc2info_srv.at(srvDesc).gpuHandle);
+					cmdList->SetGraphicsRootDescriptorTable(2, lz.info->desc2info_srv.at(srvDesc).gpuHandle);
 
 					auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
 						->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
@@ -2288,7 +2283,7 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 		}
 	}
 
-	fgExecutor.RegisterPassFunc(
+	fgExecutor->RegisterPassFunc(
 		rtWithBRDFLUTPass,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
@@ -2308,10 +2303,10 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 			//cmdList->CopyResource(bb.resource, rt.resource);
 
 			// Clear the render texture and depth buffer.
-			cmdList->ClearRenderTargetView(rt.info.null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
+			cmdList->ClearRenderTargetView(rt.info->null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
 
 			// Specify the buffers we are going to render to.
-			cmdList->OMSetRenderTargets(1, &rt.info.null_info_rtv.cpuHandle, false, nullptr);
+			cmdList->OMSetRenderTargets(1, &rt.info->null_info_rtv.cpuHandle, false, nullptr);
 
 			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*rtWithBRDFLUTShader));
 			cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetOrCreateShaderPSO(
@@ -2323,9 +2318,9 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 				DXGI_FORMAT_UNKNOWN)
 			);
 
-			cmdList->SetGraphicsRootDescriptorTable(0, rtDR.info.desc2info_srv.at(srvDesc).gpuHandle);
-			cmdList->SetGraphicsRootDescriptorTable(1, gb0.info.desc2info_srv.at(srvDesc).gpuHandle);
-			cmdList->SetGraphicsRootDescriptorTable(2, ds.info.desc2info_srv.at(dsSrvDesc).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(0, rtDR.info->desc2info_srv.at(srvDesc).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(1, gb0.info->desc2info_srv.at(srvDesc).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(2, ds.info->desc2info_srv.at(dsSrvDesc).gpuHandle);
 			cmdList->SetGraphicsRootDescriptorTable(3, iblData->SRVDH.GetGpuHandle(2));
 
 			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
@@ -2341,7 +2336,7 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 		}
 	);
 
-	fgExecutor.RegisterPassFunc(
+	fgExecutor->RegisterPassFunc(
 		taaPass,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*taaShader));
@@ -2364,13 +2359,13 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 			auto taa_out = rsrcs.at(taaResult);
 
 			// Clear the render texture and depth buffer.
-			cmdList->ClearRenderTargetView(taa_out.info.null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
+			cmdList->ClearRenderTargetView(taa_out.info->null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
 
 			// Specify the buffers we are going to render to.
-			cmdList->OMSetRenderTargets(1, &taa_out.info.null_info_rtv.cpuHandle, false, nullptr);
+			cmdList->OMSetRenderTargets(1, &taa_out.info->null_info_rtv.cpuHandle, false, nullptr);
 
-			cmdList->SetGraphicsRootDescriptorTable(0, taa_in.info.desc2info_srv.at(srvDesc).gpuHandle);
-			cmdList->SetGraphicsRootDescriptorTable(1, taa_mt.info.desc2info_srv.at(srvDesc).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(0, taa_in.info->desc2info_srv.at(srvDesc).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(1, taa_mt.info->desc2info_srv.at(srvDesc).gpuHandle);
 
 			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
 				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
@@ -2385,7 +2380,7 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 		}
 	);
 
-	fgExecutor.RegisterPassFunc(
+	fgExecutor->RegisterPassFunc(
 		taaCopyPass,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 			auto in_rsrc = rsrcs.at(taaResult).resource;
@@ -2394,7 +2389,7 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 		}
 	);
 
-	fgExecutor.RegisterPassFunc(
+	fgExecutor->RegisterPassFunc(
 		postprocessPass,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*postprocessShader));
@@ -2412,16 +2407,16 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 			cmdList->RSSetViewports(1, &viewport);
 			cmdList->RSSetScissorRects(1, &scissorRect);
 
-			auto rt = rsrcs.find(presentedRT)->second;
-			auto img = rsrcs.find(taaResult)->second;
+			auto rt = rsrcs.at(presentedRT);
+			auto img = rsrcs.at(taaResult);
 
 			// Clear the render texture and depth buffer.
-			cmdList->ClearRenderTargetView(rt.info.null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
+			cmdList->ClearRenderTargetView(rt.info->null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
 
 			// Specify the buffers we are going to render to.
-			cmdList->OMSetRenderTargets(1, &rt.info.null_info_rtv.cpuHandle, false, nullptr);
+			cmdList->OMSetRenderTargets(1, &rt.info->null_info_rtv.cpuHandle, false, nullptr);
 
-			cmdList->SetGraphicsRootDescriptorTable(0, img.info.desc2info_srv.at(srvDesc).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(0, img.info->desc2info_srv.at(srvDesc).gpuHandle);
 
 			cmdList->IASetVertexBuffers(0, 0, nullptr);
 			cmdList->IASetIndexBuffer(nullptr);
@@ -2436,11 +2431,9 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 		flag = true;
 	}
 
-	auto [success, crst] = fgCompiler.Compile(fg);
-	fgExecutor.Execute(
-		initDesc.device,
+	auto crst = fgCompiler.Compile(fg);
+	fgExecutor->Execute(
 		initDesc.cmdQueue,
-		cmdAlloc.Get(),
 		crst,
 		*fgRsrcMngr
 	);
@@ -2458,10 +2451,6 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 	// cpu -> gpu
 	UpdateShaderCBs();
 
-	auto cmdAlloc = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<Microsoft::WRL::ComPtr<ID3D12CommandAllocator>>("CommandAllocator");
-	cmdAlloc->Reset();
-
 	frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<CameraRsrcMngr>>("CameraRsrcMngr")
 		->Update(cameras);
@@ -2471,7 +2460,9 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 		->GetResource<std::shared_ptr<UDX12::FG::RsrcMngr>>("FrameGraphRsrcMngr");
 	fgRsrcMngr->NewFrame();
 
-	fgExecutor.NewFrame();
+	auto fgExecutor = frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<std::shared_ptr<UDX12::FG::Executor>>("FrameGraphExecutor");
+	fgExecutor->NewFrame();
 
 	auto tlasBuffers = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<TLASData>>("TLASData");
@@ -2524,7 +2515,7 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 		.RegisterPassRsrcState(tlasPass, TLAS, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE)
 		;
 
-	fgExecutor.RegisterPassFunc(
+	fgExecutor->RegisterPassFunc(
 		iblPass,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& /*rsrcs*/) {
 			if (iblData->lastSkybox.ptr == renderContext.skybox.ptr) {
@@ -2639,7 +2630,7 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 		}
 	);
 
-	fgExecutor.RegisterPassFunc(
+	fgExecutor->RegisterPassFunc(
 		tlasPass,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
@@ -2757,11 +2748,9 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 		flag = true;
 	}
 
-	auto [success, crst] = fgCompiler.Compile(fg);
-	fgExecutor.Execute(
-		initDesc.device,
+	auto crst = fgCompiler.Compile(fg);
+	fgExecutor->Execute(
 		initDesc.cmdQueue,
-		cmdAlloc.Get(),
 		crst,
 		*fgRsrcMngr
 	);
