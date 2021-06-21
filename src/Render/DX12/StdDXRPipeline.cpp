@@ -751,17 +751,17 @@ struct StdDXRPipeline::Impl {
 	};
 	UDX12::DescriptorHeapAllocation defaultIBLSRVDH; // 3
 
+	CameraRsrcMngr crossFrameCameraRsrcs;
+	static constexpr const char key_CameraConstants[] = "CameraConstants";
+
 	// current frame data
 	struct RenderContext {
 		RenderQueue renderQueue;
 
-		CameraRsrcMngr crossFrameCameraRsrcs;
-		static constexpr const char key_CameraConstants[] = "CameraConstants";
-
 		std::unordered_map<const Shader*, IPipeline::ShaderCBDesc> shaderCBDescMap; // shader ID -> desc
 
 		D3D12_GPU_DESCRIPTOR_HANDLE skybox;
-		LightArray lights;
+		LightArray lightArray;
 
 		// common
 		size_t cameraOffset;
@@ -796,7 +796,6 @@ struct StdDXRPipeline::Impl {
 	Texture2D ltcTexes[2];
 	UDX12::DescriptorHeapAllocation ltcHandles; // 2
 
-	RenderContext renderContext;
 	D3D12_GPU_DESCRIPTOR_HANDLE defaultSkybox;
 	std::shared_ptr<Material> errorMat;
 	std::shared_ptr<Texture2D> errorTex;
@@ -880,11 +879,12 @@ struct StdDXRPipeline::Impl {
 	void BuildFrameResources();
 	void BuildShaders();
 
-	void UpdateRenderContext(const std::vector<const UECS::World*>& worlds, size_t width, size_t height, std::span<const CameraData> cameras);
+	void UpdateCrossFrameCameraResources(size_t defalut_width, size_t defalut_height, std::span<const CameraData> cameras);
+	RenderContext GenerateRenderContext(const std::vector<const UECS::World*>& worlds);
 	void UpdateShaderCBs();
 	void Render(const std::vector<const UECS::World*>& worlds, std::span<const CameraData> cameras, ID3D12Resource* rtb);
-	void CameraRender(const CameraData& cameraData, ID3D12Resource* rtb);
-	void DrawObjects(ID3D12GraphicsCommandList*, std::string_view lightMode, size_t rtNum, DXGI_FORMAT rtFormat, D3D12_GPU_VIRTUAL_ADDRESS cameraCBAdress);
+	void CameraRender(const RenderContext& ctx, const CameraData& cameraData, ID3D12Resource* rtb);
+	void DrawObjects(const RenderContext& ctx, ID3D12GraphicsCommandList*, std::string_view lightMode, size_t rtNum, DXGI_FORMAT rtFormat, D3D12_GPU_VIRTUAL_ADDRESS cameraCBAdress);
 	void UpdateCameraResource(const CameraData& cameraData, size_t width, size_t height);
 };
 
@@ -1137,28 +1137,19 @@ void StdDXRPipeline::Impl::BuildShaders() {
 	}
 }
 
-void StdDXRPipeline::Impl::UpdateRenderContext(
-	const std::vector<const UECS::World*>& worlds,
-	size_t width, size_t height, // default render target size
-	std::span<const CameraData> cameras
-) {
-	renderContext.renderQueue.Clear();
-	renderContext.entity2data.clear();
-	renderContext.entity2offset.clear();
-	renderContext.shaderCBDescMap.clear();
-
-	renderContext.crossFrameCameraRsrcs.Update(cameras);
+void StdDXRPipeline::Impl::UpdateCrossFrameCameraResources(size_t defalut_width, size_t defalut_height, std::span<const CameraData> cameras) {
+	crossFrameCameraRsrcs.Update(cameras);
 
 	for (const auto& camera : cameras) {
-		auto& cameraRsrc = renderContext.crossFrameCameraRsrcs.Get(camera);
-		if (!cameraRsrc.HaveResource(RenderContext::key_CameraConstants))
-			cameraRsrc.RegisterResource(RenderContext::key_CameraConstants, CameraConstants{});
-		auto& cameraConstants = cameraRsrc.GetResource<CameraConstants>(RenderContext::key_CameraConstants);
+		auto& cameraRsrc = crossFrameCameraRsrcs.Get(camera);
+		if (!cameraRsrc.HaveResource(key_CameraConstants))
+			cameraRsrc.RegisterResource(key_CameraConstants, CameraConstants{});
+		auto& cameraConstants = cameraRsrc.GetResource<CameraConstants>(key_CameraConstants);
 
 		auto cmptCamera = camera.world->entityMngr.ReadComponent<Camera>(camera.entity);
 		auto cmptW2L = camera.world->entityMngr.ReadComponent<WorldToLocal>(camera.entity);
 		auto cmptTranslation = camera.world->entityMngr.ReadComponent<Translation>(camera.entity);
-		size_t rt_width = width, rt_height = height;
+		size_t rt_width = defalut_width, rt_height = defalut_height;
 		if (cmptCamera->renderTarget) {
 			rt_width = cmptCamera->renderTarget->image.GetWidth();
 			rt_height = cmptCamera->renderTarget->image.GetHeight();
@@ -1183,6 +1174,10 @@ void StdDXRPipeline::Impl::UpdateRenderContext(
 		cameraConstants.TotalTime = GameTimer::Instance().TotalTime();
 		cameraConstants.DeltaTime = GameTimer::Instance().DeltaTime();
 	}
+}
+
+StdDXRPipeline::Impl::RenderContext StdDXRPipeline::Impl::GenerateRenderContext(const std::vector<const UECS::World*>& worlds) {
+	RenderContext ctx;
 
 	{ // object
 		ArchetypeFilter filter;
@@ -1235,7 +1230,7 @@ void StdDXRPipeline::Impl::UpdateRenderContext(
 							obj.submeshIdx = j;
 							for (size_t k = 0; k < obj.material->shader->passes.size(); k++) {
 								obj.passIdx = k;
-								renderContext.renderQueue.Add(obj);
+								ctx.renderQueue.Add(obj);
 							}
 							isDraw = true;
 						}
@@ -1243,15 +1238,15 @@ void StdDXRPipeline::Impl::UpdateRenderContext(
 						if (!isDraw)
 							continue;
 
-						auto target = renderContext.entity2data.find(obj.entity.index);
-						if (target != renderContext.entity2data.end())
+						auto target = ctx.entity2data.find(obj.entity.index);
+						if (target != ctx.entity2data.end())
 							continue;
 						RenderContext::EntityData data;
 						data.l2w = L2Ws[i].value;
 						data.w2l = !W2Ls.empty() ? W2Ls[i].value : L2Ws[i].value.inverse();
 						data.mesh = meshFilter.mesh;
 						data.materials = meshRenderer.materials;
-						renderContext.entity2data.emplace(obj.entity.index, std::move(data));
+						ctx.entity2data.emplace_hint(target, std::pair{ obj.entity.index, data });
 					}
 				},
 				filter,
@@ -1266,11 +1261,11 @@ void StdDXRPipeline::Impl::UpdateRenderContext(
 		std::array<ShaderLight, LightArray::size> spotLights;
 		std::array<ShaderLight, LightArray::size> rectLights;
 		std::array<ShaderLight, LightArray::size> diskLights;
-		renderContext.lights.diectionalLightNum = 0;
-		renderContext.lights.pointLightNum = 0;
-		renderContext.lights.spotLightNum = 0;
-		renderContext.lights.rectLightNum = 0;
-		renderContext.lights.diskLightNum = 0;
+		ctx.lightArray.diectionalLightNum = 0;
+		ctx.lightArray.pointLightNum = 0;
+		ctx.lightArray.spotLightNum = 0;
+		ctx.lightArray.rectLightNum = 0;
+		ctx.lightArray.diskLightNum = 0;
 
 		UECS::ArchetypeFilter filter;
 		filter.all = { UECS::AccessTypeID_of<UECS::Latest<LocalToWorld>> };
@@ -1280,19 +1275,19 @@ void StdDXRPipeline::Impl::UpdateRenderContext(
 					switch (light->mode)
 					{
 					case Light::Mode::Directional:
-						renderContext.lights.diectionalLightNum++;
+						ctx.lightArray.diectionalLightNum++;
 						break;
 					case Light::Mode::Point:
-						renderContext.lights.pointLightNum++;
+						ctx.lightArray.pointLightNum++;
 						break;
 					case Light::Mode::Spot:
-						renderContext.lights.spotLightNum++;
+						ctx.lightArray.spotLightNum++;
 						break;
 					case Light::Mode::Rect:
-						renderContext.lights.rectLightNum++;
+						ctx.lightArray.rectLightNum++;
 						break;
 					case Light::Mode::Disk:
-						renderContext.lights.diskLightNum++;
+						ctx.lightArray.diskLightNum++;
 						break;
 					default:
 						assert("not support" && false);
@@ -1305,10 +1300,10 @@ void StdDXRPipeline::Impl::UpdateRenderContext(
 		}
 
 		size_t offset_diectionalLight = 0;
-		size_t offset_pointLight = offset_diectionalLight + renderContext.lights.diectionalLightNum;
-		size_t offset_spotLight = offset_pointLight + renderContext.lights.pointLightNum;
-		size_t offset_rectLight = offset_spotLight + renderContext.lights.spotLightNum;
-		size_t offset_diskLight = offset_rectLight + renderContext.lights.rectLightNum;
+		size_t offset_pointLight = offset_diectionalLight + ctx.lightArray.diectionalLightNum;
+		size_t offset_spotLight = offset_pointLight + ctx.lightArray.pointLightNum;
+		size_t offset_rectLight = offset_spotLight + ctx.lightArray.spotLightNum;
+		size_t offset_diskLight = offset_rectLight + ctx.lightArray.rectLightNum;
 		size_t cur_diectionalLight = 0;
 		size_t cur_pointLight = 0;
 		size_t cur_spotLight = 0;
@@ -1320,48 +1315,48 @@ void StdDXRPipeline::Impl::UpdateRenderContext(
 					switch (light->mode)
 					{
 					case Light::Mode::Directional:
-						renderContext.lights.lights[cur_diectionalLight].color = light->color * light->intensity;
-						renderContext.lights.lights[cur_diectionalLight].dir = (l2w->value * vecf3{ 0,0,1 }).safe_normalize();
+						ctx.lightArray.lights[cur_diectionalLight].color = light->color * light->intensity;
+						ctx.lightArray.lights[cur_diectionalLight].dir = (l2w->value * vecf3{ 0,0,1 }).safe_normalize();
 						cur_diectionalLight++;
 						break;
 					case Light::Mode::Point:
-						renderContext.lights.lights[cur_pointLight].color = light->color * light->intensity;
-						renderContext.lights.lights[cur_pointLight].position = l2w->value * pointf3{ 0.f };
-						renderContext.lights.lights[cur_pointLight].range = light->range;
+						ctx.lightArray.lights[cur_pointLight].color = light->color * light->intensity;
+						ctx.lightArray.lights[cur_pointLight].position = l2w->value * pointf3{ 0.f };
+						ctx.lightArray.lights[cur_pointLight].range = light->range;
 						cur_pointLight++;
 						break;
 					case Light::Mode::Spot:
-						renderContext.lights.lights[cur_spotLight].color = light->color * light->intensity;
-						renderContext.lights.lights[cur_spotLight].position = l2w->value * pointf3{ 0.f };
-						renderContext.lights.lights[cur_spotLight].dir = (l2w->value * vecf3{ 0,1,0 }).safe_normalize();
-						renderContext.lights.lights[cur_spotLight].range = light->range;
-						renderContext.lights.lights[cur_spotLight].*
+						ctx.lightArray.lights[cur_spotLight].color = light->color * light->intensity;
+						ctx.lightArray.lights[cur_spotLight].position = l2w->value * pointf3{ 0.f };
+						ctx.lightArray.lights[cur_spotLight].dir = (l2w->value * vecf3{ 0,1,0 }).safe_normalize();
+						ctx.lightArray.lights[cur_spotLight].range = light->range;
+						ctx.lightArray.lights[cur_spotLight].*
 							ShaderLight::Spot::pCosHalfInnerSpotAngle = std::cos(to_radian(light->innerSpotAngle) / 2.f);
-						renderContext.lights.lights[cur_spotLight].*
+						ctx.lightArray.lights[cur_spotLight].*
 							ShaderLight::Spot::pCosHalfOuterSpotAngle = std::cos(to_radian(light->outerSpotAngle) / 2.f);
 						cur_spotLight++;
 						break;
 					case Light::Mode::Rect:
-						renderContext.lights.lights[cur_rectLight].color = light->color * light->intensity;
-						renderContext.lights.lights[cur_rectLight].position = l2w->value * pointf3{ 0.f };
-						renderContext.lights.lights[cur_rectLight].dir = (l2w->value * vecf3{ 0,1,0 }).safe_normalize();
-						renderContext.lights.lights[cur_rectLight].horizontal = (l2w->value * vecf3{ 1,0,0 }).safe_normalize();
-						renderContext.lights.lights[cur_rectLight].range = light->range;
-						renderContext.lights.lights[cur_rectLight].*
+						ctx.lightArray.lights[cur_rectLight].color = light->color * light->intensity;
+						ctx.lightArray.lights[cur_rectLight].position = l2w->value * pointf3{ 0.f };
+						ctx.lightArray.lights[cur_rectLight].dir = (l2w->value * vecf3{ 0,1,0 }).safe_normalize();
+						ctx.lightArray.lights[cur_rectLight].horizontal = (l2w->value * vecf3{ 1,0,0 }).safe_normalize();
+						ctx.lightArray.lights[cur_rectLight].range = light->range;
+						ctx.lightArray.lights[cur_rectLight].*
 							ShaderLight::Rect::pWidth = light->width;
-						renderContext.lights.lights[cur_rectLight].*
+						ctx.lightArray.lights[cur_rectLight].*
 							ShaderLight::Rect::pHeight = light->height;
 						cur_rectLight++;
 						break;
 					case Light::Mode::Disk:
-						renderContext.lights.lights[cur_diskLight].color = light->color * light->intensity;
-						renderContext.lights.lights[cur_diskLight].position = l2w->value * pointf3{ 0.f };
-						renderContext.lights.lights[cur_diskLight].dir = (l2w->value * vecf3{ 0,1,0 }).safe_normalize();
-						renderContext.lights.lights[cur_diskLight].horizontal = (l2w->value * vecf3{ 1,0,0 }).safe_normalize();
-						renderContext.lights.lights[cur_diskLight].range = light->range;
-						renderContext.lights.lights[cur_diskLight].*
+						ctx.lightArray.lights[cur_diskLight].color = light->color * light->intensity;
+						ctx.lightArray.lights[cur_diskLight].position = l2w->value * pointf3{ 0.f };
+						ctx.lightArray.lights[cur_diskLight].dir = (l2w->value * vecf3{ 0,1,0 }).safe_normalize();
+						ctx.lightArray.lights[cur_diskLight].horizontal = (l2w->value * vecf3{ 1,0,0 }).safe_normalize();
+						ctx.lightArray.lights[cur_diskLight].range = light->range;
+						ctx.lightArray.lights[cur_diskLight].*
 							ShaderLight::Disk::pWidth = light->width;
-						renderContext.lights.lights[cur_diskLight].*
+						ctx.lightArray.lights[cur_diskLight].*
 							ShaderLight::Disk::pHeight = light->height;
 						cur_diskLight++;
 						break;
@@ -1370,12 +1365,13 @@ void StdDXRPipeline::Impl::UpdateRenderContext(
 					}
 				},
 				false
-			);
+					);
 		}
+
 	}
 
 	// use first skybox in the world vector
-	renderContext.skybox = defaultSkybox;
+	ctx.skybox = defaultSkybox;
 	for (auto world : worlds) {
 		if (auto ptr = world->entityMngr.ReadSingleton<Skybox>(); ptr && ptr->material && ptr->material->shader.get() == skyboxShader.get()) {
 			auto target = ptr->material->properties.find("gSkybox");
@@ -1383,79 +1379,77 @@ void StdDXRPipeline::Impl::UpdateRenderContext(
 				&& std::holds_alternative<SharedVar<TextureCube>>(target->second.value)
 				) {
 				auto texcube = std::get<SharedVar<TextureCube>>(target->second.value);
-				renderContext.skybox = GPURsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(*texcube);
+				ctx.skybox = GPURsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(*texcube);
 				break;
 			}
 		}
 	}
-}
 
-void StdDXRPipeline::Impl::UpdateShaderCBs() {
 	auto& shaderCB = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("ShaderCB");
 	auto& commonShaderCB = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB");
 
-	shaderCB->Clear();
-	commonShaderCB->Clear();
-
 	{ // camera, lights, objects
-		renderContext.cameraOffset = 0;
-		renderContext.lightOffset = renderContext.cameraOffset
-			+ renderContext.crossFrameCameraRsrcs.Size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
-		renderContext.objectOffset = renderContext.lightOffset
+		ctx.cameraOffset = commonShaderCB->Size();
+		ctx.lightOffset = ctx.cameraOffset
+			+ crossFrameCameraRsrcs.Size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
+		ctx.objectOffset = ctx.lightOffset
 			+ UDX12::Util::CalcConstantBufferByteSize(sizeof(LightArray));
 
 		commonShaderCB->Resize(
-			renderContext.crossFrameCameraRsrcs.Size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants))
+			commonShaderCB->Size()
+			+ crossFrameCameraRsrcs.Size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants))
 			+ UDX12::Util::CalcConstantBufferByteSize(sizeof(LightArray))
-			+ renderContext.entity2data.size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(ObjectConstants))
+			+ ctx.entity2data.size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(ObjectConstants))
 		);
 
-		for (size_t i = 0; i < renderContext.crossFrameCameraRsrcs.Size(); i++) {
+		for (size_t i = 0; i < crossFrameCameraRsrcs.Size(); i++) {
 			commonShaderCB->Set(
-				renderContext.cameraOffset + i * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants)),
-				&renderContext.crossFrameCameraRsrcs.Get(i).GetResource<CameraConstants>(RenderContext::key_CameraConstants),
+				ctx.cameraOffset + i * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants)),
+				&crossFrameCameraRsrcs.Get(i).GetResource<CameraConstants>(key_CameraConstants),
 				sizeof(CameraConstants)
 			);
 		}
 
 		// light array
-		commonShaderCB->Set(renderContext.lightOffset, &renderContext.lights, sizeof(LightArray));
+		commonShaderCB->Set(ctx.lightOffset, &ctx.lightArray, sizeof(LightArray));
 
 		// objects
-		size_t offset = renderContext.objectOffset;
-		for (auto& [idx, data] : renderContext.entity2data) {
+		size_t offset = ctx.objectOffset;
+		for (auto& [idx, data] : ctx.entity2data) {
 			ObjectConstants objectConstants;
 			objectConstants.World = data.l2w;
 			objectConstants.InvWorld = data.w2l;
-			renderContext.entity2offset[idx] = offset;
+			ctx.entity2offset[idx] = offset;
 			commonShaderCB->Set(offset, &objectConstants, sizeof(ObjectConstants));
 			offset += UDX12::Util::CalcConstantBufferByteSize(sizeof(ObjectConstants));
 		}
 	}
 
 	std::unordered_map<const Shader*, std::unordered_set<const Material*>> opaqueMaterialMap;
-	for (const auto& opaque : renderContext.renderQueue.GetOpaques())
+	for (const auto& opaque : ctx.renderQueue.GetOpaques())
 		opaqueMaterialMap[opaque.material->shader.get()].insert(opaque.material.get());
 
 	std::unordered_map<const Shader*, std::unordered_set<const Material*>> transparentMaterialMap;
-	for (const auto& transparent : renderContext.renderQueue.GetTransparents())
+	for (const auto& transparent : ctx.renderQueue.GetTransparents())
 		transparentMaterialMap[transparent.material->shader.get()].insert(transparent.material.get());
 
 	for (const auto& [shader, materials] : opaqueMaterialMap) {
-		renderContext.shaderCBDescMap[shader] =
+		ctx.shaderCBDescMap[shader] =
 			IPipeline::UpdateShaderCBs(*shaderCB, *shader, materials, commonCBs);
 	}
 
 	for (const auto& [shader, materials] : transparentMaterialMap) {
-		renderContext.shaderCBDescMap[shader] =
+		ctx.shaderCBDescMap[shader] =
 			IPipeline::UpdateShaderCBs(*shaderCB, *shader, materials, commonCBs);
 	}
+
+	return ctx;
 }
 
-void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Resource* default_rtb) {
-	size_t cameraIdx = renderContext.crossFrameCameraRsrcs.Index(cameraData);
+void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData& cameraData, ID3D12Resource* default_rtb) {
+	size_t cameraIdx = crossFrameCameraRsrcs.Index(cameraData);
 	ID3D12Resource* rtb = default_rtb;
 	{ // set rtb
 		if (cameraData.entity.Valid()) {
@@ -1892,8 +1886,8 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
 				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
 				->GetResource()->GetGPUVirtualAddress()
-				+ renderContext.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
-			DrawObjects(cmdList, "RTDeferred", 5, DXGI_FORMAT_R32G32B32A32_FLOAT, cameraCBAdress);
+				+ ctx.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
+			DrawObjects(ctx, cmdList, "RTDeferred", 5, DXGI_FORMAT_R32G32B32A32_FLOAT, cameraCBAdress);
 		}
 	);
 
@@ -1933,7 +1927,7 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 			cmdList->SetGraphicsRootDescriptorTable(1, ds.info->desc2info_srv.at(dsSrvDesc).gpuHandle);
 
 			// irradiance, prefilter, BRDF LUT
-			if (renderContext.skybox.ptr == defaultSkybox.ptr)
+			if (ctx.skybox.ptr == defaultSkybox.ptr)
 				cmdList->SetGraphicsRootDescriptorTable(2, defaultIBLSRVDH.GetGpuHandle());
 			else
 				cmdList->SetGraphicsRootDescriptorTable(2, iblData->SRVDH.GetGpuHandle());
@@ -1942,7 +1936,7 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 
 			auto cbLights = frameRsrcMngr.GetCurrentFrameResource()
 				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
-				->GetResource()->GetGPUVirtualAddress() + renderContext.lightOffset;
+				->GetResource()->GetGPUVirtualAddress() + ctx.lightOffset;
 			cmdList->SetGraphicsRootConstantBufferView(4, cbLights);
 
 			auto cbPerCamera = frameRsrcMngr.GetCurrentFrameResource()
@@ -1960,7 +1954,7 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 	fgExecutor->RegisterPassFunc(
 		skyboxPass,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
-			if (renderContext.skybox.ptr == defaultSkybox.ptr)
+			if (ctx.skybox.ptr == defaultSkybox.ptr)
 				return;
 
 			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
@@ -1984,7 +1978,7 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 			// Specify the buffers we are going to render to.
 			cmdList->OMSetRenderTargets(1, &rt.info->null_info_rtv.cpuHandle, false, &ds.info->desc2info_dsv.at(dsvDesc).cpuHandle);
 
-			cmdList->SetGraphicsRootDescriptorTable(0, renderContext.skybox);
+			cmdList->SetGraphicsRootDescriptorTable(0, ctx.skybox);
 
 			auto cbPerCamera = frameRsrcMngr.GetCurrentFrameResource()
 				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
@@ -2016,8 +2010,8 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
 				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
 				->GetResource()->GetGPUVirtualAddress()
-				+ renderContext.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
-			DrawObjects(cmdList, "Forward", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, cameraCBAdress);
+				+ ctx.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
+			DrawObjects(ctx, cmdList, "Forward", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, cameraCBAdress);
 		}
 	);
 
@@ -2046,10 +2040,10 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 			auto& commonShaderCB = frameRsrcMngr.GetCurrentFrameResource()
 				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB");
 			auto cameraCBAdress = commonShaderCB->GetResource()->GetGPUVirtualAddress()
-				+ renderContext.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
+				+ ctx.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
 
 			auto cbLights = commonShaderCB->GetResource()->GetGPUVirtualAddress()
-				+ renderContext.lightOffset;
+				+ ctx.lightOffset;
 
 			{ // fill shader table every frame
 				uint8_t* pData;
@@ -2076,7 +2070,7 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 				// Entry 2
 				////////////
 
-				*(uint64_t*)(pData + 2 * mRayGenAndMissShaderTableEntrySize + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) = renderContext.skybox.ptr;
+				*(uint64_t*)(pData + 2 * mRayGenAndMissShaderTableEntrySize + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) = ctx.skybox.ptr;
 
 				tlasBuffers->shaderTable->Unmap(0, nullptr);
 			}
@@ -2094,7 +2088,7 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 			// Hit is the third entry in the shader-table
 			raytraceDesc.HitGroupTable.StartAddress = tlasBuffers->hitGroupTable.GetResource()->GetGPUVirtualAddress();
 			raytraceDesc.HitGroupTable.StrideInBytes = mHitGroupTableEntrySize;
-			raytraceDesc.HitGroupTable.SizeInBytes = mHitGroupTableEntrySize * renderContext.hitgroupsize;
+			raytraceDesc.HitGroupTable.SizeInBytes = mHitGroupTableEntrySize * ctx.hitgroupsize;
 
 			// Bind the root signature
 			dxr_cmdlist->SetComputeRootSignature(mpGlobalRootSig.Get());
@@ -2137,7 +2131,7 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
 				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
 				->GetResource()->GetGPUVirtualAddress()
-				+ renderContext.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
+				+ ctx.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
 			cmdList->SetGraphicsRootConstantBufferView(2, cameraCBAdress);
 
 			cmdList->IASetVertexBuffers(0, 0, nullptr);
@@ -2195,7 +2189,7 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
 				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
 				->GetResource()->GetGPUVirtualAddress()
-				+ renderContext.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
+				+ ctx.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
 			cmdList->SetGraphicsRootConstantBufferView(3, cameraCBAdress);
 
 			cmdList->IASetVertexBuffers(0, 0, nullptr);
@@ -2265,7 +2259,7 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 					auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
 						->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
 						->GetResource()->GetGPUVirtualAddress()
-						+ renderContext.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
+						+ ctx.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
 					cmdList->SetGraphicsRootConstantBufferView(3, cameraCBAdress);
 
 					auto atrousConfigCBAdress = crossFrameShaderCB
@@ -2326,7 +2320,7 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
 				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
 				->GetResource()->GetGPUVirtualAddress()
-				+ renderContext.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
+				+ ctx.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
 			cmdList->SetGraphicsRootConstantBufferView(4, cameraCBAdress);
 
 			cmdList->IASetVertexBuffers(0, 0, nullptr);
@@ -2370,7 +2364,7 @@ void StdDXRPipeline::Impl::CameraRender(const CameraData& cameraData, ID3D12Reso
 			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
 				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
 				->GetResource()->GetGPUVirtualAddress()
-				+ renderContext.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
+				+ ctx.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
 			cmdList->SetGraphicsRootConstantBufferView(2, cameraCBAdress);
 
 			cmdList->IASetVertexBuffers(0, 0, nullptr);
@@ -2445,11 +2439,13 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 	// If not, wait until the GPU has completed commands up to this fence point.
 	frameRsrcMngr.BeginFrame();
 
-	// collect some cpu data
-	UpdateRenderContext(worlds, default_rtb->GetDesc().Width, default_rtb->GetDesc().Height, cameras);
+	frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("ShaderCB")->Clear();
+	frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")->Clear();
 
-	// cpu -> gpu
-	UpdateShaderCBs();
+	UpdateCrossFrameCameraResources(default_rtb->GetDesc().Width, default_rtb->GetDesc().Height, cameras);
+	RenderContext ctx = GenerateRenderContext(worlds);
 
 	frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<CameraRsrcMngr>>("CameraRsrcMngr")
@@ -2470,13 +2466,13 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 		D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
 		inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
 		inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_UPDATE;
-		inputs.NumDescs = (UINT)renderContext.entity2data.size(); // upper bound
+		inputs.NumDescs = (UINT)ctx.entity2data.size(); // upper bound
 		inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
 		inputs.InstanceDescs = tlasBuffers->instanceDescs.GetResource() ? tlasBuffers->instanceDescs.GetResource()->GetGPUVirtualAddress() : 0;
 
 		D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO info;
 		dxr_device->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &info);
-		tlasBuffers->Reserve(initDesc.device, info, renderContext.renderQueue.GetOpaques().size());
+		tlasBuffers->Reserve(initDesc.device, info, ctx.renderQueue.GetOpaques().size());
 	}
 
 	auto irradianceMap = fg.RegisterResourceNode("Irradiance Map");
@@ -2518,16 +2514,16 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 	fgExecutor->RegisterPassFunc(
 		iblPass,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& /*rsrcs*/) {
-			if (iblData->lastSkybox.ptr == renderContext.skybox.ptr) {
+			if (iblData->lastSkybox.ptr == ctx.skybox.ptr) {
 				if (iblData->nextIdx >= 6 * (1 + IBLData::PreFilterMapMipLevels))
 					return;
 			}
 			else {
-				if (renderContext.skybox.ptr == defaultSkybox.ptr) {
+				if (ctx.skybox.ptr == defaultSkybox.ptr) {
 					iblData->lastSkybox.ptr = defaultSkybox.ptr;
 					return;
 				}
-				iblData->lastSkybox = renderContext.skybox;
+				iblData->lastSkybox = ctx.skybox;
 				iblData->nextIdx = 0;
 			}
 
@@ -2556,7 +2552,7 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 				cmdList->RSSetViewports(1, &viewport);
 				cmdList->RSSetScissorRects(1, &rect);
 
-				cmdList->SetGraphicsRootDescriptorTable(0, renderContext.skybox);
+				cmdList->SetGraphicsRootDescriptorTable(0, ctx.skybox);
 				//for (UINT i = 0; i < 6; i++) {
 				UINT i = static_cast<UINT>(iblData->nextIdx);
 				// Specify the buffers we are going to render to.
@@ -2584,7 +2580,7 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 					DXGI_FORMAT_UNKNOWN)
 				);
 
-				cmdList->SetGraphicsRootDescriptorTable(0, renderContext.skybox);
+				cmdList->SetGraphicsRootDescriptorTable(0, ctx.skybox);
 				//size_t size = Impl::IBLData::PreFilterMapSize;
 				//for (UINT mip = 0; mip < Impl::IBLData::PreFilterMapMipLevels; mip++) {
 				UINT mip = static_cast<UINT>((iblData->nextIdx - 6) / 6);
@@ -2642,7 +2638,7 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 
 			std::vector<std::size_t> entities;
 			size_t submeshCnt = 0;
-			for (const auto& [id, data] : renderContext.entity2data) {
+			for (const auto& [id, data] : ctx.entity2data) {
 				// check
 				{ // 2 step
 					// 1. material valid
@@ -2667,7 +2663,7 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 				desc.InstanceID = cnt;
 				desc.InstanceContributionToHitGroupIndex = submeshCnt;
 				desc.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
-				auto l2wT = transformf(renderContext.entity2data.at(id).l2w).transpose();
+				auto l2wT = transformf(ctx.entity2data.at(id).l2w).transpose();
 				memcpy(desc.Transform, l2wT.data(), sizeof(desc.Transform));
 				desc.AccelerationStructure = GPURsrcMngrDX12::Instance().GetMeshBLAS(*data.mesh)->GetGPUVirtualAddress();
 				desc.InstanceMask = 0xFF;
@@ -2682,8 +2678,8 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 				Microsoft::WRL::ComPtr<ID3D12StateObjectProperties> pRtsoProps;
 				rtpso->QueryInterface(IID_PPV_ARGS(&pRtsoProps));
 
-				renderContext.hitgroupsize = 1 + submeshCnt;
-				tlasBuffers->hitGroupTable.FastReserve(mHitGroupTableEntrySize * renderContext.hitgroupsize);
+				ctx.hitgroupsize = 1 + submeshCnt;
+				tlasBuffers->hitGroupTable.FastReserve(mHitGroupTableEntrySize * ctx.hitgroupsize);
 				tlasBuffers->hitGroupTable.Set(0, pRtsoProps->GetShaderIdentifier(kShadowHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 				size_t tableIdx = 0;
 
@@ -2695,7 +2691,7 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 					UINT64 normal_table;
 				};
 				for (const auto& id : entities) {
-					const auto& data = renderContext.entity2data[id];
+					const auto& data = ctx.entity2data[id];
 					for (size_t i = 0; i < data.mesh->GetSubMeshes().size(); i++) {
 						tlasBuffers->hitGroupTable.Set(mHitGroupTableEntrySize* (1 + tableIdx),
 							pRtsoProps->GetShaderIdentifier(kIndirectHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
@@ -2721,7 +2717,7 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 						}
 					}
 				}
-				assert(renderContext.hitgroupsize == tableIdx + 1);
+				assert(ctx.hitgroupsize == tableIdx + 1);
 			}
 
 			if (entities.size() == 0)
@@ -2756,19 +2752,19 @@ void StdDXRPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds,
 	);
 
 	for (const auto& camera : cameras)
-		CameraRender(camera, default_rtb);
+		CameraRender(ctx, camera, default_rtb);
 
 	frameRsrcMngr.EndFrame(initDesc.cmdQueue);
 }
 
-void StdDXRPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::string_view lightMode, size_t rtNum, DXGI_FORMAT rtFormat, D3D12_GPU_VIRTUAL_ADDRESS cameraCBAdress) {
+void StdDXRPipeline::Impl::DrawObjects(const RenderContext& ctx, ID3D12GraphicsCommandList* cmdList, std::string_view lightMode, size_t rtNum, DXGI_FORMAT rtFormat, D3D12_GPU_VIRTUAL_ADDRESS cameraCBAdress) {
 	auto& shaderCB = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("ShaderCB");
 	auto& commonShaderCB = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB");
 
 	D3D12_GPU_DESCRIPTOR_HANDLE ibl;
-	if (renderContext.skybox.ptr == defaultSkybox.ptr)
+	if (ctx.skybox.ptr == defaultSkybox.ptr)
 		ibl = defaultIBLSRVDH.GetGpuHandle();
 	else {
 		auto iblData = frameRsrcMngr.GetCurrentFrameResource()
@@ -2791,12 +2787,12 @@ void StdDXRPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::
 
 		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress =
 			commonShaderCB->GetResource()->GetGPUVirtualAddress()
-			+ renderContext.entity2offset.at(obj.entity.index);
+			+ ctx.entity2offset.at(obj.entity.index);
 
-		const auto& shaderCBDesc = renderContext.shaderCBDescMap.at(shader.get());
+		const auto& shaderCBDesc = ctx.shaderCBDescMap.at(shader.get());
 
 		auto lightCBAdress = commonShaderCB->GetResource()->GetGPUVirtualAddress()
-			+ renderContext.lightOffset;
+			+ ctx.lightOffset;
 		StdDXRPipeline::SetGraphicsRoot_CBV_SRV(cmdList, *shaderCB, shaderCBDesc, *obj.material,
 			{
 				{StdDXRPipeline_cbPerObject, objCBAddress},
@@ -2850,10 +2846,10 @@ void StdDXRPipeline::Impl::DrawObjects(ID3D12GraphicsCommandList* cmdList, std::
 		cmdList->DrawIndexedInstanced((UINT)submesh.indexCount, 1, (UINT)submesh.indexStart, (INT)submesh.baseVertex, 0);
 	};
 
-	for (const auto& obj : renderContext.renderQueue.GetOpaques())
+	for (const auto& obj : ctx.renderQueue.GetOpaques())
 		Draw(obj);
 
-	for (const auto& obj : renderContext.renderQueue.GetTransparents())
+	for (const auto& obj : ctx.renderQueue.GetTransparents())
 		Draw(obj);
 }
 

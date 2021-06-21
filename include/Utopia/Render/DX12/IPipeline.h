@@ -44,8 +44,14 @@ namespace Ubpa::Utopia {
 		//////////
 
 		struct ShaderCBDesc {
-			// whole size == materialCBSize * indexMap.size()
-			// offset = indexMap[material] * materialCBSize + offsetMap[register index]
+			// material 0 cbs   -- offset
+			//  material 0 cb 0
+			//  material 0 cb 1
+			//  ...
+			// material 1 cbs   -- offset + materialCBSize
+			// ...
+			
+			// global offset = begin_offset + indexMap[material] * materialCBSize + offsetMap[register index]
 			size_t begin_offset;
 			size_t materialCBSize{ 0 };
 			std::map<size_t, size_t> offsetMap; // register index -> local offset
