@@ -1,5 +1,7 @@
 #include <Utopia/Render/DX12/StdPipeline.h>
 
+#include "PipelineCommonUtils.h"
+
 #include "../_deps/LTCTex.h"
 #include <Utopia/Render/DX12/CameraRsrcMngr.h>
 #include <Utopia/Render/DX12/WorldRsrcMngr.h>
@@ -171,7 +173,7 @@ struct StdPipeline::Impl {
 	struct RenderContext {
 		RenderQueue renderQueue;
 
-		std::unordered_map<const Shader*, IPipeline::ShaderCBDesc> shaderCBDescMap; // shader ID -> desc
+		std::unordered_map<const Shader*, PipelineCommonUtils::ShaderCBDesc> shaderCBDescMap; // shader ID -> desc
 
 		D3D12_GPU_DESCRIPTOR_HANDLE skybox;
 		LightArray lightArray;
@@ -732,12 +734,12 @@ StdPipeline::Impl::RenderContext StdPipeline::Impl::GenerateRenderContext(std::s
 
 	for (const auto& [shader, materials] : opaqueMaterialMap) {
 		ctx.shaderCBDescMap[shader] =
-			IPipeline::UpdateShaderCBs(*shaderCB, *shader, materials, commonCBs);
+			PipelineCommonUtils::UpdateShaderCBs(*shaderCB, *shader, materials, commonCBs);
 	}
 
 	for (const auto& [shader, materials] : transparentMaterialMap) {
 		ctx.shaderCBDescMap[shader] =
-			IPipeline::UpdateShaderCBs(*shaderCB, *shader, materials, commonCBs);
+			PipelineCommonUtils::UpdateShaderCBs(*shaderCB, *shader, materials, commonCBs);
 	}
 
 	return ctx;
@@ -1353,7 +1355,7 @@ void StdPipeline::Impl::DrawObjects(
 
 		auto lightCBAdress = commonShaderCB->GetResource()->GetGPUVirtualAddress()
 			+ ctx.lightOffset;
-		StdPipeline::SetGraphicsRoot_CBV_SRV(cmdList, *shaderCB, shaderCBDesc, *obj.material,
+		PipelineCommonUtils::SetGraphicsRoot_CBV_SRV(cmdList, *shaderCB, shaderCBDesc, *obj.material,
 			{
 				{StdPipeline_cbPerObject, objCBAddress},
 				{StdPipeline_cbPerCamera, cameraCBAdress},
