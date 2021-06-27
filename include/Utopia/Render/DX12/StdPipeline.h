@@ -8,7 +8,12 @@ namespace Ubpa::Utopia {
 		virtual ~StdPipeline();
 
 		virtual void Init(InitDesc desc) override;
-		virtual void Render(const std::vector<const UECS::World*>& worlds, std::span<const CameraData> cameraData, ID3D12Resource* default_rtb) override;
+		virtual void Render(
+			std::span<const UECS::World* const> worlds,
+			std::span<const CameraData> cameras,
+			std::span<const WorldCameraLink> links, // worlds -> cameras
+			std::span<ID3D12Resource* const> defaultRTs // camera index -> rt
+		) override;
 
 	private:
 		struct Impl;

@@ -2,6 +2,7 @@
 
 #include "../_deps/LTCTex.h"
 #include <Utopia/Render/DX12/CameraRsrcMngr.h>
+#include <Utopia/Render/DX12/WorldRsrcMngr.h>
 
 #include <Utopia/Render/DX12/GPURsrcMngrDX12.h>
 #include <Utopia/Render/DX12/MeshLayoutMngr.h>
@@ -135,6 +136,15 @@ struct StdPipeline::Impl {
 	};
 
 	struct IBLData {
+		~IBLData() {
+			if(!RTVsDH.IsNull())
+				UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Free(std::move(RTVsDH));
+			if (!SRVDH.IsNull())
+				UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(SRVDH));
+		}
+
+		void Init(ID3D12Device* device);
+
 		D3D12_GPU_DESCRIPTOR_HANDLE lastSkybox{ 0 };
 		UINT nextIdx{ static_cast<UINT>(-1) };
 
@@ -209,6 +219,7 @@ struct StdPipeline::Impl {
 	std::shared_ptr<Shader> prefilterShader;
 
 	UDX12::DynamicUploadVector crossFrameShaderCB;
+	WorldRsrcMngr crossFrameWorldRsrcMngr;
 
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
 
@@ -218,23 +229,96 @@ struct StdPipeline::Impl {
 	void BuildFrameResources();
 	void BuildShaders();
 
-	void UpdateCrossFrameCameraResources(size_t defalut_width, size_t defalut_height, std::span<const CameraData> cameras);
-	RenderContext GenerateRenderContext(const std::vector<const UECS::World*>& worlds);
-	void Render(const std::vector<const UECS::World*>& worlds, std::span<const CameraData> cameras, ID3D12Resource* rtb);
-	void CameraRender(const RenderContext& ctx, const CameraData& cameraData, ID3D12Resource* rtb);
-	void DrawObjects(const RenderContext& ctx, ID3D12GraphicsCommandList*, std::string_view lightMode, size_t rtNum, DXGI_FORMAT rtFormat, D3D12_GPU_VIRTUAL_ADDRESS cameraCBAdress);
+	void UpdateCrossFrameCameraResources(std::span<const CameraData> cameras, std::span<ID3D12Resource* const> defaultRTs);
+	RenderContext GenerateRenderContext(std::span<const UECS::World* const> worlds);
+	void Render(
+		std::span<const UECS::World* const> worlds,
+		std::span<const CameraData> cameras,
+		std::span<const WorldCameraLink> links,
+		std::span<ID3D12Resource* const> defaultRTs);
+
+	void CameraRender(const RenderContext& ctx, const CameraData& cameraData, ID3D12Resource* rtb, const ResourceMap& worldRsrc);
+	void DrawObjects(
+		const RenderContext& ctx,
+		ID3D12GraphicsCommandList*,
+		std::string_view lightMode,
+		size_t rtNum,
+		DXGI_FORMAT rtFormat,
+		D3D12_GPU_VIRTUAL_ADDRESS cameraCBAdress,
+		const ResourceMap& worldRsrc);
 };
 
 StdPipeline::Impl::~Impl() {
-	for (auto& fr : frameRsrcMngr.GetFrameResources()) {
-		auto data = fr->GetResource<std::shared_ptr<IBLData>>("IBL data");
-		UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Free(std::move(data->RTVsDH));
-		UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(data->SRVDH));
-	}
 	UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(defaultIBLSRVDH));
 	GPURsrcMngrDX12::Instance().UnregisterTexture2D(ltcTexes[0].GetInstanceID());
 	GPURsrcMngrDX12::Instance().UnregisterTexture2D(ltcTexes[1].GetInstanceID());
 	UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(ltcHandles));
+}
+
+void StdPipeline::Impl::IBLData::Init(ID3D12Device* device) {
+	D3D12_CLEAR_VALUE clearColor;
+	clearColor.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+	clearColor.Color[0] = 0.f;
+	clearColor.Color[1] = 0.f;
+	clearColor.Color[2] = 0.f;
+	clearColor.Color[3] = 1.f;
+
+	RTVsDH = UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Allocate(6 * (1 + IBLData::PreFilterMapMipLevels));
+	SRVDH = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(3);
+	{ // irradiance
+		auto rsrcDesc = UDX12::Desc::RSRC::TextureCube(
+			IBLData::IrradianceMapSize, IBLData::IrradianceMapSize,
+			1, DXGI_FORMAT_R32G32B32A32_FLOAT
+		);
+		const auto defaultHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+		device->CreateCommittedResource(
+			&defaultHeapProp,
+			D3D12_HEAP_FLAG_NONE,
+			&rsrcDesc,
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+			&clearColor,
+			IID_PPV_ARGS(&irradianceMapResource)
+		);
+		for (UINT i = 0; i < 6; i++) {
+			auto rtvDesc = UDX12::Desc::RTV::Tex2DofTexCube(DXGI_FORMAT_R32G32B32A32_FLOAT, i);
+			device->CreateRenderTargetView(irradianceMapResource.Get(), &rtvDesc, RTVsDH.GetCpuHandle(i));
+		}
+		auto srvDesc = UDX12::Desc::SRV::TexCube(DXGI_FORMAT_R32G32B32A32_FLOAT);
+		device->CreateShaderResourceView(irradianceMapResource.Get(), &srvDesc, SRVDH.GetCpuHandle(0));
+	}
+	{ // prefilter
+		auto rsrcDesc = UDX12::Desc::RSRC::TextureCube(
+			IBLData::PreFilterMapSize, IBLData::PreFilterMapSize,
+			IBLData::PreFilterMapMipLevels, DXGI_FORMAT_R32G32B32A32_FLOAT
+		);
+		const auto defaultHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+		device->CreateCommittedResource(
+			&defaultHeapProp,
+			D3D12_HEAP_FLAG_NONE,
+			&rsrcDesc,
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+			&clearColor,
+			IID_PPV_ARGS(&prefilterMapResource)
+		);
+		for (UINT mip = 0; mip < IBLData::PreFilterMapMipLevels; mip++) {
+			for (UINT i = 0; i < 6; i++) {
+				auto rtvDesc = UDX12::Desc::RTV::Tex2DofTexCube(DXGI_FORMAT_R32G32B32A32_FLOAT, i, mip);
+				device->CreateRenderTargetView(
+					prefilterMapResource.Get(),
+					&rtvDesc,
+					RTVsDH.GetCpuHandle(6 * (1 + mip) + i)
+				);
+			}
+		}
+		auto srvDesc = UDX12::Desc::SRV::TexCube(DXGI_FORMAT_R32G32B32A32_FLOAT, IBLData::PreFilterMapMipLevels);
+		device->CreateShaderResourceView(prefilterMapResource.Get(), &srvDesc, SRVDH.GetCpuHandle(1));
+	}
+	{// BRDF LUT
+		auto brdfLUTTex2D = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\textures\BRDFLUT.png)");
+		auto brdfLUTTex2DRsrc = GPURsrcMngrDX12::Instance().GetTexture2DResource(*brdfLUTTex2D);
+		auto desc = UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32_FLOAT);
+		device->CreateShaderResourceView(brdfLUTTex2DRsrc, &desc, SRVDH.GetCpuHandle(2));
+	}
 }
 
 void StdPipeline::Impl::BuildTextures() {
@@ -283,73 +367,7 @@ void StdPipeline::Impl::BuildFrameResources() {
 		fr->RegisterResource("CommonShaderCB", std::make_shared<UDX12::DynamicUploadVector>(initDesc.device));
 
 		fr->RegisterResource("CameraRsrcMngr", std::make_shared<CameraRsrcMngr>());
-		fr->RegisterResource("FrameGraphRsrcMngr", std::make_shared<UDX12::FG::RsrcMngr>(initDesc.device));
-		fr->RegisterResource("FrameGraphExecutor", std::make_shared<UDX12::FG::Executor>(initDesc.device));
-
-		D3D12_CLEAR_VALUE clearColor;
-		clearColor.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-		clearColor.Color[0] = 0.f;
-		clearColor.Color[1] = 0.f;
-		clearColor.Color[2] = 0.f;
-		clearColor.Color[3] = 1.f;
-		auto iblData = std::make_shared<IBLData>();
-		iblData->RTVsDH = UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Allocate(6 * (1 + IBLData::PreFilterMapMipLevels));
-		iblData->SRVDH = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(3);
-		{ // irradiance
-			auto rsrcDesc = UDX12::Desc::RSRC::TextureCube(
-				IBLData::IrradianceMapSize, IBLData::IrradianceMapSize,
-				1, DXGI_FORMAT_R32G32B32A32_FLOAT
-			);
-			const auto defaultHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-			initDesc.device->CreateCommittedResource(
-				&defaultHeapProp,
-				D3D12_HEAP_FLAG_NONE,
-				&rsrcDesc,
-				D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-				&clearColor,
-				IID_PPV_ARGS(&iblData->irradianceMapResource)
-			);
-			for (UINT i = 0; i < 6; i++) {
-				auto rtvDesc = UDX12::Desc::RTV::Tex2DofTexCube(DXGI_FORMAT_R32G32B32A32_FLOAT, i);
-				initDesc.device->CreateRenderTargetView(iblData->irradianceMapResource.Get(), &rtvDesc, iblData->RTVsDH.GetCpuHandle(i));
-			}
-			auto srvDesc = UDX12::Desc::SRV::TexCube(DXGI_FORMAT_R32G32B32A32_FLOAT);
-			initDesc.device->CreateShaderResourceView(iblData->irradianceMapResource.Get(), &srvDesc, iblData->SRVDH.GetCpuHandle(0));
-		}
-		{ // prefilter
-			auto rsrcDesc = UDX12::Desc::RSRC::TextureCube(
-				IBLData::PreFilterMapSize, IBLData::PreFilterMapSize,
-				IBLData::PreFilterMapMipLevels, DXGI_FORMAT_R32G32B32A32_FLOAT
-			);
-			const auto defaultHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-			initDesc.device->CreateCommittedResource(
-				&defaultHeapProp,
-				D3D12_HEAP_FLAG_NONE,
-				&rsrcDesc,
-				D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-				&clearColor,
-				IID_PPV_ARGS(&iblData->prefilterMapResource)
-			);
-			for (UINT mip = 0; mip < IBLData::PreFilterMapMipLevels; mip++) {
-				for (UINT i = 0; i < 6; i++) {
-					auto rtvDesc = UDX12::Desc::RTV::Tex2DofTexCube(DXGI_FORMAT_R32G32B32A32_FLOAT, i, mip);
-					initDesc.device->CreateRenderTargetView(
-						iblData->prefilterMapResource.Get(),
-						&rtvDesc,
-						iblData->RTVsDH.GetCpuHandle(6 * (1 + mip) + i)
-					);
-				}
-			}
-			auto srvDesc = UDX12::Desc::SRV::TexCube(DXGI_FORMAT_R32G32B32A32_FLOAT, IBLData::PreFilterMapMipLevels);
-			initDesc.device->CreateShaderResourceView(iblData->prefilterMapResource.Get(), &srvDesc, iblData->SRVDH.GetCpuHandle(1));
-		}
-		{// BRDF LUT
-			auto brdfLUTTex2D = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\textures\BRDFLUT.png)");
-			auto brdfLUTTex2DRsrc = GPURsrcMngrDX12::Instance().GetTexture2DResource(*brdfLUTTex2D);
-			auto desc = UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32_FLOAT);
-			initDesc.device->CreateShaderResourceView(brdfLUTTex2DRsrc, &desc, iblData->SRVDH.GetCpuHandle(2));
-		}
-		fr->RegisterResource("IBL data", iblData);
+		fr->RegisterResource("WorldRsrcMngr", std::make_shared<WorldRsrcMngr>());
 	}
 }
 
@@ -412,14 +430,19 @@ void StdPipeline::Impl::BuildShaders() {
 	}
 }
 
-void StdPipeline::Impl::UpdateCrossFrameCameraResources(size_t defalut_width, size_t defalut_height, std::span<const CameraData> cameras) {
+void StdPipeline::Impl::UpdateCrossFrameCameraResources(std::span<const CameraData> cameras, std::span<ID3D12Resource* const> defaultRTs) {
 	crossFrameCameraRsrcs.Update(cameras);
 
-	for (const auto& camera : cameras) {
-		auto& cameraRsrc = crossFrameCameraRsrcs.Get(camera);
-		if (!cameraRsrc.HaveResource(key_CameraConstants))
-			cameraRsrc.RegisterResource(key_CameraConstants, CameraConstants{});
-		auto& cameraConstants = cameraRsrc.GetResource<CameraConstants>(key_CameraConstants);
+	for (size_t i = 0; i < cameras.size(); ++i) {
+		const auto& camera = cameras[i];
+		auto desc = defaultRTs[i]->GetDesc();
+		size_t defalut_width = desc.Width;
+		size_t defalut_height = desc.Height;
+
+		auto& cameraRsrcMap = crossFrameCameraRsrcs.Get(camera);
+		if (!cameraRsrcMap.Contains(key_CameraConstants))
+			cameraRsrcMap.Register(key_CameraConstants, CameraConstants{});
+		auto& cameraConstants = cameraRsrcMap.Get<CameraConstants>(key_CameraConstants);
 
 		auto cmptCamera = camera.world->entityMngr.ReadComponent<Camera>(camera.entity);
 		auto cmptW2L = camera.world->entityMngr.ReadComponent<WorldToLocal>(camera.entity);
@@ -451,7 +474,7 @@ void StdPipeline::Impl::UpdateCrossFrameCameraResources(size_t defalut_width, si
 	}
 }
  
-StdPipeline::Impl::RenderContext StdPipeline::Impl::GenerateRenderContext(const std::vector<const UECS::World*>& worlds) {
+StdPipeline::Impl::RenderContext StdPipeline::Impl::GenerateRenderContext(std::span<const UECS::World* const> worlds) {
 	RenderContext ctx;
 
 	{ // object
@@ -661,6 +684,7 @@ StdPipeline::Impl::RenderContext StdPipeline::Impl::GenerateRenderContext(const 
 	auto& commonShaderCB = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB");
 
+	// TODO: simplify camera buffer
 	{ // camera, lights, objects
 		ctx.cameraOffset = commonShaderCB->Size();
 		ctx.lightOffset = ctx.cameraOffset
@@ -678,7 +702,7 @@ StdPipeline::Impl::RenderContext StdPipeline::Impl::GenerateRenderContext(const 
 		for (size_t i = 0; i < crossFrameCameraRsrcs.Size(); i++) {
 			commonShaderCB->Set(
 				ctx.cameraOffset + i * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants)),
-				&crossFrameCameraRsrcs.Get(i).GetResource<CameraConstants>(key_CameraConstants),
+				&crossFrameCameraRsrcs.Get(i).Get<CameraConstants>(key_CameraConstants),
 				sizeof(CameraConstants)
 			);
 		}
@@ -719,7 +743,7 @@ StdPipeline::Impl::RenderContext StdPipeline::Impl::GenerateRenderContext(const 
 	return ctx;
 }
 
-void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData& cameraData, ID3D12Resource* default_rtb) {
+void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData& cameraData, ID3D12Resource* default_rtb, const ResourceMap& worldRsrc) {
 	size_t cameraIdx = crossFrameCameraRsrcs.Index(cameraData);
 	ID3D12Resource* rtb = default_rtb;
 	{ // set rtb
@@ -739,17 +763,17 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 
 	fg.Clear();
 
-	auto cameraRsrcMngr = frameRsrcMngr.GetCurrentFrameResource()
+	auto cameraRsrcMapMngr = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<CameraRsrcMngr>>("CameraRsrcMngr");
 
-	if (!cameraRsrcMngr->Get(cameraData).HaveResource("FrameGraphRsrcMngr"))
-		cameraRsrcMngr->Get(cameraData).RegisterResource("FrameGraphRsrcMngr", std::make_shared<UDX12::FG::RsrcMngr>(initDesc.device));
-	auto fgRsrcMngr = cameraRsrcMngr->Get(cameraData).GetResource<std::shared_ptr<UDX12::FG::RsrcMngr>>("FrameGraphRsrcMngr");
+	if (!cameraRsrcMapMngr->Get(cameraData).Contains("FrameGraphRsrcMngr"))
+		cameraRsrcMapMngr->Get(cameraData).Register("FrameGraphRsrcMngr", std::make_shared<UDX12::FG::RsrcMngr>(initDesc.device));
+	auto fgRsrcMngr = cameraRsrcMapMngr->Get(cameraData).Get<std::shared_ptr<UDX12::FG::RsrcMngr>>("FrameGraphRsrcMngr");
 	fgRsrcMngr->NewFrame();
 
-	if (!cameraRsrcMngr->Get(cameraData).HaveResource("FrameGraphExecutor"))
-		cameraRsrcMngr->Get(cameraData).RegisterResource("FrameGraphExecutor", std::make_shared<UDX12::FG::Executor>(initDesc.device));
-	auto fgExecutor = cameraRsrcMngr->Get(cameraData).GetResource<std::shared_ptr<UDX12::FG::Executor>>("FrameGraphExecutor");
+	if (!cameraRsrcMapMngr->Get(cameraData).Contains("FrameGraphExecutor"))
+		cameraRsrcMapMngr->Get(cameraData).Register("FrameGraphExecutor", std::make_shared<UDX12::FG::Executor>(initDesc.device));
+	auto fgExecutor = cameraRsrcMapMngr->Get(cameraData).Get<std::shared_ptr<UDX12::FG::Executor>>("FrameGraphExecutor");
 	fgExecutor->NewFrame();
 
 	auto gbuffer0 = fg.RegisterResourceNode("GBuffer0");
@@ -815,8 +839,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 	auto rt2dDesc = UDX12::Desc::RSRC::RT2D(width, (UINT)height, DXGI_FORMAT_R32G32B32A32_FLOAT);
 	const UDX12::FG::RsrcImplDesc_RTV_Null rtvNull;
 
-	auto iblData = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<std::shared_ptr<IBLData>>("IBL data");
+	auto iblData = worldRsrc.Get<std::shared_ptr<IBLData>>("IBL data");
 
 	(*fgRsrcMngr)
 		.RegisterTemporalRsrcAutoClear(gbuffer0, rt2dDesc)
@@ -896,7 +919,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
 				->GetResource()->GetGPUVirtualAddress()
 				+ ctx.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
-			DrawObjects(ctx, cmdList, "Deferred", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, cameraCBAdress);
+			DrawObjects(ctx, cmdList, "Deferred", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, cameraCBAdress, worldRsrc);
 		}
 	);
 
@@ -1022,7 +1045,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
 				->GetResource()->GetGPUVirtualAddress()
 				+ ctx.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
-			DrawObjects(ctx, cmdList, "Forward", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, cameraCBAdress);
+			DrawObjects(ctx, cmdList, "Forward", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, cameraCBAdress, worldRsrc);
 		}
 	);
 
@@ -1076,7 +1099,12 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 	);
 }
 
-void StdPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds, std::span<const CameraData> cameras, ID3D12Resource* default_rtb) {
+void StdPipeline::Impl::Render(
+	std::span<const UECS::World* const> worlds,
+	std::span<const CameraData> cameras,
+	std::span<const WorldCameraLink> links,
+	std::span<ID3D12Resource* const> defaultRTs
+) {
 	// Cycle through the circular frame resource array.
 	// Has the GPU finished processing the commands of the current frame resource?
 	// If not, wait until the GPU has completed commands up to this fence point.
@@ -1087,173 +1115,210 @@ void StdPipeline::Impl::Render(const std::vector<const UECS::World*>& worlds, st
 	frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")->Clear();
 
-	UpdateCrossFrameCameraResources(default_rtb->GetDesc().Width, default_rtb->GetDesc().Height, cameras);
-	RenderContext ctx = GenerateRenderContext(worlds);
+	UpdateCrossFrameCameraResources(cameras, defaultRTs);
 
 	frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<CameraRsrcMngr>>("CameraRsrcMngr")
 		->Update(cameras);
 
-	fg.Clear();
-	auto fgRsrcMngr = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<std::shared_ptr<UDX12::FG::RsrcMngr>>("FrameGraphRsrcMngr");
-	fgRsrcMngr->NewFrame();
-
-	auto fgExecutor = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<std::shared_ptr<UDX12::FG::Executor>>("FrameGraphExecutor");
-	fgExecutor->NewFrame();
-
-	auto irradianceMap = fg.RegisterResourceNode("Irradiance Map");
-	auto prefilterMap = fg.RegisterResourceNode("PreFilter Map");
-	auto iblPass = fg.RegisterPassNode(
-		"IBL",
-		{ },
-		{ irradianceMap, prefilterMap }
-	);
-	
-	auto iblData = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<std::shared_ptr<IBLData>>("IBL data");
-
-	(*fgRsrcMngr)
-		.RegisterImportedRsrc(irradianceMap, { iblData->irradianceMapResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
-		.RegisterImportedRsrc(prefilterMap, { iblData->prefilterMapResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
-		.RegisterPassRsrcState(iblPass, irradianceMap, D3D12_RESOURCE_STATE_RENDER_TARGET)
-		.RegisterPassRsrcState(iblPass, prefilterMap, D3D12_RESOURCE_STATE_RENDER_TARGET)
-		;
-
-	fgExecutor->RegisterPassFunc(
-		iblPass,
-		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& /*rsrcs*/) {
-			if (iblData->lastSkybox.ptr == ctx.skybox.ptr) {
-				if (iblData->nextIdx >= 6 * (1 + IBLData::PreFilterMapMipLevels))
-					return;
-			}
-			else {
-				if (ctx.skybox.ptr == defaultSkybox.ptr) {
-					iblData->lastSkybox.ptr = defaultSkybox.ptr;
-					return;
-				}
-				iblData->lastSkybox = ctx.skybox;
-				iblData->nextIdx = 0;
-			}
-
-			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
-			cmdList->SetDescriptorHeaps(1, &heap);
-			
-			if (iblData->nextIdx < 6) { // irradiance
-				cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*irradianceShader));
-				cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetOrCreateShaderPSO(
-					*irradianceShader,
-					0,
-					static_cast<size_t>(-1),
-					1,
-					DXGI_FORMAT_R32G32B32A32_FLOAT,
-					DXGI_FORMAT_UNKNOWN)
-				);
-
-				D3D12_VIEWPORT viewport;
-				viewport.MinDepth = 0.f;
-				viewport.MaxDepth = 1.f;
-				viewport.TopLeftX = 0.f;
-				viewport.TopLeftY = 0.f;
-				viewport.Width = Impl::IBLData::IrradianceMapSize;
-				viewport.Height = Impl::IBLData::IrradianceMapSize;
-				D3D12_RECT rect = { 0,0,Impl::IBLData::IrradianceMapSize,Impl::IBLData::IrradianceMapSize };
-				cmdList->RSSetViewports(1, &viewport);
-				cmdList->RSSetScissorRects(1, &rect);
-
-				cmdList->SetGraphicsRootDescriptorTable(0, ctx.skybox);
-				//for (UINT i = 0; i < 6; i++) {
-				UINT i = static_cast<UINT>(iblData->nextIdx);
-				// Specify the buffers we are going to render to.
-				const auto iblRTVHandle = iblData->RTVsDH.GetCpuHandle(i);
-				cmdList->OMSetRenderTargets(1, &iblRTVHandle, false, nullptr);
-				auto address = crossFrameShaderCB.GetResource()->GetGPUVirtualAddress()
-					+ i * UDX12::Util::CalcConstantBufferByteSize(sizeof(QuadPositionLs));
-				cmdList->SetGraphicsRootConstantBufferView(1, address);
-
-				cmdList->IASetVertexBuffers(0, 0, nullptr);
-				cmdList->IASetIndexBuffer(nullptr);
-				cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-				cmdList->DrawInstanced(6, 1, 0, 0);
-				//}
-			}
-			else { // prefilter
-				cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*prefilterShader));
-				cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetOrCreateShaderPSO(
-					*prefilterShader,
-					0,
-					static_cast<size_t>(-1),
-					1,
-					DXGI_FORMAT_R32G32B32A32_FLOAT,
-					DXGI_FORMAT_UNKNOWN)
-				);
-
-				cmdList->SetGraphicsRootDescriptorTable(0, ctx.skybox);
-				//size_t size = Impl::IBLData::PreFilterMapSize;
-				//for (UINT mip = 0; mip < Impl::IBLData::PreFilterMapMipLevels; mip++) {
-				UINT mip = static_cast<UINT>((iblData->nextIdx - 6) / 6);
-				size_t size = Impl::IBLData::PreFilterMapSize >> mip;
-				auto mipinfo = crossFrameShaderCB.GetResource()->GetGPUVirtualAddress()
-					+ 6 * UDX12::Util::CalcConstantBufferByteSize(sizeof(QuadPositionLs))
-					+ mip * UDX12::Util::CalcConstantBufferByteSize(sizeof(MipInfo));
-				cmdList->SetGraphicsRootConstantBufferView(2, mipinfo);
-
-				D3D12_VIEWPORT viewport;
-				viewport.MinDepth = 0.f;
-				viewport.MaxDepth = 1.f;
-				viewport.TopLeftX = 0.f;
-				viewport.TopLeftY = 0.f;
-				viewport.Width = (float)size;
-				viewport.Height = (float)size;
-				D3D12_RECT rect = { 0,0,(LONG)size,(LONG)size };
-				cmdList->RSSetViewports(1, &viewport);
-				cmdList->RSSetScissorRects(1, &rect);
-
-				//for (UINT i = 0; i < 6; i++) {
-				UINT i = iblData->nextIdx % 6;
-				auto positionLs = crossFrameShaderCB.GetResource()->GetGPUVirtualAddress()
-					+ i * UDX12::Util::CalcConstantBufferByteSize(sizeof(QuadPositionLs));
-				cmdList->SetGraphicsRootConstantBufferView(1, positionLs);
-
-				// Specify the buffers we are going to render to.
-				const auto iblRTVHandle = iblData->RTVsDH.GetCpuHandle(6 * (1 + mip) + i);
-				cmdList->OMSetRenderTargets(1, &iblRTVHandle, false, nullptr);
-
-				cmdList->IASetVertexBuffers(0, 0, nullptr);
-				cmdList->IASetIndexBuffer(nullptr);
-				cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-				cmdList->DrawInstanced(6, 1, 0, 0);
-				//}
-
-				size /= 2;
-				//}
-			}
-
-			iblData->nextIdx++;
-		}
-	);
-
-	static bool flag{ false };
-	if (!flag) {
-		OutputDebugStringA(fg.ToGraphvizGraph().Dump().c_str());
-		flag = true;
+	std::vector<std::vector<const UECS::World*>> worldArrs;
+	for (const auto& link : links) {
+		std::vector<const UECS::World*> worldArr;
+		for (auto idx : link.worldIndices)
+			worldArr.push_back(worlds[idx]);
+		worldArrs.push_back(std::move(worldArr));
 	}
+	std::vector<RenderContext> ctxs;
+	for (size_t i = 0; i < worldArrs.size(); ++i)
+		ctxs.push_back(GenerateRenderContext(worldArrs[i]));
 
-	auto crst = fgCompiler.Compile(fg);
-	fgExecutor->Execute(
-		initDesc.cmdQueue,
-		crst,
-		*fgRsrcMngr
-	);
+	crossFrameWorldRsrcMngr.Update(worldArrs, initDesc.numFrame);
+	auto curFrameWorldRsrcMngr = frameRsrcMngr.GetCurrentFrameResource()->GetResource<std::shared_ptr<WorldRsrcMngr>>("WorldRsrcMngr");
+	curFrameWorldRsrcMngr->Update(worldArrs);
 
-	for (const auto& camera : cameras)
-		CameraRender(ctx, camera, default_rtb);
+	for (size_t linkIdx = 0; linkIdx < links.size(); ++linkIdx) {
+		auto& ctx = ctxs[linkIdx];
+		auto& crossFrameWorldRsrc = crossFrameWorldRsrcMngr.Get(worldArrs[linkIdx]);
+		auto& curFrameWorldRsrc = curFrameWorldRsrcMngr->Get(worldArrs[linkIdx]);
+
+		if (!curFrameWorldRsrc.Contains("FrameGraphRsrcMngr"))
+			curFrameWorldRsrc.Register("FrameGraphRsrcMngr", std::make_shared<UDX12::FG::RsrcMngr>(initDesc.device));
+		auto fgRsrcMngr = curFrameWorldRsrc.Get<std::shared_ptr<UDX12::FG::RsrcMngr>>("FrameGraphRsrcMngr");
+		fgRsrcMngr->NewFrame();
+
+		if (!curFrameWorldRsrc.Contains("FrameGraphExecutor"))
+			curFrameWorldRsrc.Register("FrameGraphExecutor", std::make_shared<UDX12::FG::Executor>(initDesc.device));
+		auto fgExecutor = curFrameWorldRsrc.Get<std::shared_ptr<UDX12::FG::Executor>>("FrameGraphExecutor");
+		fgExecutor->NewFrame();
+
+		if (!crossFrameWorldRsrc.Contains("IBL data")) {
+			auto iblData = std::make_shared<IBLData>();
+			iblData->Init(initDesc.device);
+			crossFrameWorldRsrc.Register("IBL data", iblData);
+		}
+		if (!curFrameWorldRsrc.Contains("IBL data"))
+			curFrameWorldRsrc.Register("IBL data", crossFrameWorldRsrc.Get<std::shared_ptr<IBLData>>("IBL data"));
+		auto iblData = curFrameWorldRsrc.Get<std::shared_ptr<IBLData>>("IBL data");
+
+		fg.Clear();
+
+		auto irradianceMap = fg.RegisterResourceNode("Irradiance Map");
+		auto prefilterMap = fg.RegisterResourceNode("PreFilter Map");
+		auto iblPass = fg.RegisterPassNode(
+			"IBL",
+			{ },
+			{ irradianceMap, prefilterMap }
+		);
+
+		(*fgRsrcMngr)
+			.RegisterImportedRsrc(irradianceMap, { iblData->irradianceMapResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
+			.RegisterImportedRsrc(prefilterMap, { iblData->prefilterMapResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
+			.RegisterPassRsrcState(iblPass, irradianceMap, D3D12_RESOURCE_STATE_RENDER_TARGET)
+			.RegisterPassRsrcState(iblPass, prefilterMap, D3D12_RESOURCE_STATE_RENDER_TARGET)
+			;
+
+		fgExecutor->RegisterPassFunc(
+			iblPass,
+			[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& /*rsrcs*/) {
+				if (iblData->lastSkybox.ptr == ctx.skybox.ptr) {
+					if (iblData->nextIdx >= 6 * (1 + IBLData::PreFilterMapMipLevels))
+						return;
+				}
+				else {
+					if (ctx.skybox.ptr == defaultSkybox.ptr) {
+						iblData->lastSkybox.ptr = defaultSkybox.ptr;
+						return;
+					}
+					iblData->lastSkybox = ctx.skybox;
+					iblData->nextIdx = 0;
+				}
+
+				auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
+				cmdList->SetDescriptorHeaps(1, &heap);
+
+				if (iblData->nextIdx < 6) { // irradiance
+					cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*irradianceShader));
+					cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetOrCreateShaderPSO(
+						*irradianceShader,
+						0,
+						static_cast<size_t>(-1),
+						1,
+						DXGI_FORMAT_R32G32B32A32_FLOAT,
+						DXGI_FORMAT_UNKNOWN)
+					);
+
+					D3D12_VIEWPORT viewport;
+					viewport.MinDepth = 0.f;
+					viewport.MaxDepth = 1.f;
+					viewport.TopLeftX = 0.f;
+					viewport.TopLeftY = 0.f;
+					viewport.Width = Impl::IBLData::IrradianceMapSize;
+					viewport.Height = Impl::IBLData::IrradianceMapSize;
+					D3D12_RECT rect = { 0,0,Impl::IBLData::IrradianceMapSize,Impl::IBLData::IrradianceMapSize };
+					cmdList->RSSetViewports(1, &viewport);
+					cmdList->RSSetScissorRects(1, &rect);
+
+					cmdList->SetGraphicsRootDescriptorTable(0, ctx.skybox);
+					//for (UINT i = 0; i < 6; i++) {
+					UINT i = static_cast<UINT>(iblData->nextIdx);
+					// Specify the buffers we are going to render to.
+					const auto iblRTVHandle = iblData->RTVsDH.GetCpuHandle(i);
+					cmdList->OMSetRenderTargets(1, &iblRTVHandle, false, nullptr);
+					auto address = crossFrameShaderCB.GetResource()->GetGPUVirtualAddress()
+						+ i * UDX12::Util::CalcConstantBufferByteSize(sizeof(QuadPositionLs));
+					cmdList->SetGraphicsRootConstantBufferView(1, address);
+
+					cmdList->IASetVertexBuffers(0, 0, nullptr);
+					cmdList->IASetIndexBuffer(nullptr);
+					cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+					cmdList->DrawInstanced(6, 1, 0, 0);
+					//}
+				}
+				else { // prefilter
+					cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*prefilterShader));
+					cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetOrCreateShaderPSO(
+						*prefilterShader,
+						0,
+						static_cast<size_t>(-1),
+						1,
+						DXGI_FORMAT_R32G32B32A32_FLOAT,
+						DXGI_FORMAT_UNKNOWN)
+					);
+
+					cmdList->SetGraphicsRootDescriptorTable(0, ctx.skybox);
+					//size_t size = Impl::IBLData::PreFilterMapSize;
+					//for (UINT mip = 0; mip < Impl::IBLData::PreFilterMapMipLevels; mip++) {
+					UINT mip = static_cast<UINT>((iblData->nextIdx - 6) / 6);
+					size_t size = Impl::IBLData::PreFilterMapSize >> mip;
+					auto mipinfo = crossFrameShaderCB.GetResource()->GetGPUVirtualAddress()
+						+ 6 * UDX12::Util::CalcConstantBufferByteSize(sizeof(QuadPositionLs))
+						+ mip * UDX12::Util::CalcConstantBufferByteSize(sizeof(MipInfo));
+					cmdList->SetGraphicsRootConstantBufferView(2, mipinfo);
+
+					D3D12_VIEWPORT viewport;
+					viewport.MinDepth = 0.f;
+					viewport.MaxDepth = 1.f;
+					viewport.TopLeftX = 0.f;
+					viewport.TopLeftY = 0.f;
+					viewport.Width = (float)size;
+					viewport.Height = (float)size;
+					D3D12_RECT rect = { 0,0,(LONG)size,(LONG)size };
+					cmdList->RSSetViewports(1, &viewport);
+					cmdList->RSSetScissorRects(1, &rect);
+
+					//for (UINT i = 0; i < 6; i++) {
+					UINT i = iblData->nextIdx % 6;
+					auto positionLs = crossFrameShaderCB.GetResource()->GetGPUVirtualAddress()
+						+ i * UDX12::Util::CalcConstantBufferByteSize(sizeof(QuadPositionLs));
+					cmdList->SetGraphicsRootConstantBufferView(1, positionLs);
+
+					// Specify the buffers we are going to render to.
+					const auto iblRTVHandle = iblData->RTVsDH.GetCpuHandle(6 * (1 + mip) + i);
+					cmdList->OMSetRenderTargets(1, &iblRTVHandle, false, nullptr);
+
+					cmdList->IASetVertexBuffers(0, 0, nullptr);
+					cmdList->IASetIndexBuffer(nullptr);
+					cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+					cmdList->DrawInstanced(6, 1, 0, 0);
+					//}
+
+					size /= 2;
+					//}
+				}
+
+				iblData->nextIdx++;
+			}
+		);
+
+		static bool flag{ false };
+		if (!flag) {
+			OutputDebugStringA(fg.ToGraphvizGraph().Dump().c_str());
+			flag = true;
+		}
+
+		auto crst = fgCompiler.Compile(fg);
+		fgExecutor->Execute(
+			initDesc.cmdQueue,
+			crst,
+			*fgRsrcMngr
+		);
+
+		for (const auto& cameraIdx : links[linkIdx].cameraIndices)
+			CameraRender(ctx, cameras[cameraIdx], defaultRTs[cameraIdx], curFrameWorldRsrc);
+	}
 
 	frameRsrcMngr.EndFrame(initDesc.cmdQueue);
 }
 
-void StdPipeline::Impl::DrawObjects(const RenderContext& ctx, ID3D12GraphicsCommandList* cmdList, std::string_view lightMode, size_t rtNum, DXGI_FORMAT rtFormat, D3D12_GPU_VIRTUAL_ADDRESS cameraCBAdress) {
+void StdPipeline::Impl::DrawObjects(
+	const RenderContext& ctx, 
+	ID3D12GraphicsCommandList* cmdList, 
+	std::string_view lightMode,
+	size_t rtNum,
+	DXGI_FORMAT rtFormat,
+	D3D12_GPU_VIRTUAL_ADDRESS cameraCBAdress,
+	const ResourceMap& worldRsrc)
+{
 	auto& shaderCB = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("ShaderCB");
 	auto& commonShaderCB = frameRsrcMngr.GetCurrentFrameResource()
@@ -1263,8 +1328,7 @@ void StdPipeline::Impl::DrawObjects(const RenderContext& ctx, ID3D12GraphicsComm
 	if (ctx.skybox.ptr == defaultSkybox.ptr)
 		ibl = defaultIBLSRVDH.GetGpuHandle();
 	else {
-		auto iblData = frameRsrcMngr.GetCurrentFrameResource()
-			->GetResource<std::shared_ptr<IBLData>>("IBL data");
+		auto iblData = worldRsrc.Get<std::shared_ptr<IBLData>>("IBL data");
 		ibl = iblData->SRVDH.GetGpuHandle();
 	}
 
@@ -1356,6 +1420,12 @@ void StdPipeline::Init(InitDesc desc) {
 
 StdPipeline::~StdPipeline() { delete pImpl; }
 
-void StdPipeline::Render(const std::vector<const UECS::World*>& worlds, std::span<const CameraData> cameras, ID3D12Resource* default_rtb) {
-	pImpl->Render(worlds, cameras, default_rtb);
+void StdPipeline::Render(
+	std::span<const UECS::World* const> worlds,
+	std::span<const CameraData> cameras,
+	std::span<const WorldCameraLink> links,
+	std::span<ID3D12Resource*const> defaultRTs)
+{
+	assert(pImpl);
+	pImpl->Render(worlds, cameras, links, defaultRTs);
 }

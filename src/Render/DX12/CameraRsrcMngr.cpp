@@ -13,7 +13,7 @@ void CameraRsrcMngr::Update(std::span<const IPipeline::CameraData> cameras) {
 
 	for (const auto& camera : cameras) {
 		unvisitedCameras.erase(camera);
-		cameraRsrcs.emplace(camera, CameraResource{});
+		cameraRsrcs.emplace(camera, ResourceMap{});
 	}
 
 	for (const auto& camera : unvisitedCameras)
