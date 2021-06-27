@@ -705,11 +705,11 @@ void Editor::Impl::Update() {
 		if (gameCameras.contains(pipeline)) {
 			IPipeline::WorldCameraLink link;
 			link.worldIndices = { 0 };
-			for (size_t i = 0; i < gameCameras.size(); i++)
+			for (size_t i = 0; i < gameCameras.at(pipeline).size(); i++)
 				link.cameraIndices.push_back(i);
 			links.push_back(std::move(link));
 
-			for (size_t i = 0; i < gameCameras.size(); i++)
+			for (size_t i = 0; i < gameCameras.at(pipeline).size(); i++)
 				defaultRTs.push_back(gameRT.Get());
 		}
 
@@ -718,11 +718,11 @@ void Editor::Impl::Update() {
 			link.worldIndices = { 0, 1 };
 
 			const size_t gameCamOffset = gameCameras.contains(pipeline) ? gameCameras.at(pipeline).size() : 0;
-			for (size_t i = 0; i < sceneCameras.size(); i++) 
+			for (size_t i = 0; i < sceneCameras.at(pipeline).size(); i++)
 				link.cameraIndices.push_back(gameCamOffset + i);
 			links.push_back(std::move(link));
 
-			for (size_t i = 0; i < sceneCameras.size(); i++)
+			for (size_t i = 0; i < sceneCameras.at(pipeline).size(); i++)
 				defaultRTs.push_back(sceneRT.Get());
 		}
 		

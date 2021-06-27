@@ -893,14 +893,14 @@ struct StdDXRPipeline::Impl {
 	void BuildShaders();
 
 	void UpdateCrossFrameCameraResources(std::span<const CameraData> cameras, std::span<ID3D12Resource* const> defaultRTs);
-	RenderContext GenerateRenderContext(std::span<const UECS::World* const> worlds);
+	RenderContext GenerateRenderContext(std::span<const UECS::World* const> worlds, std::span<const CameraData> cameras);
 	void UpdateShaderCBs();
 	void Render(
 		std::span<const UECS::World* const> worlds,
 		std::span<const CameraData> cameras,
 		std::span<const WorldCameraLink> links,
 		std::span<ID3D12Resource* const> defaultRTs);
-	void CameraRender(const RenderContext& ctx, const CameraData& cameraData, ID3D12Resource* rtb, const ResourceMap& worldRsrc);
+	void CameraRender(const RenderContext& ctx, const CameraData& cameraData, size_t cameraIdx, ID3D12Resource* rtb, const ResourceMap& worldRsrc);
 	void DrawObjects(
 		const RenderContext& ctx,
 		ID3D12GraphicsCommandList*,
@@ -1198,7 +1198,10 @@ void StdDXRPipeline::Impl::UpdateCrossFrameCameraResources(std::span<const Camer
 	}
 }
 
-StdDXRPipeline::Impl::RenderContext StdDXRPipeline::Impl::GenerateRenderContext(std::span<const UECS::World* const> worlds) {
+StdDXRPipeline::Impl::RenderContext StdDXRPipeline::Impl::GenerateRenderContext(
+	std::span<const UECS::World* const> worlds,
+	std::span<const CameraData> linkedCameras)
+{
 	RenderContext ctx;
 
 	{ // object
@@ -1412,25 +1415,24 @@ StdDXRPipeline::Impl::RenderContext StdDXRPipeline::Impl::GenerateRenderContext(
 	auto& commonShaderCB = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB");
 
-	// TODO: simplify camera buffer
 	{ // camera, lights, objects
 		ctx.cameraOffset = commonShaderCB->Size();
 		ctx.lightOffset = ctx.cameraOffset
-			+ crossFrameCameraRsrcs.Size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
+			+ linkedCameras.size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
 		ctx.objectOffset = ctx.lightOffset
 			+ UDX12::Util::CalcConstantBufferByteSize(sizeof(LightArray));
 
 		commonShaderCB->Resize(
 			commonShaderCB->Size()
-			+ crossFrameCameraRsrcs.Size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants))
+			+ linkedCameras.size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants))
 			+ UDX12::Util::CalcConstantBufferByteSize(sizeof(LightArray))
 			+ ctx.entity2data.size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(ObjectConstants))
 		);
 
-		for (size_t i = 0; i < crossFrameCameraRsrcs.Size(); i++) {
+		for (size_t i = 0; i < linkedCameras.size(); i++) {
 			commonShaderCB->Set(
 				ctx.cameraOffset + i * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants)),
-				&crossFrameCameraRsrcs.Get(i).Get<CameraConstants>(key_CameraConstants),
+				&crossFrameCameraRsrcs.Get(linkedCameras[i]).Get<CameraConstants>(key_CameraConstants),
 				sizeof(CameraConstants)
 			);
 		}
@@ -1471,8 +1473,7 @@ StdDXRPipeline::Impl::RenderContext StdDXRPipeline::Impl::GenerateRenderContext(
 	return ctx;
 }
 
-void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData& cameraData, ID3D12Resource* default_rtb, const ResourceMap& worldRsrc) {
-	size_t cameraIdx = crossFrameCameraRsrcs.Index(cameraData);
+void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData& cameraData, size_t cameraIdx, ID3D12Resource* default_rtb, const ResourceMap& worldRsrc) {
 	ID3D12Resource* rtb = default_rtb;
 	{ // set rtb
 		if (cameraData.entity.Valid()) {
@@ -2486,8 +2487,12 @@ void StdDXRPipeline::Impl::Render(
 		worldArrs.push_back(std::move(worldArr));
 	}
 	std::vector<RenderContext> ctxs;
-	for (size_t i = 0; i < worldArrs.size(); ++i)
-		ctxs.push_back(GenerateRenderContext(worldArrs[i]));
+	for (size_t i = 0; i < worldArrs.size(); ++i) {
+		std::vector<CameraData> linkedCameras;
+		for (size_t camIdx : links[i].cameraIndices)
+			linkedCameras.push_back(cameras[camIdx]);
+		ctxs.push_back(GenerateRenderContext(worldArrs[i], linkedCameras));
+	}
 
 	crossFrameWorldRsrcMngr.Update(worldArrs, initDesc.numFrame);
 	auto curFrameWorldRsrcMngr = frameRsrcMngr.GetCurrentFrameResource()->GetResource<std::shared_ptr<WorldRsrcMngr>>("WorldRsrcMngr");
@@ -2813,8 +2818,10 @@ void StdDXRPipeline::Impl::Render(
 			*fgRsrcMngr
 		);
 
-		for (const auto& cameraIdx : links[linkIdx].cameraIndices)
-			CameraRender(ctx, cameras[cameraIdx], defaultRTs[cameraIdx], curFrameWorldRsrc);
+		for (size_t i = 0; i < links[linkIdx].cameraIndices.size(); ++i) {
+			size_t cameraIdx = links[linkIdx].cameraIndices[i];
+			CameraRender(ctx, cameras[cameraIdx], i, defaultRTs[cameraIdx], curFrameWorldRsrc);
+		}
 	}
 
 	frameRsrcMngr.EndFrame(initDesc.cmdQueue);
