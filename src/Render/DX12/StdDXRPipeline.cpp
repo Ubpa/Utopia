@@ -3062,7 +3062,7 @@ void StdDXRPipeline::Impl::UpdateCameraResource(const CameraData& cameraData, si
 	cameraResizeData.taaPrevRsrc = std::move(taaPrevRsrc);
 
 	cameraRsrcMngr->Get(cameraData).Unregister(key_CameraResizeData);
-	cameraRsrcMngr->Get(cameraData).Register(key_CameraResizeData, std::move(cameraResizeData));
+	cameraRsrcMngr->Get(cameraData).Register(key_CameraResizeData, cameraResizeData);
 
 	for (auto& frsrc : frameRsrcMngr.GetFrameResources()) {
 		if (frsrc.get() == frameRsrcMngr.GetCurrentFrameResource())
