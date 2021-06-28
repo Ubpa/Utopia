@@ -159,7 +159,7 @@ PixelOut PS(VertexOut pin) : SV_Target
 						continue;
 					
 					float weightS = weight.x;
-					float weightU = weight.x; // weight.y;
+					float weightU = weight.y;
 					
 					float3 S = weightS * gRTS[itexc_xy].rgb;
 					float3 U = weightU * gRTU[itexc_xy].rgb;

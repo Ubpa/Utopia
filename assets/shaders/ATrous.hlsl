@@ -61,20 +61,20 @@ float ComputeLuminance(float3 color) {
 }
 
 float2 ComputeWeight(
-	float phi_rt, float center_luminance_rt, float luminance_rt,
-	float phi_brdf, float center_brdf, float brdf,
+	float phi_rts, float center_luminance_rts, float luminance_rts,
+	float phi_rtu, float center_luminance_rtu, float luminance_rtu,
 	float phi_normal, float3 center_normal, float3 normal,
 	float phi_z, float center_z, float z)
 {
-	float exponent_rt = abs(center_luminance_rt - luminance_rt) / max(1e-6f, phi_rt);
-	float exponent_brdf = abs(center_brdf - brdf) / max(1e-6f, phi_brdf);
+	float exponent_rts = abs(center_luminance_rts - luminance_rts) / max(1e-6f, phi_rts);
+	float exponent_rtu = abs(center_luminance_rtu - luminance_rtu) / max(1e-6f, phi_rtu);
 	float exponent_z = abs(center_z - z) / max(1e-6f, phi_z);
 	float weight_n = pow(max(0, dot(center_normal, normal)), phi_normal);
 	
-	float weight_rt = exp(0.0 - max(exponent_rt, 0.0) /*- max(exponent_brdf, 0.0)*/ - max(exponent_z, 0.0)) * weight_n;
-	float weight_brdf = exp(0.0 - max(exponent_brdf, 0.0)   - max(exponent_z, 0.0)) * weight_n;
+	float weight_rts = exp(0.0 - max(exponent_rts, 0.0) - max(exponent_z, 0.0)) * weight_n;
+	float weight_rtu = exp(0.0 - max(exponent_rtu, 0.0) - max(exponent_z, 0.0)) * weight_n;
 	
-	return float2(weight_rt, weight_brdf);
+	return float2(weight_rts, weight_rtu);
 }
 float2 ComputeVarianceCenter(int2 ipos, Texture2D sA, Texture2D sB)
 {
@@ -167,12 +167,10 @@ PixelOut PS(VertexOut pin) : SV_Target
 				);
 				
 				sumS += float4(weight.xxx, weight.x*weight.x) * gRTS[itexc_xy];
-				//sumU += float4(weight.yyy, weight.y*weight.y) * gRTU[itexc_xy];
-				sumU += float4(weight.xxx, weight.x*weight.x) * gRTU[itexc_xy];
+				sumU += float4(weight.yyy, weight.y*weight.y) * gRTU[itexc_xy];
 
 				sumSW += weight.x;
-				//sumUW += weight.y;
-				sumUW += weight.x;
+				sumUW += weight.y;
 			}
 		}
 	}

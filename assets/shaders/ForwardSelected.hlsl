@@ -5,9 +5,12 @@ Texture2D gAlbedoMap    : register(t0);
 Texture2D gRoughnessMap : register(t1);
 Texture2D gMetalnessMap : register(t2);
 Texture2D gNormalMap    : register(t3);
-STD_PIPELINE_SR3_IBL(4);
+STD_PIPELINE_SR3_IBL(4); // cover 3 register
 
 STD_PIPELINE_CB_PER_OBJECT(0);
+
+STD_PIPELINE_CB_PER_CAMERA(2);
+STD_PIPELINE_CB_LIGHT_ARRAY(3);
 
 cbuffer cbPerMaterial : register(b1)
 {
@@ -16,9 +19,6 @@ cbuffer cbPerMaterial : register(b1)
     float  gMetalnessFactor;
 	float  gOutlineWidth;
 };
-
-STD_PIPELINE_CB_PER_CAMERA(2);
-STD_PIPELINE_CB_LIGHT_ARRAY(3);
 
 struct VertexIn
 {
@@ -62,34 +62,6 @@ VertexOut VS(VertexIn vin)
     return vout;
 }
 
-struct VertexIn2
-{
-	float3 PosL     : POSITION;
-    float3 NormalL  : NORMAL;
-};
-
-struct VertexOut2
-{
-	float4   PosH    : SV_POSITION;
-};
-
-VertexOut2 VS2(VertexIn2 vin)
-{
-	VertexOut2 vout;
-	
-    // Transform to world space.
-    float4 posW = mul(gWorld, float4(vin.PosL, 1.0f));
-
-	float3x3 normalMatrix = transpose((float3x3)gInvWorld);
-    float3 normalW = normalize(mul(normalMatrix, vin.NormalL));
-	float2 normalC = normalize(mul((float3x3)gViewProj, normalW).xy);
-    // Transform to homogeneous clip space.
-    vout.PosH = mul(gViewProj, posW);
-	vout.PosH.xy += gOutlineWidth * normalC * vout.PosH.w;
-
-    return vout;
-}
-
 struct PixelOut {
 	float4 color : SV_Target0;
 };
@@ -116,17 +88,22 @@ PixelOut PS(VertexOut pin)
 	float3 V = normalize(gEyePosW - posW);
 	float3 F0 = MetalWorkflow_F0(albedo, metalness);
 	
+	float NdotV = saturate(dot(N, V));
+	
 	uint offset = 0u;
 	uint i;
 	for(i = offset; i < offset + gDirectionalLightNum; i++) {
 		float3 L = -gLights[i].dir;
 		float3 H = normalize(L + V);
-				
+		
+		float NdotH = dot(N, H);
+		float NdotL = dot(N, L);
+		
 		float cos_theta = max(0, dot(N, L));
 		
 		float3 fr = Fresnel(F0, cos_theta);
-		float D = GGX_D(alpha, N, H);
-		float G = GGX_G(alpha, L, V, N);
+		float D = GGX_D(alpha, NdotH);
+		float G = GGX_G(alpha, NdotV, NdotL);
 				
 		float3 diffuse = (1 - fr) * (1 - metalness) * albedo / PI;
 				
@@ -143,11 +120,14 @@ PixelOut PS(VertexOut pin)
 		float3 L = pixelToLight / dist;
 		float3 H = normalize(L + V);
 		
+		float NdotH = dot(N, H);
+		float NdotL = dot(N, L);
+		
 		float cos_theta = max(0, dot(N, L));
 		
 		float3 fr = Fresnel(F0, cos_theta);
-		float D = GGX_D(alpha, N, H);
-		float G = GGX_G(alpha, L, V, N);
+		float D = GGX_D(alpha, NdotH);
+		float G = GGX_G(alpha, NdotV, NdotL);
 				
 		float3 diffuse = (1 - fr) * (1 - metalness) * albedo / PI;
 				
@@ -165,11 +145,14 @@ PixelOut PS(VertexOut pin)
 		float3 L = pixelToLight / dist;
 		float3 H = normalize(L + V);
 		
+		float NdotH = dot(N, H);
+		float NdotL = dot(N, L);
+		
 		float cos_theta = max(0, dot(N, L));
 		
 		float3 fr = Fresnel(F0, cos_theta);
-		float D = GGX_D(alpha, N, H);
-		float G = GGX_G(alpha, L, V, N);
+		float D = GGX_D(alpha, NdotH);
+		float G = GGX_G(alpha, NdotV, NdotL);
 				
 		float3 diffuse = (1 - fr) * (1 - metalness) * albedo / PI;
 				
@@ -192,7 +175,6 @@ PixelOut PS(VertexOut pin)
 	
 	float3 R = reflect(-V, N);
 	float3 prefilterColor = STD_PIPELINE_SAMPLE_PREFILTER(R, roughness);
-	float NdotV = saturate(dot(N, V));
 	float2 scale_bias = STD_PIPELINE_SAMPLE_BRDFLUT(NdotV, roughness);
 	float3 specular = prefilterColor * (F0 * scale_bias.x + scale_bias.y);
 	
@@ -201,6 +183,34 @@ PixelOut PS(VertexOut pin)
 	pout.color = float4(Lo, 1);
 	
 	return pout;
+}
+
+struct VertexIn2
+{
+	float3 PosL     : POSITION;
+    float3 NormalL  : NORMAL;
+};
+
+struct VertexOut2
+{
+	float4   PosH    : SV_POSITION;
+};
+
+VertexOut2 VS2(VertexIn2 vin)
+{
+	VertexOut2 vout;
+	
+    // Transform to world space.
+    float4 posW = mul(gWorld, float4(vin.PosL, 1.0f));
+
+	float3x3 normalMatrix = transpose((float3x3)gInvWorld);
+    float3 normalW = normalize(mul(normalMatrix, vin.NormalL));
+	float2 normalC = normalize(mul((float3x3)gViewProj, normalW).xy);
+    // Transform to homogeneous clip space.
+    vout.PosH = mul(gViewProj, posW);
+	vout.PosH.xy += gOutlineWidth * normalC * vout.PosH.w;
+
+    return vout;
 }
 
 struct PixelOut2 {

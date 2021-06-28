@@ -77,17 +77,22 @@ float4 PS(VertexOut pin) : SV_Target
 	float3 V = normalize(gEyePosW - posW);
 	float3 F0 = MetalWorkflow_F0(albedo, metalness);
 	
+	float NdotV = saturate(dot(N, V));
+	
 	uint offset = 0u;
 	uint i;
 	for(i = offset; i < offset + gDirectionalLightNum; i++) {
 		float3 L = -gLights[i].dir;
 		float3 H = normalize(L + V);
+		
+		float NdotH = dot(N, H);
+		float NdotL = dot(N, L);
 				
 		float cos_theta = max(0, dot(N, L));
 		
 		float3 fr = Fresnel(F0, cos_theta);
-		float D = GGX_D(alpha, N, H);
-		float G = GGX_G(alpha, L, V, N);
+		float D = GGX_D(alpha, NdotH);
+		float G = GGX_G(alpha, NdotV, NdotL);
 				
 		float3 diffuse = (1 - fr) * (1 - metalness) * albedo / PI;
 				
@@ -104,11 +109,14 @@ float4 PS(VertexOut pin) : SV_Target
 		float3 L = pixelToLight / dist;
 		float3 H = normalize(L + V);
 		
+		float NdotH = dot(N, H);
+		float NdotL = dot(N, L);
+		
 		float cos_theta = max(0, dot(N, L));
 		
 		float3 fr = Fresnel(F0, cos_theta);
-		float D = GGX_D(alpha, N, H);
-		float G = GGX_G(alpha, L, V, N);
+		float D = GGX_D(alpha, NdotH);
+		float G = GGX_G(alpha, NdotV, NdotL);
 				
 		float3 diffuse = (1 - fr) * (1 - metalness) * albedo / PI;
 				
@@ -126,11 +134,14 @@ float4 PS(VertexOut pin) : SV_Target
 		float3 L = pixelToLight / dist;
 		float3 H = normalize(L + V);
 		
+		float NdotH = dot(N, H);
+		float NdotL = dot(N, L);
+		
 		float cos_theta = max(0, dot(N, L));
 		
 		float3 fr = Fresnel(F0, cos_theta);
-		float D = GGX_D(alpha, N, H);
-		float G = GGX_G(alpha, L, V, N);
+		float D = GGX_D(alpha, NdotH);
+		float G = GGX_G(alpha, NdotV, NdotL);
 				
 		float3 diffuse = (1 - fr) * (1 - metalness) * albedo / PI;
 				
@@ -189,7 +200,6 @@ float4 PS(VertexOut pin) : SV_Target
 	
 	float3 R = reflect(-V, N);
 	float3 prefilterColor = STD_PIPELINE_SAMPLE_PREFILTER(R, roughness);
-	float NdotV = saturate(dot(N, V));
 	float2 scale_bias = STD_PIPELINE_SAMPLE_BRDFLUT(NdotV, roughness);
 	float3 specular = prefilterColor * (F0 * scale_bias.x + scale_bias.y);
 	

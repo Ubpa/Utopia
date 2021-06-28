@@ -116,6 +116,9 @@ StdPipeline_PreFilterMap.SampleLevel(gSamplerLinearClamp, R, roughness * StdPipe
 #define STD_PIPELINE_SAMPLE_BRDFLUT(NdotV, roughness) \
 StdPipeline_BRDFLUT.Sample(gSamplerLinearClamp, float2(NdotV, roughness)).rg
 
+#define STD_PIPELINE_SAMPLE_LEVEL_BRDFLUT(NdotV, roughness) \
+StdPipeline_BRDFLUT.SampleLevel(gSamplerLinearClamp, float2(NdotV, roughness), 0).rg
+
 #define STD_PIPELINE_SAMPLE_IRRADIANCE(N) \
 StdPipeline_IrradianceMap.Sample(gSamplerLinearClamp, N).rgb
 

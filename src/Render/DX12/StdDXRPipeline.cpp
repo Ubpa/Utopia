@@ -358,7 +358,7 @@ static const WCHAR* kIndirectHitGroup = L"IndirectHitGroup";
 DxilLibrary createDxilLibrary() {
 	// Compile the shader
 	auto hlsl = AssetMngr::Instance().LoadAsset<HLSLFile>(LR"(shaders\BasicRayTracing.rt.hlsl)");
-	Microsoft::WRL::ComPtr<ID3DBlob> pDxilLib = UDX12::Util::CompileLibrary(hlsl->GetText().data(), (UINT32)hlsl->GetText().size(), LR"(shaders\BasicRayTracing.rt.hlsl)");
+	Microsoft::WRL::ComPtr<ID3DBlob> pDxilLib = UDX12::Util::CompileLibrary(hlsl->GetText().data(), (UINT32)hlsl->GetText().size(), AssetMngr::Instance().GetFullPath(LR"(shaders)").c_str(), LR"(BasicRayTracing.rt.hlsl)");
 	const WCHAR* entryPoints[] = { kRayGenShader, kShadowMissShader, kIndirectAHS, kIndirectCHS, kIndirectMissShader };
 	return DxilLibrary(pDxilLib, entryPoints, 5);
 }

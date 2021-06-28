@@ -1,241 +1,6 @@
-// util
-static const float PI = 3.1415926;
-static const float EPSILON = 0.000001;
-float3 MetalWorkflow_F0(float3 albedo, float metalness) {
-    float reflectance = 0.04;
-    return lerp(float3(reflectance, reflectance, reflectance), albedo, metalness);
-}
-float Pow2(float x) { return x * x; }
-float Pow4(float x) { return Pow2(Pow2(x)); }
-float Pow5(float x) { return Pow4(x) * x; }
-float3 Fresnel(float3 F0, float cos_theta) {
-    return F0 + (1-F0) * Pow5(1 - cos_theta);
-}
-float GGX_G(float alpha, float NoL, float NoV) {
-    float alpha2 = Pow2(alpha);
+#include "StdPipeline.hlsli"
+#include "PBR.hlsli"
 
-    //float tan2_sthetai = 1 / Pow2(NoL) - 1;
-    //float tan2_sthetao = 1 / Pow2(NoV) - 1;
-    
-    //return 2 / (sqrt(1 + alpha2*tan2_sthetai) + sqrt(1 + alpha2*tan2_sthetao));
-    
-    float one_minus_alpha2 = 1 - alpha2;
-    return (2 * NoL * NoV) /
-        (NoV*sqrt(one_minus_alpha2*Pow2(NoL)+alpha2) + NoL*sqrt(one_minus_alpha2*Pow2(NoV)+alpha2));
-}
-float GGX_D(float alpha, float NoH) {
-    float alpha2 = alpha * alpha;
-    float x = 1 + (alpha2 - 1) * NoH * NoH;
-    float denominator = PI * x * x;
-    return alpha2 / denominator;
-}
-float2 UniformInDisk(float2 Xi) {
-    // Map uniform random numbers to $[-1,1]^2$
-    float2 uOffset = 2.f * Xi - float2(1,1);
-
-    // Handle degeneracy at the origin
-    //if (uOffset.x == 0 && uOffset.y == 0)
-    //    return float2(0, 0);
-
-    // Apply concentric mapping to point
-    float theta, r;
-    if (abs(uOffset.x) > abs(uOffset.y)) {
-        r = uOffset.x;
-        theta = PI / 4.f * (uOffset.y / uOffset.x);
-    }
-    else {
-        r = uOffset.y;
-        theta = PI / 2.f - PI / 4.f * (uOffset.x / uOffset.y);
-    }
-    return r * float2(cos(theta), sin(theta));
-}
-// surface vector
-float3 CosOnHalfSphere(float2 Xi) {
-    float2 pInDisk = UniformInDisk(Xi);
-    float z = sqrt(1 - dot(pInDisk, pInDisk));
-    return float3(pInDisk, z);
-}
-// surface vector
-float3 SchlickGGX_Sample(float2 Xi, float roughness) {
-    float a = roughness * roughness;
-
-    float phi = 2 * PI * Xi.x;
-    float cosTheta = sqrt((1.0 - Xi.y) / (1.0 + (a*a - 1.0) * Xi.y));
-    float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
-
-    // from spherical coordinates to cartesian coordinates - halfway vector
-    float3 H;
-    H.x = cos(phi) * sinTheta;
-    H.y = sin(phi) * sinTheta;
-    H.z = cosTheta;
-
-    return H;
-}
-// ref: Sampling the GGX Distribution of Visible Normals
-//      http://jcgt.org/published/0007/04/01/paper.pdf
-// ---------------------------------------------------------------
-// Input Ve: view direction
-// Input alpha: roughness parameters
-// Input U1, U2: uniform random numbers
-// Output Ne: normal sampled with PDF D_Ve(Ne) = G1(Ve) * max(0, dot(Ve, Ne)) * D(Ne) / Ve.z
-float3 SampleGGXVNDF(float3 Ve, float alpha, float U1, float U2)
-{
-    // Section 3.2: transforming the view direction to the hemisphere configuration
-    float3 Vh = normalize(float3(alpha * Ve.x, alpha * Ve.y, Ve.z));
-    // Section 4.1: orthonormal basis (with special case if cross product is zero)
-    float lensq = Vh.x * Vh.x + Vh.y * Vh.y;
-    float3 T1 = lensq > 0 ? float3(-Vh.y, Vh.x, 0) * rsqrt(lensq) : float3(1,0,0);
-    float3 T2 = cross(Vh, T1);
-    // Section 4.2: parameterization of the projected area
-    float r = sqrt(U1);
-    float phi = 2.0 * PI * U2;
-    float t1 = r * cos(phi);
-    float t2 = r * sin(phi);
-    float s = 0.5 * (1.0 + Vh.z);
-    t2 = (1.0 - s)*sqrt(1.0 - t1*t1) + s*t2;
-    // Section 4.3: reprojection onto hemisphere
-    float3 Nh = t1*T1 + t2*T2 + sqrt(max(0.0, 1.0 - t1*t1 - t2*t2))*Vh;
-    // Section 3.4: transforming the normal back to the ellipsoid configuration
-    float3 Ne = normalize(float3(alpha * Nh.x, alpha * Nh.y, max(0.f, Nh.z)));
-    return Ne;
-}
-float G1(float alpha, float NoV) {
-    float tan2_sthetao = 1 / Pow2(NoV) - 1;
-    return 2 / (1 + sqrt(1 + Pow2(alpha) * tan2_sthetao));
-}
-float PDF_VNDF(float alpha, float NoV, float NoH, float HoV) {
-    return G1(alpha, NoV) * GGX_D(alpha, NoH) / (4 * NoV);
-    //float cos2_sthetao = Pow2(HoV);
-    //float sin2_sthetao = 1 - cos2_sthetao;
-    //float alpha2 = Pow2(alpha);
-    //return GGX_D(alpha, NoH) / (2 * (HoV + sqrt(cos2_sthetao + alpha2 * sin2_sthetao)));
-}
-// Generates a seed for a random number generator from 2 inputs plus a backoff
-uint initRand(uint val0, uint val1, uint backoff = 16)
-{
-    uint v0 = val0, v1 = val1, s0 = 0;
-
-    [unroll]
-    for (uint n = 0; n < backoff; n++)
-    {
-        s0 += 0x9e3779b9;
-        v0 += ((v1 << 4) + 0xa341316c) ^ (v1 + s0) ^ ((v1 >> 5) + 0xc8013ea4);
-        v1 += ((v0 << 4) + 0xad90777d) ^ (v0 + s0) ^ ((v0 >> 5) + 0x7e95761e);
-    }
-    return v0;
-}
-// Takes our seed, updates it, and returns a pseudorandom float in [0..1]
-float nextRand(inout uint s)
-{
-    s = (1664525u * s + 1013904223u);
-    return float(s & 0x00FFFFFF) / float(0x01000000);
-}
-
-float Fwin(float d, float range) {
-    float falloff = max(0, 1 - Pow4(d / range));
-    return falloff * falloff;
-}
-
-float DirFwin(float3 x, float3 dir, float cosHalfInnerSpotAngle, float cosHalfOuterSpotAngle) {
-    float cosTheta = dot(x, dir);
-    if (cosTheta < cosHalfOuterSpotAngle)
-        return 0;
-    else if (cosTheta > cosHalfInnerSpotAngle)
-        return 1;
-    else {
-        float t = (cosTheta - cosHalfOuterSpotAngle) /
-            (cosHalfInnerSpotAngle - cosHalfOuterSpotAngle);
-        return Pow4(t);
-    }
-}
-// standard pipeline
-#define STD_PIPELINE_CB_PER_CAMERA(x)            \
-cbuffer StdPipeline_cbPerCamera : register(b##x) \
-{                                                \
-    float4x4 gView;                              \
-    float4x4 gInvView;                           \
-    float4x4 gProj;                              \
-    float4x4 gInvProj;                           \
-    float4x4 gViewProj;                          \
-    float4x4 gInvViewProj;                       \
-                                                 \
-    float4x4 gPrevViewProj;                      \
-                                                 \
-    float3 gEyePosW;                             \
-    uint gFrameCount;                            \
-                                                 \
-    float2 gRenderTargetSize;                    \
-    float2 gInvRenderTargetSize;                 \
-                                                 \
-    float gNearZ;                                \
-    float gFarZ;                                 \
-    float gTotalTime;                            \
-    float gDeltaTime;                            \
-}
-// 1. directional light
-// color
-// dir
-
-// 2. point light
-// color
-// position
-// range
-
-// 3. spot light
-// color
-// position
-// dir
-// range
-// cosHalfInnerSpotAngle : f0
-// cosHalfOuterSpotAngle : f1
-
-// 4. rect light
-// color
-// position
-// dir
-// horizontal
-// range
-// width  : f0
-// height : f1
-
-// 5. disk light
-// color
-// position
-// dir
-// horizontal
-// range
-// width  : f0
-// height : f1
-
-#define STD_PIPELINE_CB_LIGHT_ARRAY(x)            \
-struct Light {                                    \
-    float3 color;                                 \
-    float range;                                  \
-    float3 dir;                                   \
-    float f0;                                     \
-    float3 position;                              \
-    float f1;                                     \
-    float3 horizontal;                            \
-    float f2;                                     \
-};                                                \
-                                                  \
-cbuffer StdPipeline_cbLightArray : register(b##x) \
-{                                                 \
-    uint gDirectionalLightNum;                    \
-    uint gPointLightNum;                          \
-    uint gSpotLightNum;                           \
-    uint gRectLightNum;                           \
-    uint gDiskLightNum;                           \
-    uint _g_cbLightArray_pad0;                    \
-    uint _g_cbLightArray_pad1;                    \
-    uint _g_cbLightArray_pad2;                    \
-    Light gLights[16];                            \
-}
-
-SamplerState gSamplerPointWrap   : register(s0);
-SamplerState gSamplerPointClamp  : register(s1);
-SamplerState gSamplerLinearWrap  : register(s2);
-SamplerState gSamplerLinearClamp : register(s3);
 STD_PIPELINE_CB_PER_CAMERA(0);
 STD_PIPELINE_CB_LIGHT_ARRAY(1);
 
@@ -249,15 +14,9 @@ Texture2D<float4> gGBuffer1     : register(t2);
 Texture2D<float4> gGBuffer2     : register(t3);
 Texture2D<float>  gDepthStencil : register(t4);
 Texture2D<float2> StdPipeline_BRDFLUT : register(t5);
-#define STD_PIPELINE_SAMPLE_BRDFLUT(NdotV, roughness) \
-StdPipeline_BRDFLUT.SampleLevel(gSamplerLinearClamp, float2(NdotV, roughness), 0).rg
 
 RWTexture2D<float4> gOutput  : register(u0); // rt result
 RWTexture2D<float4> gOutput2 : register(u1); // rt u result
-
-float ComputeLuminance(float3 color) {
-    return dot(color, float3(0.299f, 0.587f, 0.114f));
-}
 
 #define SHADOW_RAY_INDEX             0
 #define INDIRECT_RAY_INDEX           1
@@ -282,6 +41,27 @@ struct IndirectPayload {
     uint randSeed;
     uint depth;
 };
+
+// Generates a seed for a random number generator from 2 inputs plus a backoff
+uint initRand(uint val0, uint val1, uint backoff = 16)
+{
+    uint v0 = val0, v1 = val1, s0 = 0;
+
+    [unroll]
+    for (uint n = 0; n < backoff; n++)
+    {
+        s0 += 0x9e3779b9;
+        v0 += ((v1 << 4) + 0xa341316c) ^ (v1 + s0) ^ ((v1 >> 5) + 0xc8013ea4);
+        v1 += ((v0 << 4) + 0xad90777d) ^ (v0 + s0) ^ ((v0 >> 5) + 0x7e95761e);
+    }
+    return v0;
+}
+// Takes our seed, updates it, and returns a pseudorandom float in [0..1]
+float nextRand(inout uint s)
+{
+    s = (1664525u * s + 1013904223u);
+    return float(s & 0x00FFFFFF) / float(0x01000000);
+}
 
 void EvaluateLight(uint randSeed, uint index, float3 pos, out float3 L, out float dist, out float3 intensity) {
     if(index < gDirectionalLightNum) {
@@ -398,10 +178,13 @@ void RayGen()
     float3 right = normalize(cross(up, N));
     up = normalize(cross(N, right));
     float NdotV = max(dot(N, V), EPSILON);
+	
+	float2 scale_bias = STD_PIPELINE_SAMPLE_LEVEL_BRDFLUT(roughness, NdotV);
+	float3 specular_int = scale_bias.x * F0 + scale_bias.y;
 
     uint Num = 1;
-    float3 sumcolor = float3(0,0,0);
-    float3 sumbrdf = float3(0,0,0);
+    float3 sum_diffuse = float3(0,0,0);
+    float3 sum_specular = float3(0,0,0);
     for(uint i = 0u; i < Num; i++) {
         ////////////
         // Direct //
@@ -429,15 +212,15 @@ void RayGen()
                 float G = GGX_G(alpha, NdotL, NdotV);
                 float3 fr = Fresnel(F0, HdotL);
 
-                float3 diffuse = (1-metalness) * albedo * NdotL / PI;
-                float3 specular = fr * D * G / (4 * NdotV);
+                float3 diffuse = shadowMult * intensity * NdotL / PI;
+                float3 specular = shadowMult * intensity * fr * D * G / (4 * NdotV);
 
-                float3 brdf = diffuse + specular;
-                float3 color = shadowMult * brdf * intensity;
-                bool colorNan = any(isnan(color));
-                if(!colorNan)
-                    sumcolor += color;
-                sumbrdf += 0; // brdf / pdf, the pdf is delta (a max value), so brdf is 0
+                bool diffuseNan = any(isnan(diffuse));
+                bool specularNan = any(isnan(specular));
+                if(!diffuseNan && !specularNan) {
+					sum_diffuse += diffuse;
+					sum_specular += specular;
+				}
             }
         }
 
@@ -446,7 +229,7 @@ void RayGen()
         //////////////
 
         float expect_diff = (1-metalness) * ComputeLuminance(albedo);
-        float expect_spec = ComputeLuminance(F0);
+        float expect_spec = ComputeLuminance(specular_int);
         float p_diff = expect_diff / (expect_diff + expect_spec);
         float p_spec = 1 - p_diff;
         float2 Xi = float2(nextRand(randSeed), nextRand(randSeed));
@@ -483,7 +266,6 @@ void RayGen()
         float pdf_spec = PDF_VNDF(alpha, NdotV, NdotH, HdotV);
 
         float pdf = p_diff * pdf_diff + p_spec * pdf_spec;
-        //float pdf = chooseDiffuse ? pdf_diff / p_diff : pdf_spec / p_spec;
 
         RayDesc ray;
         ray.Origin = posW;
@@ -507,52 +289,22 @@ void RayGen()
             payload
         );
 
-        // get color
-        
-        //float3 diffuse = max(5e-3f, (1-metalness) * albedo); // brdf * NoL / pdf : ((1-m)albedo NoL / PI) / (NoL / PI)
-        //float3 specular = Fresnel(F0, HdotV) * GGX_G(alpha, NdotV, NdotL) / G1(alpha, NdotV); // brdf * NoL / pdf
+        float3 diffuse = payload.color * NdotL / PI / pdf;
+        float3 specular = payload.color * fr * D * G / (4 * NdotV * pdf);
 
-        //float3 wdiffuse = 1 / p_diff;
-        //float3 wspecular = specular / (diffuse * p_spec);
-        //float3 wdiffuse = diffuse / p_diff;
-        //float3 wspecular = specular / p_spec;
-
-        float3 diffuse = (1-metalness) * albedo * NdotL / PI;
-        float3 specular = fr * D * G / (4 * NdotV);
-        
-        //float3 kS = fr;
-
-        float3 kD = 1; // 1 - Ks
-        
-        //float3 brdf = chooseDiffuse ? kD * diffuse : specular / ((1 - metalness) * albedo);
-        float3 brdf = diffuse + specular;
-
-        float3 wbrdf = brdf / pdf;
-        float3 color = wbrdf * payload.color;
-
-        // clamp
-        //float luminance = ComputeLuminance(color);
-        //if(luminance > 4)
-        //    color /= luminance * 4;
-
-        // Since we didn't do a good job above catching NaN's, div by 0, infs, etc.,
-        //    zero out samples that would blow up our frame buffer.  Note:  You can and should
-        //    do better, but the code gets more complex with all error checking conditions.
-        bool colorNan = any(isnan(color));
-        if(!colorNan) {
-            sumcolor += color;
-            sumbrdf += wbrdf;
+        bool diffuseNan = any(isnan(diffuse));
+        bool specularNan = any(isnan(specular));
+        if(!diffuseNan && !specularNan) {
+            sum_diffuse += diffuse;
+            sum_specular += specular;
         }
-        //else{
-        //    sumcolor += float3(1000,0,1000);
-        //}
     }
 
-    sumcolor /= Num;
-    sumbrdf /= Num;
+    sum_diffuse /= Num;
+    sum_specular /= Num;
     
-    gOutput [launchIndex.xy] = float4(sumcolor, 0);
-    gOutput2[launchIndex.xy] = float4(sumbrdf, 0);
+    gOutput [launchIndex.xy] = float4(sum_diffuse, 0);
+    gOutput2[launchIndex.xy] = float4(sum_specular / specular_int, 0);
 }
 
 ////////////
@@ -682,7 +434,7 @@ void IndirectCHS(inout IndirectPayload payload, in BuiltInTriangleIntersectionAt
             float G = GGX_G(alpha, NdotL, NdotV);
             float3 fr = Fresnel(F0, HdotL);
 
-            float3 diffuse = (1-data.metalness) * data.albedo * NdotL / PI;
+            float3 diffuse = (1-data.metalness) * data.albedo.rgb * NdotL / PI;
             float3 specular = fr * D * G / (4 * NdotV);
 
             float3 brdf = diffuse + specular;
