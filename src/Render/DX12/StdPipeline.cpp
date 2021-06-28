@@ -1091,7 +1091,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 
 	static bool flag{ false };
 	if (!flag) {
-		OutputDebugStringA(fg.ToGraphvizGraph().Dump().c_str());
+		OutputDebugStringA(fg.ToGraphvizGraph2().Dump().c_str());
 		flag = true;
 	}
 
@@ -1300,7 +1300,7 @@ void StdPipeline::Impl::Render(
 
 		static bool flag{ false };
 		if (!flag) {
-			OutputDebugStringA(fg.ToGraphvizGraph().Dump().c_str());
+			OutputDebugStringA(fg.ToGraphvizGraph2().Dump().c_str());
 			flag = true;
 		}
 

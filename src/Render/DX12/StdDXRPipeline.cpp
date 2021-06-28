@@ -874,9 +874,6 @@ struct StdDXRPipeline::Impl {
 	static constexpr const char key_CameraResizeData[] = "CameraResizeData";
 	static constexpr const char key_CameraResizeData_Backup[] = "CameraResizeData_Backup";
 	struct CameraResizeData {
-		~CameraResizeData() {
-			height = 0;
-		}
 		size_t width{ 0 };
 		size_t height{ 0 };
 
@@ -1046,11 +1043,6 @@ void StdDXRPipeline::Impl::BuildTextures() {
 
 	auto blackTex2D = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\textures\black.png)");
 	auto blackRsrc = GPURsrcMngrDX12::Instance().GetTexture2DResource(*blackTex2D);
-	// TODO bugs!
-	//auto skyboxBlack = AssetMngr::Instance().LoadAsset<Material>(LR"(_internal\materials\skyBlack.mat)");
-	//auto blackTexCube = std::get<SharedVar<TextureCube>>(tmp->properties.find("gSkybox")->second.value);
-	//auto tmp = std::make_shared<Material>();
-	//tmp->properties.emplace("gSkybox", blackTexCube);
 	auto blackTexCube = SharedVar<TextureCube>(AssetMngr::Instance().LoadAsset<TextureCube>(LR"(_internal\textures\blackCube.png)"));
 	auto blackTexCubeRsrc = GPURsrcMngrDX12::Instance().GetTextureCubeResource(*blackTexCube);
 	defaultSkybox = GPURsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(*blackTexCube);
@@ -1492,8 +1484,6 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 
 	UpdateCameraResource(cameraData, width, height);
 
-	fg.Clear();
-
 	auto cameraRsrcMngr = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<CameraRsrcMngr>>("CameraRsrcMngr");
 	if (!cameraRsrcMngr->Get(cameraData).Contains("FrameGraphRsrcMngr"))
@@ -1517,6 +1507,7 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 	auto iblData = worldRsrc.Get<std::shared_ptr<IBLData>>("IBL data");
 	auto tlasBuffers = worldRsrc.Get<std::shared_ptr<TLASData>>("TLASData");
 
+	fg.Clear();
 	auto gbuffer0 = fg.RegisterResourceNode("GBuffer0");
 	auto gbuffer1 = fg.RegisterResourceNode("GBuffer1");
 	auto gbuffer2 = fg.RegisterResourceNode("GBuffer2");
@@ -2445,7 +2436,7 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 
 	static bool flag{ false };
 	if (!flag) {
-		OutputDebugStringA(fg.ToGraphvizGraph().Dump().c_str());
+		OutputDebugStringA(fg.ToGraphvizGraph2().Dump().c_str());
 		flag = true;
 	}
 
@@ -2807,7 +2798,7 @@ void StdDXRPipeline::Impl::Render(
 
 		static bool flag{ false };
 		if (!flag) {
-			OutputDebugStringA(fg.ToGraphvizGraph().Dump().c_str());
+			OutputDebugStringA(fg.ToGraphvizGraph2().Dump().c_str());
 			flag = true;
 		}
 
