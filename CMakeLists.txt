@@ -32,9 +32,9 @@ Ubpa_DownloadZip(
 )
 
 Ubpa_DownloadZip(
-  https://cdn.jsdelivr.net/gh/Ubpa/UData@master/Utopia/spdlog/spdlog_1_8_1.zip
-  spdlog_1_8_1.zip
-  SHA256 2898A66A808A92C546BC5C173423BB5EA84BA0278A897D6F03DCFC1A6F98D866
+  http://home.ustc.edu.cn/~ustczt/resources/Utopia/spdlog_1_9_0_20210726.zip
+  spdlog_1_9_0_20210726.zip
+  SHA256 EA368CF96997CBC92536BCB5AB30C088105627846687402595B01224238C2571
 )
 
 if(Ubpa_BuildTest_Utopia)
