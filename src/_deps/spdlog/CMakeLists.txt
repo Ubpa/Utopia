@@ -1,6 +1,6 @@
 find_package(Threads REQUIRED)
 
-set(SPDLOG_VERSION 1.8.1)
+set(SPDLOG_VERSION 1.9.0)
 set(SPDLOG_VERSION_MAJOR 1)
 
 set(c_options_private "")
