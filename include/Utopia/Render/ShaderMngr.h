@@ -26,6 +26,7 @@ namespace Ubpa::Utopia {
 	private:
 		ShaderMngr() = default;
 		~ShaderMngr();
+		void UnregisterOnDestroyed(std::size_t id);
 		mutable std::shared_mutex m;
 		std::map<std::string, std::weak_ptr<Shader>, std::less<>> shaderMap;
 		struct ConnectData {

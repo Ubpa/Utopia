@@ -677,8 +677,7 @@ void Editor::Impl::Update() {
 	initDesc.device = pEditor->uDevice.Get();
 	initDesc.cmdQueue = pEditor->uCmdQueue.Get();
 	initDesc.numFrame = DX12App::NumFrameResources;
-	assert(gameRT);
-	assert(sceneRT);
+
 	for (auto* pipeline : pipelines) {
 		std::vector<UECS::World*> worlds;
 		std::vector<IPipeline::CameraData> cameras;
@@ -725,31 +724,48 @@ void Editor::Impl::Update() {
 			for (size_t i = 0; i < sceneCameras.at(pipeline).size(); i++)
 				defaultRTs.push_back(sceneRT.Get());
 		}
-		
+
 		pipeline->Init(initDesc);
-		pipeline->Render(worlds, cameras, links, defaultRTs);
+
+		bool containNullRT = false;
+		for (auto* RT : defaultRTs) {
+			if (RT == nullptr) {
+				containNullRT = true;
+				break;
+			}
+		}
+		if (!containNullRT)
+			pipeline->Render(worlds, cameras, links, defaultRTs);
 	}
-	
+
 	{ // game
 		ImGui::SetCurrentContext(gameImGuiCtx);
-		pEditor->uGCmdList.ResourceBarrierTransition(gameRT.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-		const auto gameRTHandle = gameRT_RTV.GetCpuHandle();
-		pEditor->uGCmdList->OMSetRenderTargets(1, &gameRTHandle, FALSE, NULL);
-		pEditor->uGCmdList.SetDescriptorHeaps(Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap());
 		ImGui::Render();
-		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), pEditor->uGCmdList.Get());
-		pEditor->uGCmdList.ResourceBarrierTransition(gameRT.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+
+		if (gameRT)
+		{
+			pEditor->uGCmdList.ResourceBarrierTransition(gameRT.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+			const auto gameRTHandle = gameRT_RTV.GetCpuHandle();
+			pEditor->uGCmdList->OMSetRenderTargets(1, &gameRTHandle, FALSE, NULL);
+			pEditor->uGCmdList.SetDescriptorHeaps(Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap());
+			ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), pEditor->uGCmdList.Get());
+			pEditor->uGCmdList.ResourceBarrierTransition(gameRT.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+		}
 	}
 
 	{ // scene
 		ImGui::SetCurrentContext(sceneImGuiCtx);
-		pEditor->uGCmdList.ResourceBarrierTransition(sceneRT.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-		const auto sceneRTHandle = sceneRT_RTV.GetCpuHandle();
-		pEditor->uGCmdList->OMSetRenderTargets(1, &sceneRTHandle, FALSE, NULL);
-		pEditor->uGCmdList.SetDescriptorHeaps(Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap());
 		ImGui::Render();
-		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), pEditor->uGCmdList.Get());
-		pEditor->uGCmdList.ResourceBarrierTransition(sceneRT.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+
+		if (sceneRT)
+		{
+			pEditor->uGCmdList.ResourceBarrierTransition(sceneRT.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+			const auto sceneRTHandle = sceneRT_RTV.GetCpuHandle();
+			pEditor->uGCmdList->OMSetRenderTargets(1, &sceneRTHandle, FALSE, NULL);
+			pEditor->uGCmdList.SetDescriptorHeaps(Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap());
+			ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), pEditor->uGCmdList.Get());
+			pEditor->uGCmdList.ResourceBarrierTransition(sceneRT.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+		}
 	}
 
 	{ // editor

@@ -10,7 +10,7 @@ void ShaderMngr::Register(std::shared_ptr<Shader> shader) {
 	shaderMap[shader->name] = shader;
 
 	id2data.emplace(shader->GetInstanceID(), ConnectData{
-		shader->destroyed.ScopeConnect<&ShaderMngr::Unregister>(this),
+		shader->destroyed.ScopeConnect<&ShaderMngr::UnregisterOnDestroyed>(this),
 		shader->name
 	});
 }
@@ -30,6 +30,16 @@ void ShaderMngr::Unregister(std::size_t id) {
 	auto target = id2data.find(id);
 	if (target == id2data.end())
 		return;
+	shaderMap.erase(target->second.name);
+	id2data.erase(target);
+}
+
+void ShaderMngr::UnregisterOnDestroyed(std::size_t id) {
+	std::lock_guard guard{ m };
+	auto target = id2data.find(id);
+	if (target == id2data.end())
+		return;
+	target->second.conn.Reset();
 	shaderMap.erase(target->second.name);
 	id2data.erase(target);
 }
