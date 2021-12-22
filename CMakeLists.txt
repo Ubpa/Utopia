@@ -32,9 +32,9 @@ Ubpa_DownloadZip(
 )
 
 Ubpa_DownloadZip(
-  http://home.ustc.edu.cn/~ustczt/resources/Utopia/spdlog_1_9_0_20210726.zip
-  spdlog_1_9_0_20210726.zip
-  SHA256 EA368CF96997CBC92536BCB5AB30C088105627846687402595B01224238C2571
+  https://udata-1308066321.cos.ap-guangzhou.myqcloud.com/spdlog_1_9_0_20211222.zip
+  spdlog_1_9_0_20211222.zip
+  SHA256 2618A0D0D0A5BCAB6DEE36E88262F53AA54EAD3F361472A1815C1A00F9DF8D5C
 )
 
 if(Ubpa_BuildTest_Utopia)

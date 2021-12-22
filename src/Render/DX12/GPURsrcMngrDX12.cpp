@@ -259,9 +259,9 @@ GPURsrcMngrDX12& GPURsrcMngrDX12::RegisterTexture2D(Texture2D& tex2D) {
 
 	auto tex2DSRVDesc = UDX12::Desc::SRV::Tex2D(tex.resource->GetDesc().Format);
 	std::uint8_t srv_srcs[4];
-	for (std::uint8_t i = 0; i < tex2D.image.GetChannel(); i++)
-		srv_srcs[i] = i;
-	for (std::uint8_t i = tex2D.image.GetChannel(); i < 4; i++)
+	for (size_t i = 0; i < tex2D.image.GetChannel(); i++)
+		srv_srcs[i] = static_cast<std::uint8_t>(i);
+	for (size_t i = tex2D.image.GetChannel(); i < 4; i++)
 		srv_srcs[i] = D3D12_SHADER_COMPONENT_MAPPING_FORCE_VALUE_1;
 	tex2DSRVDesc.Shader4ComponentMapping =
 		D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(srv_srcs[0], srv_srcs[1], srv_srcs[2], srv_srcs[3]);
@@ -666,7 +666,7 @@ UDX12::MeshGPUBuffer& GPURsrcMngrDX12::RegisterMesh(ID3D12GraphicsCommandList* c
 				// result_rsrc to dxrMeshDataMap
 				Impl::DXRMeshData dxrMeshData;
 				dxrMeshData.blas = result_rsrc;
-				dxrMeshData.allocation = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(2 * geomDescs.size());
+				dxrMeshData.allocation = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(static_cast<uint32_t>(2 * geomDescs.size()));
 				for (std::size_t i = 0; i < geomDescs.size(); i++) {
 					{ // vertex buffer
 						D3D12_SHADER_RESOURCE_VIEW_DESC srvdesc = {}; // structure buffer
@@ -679,7 +679,7 @@ UDX12::MeshGPUBuffer& GPURsrcMngrDX12::RegisterMesh(ID3D12GraphicsCommandList* c
 						srvdesc.Buffer.NumElements = geomDescs[i].Triangles.VertexCount;
 						srvdesc.Buffer.StructureByteStride = meshGpuBuffer.VertexBufferView().StrideInBytes; // pos(3) + uv(2) + normal(3) + tangent(3) [+ color(3)]
 						pImpl->device->CreateShaderResourceView(meshGpuBuffer.GetVertexBufferResource().Get(), &srvdesc,
-							dxrMeshData.allocation.GetCpuHandle(2 * i));
+							dxrMeshData.allocation.GetCpuHandle(static_cast<uint32_t>(2 * i)));
 					}
 
 					{ // index buffer
@@ -693,7 +693,7 @@ UDX12::MeshGPUBuffer& GPURsrcMngrDX12::RegisterMesh(ID3D12GraphicsCommandList* c
 						srvdesc.Buffer.NumElements = geomDescs[i].Triangles.IndexCount;
 						srvdesc.Buffer.StructureByteStride = sizeof(std::uint32_t);
 						pImpl->device->CreateShaderResourceView(meshGpuBuffer.GetIndexBufferResource().Get(), &srvdesc,
-							dxrMeshData.allocation.GetCpuHandle(2 * i + 1));
+							dxrMeshData.allocation.GetCpuHandle(static_cast<uint32_t>(2 * i + 1)));
 					}
 				}
 				pImpl->dxrMeshDataMap.emplace(mesh.GetInstanceID(), std::move(dxrMeshData));
@@ -745,14 +745,14 @@ D3D12_CPU_DESCRIPTOR_HANDLE GPURsrcMngrDX12::GetMeshBufferTableCpuHandle(const M
 	auto target = pImpl->dxrMeshDataMap.find(mesh.GetInstanceID());
 	if (target == pImpl->dxrMeshDataMap.end())
 		return D3D12_CPU_DESCRIPTOR_HANDLE{};
-	return target->second.allocation.GetCpuHandle(2 * geometryIdx);
+	return target->second.allocation.GetCpuHandle(static_cast<uint32_t>(2 * geometryIdx));
 }
 D3D12_GPU_DESCRIPTOR_HANDLE GPURsrcMngrDX12::GetMeshBufferTableGpuHandle(const Mesh& mesh, size_t geometryIdx) const {
 	assert(pImpl->enable_DXR);
 	auto target = pImpl->dxrMeshDataMap.find(mesh.GetInstanceID());
 	if (target == pImpl->dxrMeshDataMap.end())
 		return D3D12_GPU_DESCRIPTOR_HANDLE{};
-	return target->second.allocation.GetGpuHandle(2 * geometryIdx);
+	return target->second.allocation.GetGpuHandle(static_cast<uint32_t>(2 * geometryIdx));
 }
 
 bool GPURsrcMngrDX12::RegisterShader(Shader& shader) {

@@ -78,8 +78,8 @@ int main(int argc, const char* argv[]) {
 			for (size_t i = 0; i < c; i++)
 				acc_rmse += RMSE(patch_ref, patch_comp, i);
 			double rmse = acc_rmse / c;
-			result.At(x, y, 0) = rmse;
-			maxRMSE = std::max<float>(maxRMSE, rmse);
+			result.At(x, y, 0) = static_cast<float>(rmse);
+			maxRMSE = std::max<float>(maxRMSE, static_cast<float>(rmse));
 		}
 	}
 	for (int y = 0; y < h; y++) {

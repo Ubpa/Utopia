@@ -128,7 +128,7 @@ int main(int argc, const char* argv[]) {
 			for (size_t i = 0; i < c; i++)
 				acc_ssim += SSIM(patch_ref, patch_comp, i);
 			double ssim = acc_ssim / c;
-			result.At(x, y, 0) = ssim;
+			result.At(x, y, 0) = static_cast<float>(ssim);
 		}
 	}
 

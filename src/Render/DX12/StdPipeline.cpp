@@ -763,7 +763,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 	size_t width = rtb->GetDesc().Width;
 	size_t height = rtb->GetDesc().Height;
 	CD3DX12_VIEWPORT viewport(0.f, 0.f, width, height);
-	D3D12_RECT scissorRect(0.f, 0.f, width, height);
+	D3D12_RECT scissorRect(0.f, 0.f, static_cast<LONG>(width), static_cast<LONG>(height));
 
 	fg.Clear();
 
