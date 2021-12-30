@@ -30,7 +30,7 @@ valf2 Hammersley(unsigned i, unsigned N) {
 svecd SchlickGGX_Sample(valf2 Xi, double roughness) {
 	double a = roughness * roughness;
 
-	double phi = 2 * PI<double> * Xi[0];
+	double phi = 2 * Pi<double> * Xi[0];
 	double cosTheta = sqrt((1.f - Xi[1]) / (1.f + (a * a - 1.f) * Xi[1]));
 	double sinTheta = sqrt(1.f - cosTheta * cosTheta);
 
@@ -60,7 +60,7 @@ svecd SampleGGXVNDF(svecd Ve, double alpha, float U1, float U2)
 	svecd T2 = Vh.cross(T1);
 	// Section 4.2: parameterization of the projected area
 	double r = sqrt(U1);
-	double phi = 2.0 * PI<double> * U2;
+	double phi = 2.0 * Pi<double> * U2;
 	double t1 = r * cos(phi);
 	double t2 = r * sin(phi);
 	double s = 0.5 * (1.0 + Vh.z);
@@ -79,7 +79,7 @@ double G1(double alpha, double NoV) {
 double GGX_D(double alpha, double NoH) {
 	double alpha2 = alpha * alpha;
 	double x = 1 + (alpha2 - 1) * NoH * NoH;
-	double denominator = PI<double> * x * x;
+	double denominator = Pi<double> * x * x;
 	return alpha2 / denominator;
 }
 double PDF_VNDF(double alpha, double NoV, double NoH, double HoV) {

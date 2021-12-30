@@ -133,7 +133,7 @@ void Mesh::GenUV() {
 	pointf3 center = pointf3::combine(positions, 1.f / positions.size());
 	for (size_t i = 0; i < positions.size(); i++) {
 		auto coord = (positions[i] - center).normalize().cast_to<normalf>().to_sphere_coordinate();
-		uv.at(i) = { coord[1] / (2 * PI<float>), coord[0] / PI<float> };
+		uv.at(i) = { coord[1] / (2 * Pi<float>), coord[0] / Pi<float> };
 	}
 }
 

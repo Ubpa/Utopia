@@ -54,7 +54,7 @@ void TsfmLerperSystem::OnUpdate(Schedule& schedule) {
 				const auto& leftF = lerpers[i].keyframes[left];
 				const auto& rightF = lerpers[i].keyframes[right];
 
-				float delta = std::max(rightF.timepoint - leftF.timepoint, EPSILON<float>);
+				float delta = std::max(rightF.timepoint - leftF.timepoint, Epsilon<float>);
 				float t = std::clamp(((float)time->elapsedTime - leftF.timepoint) / delta, 0.f, 1.f);
 
 				if (!positions.empty()) {
