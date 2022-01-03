@@ -83,7 +83,7 @@ void InspectorSystem::OnUpdate(UECS::Schedule& schedule) {
 					static ImGuiTextFilter filter;
 					filter.Draw();
 					int ID = 0;
-					auto cmpts = hierarchy->world->entityMngr.Components(inspector->entity, UECS::AccessMode::WRITE);
+					auto cmpts = hierarchy->world->entityMngr.AccessComponents(inspector->entity, UECS::AccessMode::WRITE);
 					size_t N = cmpts.size();
 					for (const auto& cmpt : cmpts) {
 						auto name = hierarchy->world->entityMngr.cmptTraits.Nameof(cmpt.AccessType());
@@ -125,7 +125,7 @@ void InspectorSystem::OnUpdate(UECS::Schedule& schedule) {
 				ImGui::Checkbox("lock", &inspector->lock);
 				ImGui::Separator();
 
-				auto cmpts = hierarchy->world->entityMngr.Components(inspector->entity, UECS::AccessMode::WRITE);
+				auto cmpts = hierarchy->world->entityMngr.AccessComponents(inspector->entity, UECS::AccessMode::WRITE);
 				for (size_t i = 0; i < cmpts.size(); i++) {
 					auto type = cmpts[i].AccessType();
 					if (InspectorRegistry::Instance().IsRegistered(type))

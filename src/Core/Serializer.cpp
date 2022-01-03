@@ -591,7 +591,7 @@ static void SerializeEntity(Serializer::SerializeContext& ctx, const UECS::World
 		ctx.writer.Key(Serializer::Key::Components);
 		ctx.writer.StartArray();
 		{ // Components
-			for (const auto& cmpt : w->entityMngr.Components(e, AccessMode::LATEST))
+			for (const auto& cmpt : w->entityMngr.AccessComponents(e, AccessMode::LATEST))
 				Serializer::SerializeRecursion({ Mngr.tregistry.Typeof(cmpt.AccessType()), cmpt.Ptr() }, ctx);
 		}
 		ctx.writer.EndArray(); // components
