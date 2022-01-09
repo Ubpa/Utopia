@@ -2513,13 +2513,11 @@ void StdDXRPipeline::Impl::Render(
 			curFrameWorldRsrc.Register("IBL data", crossFrameWorldRsrc.Get<std::shared_ptr<IBLData>>("IBL data"));
 		auto iblData = curFrameWorldRsrc.Get<std::shared_ptr<IBLData>>("IBL data");
 
-
-		if (!crossFrameWorldRsrc.Contains("TLASData")) {
-			auto tlasBuffers = std::make_shared<TLASData>(dxr_device.Get(), rtpso.Get(), mRayGenAndMissShaderTableEntrySize);
-			crossFrameWorldRsrc.Register("TLASData", tlasBuffers);
-		}
 		if (!curFrameWorldRsrc.Contains("TLASData"))
-			curFrameWorldRsrc.Register("TLASData", crossFrameWorldRsrc.Get<std::shared_ptr<TLASData>>("TLASData"));
+		{
+			auto tlasBuffers = std::make_shared<TLASData>(dxr_device.Get(), rtpso.Get(), mRayGenAndMissShaderTableEntrySize);
+			curFrameWorldRsrc.Register("TLASData", tlasBuffers);
+		}
 		auto tlasBuffers = curFrameWorldRsrc.Get<std::shared_ptr<TLASData>>("TLASData");
 
 		{ // tlas buffers reverse

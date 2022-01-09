@@ -174,7 +174,7 @@ float4 PS(VertexOut pin) : SV_Target
     History.xyz = YCoCgR2RGB(History.xyz);
 
 	if(IsAnyNan_float3(History))
-	    return float4(currColor,1);
+	    return float4(YCoCgR2RGB(currColor),1);
 	
     return float4(History, 1.f);
 }
