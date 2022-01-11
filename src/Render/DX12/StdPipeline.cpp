@@ -794,27 +794,27 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 	fg.RegisterMoveNode(forwardDS, deferDS);
 	auto irradianceMap = fg.RegisterResourceNode("Irradiance Map");
 	auto prefilterMap = fg.RegisterResourceNode("PreFilter Map");
-	auto gbPass = fg.RegisterPassNode(
+	auto gbPass = fg.RegisterGeneralPassNode(
 		"GBuffer Pass",
 		{},
 		{ gbuffer0,gbuffer1,gbuffer2,deferDS }
 	);
-	auto deferLightingPass = fg.RegisterPassNode(
+	auto deferLightingPass = fg.RegisterGeneralPassNode(
 		"Defer Lighting",
 		{ gbuffer0,gbuffer1,gbuffer2,deferDS,irradianceMap,prefilterMap },
 		{ deferLightedRT }
 	);
-	auto skyboxPass = fg.RegisterPassNode(
+	auto skyboxPass = fg.RegisterGeneralPassNode(
 		"Skybox",
 		{ deferDS },
 		{ deferLightedSkyRT }
 	);
-	auto forwardPass = fg.RegisterPassNode(
+	auto forwardPass = fg.RegisterGeneralPassNode(
 		"Forward",
 		{ irradianceMap,prefilterMap },
 		{ forwardDS, sceneRT }
 	);
-	auto postprocessPass = fg.RegisterPassNode(
+	auto postprocessPass = fg.RegisterGeneralPassNode(
 		"Post Process",
 		{ sceneRT },
 		{ presentedRT }
@@ -1172,7 +1172,7 @@ void StdPipeline::Impl::Render(
 
 		auto irradianceMap = fg.RegisterResourceNode("Irradiance Map");
 		auto prefilterMap = fg.RegisterResourceNode("PreFilter Map");
-		auto iblPass = fg.RegisterPassNode(
+		auto iblPass = fg.RegisterGeneralPassNode(
 			"IBL",
 			{ },
 			{ irradianceMap, prefilterMap }

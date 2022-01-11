@@ -1533,14 +1533,9 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 	auto accRTUResult = fg.RegisterResourceNode("Acc RT U result");
 	auto fAccRTResult = fg.RegisterResourceNode("Filtered Acc RT result");
 	auto fAccRTUResult = fg.RegisterResourceNode("Filtered Acc RT U result");
-	auto accRTResult_copyrt = fg.RegisterResourceNode("Acc RT result Copy Target");
-	auto accRTUResult_copyrt = fg.RegisterResourceNode("Acc RT U result Copy Target");
-	auto colorMoment_copyrt = fg.RegisterResourceNode("Color Moment Copy Target");
-	auto linearZ_copyrt = fg.RegisterResourceNode("LinearZ Copy Target");
 	auto colorMoment = fg.RegisterResourceNode("Color Moment");
 	auto taaPrevResult = fg.RegisterResourceNode("TAA Prev Result");
 	auto taaResult = fg.RegisterResourceNode("TAA Result");
-	auto taaResult_copyrt = fg.RegisterResourceNode("TAA Result Copy Target");
 	std::array<std::size_t, ATrousN> rtATrousDenoiseResults;
 	for (std::size_t i = 0; i < ATrousN; i++)
 		rtATrousDenoiseResults[i] = fg.RegisterResourceNode("RT ATrous denoised result " + std::to_string(i));
@@ -1551,29 +1546,29 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 	auto rtDenoisedResult = fg.RegisterResourceNode("RT Denoised Result");
 	auto rtUDenoisedResult = fg.RegisterResourceNode("RT U Denoised Result");
 
-	auto gbPass = fg.RegisterPassNode(
+	auto gbPass = fg.RegisterGeneralPassNode(
 		"GBuffer Pass",
 		{},
 		{ gbuffer0,gbuffer1,gbuffer2,linearZ,motion,deferDS }
 	);
-	auto rtPass = fg.RegisterPassNode(
+	auto rtPass = fg.RegisterGeneralPassNode(
 		"RT Pass",
 		{ gbuffer0,gbuffer1,gbuffer2,deferDS,TLAS },
 		{ rtResult, rtUResult }
 	);
 	fg.RegisterMoveNode(accRTResult, rtResult);
 	fg.RegisterMoveNode(accRTUResult, rtUResult);
-	auto reprojectPass = fg.RegisterPassNode(
+	auto reprojectPass = fg.RegisterGeneralPassNode(
 		"RTReproject Pass",
 		{ prevRTResult, prevRTUResult, prevColorMoment, motion, prevLinearZ, linearZ },
 		{ accRTResult, accRTUResult, colorMoment, historyLength }
 	);
-	auto filterMomentsPass = fg.RegisterPassNode(
+	auto filterMomentsPass = fg.RegisterGeneralPassNode(
 		"Filter Moments Pass",
 		{ accRTResult, accRTUResult, colorMoment, historyLength, gbuffer1, linearZ },
 		{ fAccRTResult, fAccRTUResult }
 	);
-	auto deferLightingPass = fg.RegisterPassNode(
+	auto deferLightingPass = fg.RegisterGeneralPassNode(
 		"Defer Lighting",
 		{ gbuffer0,gbuffer1,gbuffer2,deferDS,irradianceMap,prefilterMap },
 		{ deferLightedRT }
@@ -1582,53 +1577,48 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 	for (std::size_t i = 0; i < ATrousN; i++) {
 		std::size_t input_node_S = i == 0 ? fAccRTResult : rtATrousDenoiseResults[i - 1];
 		std::size_t input_node_U = i == 0 ? fAccRTUResult : rtUATrousDenoiseResults[i - 1];
-		rtATrousDenoisePasses[i] = fg.RegisterPassNode(
+		rtATrousDenoisePasses[i] = fg.RegisterGeneralPassNode(
 			"RT ATrous Denoise Pass" + std::to_string(i),
 			{ input_node_S, input_node_U, gbuffer1, linearZ },
 			{ rtATrousDenoiseResults[i], rtUATrousDenoiseResults[i] }
 		);
 	}
-	fg.RegisterMoveNode(linearZ_copyrt, prevLinearZ);
-	fg.RegisterMoveNode(accRTResult_copyrt, prevRTResult);
-	fg.RegisterMoveNode(accRTUResult_copyrt, prevRTUResult);
-	fg.RegisterMoveNode(colorMoment_copyrt, prevColorMoment);
-	auto copyPass = fg.RegisterPassNode(
+	auto copyPass = fg.RegisterCopyPassNode(
 		"RT Copy Pass",
 		{ linearZ, rtATrousDenoiseResults.front(), rtUATrousDenoiseResults.front(), colorMoment },
-		{ linearZ_copyrt, accRTResult_copyrt, accRTUResult_copyrt, colorMoment_copyrt }
+		{ prevLinearZ, prevRTResult, prevRTUResult, prevColorMoment }
 	);
 	fg.RegisterMoveNode(rtDenoisedResult, rtATrousDenoiseResults.back());
 	fg.RegisterMoveNode(rtUDenoisedResult, rtUATrousDenoiseResults.back());
-	auto rtWithBRDFLUTPass = fg.RegisterPassNode(
+	auto rtWithBRDFLUTPass = fg.RegisterGeneralPassNode(
 		"RT with BRDFLUT Pass",
 		{ gbuffer0,gbuffer1,gbuffer2,deferDS,rtDenoisedResult,rtUDenoisedResult },
 		{ rtWithBRDFLUT }
 	);
 	fg.RegisterMoveNode(deferLightedSkyRT, rtWithBRDFLUT);
-	auto skyboxPass = fg.RegisterPassNode(
+	auto skyboxPass = fg.RegisterGeneralPassNode(
 		"Skybox",
 		{ deferDS },
 		{ deferLightedSkyRT }
 	);
 	fg.RegisterMoveNode(forwardDS, deferDS);
 	fg.RegisterMoveNode(sceneRT, deferLightedSkyRT);
-	auto forwardPass = fg.RegisterPassNode(
+	auto forwardPass = fg.RegisterGeneralPassNode(
 		"Forward",
 		{ irradianceMap, prefilterMap },
 		{ forwardDS, sceneRT }
 	);
-	auto taaPass = fg.RegisterPassNode(
+	auto taaPass = fg.RegisterGeneralPassNode(
 		"TAA Pass",
 		{ taaPrevResult, sceneRT, motion },
 		{ taaResult }
 	);
-	fg.RegisterMoveNode(taaResult_copyrt, taaPrevResult);
-	auto taaCopyPass = fg.RegisterPassNode(
+	auto taaCopyPass = fg.RegisterCopyPassNode(
 		"TAA Copy Pass",
 		{ taaResult },
-		{ taaResult_copyrt }
+		{ taaPrevResult }
 	);
-	auto postprocessPass = fg.RegisterPassNode(
+	auto postprocessPass = fg.RegisterGeneralPassNode(
 		"Post Process",
 		{ taaResult },
 		{ presentedRT }
@@ -1819,14 +1809,7 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 		.RegisterPassRsrc(filterMomentsPass, fAccRTResult, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
 		.RegisterPassRsrc(filterMomentsPass, fAccRTUResult, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
 
-		.RegisterPassRsrcState(copyPass, linearZ, D3D12_RESOURCE_STATE_COPY_SOURCE)
-		.RegisterPassRsrcState(copyPass, rtATrousDenoiseResults.front(), D3D12_RESOURCE_STATE_COPY_SOURCE)
-		.RegisterPassRsrcState(copyPass, rtUATrousDenoiseResults.front(), D3D12_RESOURCE_STATE_COPY_SOURCE)
-		.RegisterPassRsrcState(copyPass, colorMoment, D3D12_RESOURCE_STATE_COPY_SOURCE)
-		.RegisterPassRsrcState(copyPass, linearZ_copyrt, D3D12_RESOURCE_STATE_COPY_DEST)
-		.RegisterPassRsrcState(copyPass, accRTResult_copyrt, D3D12_RESOURCE_STATE_COPY_DEST)
-		.RegisterPassRsrcState(copyPass, accRTUResult_copyrt, D3D12_RESOURCE_STATE_COPY_DEST)
-		.RegisterPassRsrcState(copyPass, colorMoment_copyrt, D3D12_RESOURCE_STATE_COPY_DEST)
+		.RegisterCopyPassRsrcState(fg, copyPass)
 
 		.RegisterRsrcTable({
 			{rtDenoisedResult,srvDesc},
@@ -1855,8 +1838,7 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 		.RegisterPassRsrc(taaPass, motion, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
 		.RegisterPassRsrc(taaPass, taaResult, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
 
-		.RegisterPassRsrcState(taaCopyPass, taaResult, D3D12_RESOURCE_STATE_COPY_SOURCE)
-		.RegisterPassRsrcState(taaCopyPass, taaResult_copyrt, D3D12_RESOURCE_STATE_COPY_DEST)
+		.RegisterCopyPassRsrcState(fg, taaCopyPass)
 
 		.RegisterPassRsrc(postprocessPass, taaResult, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
 		.RegisterPassRsrc(postprocessPass, presentedRT, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
@@ -2214,22 +2196,7 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 		}
 	);
 
-	fgExecutor->RegisterPassFunc(
-		copyPass,
-		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
-			std::pair<std::size_t, std::size_t> inouts[] = {
-				{linearZ,linearZ_copyrt},
-				{rtATrousDenoiseResults.front(),accRTResult_copyrt},
-				{rtUATrousDenoiseResults.front(),accRTUResult_copyrt},
-				{colorMoment,colorMoment_copyrt},
-			};
-			for (const auto& [in_id, out_id] : inouts) {
-				auto in_rsrc = rsrcs.at(in_id).resource;
-				auto out_rsrc = rsrcs.at(out_id).resource;
-				cmdList->CopyResource(out_rsrc, in_rsrc);
-			}
-		}
-	);
+	fgExecutor->RegisterCopyPassFunc(fg, copyPass);
 
 	{ // denoise passes
 		for (std::size_t i = 0; i < ATrousN; i++) {
@@ -2389,14 +2356,7 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 		}
 	);
 
-	fgExecutor->RegisterPassFunc(
-		taaCopyPass,
-		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
-			auto in_rsrc = rsrcs.at(taaResult).resource;
-			auto out_rsrc = rsrcs.at(taaResult_copyrt).resource;
-			cmdList->CopyResource(out_rsrc, in_rsrc);
-		}
-	);
+	fgExecutor->RegisterCopyPassFunc(fg, taaCopyPass);
 
 	fgExecutor->RegisterPassFunc(
 		postprocessPass,
@@ -2538,12 +2498,12 @@ void StdDXRPipeline::Impl::Render(
 		auto prefilterMap = fg.RegisterResourceNode("PreFilter Map");
 		auto TLAS = fg.RegisterResourceNode("TLAS");
 
-		auto tlasPass = fg.RegisterPassNode(
+		auto tlasPass = fg.RegisterGeneralPassNode(
 			"TLAS Pass",
 			{},
 			{ TLAS }
 		);
-		auto iblPass = fg.RegisterPassNode(
+		auto iblPass = fg.RegisterGeneralPassNode(
 			"IBL",
 			{ },
 			{ irradianceMap, prefilterMap }
