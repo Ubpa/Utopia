@@ -670,6 +670,8 @@ struct StdDXRPipeline::Impl {
 
 		val<float, 16> ViewProj;
 
+		val<float, 16> UnjitteredViewProj;
+
 		val<float, 16> InvViewProj;
 
 		val<float, 16> PrevViewProj;
@@ -684,6 +686,10 @@ struct StdDXRPipeline::Impl {
 		float FarZ;
 		float TotalTime;
 		float DeltaTime;
+
+		valf2 Jitter;
+		unsigned int padding0;
+		unsigned int padding1;
 	};
 
 	struct ShaderLight {
@@ -1169,14 +1175,22 @@ void StdDXRPipeline::Impl::UpdateCrossFrameCameraResources(std::span<const Camer
 			rt_height = cmptCamera->renderTarget->image.GetHeight();
 		}
 
+		float SampleX = rand01<float>();
+		float SampleY = rand01<float>();
+		float JitterX = (SampleX * 2.0f - 1.0f) / rt_width;
+		float JitterY = (SampleY * 2.0f - 1.0f) / rt_height;
 		transformf view = cmptW2L ? cmptW2L->value : transformf::eye();
 		transformf proj = cmptCamera->prjectionMatrix;
+		transformf unjitteredProj = proj;
+		proj[2][0] += JitterX;
+		proj[2][1] += JitterY;
 		cameraConstants.View = view;
 		cameraConstants.InvView = view.inverse();
 		cameraConstants.Proj = proj;
 		cameraConstants.InvProj = proj.inverse();
-		cameraConstants.PrevViewProj = cameraConstants.ViewProj;
+		cameraConstants.PrevViewProj = cameraConstants.UnjitteredViewProj;
 		cameraConstants.ViewProj = proj * view;
+		cameraConstants.UnjitteredViewProj = unjitteredProj * view;
 		cameraConstants.InvViewProj = view.inverse() * proj.inverse();
 		cameraConstants.EyePosW = cmptTranslation ? cmptTranslation->value.as<pointf3>() : pointf3{ 0.f };
 		cameraConstants.FrameCount = cameraConstants.FrameCount + 1;
@@ -1187,6 +1201,11 @@ void StdDXRPipeline::Impl::UpdateCrossFrameCameraResources(std::span<const Camer
 		cameraConstants.FarZ = cmptCamera->clippingPlaneMax;
 		cameraConstants.TotalTime = GameTimer::Instance().TotalTime();
 		cameraConstants.DeltaTime = GameTimer::Instance().DeltaTime();
+
+		cameraConstants.Jitter.x = JitterX;
+		cameraConstants.Jitter.y = JitterY;
+		cameraConstants.padding0 = 0;
+		cameraConstants.padding1 = 0;
 	}
 }
 

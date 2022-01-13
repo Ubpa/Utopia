@@ -28,6 +28,7 @@ cbuffer StdPipeline_cbPerCamera : register(b##x) \
     float4x4 gProj;                              \
     float4x4 gInvProj;                           \
     float4x4 gViewProj;                          \
+    float4x4 gUnjitteredViewProj;                \
     float4x4 gInvViewProj;                       \
                                                  \
     float4x4 gPrevViewProj;                      \
@@ -42,6 +43,9 @@ cbuffer StdPipeline_cbPerCamera : register(b##x) \
     float gFarZ;                                 \
     float gTotalTime;                            \
     float gDeltaTime;                            \
+    float2 gJitter;                              \
+    uint _padding0;                              \
+    uint _padding1;                              \
 }
 
 // 1. directional light

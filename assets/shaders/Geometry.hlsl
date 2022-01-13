@@ -60,7 +60,7 @@ VertexOut VS(VertexIn vin)
     // Transform to homogeneous clip space.
     vout.PosH = mul(gViewProj, posW);
     
-    vout.CurrPosH = mul(gViewProj, posW); // TODO: unjittered
+    vout.CurrPosH = mul(gUnjitteredViewProj, posW); // TODO: unjittered
     vout.PrevPosH = mul(gPrevViewProj, posW);
     
     // Output vertex attributes for interpolation across triangle.
@@ -116,6 +116,11 @@ PixelOut PS(VertexOut pin)
 
 #ifdef UBPA_STD_RAY_TRACING
     pout.linearZ = float4(Z, maxChangeZ, prevZ, asfloat(DirToOct(pin.NormalL)));
+    /*
+     * motion is velocity: displacement / time
+     * displacement: currTexc - prevTexc
+     * time: unit 1
+     */
     pout.motion = float4(currTexc - prevTexc, 0, 1/*normFWidth*/);
 #endif // UBPA_STD_RAY_TRACING
 
