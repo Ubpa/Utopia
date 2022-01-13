@@ -12,6 +12,7 @@ void Ubpa::Utopia::World_Register_Core(World* w) {
 		Input,
 		LocalToParent,
 		LocalToWorld,
+		PrevLocalToWorld,
 		Name,
 		Parent,
 		Roamer,
@@ -31,6 +32,7 @@ void Ubpa::Utopia::World_Register_Core(World* w) {
 		RotationEulerSystem,
 		TRSToLocalToParentSystem,
 		TRSToLocalToWorldSystem,
+		PrevLocalToWorldSystem,
 		WorldToLocalSystem,
 		WorldTimeSystem
 	>();

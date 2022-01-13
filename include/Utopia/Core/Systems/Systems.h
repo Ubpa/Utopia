@@ -6,5 +6,6 @@
 #include "RotationEulerSystem.h"
 #include "TRSToLocalToParentSystem.h"
 #include "TRSToLocalToWorldSystem.h"
+#include "PrevLocalToWorldSystem.h"
 #include "WorldToLocalSystem.h"
 #include "WorldTimeSystem.h"

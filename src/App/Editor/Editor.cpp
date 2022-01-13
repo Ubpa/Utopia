@@ -797,6 +797,7 @@ void Editor::Impl::InitWorld(Ubpa::UECS::World& w) {
 		RotationEulerSystem,
 		TRSToLocalToParentSystem,
 		TRSToLocalToWorldSystem,
+		PrevLocalToWorldSystem,
 		WorldToLocalSystem,
 
 		// core
@@ -819,6 +820,7 @@ void Editor::Impl::InitWorld(Ubpa::UECS::World& w) {
 		Children,
 		LocalToParent,
 		LocalToWorld,
+		PrevLocalToWorld,
 		Parent,
 		Rotation,
 		RotationEuler,

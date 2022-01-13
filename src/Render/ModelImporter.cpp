@@ -303,6 +303,7 @@ AssetImportContext Ubpa::Utopia::details::AssimpLoadScene(const std::filesystem:
 		Children,
 		LocalToParent,
 		LocalToWorld,
+		PrevLocalToWorld,
 		Parent,
 		Rotation,
 		RotationEuler,

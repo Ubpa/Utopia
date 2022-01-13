@@ -4,6 +4,7 @@
 #include "Input.h"
 #include "LocalToParent.h"
 #include "LocalToWorld.h"
+#include "PrevLocalToWorld.h"
 #include "Name.h"
 #include "Parent.h"
 #include "Roamer.h"
