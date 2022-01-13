@@ -48,6 +48,7 @@ VertexOut VS(VertexIn vin)
     
     // Transform to world space.
     float4 posW = mul(gWorld, float4(vin.PosL, 1.0f));
+    float4 prevPosW = mul(gPrevWorld, float4(vin.PosL, 1.0f));
 
     vout.NormalL = vin.NormalL;
     float3x3 normalMatrix = transpose((float3x3)gInvWorld);
@@ -60,8 +61,8 @@ VertexOut VS(VertexIn vin)
     // Transform to homogeneous clip space.
     vout.PosH = mul(gViewProj, posW);
     
-    vout.CurrPosH = mul(gUnjitteredViewProj, posW); // TODO: unjittered
-    vout.PrevPosH = mul(gPrevViewProj, posW);
+    vout.CurrPosH = mul(gUnjitteredViewProj, posW);
+    vout.PrevPosH = mul(gPrevViewProj, prevPosW);
     
     // Output vertex attributes for interpolation across triangle.
     vout.TexC = vin.TexC;

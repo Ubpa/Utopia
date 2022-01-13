@@ -9,7 +9,7 @@ using namespace Ubpa::UECS;
 void PrevLocalToWorldSystem::OnUpdate(Schedule& schedule) {
 	schedule.RegisterEntityJob(
 		[](LastFrame<LocalToWorld> L2W, Write<PrevLocalToWorld> prevL2W) {
-			prevL2W->value = L2W->value.inverse();
+			prevL2W->value = L2W->value;
 		},
 		SystemFuncName,
 		Schedule::EntityJobConfig{

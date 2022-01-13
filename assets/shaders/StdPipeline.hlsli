@@ -18,6 +18,7 @@ cbuffer StdPipeline_cbPerObject : register(b##x) \
 {                                                \
     float4x4 gWorld;                             \
     float4x4 gInvWorld;                          \
+    float4x4 gPrevWorld;                         \
 }
 
 #define STD_PIPELINE_CB_PER_CAMERA(x)            \

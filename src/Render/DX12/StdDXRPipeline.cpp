@@ -29,6 +29,7 @@
 #include <Utopia/Core/Components/LocalToWorld.h>
 #include <Utopia/Core/Components/Translation.h>
 #include <Utopia/Core/Components/WorldToLocal.h>
+#include <Utopia/Core/Components/PrevLocalToWorld.h>
 
 #include <UECS/UECS.hpp>
 
@@ -658,6 +659,7 @@ struct StdDXRPipeline::Impl {
 	struct ObjectConstants {
 		transformf World;
 		transformf InvWorld;
+		transformf PrevWorld;
 	};
 	struct CameraConstants {
 		val<float, 16> View;
@@ -788,6 +790,7 @@ struct StdDXRPipeline::Impl {
 		struct EntityData {
 			valf<16> l2w;
 			valf<16> w2l;
+			valf<16> prevl2w;
 			std::shared_ptr<Mesh> mesh;
 			std::pmr::vector<SharedVar<Material>> materials;
 		};
@@ -1229,6 +1232,7 @@ StdDXRPipeline::Impl::RenderContext StdDXRPipeline::Impl::GenerateRenderContext(
 					auto meshRenderers = chunk->GetCmptArray<MeshRenderer>();
 					auto L2Ws = chunk->GetCmptArray<LocalToWorld>();
 					auto W2Ls = chunk->GetCmptArray<WorldToLocal>();
+					auto prevL2Ws = chunk->GetCmptArray<PrevLocalToWorld>();
 					auto entities = chunk->GetEntityArray();
 
 					size_t N = chunk->EntityNum();
@@ -1280,6 +1284,7 @@ StdDXRPipeline::Impl::RenderContext StdDXRPipeline::Impl::GenerateRenderContext(
 						RenderContext::EntityData data;
 						data.l2w = L2Ws[i].value;
 						data.w2l = !W2Ls.empty() ? W2Ls[i].value : L2Ws[i].value.inverse();
+						data.prevl2w = !prevL2Ws.empty() ? prevL2Ws[i].value : L2Ws[i].value;
 						data.mesh = meshFilter.mesh;
 						data.materials = meshRenderer.materials;
 						ctx.entity2data.emplace_hint(target, std::pair{ obj.entity.index, data });
@@ -1457,6 +1462,7 @@ StdDXRPipeline::Impl::RenderContext StdDXRPipeline::Impl::GenerateRenderContext(
 			ObjectConstants objectConstants;
 			objectConstants.World = data.l2w;
 			objectConstants.InvWorld = data.w2l;
+			objectConstants.PrevWorld = data.prevl2w;
 			ctx.entity2offset[idx] = offset;
 			commonShaderCB->Set(offset, &objectConstants, sizeof(ObjectConstants));
 			offset += UDX12::Util::CalcConstantBufferByteSize(sizeof(ObjectConstants));
