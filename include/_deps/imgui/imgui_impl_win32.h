@@ -1,4 +1,4 @@
-// dear imgui: Platform Binding for Windows (standard windows API for 32 and 64 bits applications)
+// dear imgui: Platform Backend for Windows (standard windows API for 32 and 64 bits applications)
 // This needs to be used along with a Renderer (e.g. DirectX11, OpenGL3, Vulkan..)
 
 // Implemented features:
@@ -8,18 +8,23 @@
 //  [X] Platform: Gamepad support. Enabled with 'io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad'.
 //  [X] Platform: Multi-viewport support (multiple windows). Enable with 'io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable'.
 
+// You can copy and use unmodified imgui_impl_* files in your project. See examples/ folder for examples of using this.
+// If you are new to Dear ImGui, read documentation from the docs/ folder + read the top of imgui.cpp.
+// Read online: https://github.com/ocornut/imgui/tree/master/docs
+
 // Ubpa: edit for multi-context support
 
 #pragma once
 #include "imgui.h"      // IMGUI_IMPL_API
 
+// call ImGui_ImplWin32_Init_Context() after ImGui_ImplWin32_Init_Shared()
 IMGUI_IMPL_API bool     ImGui_ImplWin32_Init_Shared(void* hwnd);
 IMGUI_IMPL_API bool     ImGui_ImplWin32_Init_Context(ImGuiContext* ctx);
+// call ImGui_ImplWin32_Shutdown_Shared() after ImGui_ImplWin32_Shutdown_Context()
 IMGUI_IMPL_API void     ImGui_ImplWin32_Shutdown_Shared();
 IMGUI_IMPL_API void     ImGui_ImplWin32_Shutdown_Context(ImGuiContext* ctx);
-IMGUI_IMPL_API void     ImGui_ImplWin32_NewFrame_Context(ImGuiContext* ctx, ImVec2 offset, float width, float height);
-IMGUI_IMPL_API void     ImGui_ImplWin32_NewFrame_Shared();
-IMGUI_IMPL_API void     ImGui_ImplWin32_EndFrame();
+// call ImGui_ImplWin32_NewFrame_Shared() after ImGui_ImplWin32_NewFrame_Context()
+IMGUI_IMPL_API void     ImGui_ImplWin32_NewFrame(ImGuiContext* ctx, ImVec2 offset, float width, float height);
 
 // Configuration
 // - Disable gamepad support or linking with xinput.lib

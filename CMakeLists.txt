@@ -26,9 +26,9 @@ Ubpa_DownloadZip(
 )
 
 Ubpa_DownloadZip(
-  https://cdn.jsdelivr.net/gh/Ubpa/UData@master/Utopia/imgui/imgui_dock_1_78_0.zip
-  imgui_dock_1_78_0.zip
-  SHA256 E57BA9CD40CA2113BEF0BC1864C3B8BC0B9A97C39F50DA02AAF251CE0A168F0C
+  https://udata-1308066321.cos.ap-guangzhou.myqcloud.com/imgui_dock_1_80.zip
+  imgui_dock_1_80.zip
+  SHA256 3E7FF74FAD60E03EF1834ADA1BEB903338C4BB4448034D6350332CD16C34447B
 )
 
 Ubpa_DownloadZip(

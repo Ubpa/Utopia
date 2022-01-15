@@ -87,12 +87,11 @@ void ImGUIMngr::DestroyContext(std::string_view name) {
 void ImGUIMngr::Clear() {
 	for(const auto& [name, ctx] : pImpl->contexts)
 		ImGui_ImplDX12_Shutdown_Context(ctx);
-
 	ImGui_ImplDX12_Shutdown_Shared();
 
-	ImGui_ImplWin32_Shutdown_Shared();
 	for (const auto& [name, ctx] : pImpl->contexts)
 		ImGui_ImplWin32_Shutdown_Context(ctx);
+	ImGui_ImplWin32_Shutdown_Shared();
 
 	for (const auto& [name, ctx] : pImpl->contexts)
 		ImGui::DestroyContext(ctx);

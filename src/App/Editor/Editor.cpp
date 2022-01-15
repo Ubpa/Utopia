@@ -332,11 +332,10 @@ void Editor::Impl::OnSceneResize() {
 
 void Editor::Impl::Update() {
 	// Start the Dear ImGui frame
-	ImGui_ImplDX12_NewFrame();
-	ImGui_ImplWin32_NewFrame_Context(editorImGuiCtx, { 0.f, 0.f }, (float)pEditor->mClientWidth, (float)pEditor->mClientHeight);
-	ImGui_ImplWin32_NewFrame_Context(gameImGuiCtx, gamePos, (float)gameWidth, (float)gameHeight);
-	ImGui_ImplWin32_NewFrame_Context(sceneImGuiCtx, scenePos, (float)sceneWidth, (float)sceneHeight);
-	ImGui_ImplWin32_NewFrame_Shared();
+	ImGui_ImplDX12_NewFrame_Shared();
+	ImGui_ImplWin32_NewFrame(editorImGuiCtx, { 0.f, 0.f }, (float)pEditor->mClientWidth, (float)pEditor->mClientHeight);
+	ImGui_ImplWin32_NewFrame(gameImGuiCtx, gamePos, (float)gameWidth, (float)gameHeight);
+	ImGui_ImplWin32_NewFrame(sceneImGuiCtx, scenePos, (float)sceneWidth, (float)sceneHeight);
 
 	bool isGameOpen = false;
 	bool isSceneOpen = false;
@@ -787,7 +786,6 @@ void Editor::Impl::Update() {
 	pEditor->SwapBackBuffer();
 
 	pEditor->GetFrameResourceMngr()->EndFrame(pEditor->uCmdQueue.Get());
-	ImGui_ImplWin32_EndFrame();
 }
 
 void Editor::Impl::InitWorld(Ubpa::UECS::World& w) {
