@@ -26,11 +26,11 @@ public:
         ImGui::DestroyContext();
     }
 
-    virtual LRESULT MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) override {
-        if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wParam, lParam))
+    virtual LRESULT MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) override {
+        if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))
             return true;
 
-        return DX12App::MsgProc(hwnd, msg, wParam, lParam);
+        return DX12App::MsgProc(hWnd, msg, wParam, lParam);
     }
 
     virtual bool Init() override {

@@ -125,6 +125,10 @@ typedef int ImGuiMouseCursor;
 
 namespace ImGui
 {
+    IMGUI_API ImGuiIO& GetIO(ImGuiContext* ctx);
+    IMGUI_API ImGuiMouseCursor GetMouseCursor(ImGuiContext* ctx);
+    IMGUI_API bool IsAnyMouseDown(ImGuiContext* ctx);
+
     class IMGUI_API WrapContextGuard {
         ImGuiContext* prevCtx;
     public:
@@ -132,7 +136,10 @@ namespace ImGui
         ~WrapContextGuard();
     };
 
-    IMGUI_API ImGuiIO& GetIO(ImGuiContext* ctx);
-    IMGUI_API ImGuiMouseCursor GetMouseCursor(ImGuiContext* ctx);
-    IMGUI_API bool IsAnyMouseDown(ImGuiContext* ctx);
+    template<typename Func, typename... Args>
+    decltype(auto) WrapContextCall(ImGuiContext* ctx, Func&& func, Args&&... args)
+    {
+        const WrapContextGuard ImGuiContextGuard(ctx);
+        return std::forward<Func>(func)(std::forward<Args>(args)...);
+    }
 }

@@ -36,23 +36,23 @@ LRESULT CALLBACK DX12App::MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
 	return DX12App::GetApp()->MsgProc(hwnd, msg, wParam, lParam);
 }
 
-LRESULT DX12App::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+LRESULT DX12App::MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	switch (msg)
 	{
 		// WM_ACTIVATE is sent when the window is activated or deactivated.  
 		// We pause the game when the window is deactivated and unpause it 
 		// when it becomes active.  
 	case WM_ACTIVATE:
-		if (LOWORD(wParam) == WA_INACTIVE)
-		{
-			mAppPaused = true;
-			GameTimer::Instance().Stop();
-		}
-		else
-		{
-			mAppPaused = false;
-			GameTimer::Instance().Start();
-		}
+		//if (LOWORD(wParam) == WA_INACTIVE)
+		//{
+		//	//mAppPaused = true;
+		//	//GameTimer::Instance().Stop();
+		//}
+		//else
+		//{
+		//	mAppPaused = false;
+		//	GameTimer::Instance().Start();
+		//}
 		return 0;
 
 		// WM_SIZE is sent when the user resizes the window.  
@@ -159,7 +159,7 @@ LRESULT DX12App::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		return 0;
 	}
 
-	return DefWindowProc(hwnd, msg, wParam, lParam);
+	return DefWindowProc(hWnd, msg, wParam, lParam);
 }
 
 bool DX12App::Init() {

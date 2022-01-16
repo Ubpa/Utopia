@@ -222,17 +222,22 @@ Editor::Impl::~Impl() {
 
 bool Editor::Impl::Init() {
 	ImGUIMngr::Instance().Init(pEditor->MainWnd(), pEditor->uDevice.Get(), DX12App::NumFrameResources);
-	editorImGuiCtx = ImGUIMngr::Instance().CreateContext("editor");
+	editorImGuiCtx = ImGUIMngr::Instance().CreateContext("editor", true);
 	gameImGuiCtx = ImGUIMngr::Instance().CreateContext("game");
 	sceneImGuiCtx = ImGUIMngr::Instance().CreateContext("scene");
-	ImGui::SetCurrentContext(editorImGuiCtx);
-	ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-	ImGui::GetIO().IniFilename = "imgui_App_Editor_editor.ini";
-	ImGui::SetCurrentContext(gameImGuiCtx);
-	ImGui::GetIO().IniFilename = "imgui_App_Editor_game.ini";
-	ImGui::SetCurrentContext(sceneImGuiCtx);
-	ImGui::GetIO().IniFilename = "imgui_App_Editor_scene.ini";
-	ImGui::SetCurrentContext(nullptr);
+
+	ImGui::WrapContextCall(editorImGuiCtx, []() {
+		ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+		ImGui::GetIO().IniFilename = "imgui_App_Editor_editor.ini";
+	});
+
+	ImGui::WrapContextCall(gameImGuiCtx, []() {
+		ImGui::GetIO().IniFilename = "imgui_App_Editor_game.ini";
+	});
+
+	ImGui::WrapContextCall(sceneImGuiCtx, []() {
+		ImGui::GetIO().IniFilename = "imgui_App_Editor_scene.ini";
+	});
 	
 	AssetMngr::Instance().SetRootPath(LR"(..\assets)");
 	AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<WorldAssetImporterCreator>());
@@ -385,8 +390,9 @@ void Editor::Impl::Update() {
 			auto content_max_minus_local_pos = ImGui::GetContentRegionAvail();
 			auto content_max = ImGui::GetWindowContentRegionMax();
 			auto game_window_pos = ImGui::GetWindowPos();
-			gamePos.x = game_window_pos.x + content_max.x - content_max_minus_local_pos.x;
-			gamePos.y = game_window_pos.y + content_max.y - content_max_minus_local_pos.y;
+			auto viewport_pos = ImGui::GetWindowViewport()->Pos;
+			gamePos.x = game_window_pos.x - viewport_pos.x + content_max.x - content_max_minus_local_pos.x;
+			gamePos.y = game_window_pos.y - viewport_pos.y + content_max.y - content_max_minus_local_pos.y;
 
 			auto gameSize = ImGui::GetContentRegionAvail();
 			auto w = (size_t)gameSize.x;
@@ -416,12 +422,14 @@ void Editor::Impl::Update() {
 			auto content_max_minus_local_pos = ImGui::GetContentRegionAvail();
 			auto content_max = ImGui::GetWindowContentRegionMax();
 			auto scene_window_pos = ImGui::GetWindowPos();
-			scenePos.x = scene_window_pos.x + content_max.x - content_max_minus_local_pos.x;
-			scenePos.y = scene_window_pos.y + content_max.y - content_max_minus_local_pos.y;
+			auto viewport_pos = ImGui::GetWindowViewport()->Pos;
+			scenePos.x = scene_window_pos.x - viewport_pos.x + content_max.x - content_max_minus_local_pos.x;
+			scenePos.y = scene_window_pos.y - viewport_pos.y + content_max.y - content_max_minus_local_pos.y;
 
 			auto sceneSize = ImGui::GetContentRegionAvail();
 			auto w = (size_t)sceneSize.x;
 			auto h = (size_t)sceneSize.y;
+
 			if (sceneSize.x > 0 && sceneSize.y > 0 && w > 0 && h > 0 && (w != sceneWidth || h != sceneHeight)) {
 				sceneWidth = w;
 				sceneHeight = h;
@@ -765,6 +773,15 @@ void Editor::Impl::Update() {
 	pEditor->SwapBackBuffer();
 
 	pEditor->GetFrameResourceMngr()->EndFrame(pEditor->uCmdQueue.Get());
+
+	ImGui::WrapContextCall(editorImGuiCtx, [this]() {
+		// Update and Render additional Platform Windows
+		if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+		{
+			ImGui::UpdatePlatformWindows();
+			ImGui::RenderPlatformWindowsDefault(NULL, pEditor->uGCmdList.Get());
+		}
+	});
 }
 
 void Editor::Impl::InitWorld(Ubpa::UECS::World& w) {

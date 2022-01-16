@@ -36,7 +36,7 @@ namespace Ubpa::Utopia {
 		virtual void Update() = 0;
 		virtual void OnResize();
 
-		virtual LRESULT MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+		virtual LRESULT MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 	protected:
 		bool InitMainWindow();

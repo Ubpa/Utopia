@@ -25,7 +25,7 @@ namespace Ubpa::Utopia {
 
 		void Init(void* hwnd, ID3D12Device*, size_t numFrames);
 
-		ImGuiContext* CreateContext(std::string name, StyleColors = StyleColors::Dark);
+		ImGuiContext* CreateContext(std::string name, bool supportViewports = false, StyleColors styleColors = StyleColors::Dark);
 
 		ImGuiContext* GetContext(std::string_view name) const;
 

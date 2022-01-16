@@ -34,11 +34,36 @@ void ImGUIMngr::Init(void* hwnd, ID3D12Device* device, size_t numFrames) {
 	pImpl->numFrames = numFrames;
 }
 
-ImGuiContext* ImGUIMngr::CreateContext(std::string name, StyleColors style) {
+ImGuiContext* ImGUIMngr::CreateContext(std::string name, bool supportViewports, StyleColors styleColors) {
 	ImGui::WrapContextGuard ImGuiContextGuard(nullptr);
 
 	auto ctx = ImGui::CreateContext();
 	assert(ctx == ImGui::GetCurrentContext());
+	ImGuiIO& io = ImGui::GetIO();
+	if(supportViewports)
+		io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;         // Enable Multi-Viewport / Platform Windows
+
+	switch (styleColors)
+	{
+	case StyleColors::Classic:
+		ImGui::StyleColorsClassic();
+		break;
+	case StyleColors::Dark:
+		ImGui::StyleColorsDark();
+		break;
+	case StyleColors::Light:
+		ImGui::StyleColorsLight();
+		break;
+	default:
+		break;
+	}
+
+	ImGuiStyle& style = ImGui::GetStyle();
+	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+	{
+		style.WindowRounding = 0.0f;
+		style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+	}
 
 	Impl::ImGuiContextData contextData;
 	contextData.ctx = ctx;
@@ -53,20 +78,6 @@ ImGuiContext* ImGUIMngr::CreateContext(std::string name, StyleColors style) {
 		contextData.fontDH.GetCpuHandle(),
 		contextData.fontDH.GetGpuHandle());
 
-	switch (style)
-	{
-	case StyleColors::Classic:
-		ImGui::StyleColorsClassic();
-		break;
-	case StyleColors::Dark:
-		ImGui::StyleColorsDark();
-		break;
-	case StyleColors::Light:
-		ImGui::StyleColorsLight();
-		break;
-	default:
-		break;
-	}
 	pImpl->contextDatas.emplace(std::move(name), std::move(contextData));
 
 	return ctx;
