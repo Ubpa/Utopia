@@ -130,20 +130,14 @@ LRESULT Editor::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	if (ImGui_ImplWin32_WndProcHandler_Shared(hwnd, msg, wParam, lParam))
 		return 1;
 
-	bool imguiWantCaptureMouse = false;
-	bool imguiWantCaptureKeyboard = false;
-
 	if (pImpl->gameImGuiCtx && pImpl->sceneImGuiCtx && pImpl->editorImGuiCtx) {
-		ImGui::SetCurrentContext(pImpl->gameImGuiCtx);
-		auto& gameIO = ImGui::GetIO();
+		auto& gameIO = ImGui::GetIO(pImpl->gameImGuiCtx);
 		bool gameWantCaptureMouse = gameIO.WantCaptureMouse;
 		bool gameWantCaptureKeyboard = gameIO.WantCaptureKeyboard;
-		ImGui::SetCurrentContext(pImpl->sceneImGuiCtx);
-		auto& sceneIO = ImGui::GetIO();
+		auto& sceneIO = ImGui::GetIO(pImpl->sceneImGuiCtx);
 		bool sceneWantCaptureMouse = sceneIO.WantCaptureMouse;
 		bool sceneWantCaptureKeyboard = sceneIO.WantCaptureKeyboard;
-		ImGui::SetCurrentContext(pImpl->editorImGuiCtx);
-		auto& editorIO = ImGui::GetIO();
+		auto& editorIO = ImGui::GetIO(pImpl->editorImGuiCtx);
 		bool editorWantCaptureMouse = editorIO.WantCaptureMouse;
 		bool editorWantCaptureKeyboard = editorIO.WantCaptureKeyboard;
 
@@ -153,33 +147,14 @@ LRESULT Editor::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		if (ImGui_ImplWin32_WndProcHandler_Context(pImpl->sceneImGuiCtx, gameWantCaptureMouse, gameWantCaptureKeyboard, hwnd, msg, wParam, lParam))
 			return 1;
 
-		if (
-			ImGui_ImplWin32_WndProcHandler_Context(
+		if (ImGui_ImplWin32_WndProcHandler_Context(
 				pImpl->editorImGuiCtx,
 				gameWantCaptureMouse || sceneWantCaptureMouse,
 				gameWantCaptureKeyboard || sceneWantCaptureKeyboard,
-				hwnd, msg, wParam, lParam
-			)
-		) {
+				hwnd, msg, wParam, lParam))
+		{
 			return 1;
 		}
-
-		imguiWantCaptureMouse = gameWantCaptureMouse || sceneWantCaptureMouse || editorWantCaptureMouse;
-		imguiWantCaptureKeyboard = gameWantCaptureKeyboard || sceneWantCaptureKeyboard || editorWantCaptureKeyboard;
-	}
-
-	// - When io.WantCaptureMouse is true, do not dispatch mouse input data to your editor application.
-	// - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your editor application.
-	switch (msg)
-	{
-	case WM_KEYUP:
-		if (imguiWantCaptureKeyboard)
-			return 0;
-		if (wParam == VK_ESCAPE)
-		{
-			//PostQuitMessage(0);
-		}
-		return 0;
 	}
 
 	return DX12App::MsgProc(hwnd, msg, wParam, lParam);
@@ -332,15 +307,18 @@ void Editor::Impl::OnSceneResize() {
 
 void Editor::Impl::Update() {
 	// Start the Dear ImGui frame
+	/*
 	ImGui_ImplDX12_NewFrame_Shared();
-	ImGui_ImplWin32_NewFrame(editorImGuiCtx, { 0.f, 0.f }, (float)pEditor->mClientWidth, (float)pEditor->mClientHeight);
 	ImGui_ImplWin32_NewFrame(gameImGuiCtx, gamePos, (float)gameWidth, (float)gameHeight);
 	ImGui_ImplWin32_NewFrame(sceneImGuiCtx, scenePos, (float)sceneWidth, (float)sceneHeight);
+	*/
 
 	bool isGameOpen = false;
 	bool isSceneOpen = false;
 	{ // editor
-		ImGui::SetCurrentContext(editorImGuiCtx);
+		ImGui::WrapContextGuard ImGuiContextGuard(editorImGuiCtx);
+		ImGui_ImplDX12_NewFrame();
+		ImGui_ImplWin32_NewFrame({ 0.f, 0.f }, ImVec2((float)pEditor->mClientWidth, (float)pEditor->mClientHeight));
 		ImGui::NewFrame(); // editor ctx
 
 		static bool opt_fullscreen = true;
@@ -353,8 +331,8 @@ void Editor::Impl::Update() {
 		if (opt_fullscreen)
 		{
 			ImGuiViewport* viewport = ImGui::GetMainViewport();
-			ImGui::SetNextWindowPos(viewport->GetWorkPos());
-			ImGui::SetNextWindowSize(viewport->GetWorkSize());
+			ImGui::SetNextWindowPos(viewport->WorkPos);
+			ImGui::SetNextWindowSize(viewport->WorkSize);
 			ImGui::SetNextWindowViewport(viewport->ID);
 			ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
 			ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
@@ -494,7 +472,9 @@ void Editor::Impl::Update() {
 	}
 
 	{ // game update
-		ImGui::SetCurrentContext(gameImGuiCtx);
+		ImGui::WrapContextGuard ImGuiContextGuard(gameImGuiCtx);
+		ImGui_ImplDX12_NewFrame();
+		ImGui_ImplWin32_NewFrame(gamePos, ImVec2((float)gameWidth, (float)gameHeight));
 		ImGui::NewFrame(); // game ctx
 
 		switch (gameState)
@@ -539,7 +519,9 @@ void Editor::Impl::Update() {
 	}
 
 	{ // scene update
-		ImGui::SetCurrentContext(sceneImGuiCtx);
+		ImGui::WrapContextGuard ImGuiContextGuard(sceneImGuiCtx);
+		ImGui_ImplDX12_NewFrame();
+		ImGui_ImplWin32_NewFrame(scenePos, ImVec2((float)sceneWidth, (float)sceneHeight));
 		ImGui::NewFrame(); // scene ctx
 
 		//UpdateCamera();
@@ -622,7 +604,6 @@ void Editor::Impl::Update() {
 
 	ThrowIfFailed(pEditor->uGCmdList->Reset(cmdAlloc, nullptr));
 
-
 	std::map<IPipeline*, std::vector<IPipeline::CameraData>> gameCameras;
 	std::map<IPipeline*, std::vector<IPipeline::CameraData>> sceneCameras;
 
@@ -670,7 +651,6 @@ void Editor::Impl::Update() {
 		pipelines.insert(pipeline);
 	for (const auto& [pipeline, cameras] : sceneCameras)
 		pipelines.insert(pipeline);
-
 
 	IPipeline::InitDesc initDesc;
 	initDesc.device = pEditor->uDevice.Get();
@@ -769,16 +749,18 @@ void Editor::Impl::Update() {
 
 	{ // editor
 		ImGui::SetCurrentContext(editorImGuiCtx);
+		ImGui::Render();
 
 		pEditor->uGCmdList.ResourceBarrierTransition(pEditor->CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 		pEditor->uGCmdList->ClearRenderTargetView(pEditor->CurrentBackBufferView(), DirectX::Colors::Black, 0, NULL);
 		const auto curBack = pEditor->CurrentBackBufferView();
 		pEditor->uGCmdList->OMSetRenderTargets(1, &curBack, FALSE, NULL);
 		pEditor->uGCmdList.SetDescriptorHeaps(Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap());
-		ImGui::Render();
 		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), pEditor->uGCmdList.Get());
 		pEditor->uGCmdList.ResourceBarrierTransition(pEditor->CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 	}
+
+	ImGui::SetCurrentContext(nullptr);
 
 	pEditor->uGCmdList->Close();
 	pEditor->uCmdQueue.Execute(pEditor->uGCmdList.Get());

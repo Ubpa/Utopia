@@ -8,7 +8,8 @@
 //  [X] Platform: Gamepad support. Enabled with 'io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad'.
 //  [X] Platform: Multi-viewport support (multiple windows). Enable with 'io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable'.
 
-// You can copy and use unmodified imgui_impl_* files in your project. See examples/ folder for examples of using this.
+// You can use unmodified imgui_impl_* files in your project. See examples/ folder for examples of using this. 
+// Prefer including the entire imgui/ repository into your project (either as a copy or as a submodule), and only build the backends you need.
 // If you are new to Dear ImGui, read documentation from the docs/ folder + read the top of imgui.cpp.
 // Read online: https://github.com/ocornut/imgui/tree/master/docs
 
@@ -17,19 +18,9 @@
 #pragma once
 #include "imgui.h"      // IMGUI_IMPL_API
 
-// call ImGui_ImplWin32_Init_Context() after ImGui_ImplWin32_Init_Shared()
-IMGUI_IMPL_API bool     ImGui_ImplWin32_Init_Shared(void* hwnd);
-IMGUI_IMPL_API bool     ImGui_ImplWin32_Init_Context(ImGuiContext* ctx);
-// call ImGui_ImplWin32_Shutdown_Shared() after ImGui_ImplWin32_Shutdown_Context()
-IMGUI_IMPL_API void     ImGui_ImplWin32_Shutdown_Shared();
-IMGUI_IMPL_API void     ImGui_ImplWin32_Shutdown_Context(ImGuiContext* ctx);
-// call ImGui_ImplWin32_NewFrame_Shared() after ImGui_ImplWin32_NewFrame_Context()
-IMGUI_IMPL_API void     ImGui_ImplWin32_NewFrame(ImGuiContext* ctx, ImVec2 offset, float width, float height);
-
-// Configuration
-// - Disable gamepad support or linking with xinput.lib
-//#define IMGUI_IMPL_WIN32_DISABLE_GAMEPAD
-//#define IMGUI_IMPL_WIN32_DISABLE_LINKING_XINPUT
+IMGUI_IMPL_API bool     ImGui_ImplWin32_Init(void* hwnd);
+IMGUI_IMPL_API void     ImGui_ImplWin32_Shutdown();
+IMGUI_IMPL_API void     ImGui_ImplWin32_NewFrame(ImVec2 offset, ImVec2 size);
 
 // Win32 message handler your application need to call.
 // - Intentionally commented out in a '#if 0' block to avoid dragging dependencies on <windows.h> from this helper.
@@ -48,3 +39,8 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler_Context(ImGuiContex
 IMGUI_IMPL_API void     ImGui_ImplWin32_EnableDpiAwareness();
 IMGUI_IMPL_API float    ImGui_ImplWin32_GetDpiScaleForHwnd(void* hwnd);       // HWND hwnd
 IMGUI_IMPL_API float    ImGui_ImplWin32_GetDpiScaleForMonitor(void* monitor); // HMONITOR monitor
+
+// Transparency related helpers (optional) [experimental]
+// - Use to enable alpha compositing transparency with the desktop.
+// - Use together with e.g. clearing your framebuffer with zero-alpha.
+IMGUI_IMPL_API void     ImGui_ImplWin32_EnableAlphaCompositing(void* hwnd);   // HWND hwnd

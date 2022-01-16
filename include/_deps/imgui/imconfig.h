@@ -111,27 +111,28 @@
 //#define IMGUI_DEBUG_PARANOID
 
 //---- Tip: You can add extra functions within the ImGui:: namespace, here or in your own headers files.
+/*
+namespace ImGui
+{
+    void MyFunction(const char* name, const MyMatrix44& v);
+}
+*/
+
+#define IMGUI_API //TODO
 struct ImGuiContext;
+struct ImGuiIO;
+typedef int ImGuiMouseCursor;
 
 namespace ImGui
 {
-    ImGuiContext* GetCurrentContext();
-    void SetCurrentContext(ImGuiContext*);
-
-    class WrapContextGuard {
+    class IMGUI_API WrapContextGuard {
         ImGuiContext* prevCtx;
     public:
-        WrapContextGuard(ImGuiContext* ctx) {
-            prevCtx = GetCurrentContext();
-            SetCurrentContext(ctx);
-        }
-        ~WrapContextGuard() { SetCurrentContext(prevCtx); }
+        WrapContextGuard(ImGuiContext* ctx);
+        ~WrapContextGuard();
     };
 
-    template<typename Func, typename... Args>
-    decltype(auto) WrapContextCall(ImGuiContext* ctx, Func&& func, Args&&... args)
-    {
-        WrapContextGuard Guard(ctx);
-        return std::forward<Func>(func)(std::forward<Args>(args)...);
-    }
+    IMGUI_API ImGuiIO& GetIO(ImGuiContext* ctx);
+    IMGUI_API ImGuiMouseCursor GetMouseCursor(ImGuiContext* ctx);
+    IMGUI_API bool IsAnyMouseDown(ImGuiContext* ctx);
 }

@@ -7,9 +7,14 @@
 using namespace Ubpa::Utopia;
 
 struct ImGUIMngr::Impl {
-	Ubpa::UDX12::DescriptorHeapAllocation fontDH;
-	std::map<std::string, ImGuiContext*, std::less<>> contexts;
-	ImFontAtlas sharedFontAtlas;
+	void* hwnd;
+	ID3D12Device* device;
+	size_t numFrames;
+	struct ImGuiContextData {
+		Ubpa::UDX12::DescriptorHeapAllocation fontDH;
+		ImGuiContext* ctx;
+	};
+	std::map<std::string, ImGuiContextData, std::less<>> contextDatas;
 };
 
 ImGUIMngr::ImGUIMngr()
@@ -22,27 +27,32 @@ ImGUIMngr::~ImGUIMngr() {
 
 void ImGUIMngr::Init(void* hwnd, ID3D12Device* device, size_t numFrames) {
 	IMGUI_CHECKVERSION();
+	assert(hwnd && device && numFrames > 0);
 
-	// Setup Platform/Renderer bindings
-	ImGui_ImplWin32_Init_Shared(hwnd);
-
-	pImpl->fontDH = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(1);
-	ImGui_ImplDX12_Init_Shared(
-		device,
-		static_cast<int>(numFrames),
-		DXGI_FORMAT_R8G8B8A8_UNORM,
-		Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap(),
-		pImpl->fontDH.GetCpuHandle(),
-		pImpl->fontDH.GetGpuHandle()
-	);
-
-	ImGui_ImplDX12_SetSharedFontAtlas(&pImpl->sharedFontAtlas);
+	pImpl->hwnd = hwnd;
+	pImpl->device = device;
+	pImpl->numFrames = numFrames;
 }
 
 ImGuiContext* ImGUIMngr::CreateContext(std::string name, StyleColors style) {
-	auto ctx = ImGui::CreateContext(&pImpl->sharedFontAtlas);
-	ImGui_ImplWin32_Init_Context(ctx);
-	ImGui_ImplDX12_Init_Context(ctx);
+	ImGui::WrapContextGuard ImGuiContextGuard(nullptr);
+
+	auto ctx = ImGui::CreateContext();
+	assert(ctx == ImGui::GetCurrentContext());
+
+	Impl::ImGuiContextData contextData;
+	contextData.ctx = ctx;
+	contextData.fontDH = Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(1);
+
+	ImGui_ImplWin32_Init(pImpl->hwnd);
+	ImGui_ImplDX12_Init(
+		pImpl->device,
+		(int)pImpl->numFrames,
+		DXGI_FORMAT_R8G8B8A8_UNORM,
+		Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap(),
+		contextData.fontDH.GetCpuHandle(),
+		contextData.fontDH.GetGpuHandle());
+
 	switch (style)
 	{
 	case StyleColors::Classic:
@@ -57,47 +67,46 @@ ImGuiContext* ImGUIMngr::CreateContext(std::string name, StyleColors style) {
 	default:
 		break;
 	}
-	pImpl->contexts.emplace(std::move(name), ctx);
+	pImpl->contextDatas.emplace(std::move(name), std::move(contextData));
 
 	return ctx;
 }
 
 ImGuiContext* ImGUIMngr::GetContext(std::string_view name) const {
-	auto target = pImpl->contexts.find(name);
-	if (target == pImpl->contexts.end())
+	auto target = pImpl->contextDatas.find(name);
+	if (target == pImpl->contextDatas.end())
 		return nullptr;
 
-	return target->second;
+	return target->second.ctx;
 }
 
 void ImGUIMngr::DestroyContext(std::string_view name) {
-	auto target = pImpl->contexts.find(name);
-	if (target == pImpl->contexts.end())
+	auto target = pImpl->contextDatas.find(name);
+	if (target == pImpl->contextDatas.end())
 		return;
 
-	auto ctx = target->second;
+	auto ctx = target->second.ctx;
+	ImGui::WrapContextGuard ImGuiContextGuard(ctx);
 
-	ImGui_ImplDX12_Shutdown_Context(ctx);
-	ImGui_ImplWin32_Shutdown_Context(ctx);
+	ImGui_ImplDX12_Shutdown();
+	ImGui_ImplWin32_Shutdown();
 	ImGui::DestroyContext(ctx);
 
-	pImpl->contexts.erase(target);
+	pImpl->contextDatas.erase(target);
 }
 
 void ImGUIMngr::Clear() {
-	for(const auto& [name, ctx] : pImpl->contexts)
-		ImGui_ImplDX12_Shutdown_Context(ctx);
-	ImGui_ImplDX12_Shutdown_Shared();
+	for (auto& [name, contextData] : pImpl->contextDatas)
+	{
+		ImGui::WrapContextGuard ImGuiContextGuard(contextData.ctx);
+		ImGui_ImplDX12_Shutdown();
+		ImGui_ImplWin32_Shutdown();
+		ImGui::DestroyContext(contextData.ctx);
+		contextData.ctx = nullptr;
 
-	for (const auto& [name, ctx] : pImpl->contexts)
-		ImGui_ImplWin32_Shutdown_Context(ctx);
-	ImGui_ImplWin32_Shutdown_Shared();
+		if (!contextData.fontDH.IsNull())
+			Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(contextData.fontDH));
+	}
 
-	for (const auto& [name, ctx] : pImpl->contexts)
-		ImGui::DestroyContext(ctx);
-
-	pImpl->contexts.clear();
-	
-	if (!pImpl->fontDH.IsNull())
-		Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(pImpl->fontDH));
+	pImpl->contextDatas.clear();
 }

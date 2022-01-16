@@ -26,9 +26,9 @@ Ubpa_DownloadZip(
 )
 
 Ubpa_DownloadZip(
-  https://udata-1308066321.cos.ap-guangzhou.myqcloud.com/imgui_dock_1_80.zip
-  imgui_dock_1_80.zip
-  SHA256 3E7FF74FAD60E03EF1834ADA1BEB903338C4BB4448034D6350332CD16C34447B
+  https://udata-1308066321.cos.ap-guangzhou.myqcloud.com/imgui_dock_1_86.zip
+  imgui_dock_1_86.zip
+  SHA256 8F799F75BB00ACC6D0E357AA340F4FF76A0EC3C32065B18E256990A0A895E0C8
 )
 
 Ubpa_DownloadZip(
