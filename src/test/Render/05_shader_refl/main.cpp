@@ -1,4 +1,4 @@
-#include <Utopia/App/DX12App/DX12App.h>
+#include <Utopia/Editor/DX12App/DX12App.h>
 
 #include <Utopia/Core/GameTimer.h>
 #include <Utopia/Core/AssetMngr.h>

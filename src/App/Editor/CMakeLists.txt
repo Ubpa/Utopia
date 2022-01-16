@@ -1,9 +1,9 @@
 Ubpa_AddTarget(
-  MODE STATIC
-  SOURCE
-    "${PROJECT_SOURCE_DIR}/include/Utopia/App/Editor"
+  TEST
+  RET_TARGET_NAME app_editor
+  MODE EXE
   LIB
-    Ubpa::Utopia_App_DX12App
-  C_OPTION
-    /bigobj
+    Ubpa::Utopia_Editor_Core
 )
+
+set_target_properties ( ${app_editor} PROPERTIES OUTPUT_NAME "UtopiaEngineEditor" CLEAN_DIRECT_OUTPUT 0 )
