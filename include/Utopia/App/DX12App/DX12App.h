@@ -9,6 +9,8 @@
 namespace Ubpa::Utopia {
 	class DX12App {
 	public:
+		DX12App(HINSTANCE hInstance);
+		virtual ~DX12App();
 		DX12App(const DX12App& rhs) = delete;
 		DX12App& operator=(const DX12App& rhs) = delete;
 
@@ -17,7 +19,7 @@ namespace Ubpa::Utopia {
 		HINSTANCE AppInst() const { return mhAppInst; }
 		HWND MainWnd() const { return mhMainWnd; }
 
-		virtual bool Init() = 0;
+		virtual bool Init();
 
 		// 1. process message
 		// 2. game loop
@@ -68,9 +70,6 @@ namespace Ubpa::Utopia {
 		ID3D12CommandAllocator* GetCurFrameCommandAllocator() noexcept;
 
 	protected:
-		DX12App(HINSTANCE hInstance);
-		virtual ~DX12App();
-
 		Microsoft::WRL::ComPtr<IDXGIFactory4> mdxgiFactory;
 		Microsoft::WRL::ComPtr<IDXGISwapChain3> mSwapChain;
 

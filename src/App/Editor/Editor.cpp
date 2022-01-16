@@ -306,13 +306,6 @@ void Editor::Impl::OnSceneResize() {
 }
 
 void Editor::Impl::Update() {
-	// Start the Dear ImGui frame
-	/*
-	ImGui_ImplDX12_NewFrame_Shared();
-	ImGui_ImplWin32_NewFrame(gameImGuiCtx, gamePos, (float)gameWidth, (float)gameHeight);
-	ImGui_ImplWin32_NewFrame(sceneImGuiCtx, scenePos, (float)sceneWidth, (float)sceneHeight);
-	*/
-
 	bool isGameOpen = false;
 	bool isSceneOpen = false;
 	{ // editor

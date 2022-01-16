@@ -162,6 +162,22 @@ LRESULT DX12App::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	return DefWindowProc(hwnd, msg, wParam, lParam);
 }
 
+bool DX12App::Init() {
+	if (!InitMainWindow())
+		return false;
+
+	if (!InitDirect3D())
+		return false;
+
+	OnResize();
+
+	// self init
+
+	FlushCommandQueue();
+
+	return true;
+}
+
 int DX12App::Run() {
 	MSG msg = { 0 };
 
