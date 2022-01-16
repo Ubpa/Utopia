@@ -32,6 +32,12 @@ Ubpa_DownloadZip(
 )
 
 Ubpa_DownloadZip(
+  https://udata-1308066321.cos.ap-guangzhou.myqcloud.com/imgui_node_editor_20220116_d79ebde.zip
+  imgui_node_editor_20220116_d79ebde.zip
+  SHA256 764E0DBB311B6D137CE47408670C10100062A1534EE1804E0C0CF5B9488AC825
+)
+
+Ubpa_DownloadZip(
   https://udata-1308066321.cos.ap-guangzhou.myqcloud.com/Utopia_spdlog_1_9_2_20211227.zip
   Utopia_spdlog_1_9_2_20211227.zip
   SHA256 3EA64433EE71EEE0F4EC02D877E137DC7C0CD2DDEECE3610E6B06C961895BA84

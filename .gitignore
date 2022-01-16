@@ -4,6 +4,7 @@ lib/
 .vs/
 _deps/
 bin/logs/
+bin/*.json
 
 *Config.h
 
