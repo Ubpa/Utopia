@@ -226,17 +226,23 @@ bool Editor::Impl::Init() {
 	gameImGuiCtx = ImGUIMngr::Instance().CreateContext("game");
 	sceneImGuiCtx = ImGUIMngr::Instance().CreateContext("scene");
 
-	ImGui::WrapContextCall(editorImGuiCtx, []() {
+	ImFontConfig fontConfig;
+	fontConfig.SizePixels = 16.f;
+
+	ImGui::WrapContextCall(editorImGuiCtx, [fontConfig]() {
 		ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 		ImGui::GetIO().IniFilename = "imgui_App_Editor_editor.ini";
+		ImGui::GetIO().Fonts->AddFontDefault(&fontConfig);
 	});
 
-	ImGui::WrapContextCall(gameImGuiCtx, []() {
+	ImGui::WrapContextCall(gameImGuiCtx, [fontConfig]() {
 		ImGui::GetIO().IniFilename = "imgui_App_Editor_game.ini";
+		ImGui::GetIO().Fonts->AddFontDefault(&fontConfig);
 	});
 
-	ImGui::WrapContextCall(sceneImGuiCtx, []() {
+	ImGui::WrapContextCall(sceneImGuiCtx, [fontConfig]() {
 		ImGui::GetIO().IniFilename = "imgui_App_Editor_scene.ini";
+		ImGui::GetIO().Fonts->AddFontDefault(&fontConfig);
 	});
 	
 	AssetMngr::Instance().SetRootPath(LR"(..\assets)");
