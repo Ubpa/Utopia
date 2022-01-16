@@ -448,10 +448,6 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler_Shared(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler_Context(ImGuiContext* ctx, bool ignore_mouse, bool ignore_keyboard, HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 #endif
-IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
-{
-    return ImGui_ImplWin32_WndProcHandler_Context(ImGui::GetCurrentContext(), false, false, hWnd, msg, wParam, lParam);
-}
 
 IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler_Shared(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
@@ -589,6 +585,10 @@ IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler_Context(ImGuiContext* ctx,
     return 0;
 }
 
+IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    return ImGui_ImplWin32_WndProcHandler_Context(ImGui::GetCurrentContext(), false, false, hWnd, msg, wParam, lParam);
+}
 
 //--------------------------------------------------------------------------------------------------------
 // DPI-related helpers (optional)
