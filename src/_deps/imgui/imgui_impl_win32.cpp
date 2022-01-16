@@ -380,6 +380,20 @@ static void ImGui_ImplWin32_UpdateMonitors()
     bd->WantUpdateMonitors = false;
 }
 
+void    ImGui_ImplWin32_NewFrame()
+{
+    ImGuiIO& io = ImGui::GetIO();
+    ImGui_ImplWin32_Data* bd = ImGui_ImplWin32_GetBackendData();
+    IM_ASSERT(bd != NULL && "Did you call ImGui_ImplWin32_Init()?");
+
+    // Setup display size (every frame to accommodate for window resizing)
+    RECT rect = { 0, 0, 0, 0 };
+    ::GetClientRect(bd->hWnd, &rect);
+    ImVec2 DisplaySize((float)(rect.right - rect.left), (float)(rect.bottom - rect.top));
+
+    ImGui_ImplWin32_NewFrame(ImVec2(0.f, 0.f), DisplaySize);
+}
+
 void    ImGui_ImplWin32_NewFrame(ImVec2 offset, ImVec2 size)
 {
     ImGuiIO& io = ImGui::GetIO();
@@ -430,13 +444,20 @@ void    ImGui_ImplWin32_NewFrame(ImVec2 offset, ImVec2 size)
 // PS: We treat DBLCLK messages as regular mouse down messages, so this code will work on windows classes that have the CS_DBLCLKS flag set. Our own example app code doesn't set this flag.
 #if 0
 // Copy this line into your .cpp file to forward declare the function.
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler_Shared(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler_Context(ImGuiContext* ctx, bool ignore_mouse, bool ignore_keyboard, HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 #endif
+IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    return ImGui_ImplWin32_WndProcHandler_Context(ImGui::GetCurrentContext(), false, false, hWnd, msg, wParam, lParam);
+}
+
 IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler_Shared(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     return 0;
 }
+
 IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler_Context(ImGuiContext* ctx, bool ignore_mouse, bool ignore_keyboard, HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     if (ctx == NULL)
