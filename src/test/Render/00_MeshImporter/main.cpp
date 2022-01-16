@@ -19,9 +19,9 @@ int main() {
 
 	{
 		AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<MeshImporterCreator>());
-		auto guid = AssetMngr::Instance().ImportAsset(LR"(cube.obj)");
+		auto guid = AssetMngr::Instance().ImportAsset(LR"(cube.obj.mesh)");
 		assert(guid.isValid());
-		auto mesh = AssetMngr::Instance().LoadAsset<Mesh>(LR"(cube.obj)");
+		auto mesh = AssetMngr::Instance().LoadAsset<Mesh>(LR"(cube.obj.mesh)");
 		assert(mesh.get());
 		assert(mesh->GetPositions().size() == 24);
 		assert(mesh->GetNormals().size() == 24);
