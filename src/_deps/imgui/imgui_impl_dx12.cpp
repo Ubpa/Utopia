@@ -495,10 +495,15 @@ static bool ImGui_ImplDX12_CreateFontsTexture_Shared()
 
 static bool ImGui_ImplDX12_CreateFontsTexture_Context(ImGuiContext* ctx)
 {
+    if (!g_sharedFontAtlas)
+        return false;
+
     ImGui::WrapContextGuard ImGuiContextGuard(ctx);
 
     ImGuiIO& io = ImGui::GetIO();
     io.Fonts->TexID = g_sharedFontAtlas->TexID;
+
+    return true;
 }
 
 bool    ImGui_ImplDX12_CreateDeviceObjects_Shared()
