@@ -1,5 +1,5 @@
 Ubpa_DownloadFile(
-  https://cdn.jsdelivr.net/gh/Ubpa/UData@master/Utopia/tiny_obj_loader.h
+  https://udata-1308066321.cos.ap-guangzhou.myqcloud.com/tiny_obj_loader.h
   "${CMAKE_CURRENT_SOURCE_DIR}/tiny_obj_loader.h"
-  SHA256 67A2778F385D4C84F246B9540F8DE1A1DE32877CF5D5913EADFE9CB17985E587
+  SHA256 bce60a23d566142b843fb9c95ab8df2e865ed97009e13a2777247c197a88bfa8
 )

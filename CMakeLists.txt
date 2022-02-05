@@ -13,14 +13,14 @@ set(Ubpa_USRefl_Build_AutoRefl TRUE CACHE BOOL "use auto refl" FORCE)
 Ubpa_AddDep(URapidJSON 0.0.4)
 Ubpa_AddDep(UVisitor   0.1.0)
 Ubpa_AddDep(UGM        0.7.6)
-Ubpa_AddDep(UECS       0.16.2)
+Ubpa_AddDep(UECS       0.17.0)
 Ubpa_AddDep(UDX12      0.1.3)
-Ubpa_AddDep(UDRefl     0.10.5)
+Ubpa_AddDep(UDRefl     0.11.0)
 Ubpa_AddDep(UANTLR     0.3.0)
 Ubpa_AddDep(USignal    0.3.2)
 
 Ubpa_DownloadZip(
-  https://cdn.jsdelivr.net/gh/Ubpa/UData@master/Utopia/crossguid/crossguid_20200919.zip
+  https://udata-1308066321.cos.ap-guangzhou.myqcloud.com/crossguid_20200919.zip
   crossguid_20200919.zip
   SHA256 1BEE5F2424612E3EF3684D139D6038EF2420EAC7687BF210057E752EFE2A05D5
 )

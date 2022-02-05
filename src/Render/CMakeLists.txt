@@ -1,5 +1,5 @@
 Ubpa_DownloadZip_Pro(
-  https://cdn.jsdelivr.net/gh/Ubpa/UData@master/Utopia/LTCTex.zip
+  https://udata-1308066321.cos.ap-guangzhou.myqcloud.com/LTCTex.zip
   LTCTex.zip
   "${CMAKE_CURRENT_SOURCE_DIR}/_deps"
   SHA256 A389CBC501DA7FB24113EA4D2812C6B5D244EF6BBFC241DFFBB9527BAA76DC3C

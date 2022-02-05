@@ -1,13 +1,13 @@
 Ubpa_DownloadFile(
-	https://cdn.jsdelivr.net/gh/Ubpa/UData@master/common/include/stb_image.h
+	https://udata-1308066321.cos.ap-guangzhou.myqcloud.com/stb_image.h
 	${CMAKE_CURRENT_SOURCE_DIR}/_deps/stb_image.h
-	SHA256 281C4F378083E1F195CD06FB98F1EC7EB9749353EB19C915F17C2AF46ABBAFEE
+	SHA256 866095d4107665b4f2ac84e5aa25c7b4bd2f89c5408348c87fdec8891661cace
 )
 
 Ubpa_DownloadFile(
-	https://cdn.jsdelivr.net/gh/Ubpa/UData@master/common/include/stb_image_write.h
+	https://udata-1308066321.cos.ap-guangzhou.myqcloud.com/stb_image_write.h
 	${CMAKE_CURRENT_SOURCE_DIR}/_deps/stb_image_write.h
-	SHA256 F34D6E55C7BB69C98BF66F191A7636A0B022047BCE7C7B16A9A9F356046FDC8A
+	SHA256 cbd5f0ad7a9cf4468affb36354a1d2338034f2c12473cf1a8e32053cb6914a05
 )
 
 set(c_options_private "")
