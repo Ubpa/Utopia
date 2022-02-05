@@ -773,7 +773,7 @@ void Editor::Impl::Update() {
 		pEditor->uGCmdList.ResourceBarrierTransition(pEditor->CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 	}
 
-	ImGui::SetCurrentContext(nullptr);
+	ImGui::SetCurrentContext(editorImGuiCtx);
 
 	pEditor->uGCmdList->Close();
 	pEditor->uCmdQueue.Execute(pEditor->uGCmdList.Get());
