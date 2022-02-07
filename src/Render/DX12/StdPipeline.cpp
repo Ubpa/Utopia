@@ -39,6 +39,8 @@
 
 #include <UDX12/FrameResourceMngr.h>
 
+#include "PostProcessing.h"
+
 using namespace Ubpa::Utopia;
 using namespace Ubpa::UECS;
 using namespace Ubpa;
@@ -198,6 +200,10 @@ struct StdPipeline::Impl {
 		std::unordered_map<size_t, size_t> entity2offset;
 	};
 
+	struct Stages {
+		PostProcessing postProcessing;
+	};
+
 	const InitDesc initDesc;
 
 	static constexpr char StdPipeline_cbPerObject[] = "StdPipeline_cbPerObject";
@@ -224,7 +230,6 @@ struct StdPipeline::Impl {
 
 	std::shared_ptr<Shader> deferLightingShader;
 	std::shared_ptr<Shader> skyboxShader;
-	std::shared_ptr<Shader> postprocessShader;
 	std::shared_ptr<Shader> irradianceShader;
 	std::shared_ptr<Shader> prefilterShader;
 
@@ -378,13 +383,14 @@ void StdPipeline::Impl::BuildFrameResources() {
 
 		fr->RegisterResource("CameraRsrcMngr", std::make_shared<CameraRsrcMngr>());
 		fr->RegisterResource("WorldRsrcMngr", std::make_shared<WorldRsrcMngr>());
+
+		fr->RegisterResource("Stages", std::make_shared<Stages>());
 	}
 }
 
 void StdPipeline::Impl::BuildShaders() {
 	deferLightingShader = ShaderMngr::Instance().Get("StdPipeline/Defer Lighting");
 	skyboxShader = ShaderMngr::Instance().Get("StdPipeline/Skybox");
-	postprocessShader = ShaderMngr::Instance().Get("StdPipeline/Post Process");
 	irradianceShader = ShaderMngr::Instance().Get("StdPipeline/Irradiance");
 	prefilterShader = ShaderMngr::Instance().Get("StdPipeline/PreFilter");
 
@@ -795,15 +801,19 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 	auto cameraRsrcMapMngr = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<CameraRsrcMngr>>("CameraRsrcMngr");
 
+	auto stages = frameRsrcMngr.GetCurrentFrameResource()->GetResource<std::shared_ptr<Stages>>("Stages");
+
 	if (!cameraRsrcMapMngr->Get(cameraData).Contains("FrameGraphRsrcMngr"))
 		cameraRsrcMapMngr->Get(cameraData).Register("FrameGraphRsrcMngr", std::make_shared<UDX12::FG::RsrcMngr>(initDesc.device));
 	auto fgRsrcMngr = cameraRsrcMapMngr->Get(cameraData).Get<std::shared_ptr<UDX12::FG::RsrcMngr>>("FrameGraphRsrcMngr");
-	fgRsrcMngr->NewFrame();
 
 	if (!cameraRsrcMapMngr->Get(cameraData).Contains("FrameGraphExecutor"))
 		cameraRsrcMapMngr->Get(cameraData).Register("FrameGraphExecutor", std::make_shared<UDX12::FG::Executor>(initDesc.device));
 	auto fgExecutor = cameraRsrcMapMngr->Get(cameraData).Get<std::shared_ptr<UDX12::FG::Executor>>("FrameGraphExecutor");
+
+	fgRsrcMngr->NewFrame();
 	fgExecutor->NewFrame();
+	stages->postProcessing.NewFrame();
 
 	auto gbuffer0 = fg.RegisterResourceNode("GBuffer0");
 	auto gbuffer1 = fg.RegisterResourceNode("GBuffer1");
@@ -811,9 +821,12 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 	auto deferLightedRT = fg.RegisterResourceNode("Defer Lighted");
 	auto deferLightedSkyRT = fg.RegisterResourceNode("Defer Lighted with Sky");
 	auto sceneRT = fg.RegisterResourceNode("Scene");
+	stages->postProcessing.RegisterInputNode({ &sceneRT, 1 });
+	stages->postProcessing.RegisterOutputNode(fg);
 	auto presentedRT = fg.RegisterResourceNode("Present");
 	fg.RegisterMoveNode(deferLightedSkyRT, deferLightedRT);
 	fg.RegisterMoveNode(sceneRT, deferLightedSkyRT);
+	fg.RegisterMoveNode(presentedRT, stages->postProcessing.GetOutputNodeIDs().front());
 	auto deferDS = fg.RegisterResourceNode("Defer Depth Stencil");
 	auto forwardDS = fg.RegisterResourceNode("Forward Depth Stencil");
 	fg.RegisterMoveNode(forwardDS, deferDS);
@@ -839,11 +852,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 		{ irradianceMap,prefilterMap },
 		{ forwardDS, sceneRT }
 	);
-	auto postprocessPass = fg.RegisterGeneralPassNode(
-		"Post Process",
-		{ sceneRT },
-		{ presentedRT }
-	);
+	stages->postProcessing.RegisterPass(fg);
 
 	D3D12_RESOURCE_DESC dsDesc = UDX12::Desc::RSRC::Basic(
 		D3D12_RESOURCE_DIMENSION_TEXTURE2D,
@@ -885,7 +894,8 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 			{gbuffer2,srvDesc}
 		})
 
-		.RegisterImportedRsrc(presentedRT, { rtb, D3D12_RESOURCE_STATE_PRESENT })
+		//.RegisterImportedRsrc(presentedRT, { rtb, D3D12_RESOURCE_STATE_PRESENT })
+		.RegisterImportedRsrc(stages->postProcessing.GetOutputNodeIDs().front(), {rtb, D3D12_RESOURCE_STATE_PRESENT})
 		.RegisterImportedRsrc(irradianceMap, { iblData->irradianceMapResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
 		.RegisterImportedRsrc(prefilterMap, { iblData->prefilterMapResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
 
@@ -911,10 +921,9 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 		.RegisterPassRsrcState(forwardPass, prefilterMap, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
 		.RegisterPassRsrc(forwardPass, forwardDS, D3D12_RESOURCE_STATE_DEPTH_WRITE, dsvDesc)
 		.RegisterPassRsrc(forwardPass, sceneRT, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
-
-		.RegisterPassRsrc(postprocessPass, sceneRT, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
-		.RegisterPassRsrc(postprocessPass, presentedRT, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
 		;
+
+	stages->postProcessing.RegisterPassResources(*fgRsrcMngr);
 
 	fgExecutor->RegisterPassFunc(
 		gbPass,
@@ -1078,41 +1087,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 		}
 	);
 
-	fgExecutor->RegisterPassFunc(
-		postprocessPass,
-		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
-			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*postprocessShader));
-			cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetOrCreateShaderPSO(
-				*postprocessShader,
-				0,
-				static_cast<size_t>(-1),
-				1,
-				rtb->GetDesc().Format,
-				DXGI_FORMAT_UNKNOWN)
-			);
-
-			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
-			cmdList->SetDescriptorHeaps(1, &heap);
-			cmdList->RSSetViewports(1, &viewport);
-			cmdList->RSSetScissorRects(1, &scissorRect);
-
-			auto rt = rsrcs.at(presentedRT);
-			auto img = rsrcs.at(sceneRT);
-
-			// Clear the render texture and depth buffer.
-			cmdList->ClearRenderTargetView(rt.info->null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
-
-			// Specify the buffers we are going to render to.
-			cmdList->OMSetRenderTargets(1, &rt.info->null_info_rtv.cpuHandle, false, nullptr);
-
-			cmdList->SetGraphicsRootDescriptorTable(0, img.info->desc2info_srv.at(srvDesc).gpuHandle);
-
-			cmdList->IASetVertexBuffers(0, 0, nullptr);
-			cmdList->IASetIndexBuffer(nullptr);
-			cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-			cmdList->DrawInstanced(6, 1, 0, 0);
-		}
-	);
+	stages->postProcessing.RegisterPassFunc(*fgExecutor);
 
 	static bool flag{ false };
 	if (!flag) {

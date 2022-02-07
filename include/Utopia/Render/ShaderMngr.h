@@ -1,6 +1,6 @@
 #pragma once
 
-#include <USignal/Connection.hpp>
+#include <USignal/USignal.hpp>
 
 #include <map>
 #include <string>
