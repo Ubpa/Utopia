@@ -894,7 +894,6 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 			{gbuffer2,srvDesc}
 		})
 
-		//.RegisterImportedRsrc(presentedRT, { rtb, D3D12_RESOURCE_STATE_PRESENT })
 		.RegisterImportedRsrc(stages->postProcessing.GetOutputNodeIDs().front(), {rtb, D3D12_RESOURCE_STATE_PRESENT})
 		.RegisterImportedRsrc(irradianceMap, { iblData->irradianceMapResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
 		.RegisterImportedRsrc(prefilterMap, { iblData->prefilterMapResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })

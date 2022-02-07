@@ -39,6 +39,8 @@
 
 #include <UDX12/FrameResourceMngr.h>
 
+#include "PostProcessing.h"
+
 using namespace Ubpa::Utopia;
 using namespace Ubpa::UECS;
 using namespace Ubpa;
@@ -800,6 +802,10 @@ struct StdDXRPipeline::Impl {
 		size_t hitgroupsize;
 	};
 
+	struct Stages {
+		PostProcessing postProcessing;
+	};
+
 	const InitDesc initDesc;
 
 	static constexpr char StdDXRPipeline_cbPerObject[] = "StdPipeline_cbPerObject";
@@ -831,7 +837,6 @@ struct StdDXRPipeline::Impl {
 
 	std::shared_ptr<Shader> deferLightingShader;
 	std::shared_ptr<Shader> skyboxShader;
-	std::shared_ptr<Shader> postprocessShader;
 	std::shared_ptr<Shader> irradianceShader;
 	std::shared_ptr<Shader> prefilterShader;
 	std::shared_ptr<Shader> gaussBlurXShader;
@@ -1077,13 +1082,14 @@ void StdDXRPipeline::Impl::BuildFrameResources() {
 
 		fr->RegisterResource("CameraRsrcMngr", std::make_shared<CameraRsrcMngr>());
 		fr->RegisterResource("WorldRsrcMngr", std::make_shared<WorldRsrcMngr>());
+
+		fr->RegisterResource("Stages", std::make_shared<Stages>());
 	}
 }
 
 void StdDXRPipeline::Impl::BuildShaders() {
 	deferLightingShader = ShaderMngr::Instance().Get("StdPipeline/Defer Lighting");
 	skyboxShader = ShaderMngr::Instance().Get("StdPipeline/Skybox");
-	postprocessShader = ShaderMngr::Instance().Get("StdPipeline/Post Process");
 	irradianceShader = ShaderMngr::Instance().Get("StdPipeline/Irradiance");
 	prefilterShader = ShaderMngr::Instance().Get("StdPipeline/PreFilter");
 	gaussBlurXShader = ShaderMngr::Instance().Get("StdPipeline/GaussBlur_x");
@@ -1511,15 +1517,20 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 
 	auto cameraRsrcMngr = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<CameraRsrcMngr>>("CameraRsrcMngr");
+
+	auto stages = frameRsrcMngr.GetCurrentFrameResource()->GetResource<std::shared_ptr<Stages>>("Stages");
+
 	if (!cameraRsrcMngr->Get(cameraData).Contains("FrameGraphRsrcMngr"))
 		cameraRsrcMngr->Get(cameraData).Register("FrameGraphRsrcMngr", std::make_shared<UDX12::FG::RsrcMngr>(initDesc.device));
 	auto fgRsrcMngr = cameraRsrcMngr->Get(cameraData).Get<std::shared_ptr<UDX12::FG::RsrcMngr>>("FrameGraphRsrcMngr");
-	fgRsrcMngr->NewFrame();
 
 	if (!cameraRsrcMngr->Get(cameraData).Contains("FrameGraphExecutor"))
 		cameraRsrcMngr->Get(cameraData).Register("FrameGraphExecutor", std::make_shared<UDX12::FG::Executor>(initDesc.device));
 	auto fgExecutor = cameraRsrcMngr->Get(cameraData).Get<std::shared_ptr<UDX12::FG::Executor>>("FrameGraphExecutor");
+
 	fgExecutor->NewFrame();
+	fgRsrcMngr->NewFrame();
+	stages->postProcessing.NewFrame();
 
 	const auto& cameraResizeData = cameraRsrcMngr->Get(cameraData).Get<CameraResizeData>(key_CameraResizeData);
 	auto rtSRsrc = cameraResizeData.rtSRsrc;
@@ -1561,6 +1572,8 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 	auto colorMoment = fg.RegisterResourceNode("Color Moment");
 	auto taaPrevResult = fg.RegisterResourceNode("TAA Prev Result");
 	auto taaResult = fg.RegisterResourceNode("TAA Result");
+	stages->postProcessing.RegisterInputNode({ &taaResult, 1 });
+	stages->postProcessing.RegisterOutputNode(fg);
 	std::array<std::size_t, ATrousN> rtATrousDenoiseResults;
 	for (std::size_t i = 0; i < ATrousN; i++)
 		rtATrousDenoiseResults[i] = fg.RegisterResourceNode("RT ATrous denoised result " + std::to_string(i));
@@ -1628,6 +1641,7 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 	);
 	fg.RegisterMoveNode(forwardDS, deferDS);
 	fg.RegisterMoveNode(sceneRT, deferLightedSkyRT);
+	fg.RegisterMoveNode(presentedRT, stages->postProcessing.GetOutputNodeIDs().front());
 	auto forwardPass = fg.RegisterGeneralPassNode(
 		"Forward",
 		{ irradianceMap, prefilterMap },
@@ -1643,11 +1657,7 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 		{ taaResult },
 		{ taaPrevResult }
 	);
-	auto postprocessPass = fg.RegisterGeneralPassNode(
-		"Post Process",
-		{ taaResult },
-		{ presentedRT }
-	);
+	stages->postProcessing.RegisterPass(fg);
 
 	D3D12_RESOURCE_DESC dsDesc = UDX12::Desc::RSRC::Basic(
 		D3D12_RESOURCE_DIMENSION_TEXTURE2D,
@@ -1752,7 +1762,7 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 		.RegisterImportedRsrc(prevColorMoment, { rtColorMoment.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
 		.RegisterImportedRsrc(historyLength, { rtHistoryLength.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS })
 
-		.RegisterImportedRsrc(presentedRT, { rtb, D3D12_RESOURCE_STATE_PRESENT })
+		.RegisterImportedRsrc(stages->postProcessing.GetOutputNodeIDs().front(), { rtb, D3D12_RESOURCE_STATE_PRESENT })
 		.RegisterImportedRsrc(irradianceMap, { iblData->irradianceMapResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
 		.RegisterImportedRsrc(prefilterMap, { iblData->prefilterMapResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
 		.RegisterImportedRsrc(TLAS, { nullptr /*special for TLAS*/, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE })
@@ -1864,10 +1874,9 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 		.RegisterPassRsrc(taaPass, taaResult, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
 
 		.RegisterCopyPassRsrcState(fg, taaCopyPass)
-
-		.RegisterPassRsrc(postprocessPass, taaResult, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
-		.RegisterPassRsrc(postprocessPass, presentedRT, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
 		;
+
+	stages->postProcessing.RegisterPassResources(*fgRsrcMngr);
 
 	fgExecutor->RegisterPassFunc(
 		gbPass,
@@ -2383,41 +2392,7 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 
 	fgExecutor->RegisterCopyPassFunc(fg, taaCopyPass);
 
-	fgExecutor->RegisterPassFunc(
-		postprocessPass,
-		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
-			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*postprocessShader));
-			cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetOrCreateShaderPSO(
-				*postprocessShader,
-				0,
-				static_cast<size_t>(-1),
-				1,
-				rtb->GetDesc().Format,
-				DXGI_FORMAT_UNKNOWN)
-			);
-
-			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
-			cmdList->SetDescriptorHeaps(1, &heap);
-			cmdList->RSSetViewports(1, &viewport);
-			cmdList->RSSetScissorRects(1, &scissorRect);
-
-			auto rt = rsrcs.at(presentedRT);
-			auto img = rsrcs.at(taaResult);
-
-			// Clear the render texture and depth buffer.
-			cmdList->ClearRenderTargetView(rt.info->null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
-
-			// Specify the buffers we are going to render to.
-			cmdList->OMSetRenderTargets(1, &rt.info->null_info_rtv.cpuHandle, false, nullptr);
-
-			cmdList->SetGraphicsRootDescriptorTable(0, img.info->desc2info_srv.at(srvDesc).gpuHandle);
-
-			cmdList->IASetVertexBuffers(0, 0, nullptr);
-			cmdList->IASetIndexBuffer(nullptr);
-			cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-			cmdList->DrawInstanced(6, 1, 0, 0);
-		}
-	);
+	stages->postProcessing.RegisterPassFunc(*fgExecutor);
 
 	static bool flag{ false };
 	if (!flag) {
