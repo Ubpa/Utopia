@@ -26,7 +26,7 @@ void Ubpa::Utopia::PostProcessing::NewFrame() {
 	passID = static_cast<size_t>(-1);
 }
 
-bool Ubpa::Utopia::PostProcessing::RegisterInputNode(std::span<const size_t> inputNodeIDs) {
+bool Ubpa::Utopia::PostProcessing::RegisterInputNodes(std::span<const size_t> inputNodeIDs) {
 	if (inputNodeIDs.size() != 1)
 	{
 		return false;
@@ -37,7 +37,7 @@ bool Ubpa::Utopia::PostProcessing::RegisterInputNode(std::span<const size_t> inp
 	return true;
 }
 
-void Ubpa::Utopia::PostProcessing::RegisterOutputNode(UFG::FrameGraph& framegraph) {
+void Ubpa::Utopia::PostProcessing::RegisterOutputNodes(UFG::FrameGraph& framegraph) {
 	outputID = framegraph.RegisterResourceNode("PostProcessing::output");
 }
 

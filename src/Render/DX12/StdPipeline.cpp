@@ -259,7 +259,7 @@ struct StdPipeline::Impl {
 		std::string_view lightMode,
 		size_t rtNum,
 		DXGI_FORMAT rtFormat,
-		D3D12_GPU_VIRTUAL_ADDRESS cameraCBAdress,
+		D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress,
 		const ResourceMap& worldRsrc);
 };
 
@@ -821,8 +821,8 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 	auto deferLightedRT = fg.RegisterResourceNode("Defer Lighted");
 	auto deferLightedSkyRT = fg.RegisterResourceNode("Defer Lighted with Sky");
 	auto sceneRT = fg.RegisterResourceNode("Scene");
-	stages->postProcessing.RegisterInputNode({ &sceneRT, 1 });
-	stages->postProcessing.RegisterOutputNode(fg);
+	stages->postProcessing.RegisterInputNodes({ &sceneRT, 1 });
+	stages->postProcessing.RegisterOutputNodes(fg);
 	auto presentedRT = fg.RegisterResourceNode("Present");
 	fg.RegisterMoveNode(deferLightedSkyRT, deferLightedRT);
 	fg.RegisterMoveNode(sceneRT, deferLightedSkyRT);
@@ -924,6 +924,11 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 
 	stages->postProcessing.RegisterPassResources(*fgRsrcMngr);
 
+	const D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress = frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
+		->GetResource()->GetGPUVirtualAddress()
+		+ ctx.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
+
 	fgExecutor->RegisterPassFunc(
 		gbPass,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
@@ -952,11 +957,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 			// Specify the buffers we are going to render to.
 			cmdList->OMSetRenderTargets((UINT)rtHandles.size(), rtHandles.data(), false, &dsHandle);
 
-			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
-				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
-				->GetResource()->GetGPUVirtualAddress()
-				+ ctx.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
-			DrawObjects(ctx, cmdList, "Deferred", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, cameraCBAdress, worldRsrc);
+			DrawObjects(ctx, cmdList, "Deferred", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, cameraCBAddress, worldRsrc);
 		}
 	);
 
@@ -1008,11 +1009,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 				->GetResource()->GetGPUVirtualAddress() + ctx.lightOffset;
 			cmdList->SetGraphicsRootConstantBufferView(4, cbLights);
 
-			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
-				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
-				->GetResource()->GetGPUVirtualAddress()
-				+ ctx.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
-			cmdList->SetGraphicsRootConstantBufferView(5, cameraCBAdress);
+			cmdList->SetGraphicsRootConstantBufferView(5, cameraCBAddress);
 
 			cmdList->IASetVertexBuffers(0, 0, nullptr);
 			cmdList->IASetIndexBuffer(nullptr);
@@ -1050,11 +1047,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 
 			cmdList->SetGraphicsRootDescriptorTable(0, ctx.skybox);
 
-			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
-				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
-				->GetResource()->GetGPUVirtualAddress()
-				+ ctx.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
-			cmdList->SetGraphicsRootConstantBufferView(1, cameraCBAdress);
+			cmdList->SetGraphicsRootConstantBufferView(1, cameraCBAddress);
 
 			cmdList->IASetVertexBuffers(0, 0, nullptr);
 			cmdList->IASetIndexBuffer(nullptr);
@@ -1078,11 +1071,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 
 			cmdList->OMSetRenderTargets(1, &rt.info->null_info_rtv.cpuHandle, false, &dsHandle);
 
-			auto cameraCBAdress = frameRsrcMngr.GetCurrentFrameResource()
-				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
-				->GetResource()->GetGPUVirtualAddress()
-				+ ctx.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
-			DrawObjects(ctx, cmdList, "Forward", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, cameraCBAdress, worldRsrc);
+			DrawObjects(ctx, cmdList, "Forward", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, cameraCBAddress, worldRsrc);
 		}
 	);
 
@@ -1325,7 +1314,7 @@ void StdPipeline::Impl::DrawObjects(
 	std::string_view lightMode,
 	size_t rtNum,
 	DXGI_FORMAT rtFormat,
-	D3D12_GPU_VIRTUAL_ADDRESS cameraCBAdress,
+	D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress,
 	const ResourceMap& worldRsrc)
 {
 	auto& shaderCB = frameRsrcMngr.GetCurrentFrameResource()
@@ -1365,7 +1354,7 @@ void StdPipeline::Impl::DrawObjects(
 		PipelineCommonUtils::SetGraphicsRoot_CBV_SRV(cmdList, *shaderCB, shaderCBDesc, *obj.material,
 			{
 				{StdPipeline_cbPerObject, objCBAddress},
-				{StdPipeline_cbPerCamera, cameraCBAdress},
+				{StdPipeline_cbPerCamera, cameraCBAddress},
 				{StdPipeline_cbLightArray, lightCBAdress}
 			},
 			{
