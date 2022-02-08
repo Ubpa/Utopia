@@ -2,6 +2,7 @@
 
 // DXR
 #include <Utopia/Render/DX12/StdDXRPipeline.h>
+#include <Utopia/Render/DX12/PipelineCommonUtils.h>
 
 #include <Utopia/Editor/Core/Components/Hierarchy.h>
 #include <Utopia/Editor/Core/Components/Inspector.h>
@@ -212,6 +213,8 @@ void Editor::Update() {
 }
 
 Editor::Impl::~Impl() {
+	PipelineCommonResourceMngr::GetInstance().Release();
+
 	if (!gameRT_SRV.IsNull())
 		Ubpa::UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(gameRT_SRV));
 	if (!gameRT_RTV.IsNull())
@@ -258,7 +261,7 @@ bool Editor::Impl::Init() {
 	AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<ModelImporterCreator>());
 	AssetMngr::Instance().RegisterAssetImporterCreator(std::make_shared<PipelineImporterCreator>());
 	AssetMngr::Instance().ImportAssetRecursively(LR"(.)");
-	
+
 	//InitInspectorRegistry();
 	InspectorRegistry::Instance().Register(&Editor::Impl::InspectMaterial);
 
@@ -267,6 +270,8 @@ bool Editor::Impl::Init() {
 
 	LoadInternalTextures();
 	LoadShaders();
+
+	PipelineCommonResourceMngr::GetInstance().Init(pEditor->uDevice.Get());
 
 	stdPipeline = AssetMngr::Instance().LoadAsset<StdPipeline>(LR"(_internal\pipelines\StdPipeline.pipeline)");
 	stdDXRPipeline = AssetMngr::Instance().LoadAsset<StdDXRPipeline>(LR"(_internal\pipelines\StdDXRPipeline.pipeline)");

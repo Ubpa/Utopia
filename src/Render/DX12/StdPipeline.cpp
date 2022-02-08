@@ -1,6 +1,6 @@
 #include <Utopia/Render/DX12/StdPipeline.h>
 
-#include "PipelineCommonUtils.h"
+#include <Utopia/Render/DX12/PipelineCommonUtils.h>
 
 #include "../_deps/LTCTex.h"
 #include <Utopia/Render/DX12/CameraRsrcMngr.h>
@@ -60,82 +60,6 @@ struct StdPipeline::Impl {
 
 	~Impl();
 
-	struct ObjectConstants {
-		transformf World;
-		transformf InvWorld;
-		transformf PrevWorld;
-	};
-
-	struct CameraConstants {
-		val<float, 16> View;
-
-		val<float, 16> InvView;
-
-		val<float, 16> Proj;
-
-		val<float, 16> InvProj;
-
-		val<float, 16> ViewProj;
-
-		val<float, 16> UnjitteredViewProj;
-
-		val<float, 16> InvViewProj;
-
-		val<float, 16> PrevViewProj;
-
-		pointf3 EyePosW;
-		unsigned int FrameCount{ 0 };
-
-		valf2 RenderTargetSize;
-		valf2 InvRenderTargetSize;
-
-		float NearZ;
-		float FarZ;
-		float TotalTime;
-		float DeltaTime;
-
-		valf2 Jitter;
-		unsigned int padding0;
-		unsigned int padding1;
-	};
-
-	struct ShaderLight {
-		rgbf color;
-		float range;
-		vecf3 dir;
-		float f0;
-		pointf3 position;
-		float f1;
-		vecf3 horizontal;
-		float f2;
-
-		struct Spot {
-			static constexpr auto pCosHalfInnerSpotAngle = &ShaderLight::f0;
-			static constexpr auto pCosHalfOuterSpotAngle = &ShaderLight::f1;
-		};
-		struct Rect {
-			static constexpr auto pWidth  = &ShaderLight::f0;
-			static constexpr auto pHeight = &ShaderLight::f1;
-		};
-		struct Disk {
-			static constexpr auto pWidth  = &ShaderLight::f0;
-			static constexpr auto pHeight = &ShaderLight::f1;
-		};
-	};
-	struct LightArray {
-		static constexpr size_t size = 16;
-
-		UINT diectionalLightNum{ 0 };
-		UINT pointLightNum{ 0 };
-		UINT spotLightNum{ 0 };
-		UINT rectLightNum{ 0 };
-		UINT diskLightNum{ 0 };
-		const UINT _g_cbLightArray_pad0{ static_cast<UINT>(-1) };
-		const UINT _g_cbLightArray_pad1{ static_cast<UINT>(-1) };
-		const UINT _g_cbLightArray_pad2{ static_cast<UINT>(-1) };
-		ShaderLight lights[size];
-	};
-
 	struct QuadPositionLs {
 		valf4 positionL4x;
 		valf4 positionL4y;
@@ -174,32 +98,9 @@ struct StdPipeline::Impl {
 		// BRDF LUT           : 2
 		UDX12::DescriptorHeapAllocation SRVDH;
 	};
-	UDX12::DescriptorHeapAllocation defaultIBLSRVDH; // 3
 
 	CameraRsrcMngr crossFrameCameraRsrcs;
 	static constexpr const char key_CameraConstants[] = "CameraConstants";
-
-	// current frame data
-	struct RenderContext {
-		RenderQueue renderQueue;
-
-		std::unordered_map<const Shader*, PipelineCommonUtils::ShaderCBDesc> shaderCBDescMap; // shader ID -> desc
-
-		D3D12_GPU_DESCRIPTOR_HANDLE skybox;
-		LightArray lightArray;
-
-		// common
-		size_t cameraOffset;
-		size_t lightOffset;
-		size_t objectOffset;
-		struct EntityData {
-			valf<16> l2w;
-			valf<16> w2l;
-			valf<16> prevl2w;
-		};
-		std::unordered_map<size_t, EntityData> entity2data;
-		std::unordered_map<size_t, size_t> entity2offset;
-	};
 
 	struct Stages {
 		Tonemapping tonemapping;
@@ -214,24 +115,15 @@ struct StdPipeline::Impl {
 	static constexpr char StdPipeline_srvIBL[] = "StdPipeline_IrradianceMap";
 	static constexpr char StdPipeline_srvLTC[] = "StdPipeline_LTC0";
 
-	const std::set<std::string_view> commonCBs{
-		StdPipeline_cbPerObject,
-		StdPipeline_cbPerCamera,
-		StdPipeline_cbLightArray
-	};
-
 	Texture2D ltcTexes[2];
 	UDX12::DescriptorHeapAllocation ltcHandles; // 2
 	
-	D3D12_GPU_DESCRIPTOR_HANDLE defaultSkybox;
-
 	UDX12::FrameResourceMngr frameRsrcMngr;
 
 	UFG::Compiler fgCompiler;
 	UFG::FrameGraph fg;
 
 	std::shared_ptr<Shader> deferLightingShader;
-	std::shared_ptr<Shader> skyboxShader;
 	std::shared_ptr<Shader> irradianceShader;
 	std::shared_ptr<Shader> prefilterShader;
 
@@ -256,7 +148,6 @@ struct StdPipeline::Impl {
 	void BuildShaders();
 
 	void UpdateCrossFrameCameraResources(std::span<const CameraData> cameras, std::span<ID3D12Resource* const> defaultRTs);
-	RenderContext GenerateRenderContext(std::span<const UECS::World* const> worlds, std::span<const CameraData> linkedCameras);
 	void Render(
 		std::span<const UECS::World* const> worlds,
 		std::span<const CameraData> cameras,
@@ -276,7 +167,6 @@ struct StdPipeline::Impl {
 };
 
 StdPipeline::Impl::~Impl() {
-	UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(defaultIBLSRVDH));
 	GPURsrcMngrDX12::Instance().UnregisterTexture2D(ltcTexes[0].GetInstanceID());
 	GPURsrcMngrDX12::Instance().UnregisterTexture2D(ltcTexes[1].GetInstanceID());
 	UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(ltcHandles));
@@ -368,24 +258,6 @@ void StdPipeline::Impl::BuildTextures() {
 		&ltc1SRVDesc,
 		ltcHandles.GetCpuHandle(static_cast<uint32_t>(1))
 	);
-
-	auto blackTex2D = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\textures\black.png)");
-	auto blackRsrc = GPURsrcMngrDX12::Instance().GetTexture2DResource(*blackTex2D);
-	// TODO bugs!
-	//auto skyboxBlack = AssetMngr::Instance().LoadAsset<Material>(LR"(_internal\materials\skyBlack.mat)");
-	//auto blackTexCube = std::get<SharedVar<TextureCube>>(tmp->properties.find("gSkybox")->second.value);
-	//auto tmp = std::make_shared<Material>();
-	//tmp->properties.emplace("gSkybox", blackTexCube);
-	auto blackTexCube = SharedVar<TextureCube>(AssetMngr::Instance().LoadAsset<TextureCube>(LR"(_internal\textures\blackCube.png)"));
-	auto blackTexCubeRsrc = GPURsrcMngrDX12::Instance().GetTextureCubeResource(*blackTexCube);
-	defaultSkybox = GPURsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(*blackTexCube);
-
-	defaultIBLSRVDH = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(3);
-	auto cubeDesc = UDX12::Desc::SRV::TexCube(DXGI_FORMAT_R32G32B32A32_FLOAT);
-	auto lutDesc = UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT);
-	initDesc.device->CreateShaderResourceView(blackTexCubeRsrc, &cubeDesc, defaultIBLSRVDH.GetCpuHandle(0));
-	initDesc.device->CreateShaderResourceView(blackTexCubeRsrc, &cubeDesc, defaultIBLSRVDH.GetCpuHandle(1));
-	initDesc.device->CreateShaderResourceView(blackRsrc, &lutDesc, defaultIBLSRVDH.GetCpuHandle(2));
 }
 
 void StdPipeline::Impl::BuildFrameResources() {
@@ -402,7 +274,6 @@ void StdPipeline::Impl::BuildFrameResources() {
 
 void StdPipeline::Impl::BuildShaders() {
 	deferLightingShader = ShaderMngr::Instance().Get("StdPipeline/Defer Lighting");
-	skyboxShader = ShaderMngr::Instance().Get("StdPipeline/Skybox");
 	irradianceShader = ShaderMngr::Instance().Get("StdPipeline/Irradiance");
 	prefilterShader = ShaderMngr::Instance().Get("StdPipeline/PreFilter");
 
@@ -513,281 +384,6 @@ void StdPipeline::Impl::UpdateCrossFrameCameraResources(std::span<const CameraDa
 		cameraConstants.padding0 = 0;
 		cameraConstants.padding1 = 0;
 	}
-}
- 
-StdPipeline::Impl::RenderContext StdPipeline::Impl::GenerateRenderContext(
-	std::span<const UECS::World* const> worlds,
-	std::span<const CameraData> linkedCameras)
-{
-	RenderContext ctx;
-
-	{ // object
-		ArchetypeFilter filter;
-		filter.all = {
-			AccessTypeID_of<Latest<MeshFilter>>,
-			AccessTypeID_of<Latest<MeshRenderer>>,
-			AccessTypeID_of<Latest<LocalToWorld>>,
-		};
-		for (auto world : worlds) {
-			world->RunChunkJob(
-				[&](ChunkView chunk) {
-					auto meshFilters = chunk->GetCmptArray<MeshFilter>();
-					auto meshRenderers = chunk->GetCmptArray<MeshRenderer>();
-					auto L2Ws = chunk->GetCmptArray<LocalToWorld>();
-					auto W2Ls = chunk->GetCmptArray<WorldToLocal>();
-					auto prevL2Ws = chunk->GetCmptArray<PrevLocalToWorld>();
-					auto entities = chunk->GetEntityArray();
-
-					size_t N = chunk->EntityNum();
-
-					for (size_t i = 0; i < N; i++) {
-						auto meshFilter = meshFilters[i];
-						auto meshRenderer = meshRenderers[i];
-
-						if (!meshFilter.mesh)
-							return;
-
-						RenderObject obj;
-						obj.mesh = meshFilter.mesh;
-						obj.entity = entities[i];
-
-						size_t M = std::min(meshRenderer.materials.size(), obj.mesh->GetSubMeshes().size());
-
-						if(M == 0)
-							continue;
-
-						bool isDraw = false;
-
-						for (size_t j = 0; j < M; j++) {
-							auto material = meshRenderer.materials[j];
-							if (!material || !material->shader)
-								continue;
-							if (material->shader->passes.empty())
-								continue;
-
-							obj.material = material;
-							obj.translation = L2Ws[i].value.decompose_translation();
-							obj.submeshIdx = j;
-
-							for (size_t k = 0; k < obj.material->shader->passes.size(); k++) {
-								obj.passIdx = k;
-								ctx.renderQueue.Add(obj);
-							}
-							isDraw = true;
-						}
-
-						if(!isDraw)
-							continue;
-
-						auto target = ctx.entity2data.find(obj.entity.index);
-						if (target != ctx.entity2data.end())
-							continue;
-						RenderContext::EntityData data;
-						data.l2w = L2Ws[i].value;
-						data.w2l = !W2Ls.empty() ? W2Ls[i].value : L2Ws[i].value.inverse();
-						data.prevl2w = !prevL2Ws.empty() ? prevL2Ws[i].value : L2Ws[i].value;
-						ctx.entity2data.emplace_hint(target, std::pair{ obj.entity.index, data });
-					}
-				},
-				filter,
-				false
-			);
-		}
-	}
-
-	{ // light
-		std::array<ShaderLight, LightArray::size> dirLights;
-		std::array<ShaderLight, LightArray::size> pointLights;
-		std::array<ShaderLight, LightArray::size> spotLights;
-		std::array<ShaderLight, LightArray::size> rectLights;
-		std::array<ShaderLight, LightArray::size> diskLights;
-		ctx.lightArray.diectionalLightNum = 0;
-		ctx.lightArray.pointLightNum = 0;
-		ctx.lightArray.spotLightNum = 0;
-		ctx.lightArray.rectLightNum = 0;
-		ctx.lightArray.diskLightNum = 0;
-
-		UECS::ArchetypeFilter filter;
-		filter.all = { UECS::AccessTypeID_of<UECS::Latest<LocalToWorld>> };
-		for (auto world : worlds) {
-			world->RunEntityJob(
-				[&](const Light* light) {
-					switch (light->mode)
-					{
-					case Light::Mode::Directional:
-						ctx.lightArray.diectionalLightNum++;
-						break;
-					case Light::Mode::Point:
-						ctx.lightArray.pointLightNum++;
-						break;
-					case Light::Mode::Spot:
-						ctx.lightArray.spotLightNum++;
-						break;
-					case Light::Mode::Rect:
-						ctx.lightArray.rectLightNum++;
-						break;
-					case Light::Mode::Disk:
-						ctx.lightArray.diskLightNum++;
-						break;
-					default:
-						assert("not support" && false);
-						break;
-					}
-				},
-				false,
-				filter
-			);
-		}
-		
-		size_t offset_diectionalLight = 0;
-		size_t offset_pointLight = offset_diectionalLight + ctx.lightArray.diectionalLightNum;
-		size_t offset_spotLight = offset_pointLight + ctx.lightArray.pointLightNum;
-		size_t offset_rectLight = offset_spotLight + ctx.lightArray.spotLightNum;
-		size_t offset_diskLight = offset_rectLight + ctx.lightArray.rectLightNum;
-		size_t cur_diectionalLight = 0;
-		size_t cur_pointLight = 0;
-		size_t cur_spotLight = 0;
-		size_t cur_rectLight = 0;
-		size_t cur_diskLight = 0;
-		for (auto world : worlds) {
-			world->RunEntityJob(
-				[&](const Light* light, const LocalToWorld* l2w) {
-					switch (light->mode)
-					{
-					case Light::Mode::Directional:
-						ctx.lightArray.lights[cur_diectionalLight].color = light->color * light->intensity;
-						ctx.lightArray.lights[cur_diectionalLight].dir = (l2w->value * vecf3{ 0,0,1 }).safe_normalize();
-						cur_diectionalLight++;
-						break;
-					case Light::Mode::Point:
-						ctx.lightArray.lights[cur_pointLight].color = light->color * light->intensity;
-						ctx.lightArray.lights[cur_pointLight].position = l2w->value * pointf3{ 0.f };
-						ctx.lightArray.lights[cur_pointLight].range = light->range;
-						cur_pointLight++;
-						break;
-					case Light::Mode::Spot:
-						ctx.lightArray.lights[cur_spotLight].color = light->color * light->intensity;
-						ctx.lightArray.lights[cur_spotLight].position = l2w->value * pointf3{ 0.f };
-						ctx.lightArray.lights[cur_spotLight].dir = (l2w->value * vecf3{ 0,1,0 }).safe_normalize();
-						ctx.lightArray.lights[cur_spotLight].range = light->range;
-						ctx.lightArray.lights[cur_spotLight].*
-							ShaderLight::Spot::pCosHalfInnerSpotAngle = std::cos(to_radian(light->innerSpotAngle) / 2.f);
-						ctx.lightArray.lights[cur_spotLight].*
-							ShaderLight::Spot::pCosHalfOuterSpotAngle = std::cos(to_radian(light->outerSpotAngle) / 2.f);
-						cur_spotLight++;
-						break;
-					case Light::Mode::Rect:
-						ctx.lightArray.lights[cur_rectLight].color = light->color * light->intensity;
-						ctx.lightArray.lights[cur_rectLight].position = l2w->value * pointf3{ 0.f };
-						ctx.lightArray.lights[cur_rectLight].dir = (l2w->value * vecf3{ 0,1,0 }).safe_normalize();
-						ctx.lightArray.lights[cur_rectLight].horizontal = (l2w->value * vecf3{ 1,0,0 }).safe_normalize();
-						ctx.lightArray.lights[cur_rectLight].range = light->range;
-						ctx.lightArray.lights[cur_rectLight].*
-							ShaderLight::Rect::pWidth = light->width;
-						ctx.lightArray.lights[cur_rectLight].*
-							ShaderLight::Rect::pHeight = light->height;
-						cur_rectLight++;
-						break;
-					case Light::Mode::Disk:
-						ctx.lightArray.lights[cur_diskLight].color = light->color * light->intensity;
-						ctx.lightArray.lights[cur_diskLight].position = l2w->value * pointf3{ 0.f };
-						ctx.lightArray.lights[cur_diskLight].dir = (l2w->value * vecf3{ 0,1,0 }).safe_normalize();
-						ctx.lightArray.lights[cur_diskLight].horizontal = (l2w->value * vecf3{ 1,0,0 }).safe_normalize();
-						ctx.lightArray.lights[cur_diskLight].range = light->range;
-						ctx.lightArray.lights[cur_diskLight].*
-							ShaderLight::Disk::pWidth = light->width;
-						ctx.lightArray.lights[cur_diskLight].*
-							ShaderLight::Disk::pHeight = light->height;
-						cur_diskLight++;
-						break;
-					default:
-						break;
-					}
-				},
-				false
-			);
-		}
-		
-	}
-
-	// use first skybox in the world vector
-	ctx.skybox = defaultSkybox;
-	for (auto world : worlds) {
-		if (auto ptr = world->entityMngr.ReadSingleton<Skybox>(); ptr && ptr->material && ptr->material->shader.get() == skyboxShader.get()) {
-			auto target = ptr->material->properties.find("gSkybox");
-			if (target != ptr->material->properties.end()
-				&& std::holds_alternative<SharedVar<TextureCube>>(target->second.value)
-			) {
-				auto texcube = std::get<SharedVar<TextureCube>>(target->second.value);
-				ctx.skybox = GPURsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(*texcube);
-				break;
-			}
-		}
-	}
-
-	auto& shaderCB = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("ShaderCB");
-	auto& commonShaderCB = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB");
-
-	// TODO: simplify camera buffer
-	{ // camera, lights, objects
-		ctx.cameraOffset = commonShaderCB->Size();
-		ctx.lightOffset = ctx.cameraOffset
-			+ linkedCameras.size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
-		ctx.objectOffset = ctx.lightOffset
-			+ UDX12::Util::CalcConstantBufferByteSize(sizeof(LightArray));
-
-		commonShaderCB->Resize(
-			commonShaderCB->Size()
-			+ linkedCameras.size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants))
-			+ UDX12::Util::CalcConstantBufferByteSize(sizeof(LightArray))
-			+ ctx.entity2data.size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(ObjectConstants))
-		);
-
-		for (size_t i = 0; i < linkedCameras.size(); i++) {
-			commonShaderCB->Set(
-				ctx.cameraOffset + i * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants)),
-				&crossFrameCameraRsrcs.Get(linkedCameras[i]).Get<CameraConstants>(key_CameraConstants),
-				sizeof(CameraConstants)
-			);
-		}
-
-		// light array
-		commonShaderCB->Set(ctx.lightOffset, &ctx.lightArray, sizeof(LightArray));
-
-		// objects
-		size_t offset = ctx.objectOffset;
-		for (auto& [idx, data] : ctx.entity2data) {
-			ObjectConstants objectConstants;
-			objectConstants.World = data.l2w;
-			objectConstants.InvWorld = data.w2l;
-			objectConstants.PrevWorld = data.prevl2w;
-			ctx.entity2offset[idx] = offset;
-			commonShaderCB->Set(offset, &objectConstants, sizeof(ObjectConstants));
-			offset += UDX12::Util::CalcConstantBufferByteSize(sizeof(ObjectConstants));
-		}
-	}
-
-	std::unordered_map<const Shader*, std::unordered_set<const Material*>> opaqueMaterialMap;
-	for (const auto& opaque : ctx.renderQueue.GetOpaques())
-		opaqueMaterialMap[opaque.material->shader.get()].insert(opaque.material.get());
-
-	std::unordered_map<const Shader*, std::unordered_set<const Material*>> transparentMaterialMap;
-	for (const auto& transparent : ctx.renderQueue.GetTransparents())
-		transparentMaterialMap[transparent.material->shader.get()].insert(transparent.material.get());
-
-	for (const auto& [shader, materials] : opaqueMaterialMap) {
-		ctx.shaderCBDescMap[shader] =
-			PipelineCommonUtils::UpdateShaderCBs(*shaderCB, *shader, materials, commonCBs);
-	}
-
-	for (const auto& [shader, materials] : transparentMaterialMap) {
-		ctx.shaderCBDescMap[shader] =
-			PipelineCommonUtils::UpdateShaderCBs(*shaderCB, *shader, materials, commonCBs);
-	}
-
-	return ctx;
 }
 
 void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData& cameraData, size_t cameraIdx, ID3D12Resource* default_rtb, const ResourceMap& worldRsrc) {
@@ -1036,8 +632,8 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 			cmdList->SetGraphicsRootDescriptorTable(1, ds.info->desc2info_srv.at(dsSrvDesc).gpuHandle);
 
 			// irradiance, prefilter, BRDF LUT
-			if (ctx.skybox.ptr == defaultSkybox.ptr)
-				cmdList->SetGraphicsRootDescriptorTable(2, defaultIBLSRVDH.GetGpuHandle());
+			if (ctx.skyboxGpuHandle.ptr == PipelineCommonResourceMngr::GetInstance().GetDefaultSkyboxGpuHandle().ptr)
+				cmdList->SetGraphicsRootDescriptorTable(2, PipelineCommonResourceMngr::GetInstance().GetDefaultIBLSrvDHA().GetGpuHandle());
 			else
 				cmdList->SetGraphicsRootDescriptorTable(2, iblData->SRVDH.GetGpuHandle());
 
@@ -1060,12 +656,12 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 	fgExecutor->RegisterPassFunc(
 		skyboxPass,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
-			if (ctx.skybox.ptr == defaultSkybox.ptr)
+			if (ctx.skyboxGpuHandle.ptr == PipelineCommonResourceMngr::GetInstance().GetDefaultSkyboxGpuHandle().ptr)
 				return;
 
 			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
 			cmdList->SetDescriptorHeaps(1, &heap);
-
+			auto skyboxShader = PipelineCommonResourceMngr::GetInstance().GetSkyboxShader();
 			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*skyboxShader));
 			cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetOrCreateShaderPSO(
 				*skyboxShader,
@@ -1084,7 +680,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 			// Specify the buffers we are going to render to.
 			cmdList->OMSetRenderTargets(1, &rt.info->null_info_rtv.cpuHandle, false, &ds.info->desc2info_dsv.at(dsvDesc).cpuHandle);
 
-			cmdList->SetGraphicsRootDescriptorTable(0, ctx.skybox);
+			cmdList->SetGraphicsRootDescriptorTable(0, ctx.skyboxGpuHandle);
 
 			cmdList->SetGraphicsRootConstantBufferView(1, cameraCBAddress);
 
@@ -1162,12 +758,24 @@ void StdPipeline::Impl::Render(
 			worldArr.push_back(worlds[idx]);
 		worldArrs.push_back(std::move(worldArr));
 	}
+
+	auto shaderCB = frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("ShaderCB");
+	auto commonShaderCB = frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB");
 	std::vector<RenderContext> ctxs;
 	for (size_t i = 0; i < worldArrs.size(); ++i) {
 		std::vector<CameraData> linkedCameras;
 		for (size_t camIdx : links[i].cameraIndices)
 			linkedCameras.push_back(cameras[camIdx]);
-		ctxs.push_back(GenerateRenderContext(worldArrs[i], linkedCameras));
+
+		std::vector<const CameraConstants*> cameraConstantsVector;
+		for (const auto& linkedCamera : linkedCameras) {
+			auto* camConts = &crossFrameCameraRsrcs.Get(linkedCamera).Get<CameraConstants>(key_CameraConstants);
+			cameraConstantsVector.push_back(camConts);
+		}
+
+		ctxs.push_back(GenerateRenderContext(worldArrs[i], cameraConstantsVector, *shaderCB, *commonShaderCB));
 	}
 
 	crossFrameWorldRsrcMngr.Update(worldArrs, initDesc.numFrame);
@@ -1218,16 +826,17 @@ void StdPipeline::Impl::Render(
 		fgExecutor->RegisterPassFunc(
 			iblPass,
 			[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& /*rsrcs*/) {
-				if (iblData->lastSkybox.ptr == ctx.skybox.ptr) {
+				if (iblData->lastSkybox.ptr == ctx.skyboxGpuHandle.ptr) {
 					if (iblData->nextIdx >= 6 * (1 + IBLData::PreFilterMapMipLevels))
 						return;
 				}
 				else {
-					if (ctx.skybox.ptr == defaultSkybox.ptr) {
-						iblData->lastSkybox.ptr = defaultSkybox.ptr;
+					auto defaultSkyboxGpuHandle = PipelineCommonResourceMngr::GetInstance().GetDefaultSkyboxGpuHandle();
+					if (ctx.skyboxGpuHandle.ptr == defaultSkyboxGpuHandle.ptr) {
+						iblData->lastSkybox.ptr = defaultSkyboxGpuHandle.ptr;
 						return;
 					}
-					iblData->lastSkybox = ctx.skybox;
+					iblData->lastSkybox = ctx.skyboxGpuHandle;
 					iblData->nextIdx = 0;
 				}
 
@@ -1256,7 +865,7 @@ void StdPipeline::Impl::Render(
 					cmdList->RSSetViewports(1, &viewport);
 					cmdList->RSSetScissorRects(1, &rect);
 
-					cmdList->SetGraphicsRootDescriptorTable(0, ctx.skybox);
+					cmdList->SetGraphicsRootDescriptorTable(0, ctx.skyboxGpuHandle);
 					//for (UINT i = 0; i < 6; i++) {
 					UINT i = static_cast<UINT>(iblData->nextIdx);
 					// Specify the buffers we are going to render to.
@@ -1283,7 +892,7 @@ void StdPipeline::Impl::Render(
 						DXGI_FORMAT_UNKNOWN)
 					);
 
-					cmdList->SetGraphicsRootDescriptorTable(0, ctx.skybox);
+					cmdList->SetGraphicsRootDescriptorTable(0, ctx.skyboxGpuHandle);
 					//size_t size = Impl::IBLData::PreFilterMapSize;
 					//for (UINT mip = 0; mip < Impl::IBLData::PreFilterMapMipLevels; mip++) {
 					UINT mip = static_cast<UINT>((iblData->nextIdx - 6) / 6);
@@ -1365,8 +974,8 @@ void StdPipeline::Impl::DrawObjects(
 		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB");
 
 	D3D12_GPU_DESCRIPTOR_HANDLE ibl;
-	if (ctx.skybox.ptr == defaultSkybox.ptr)
-		ibl = defaultIBLSRVDH.GetGpuHandle();
+	if (ctx.skyboxGpuHandle.ptr == PipelineCommonResourceMngr::GetInstance().GetDefaultSkyboxGpuHandle().ptr)
+		ibl = PipelineCommonResourceMngr::GetInstance().GetDefaultIBLSrvDHA().GetGpuHandle();
 	else {
 		auto iblData = worldRsrc.Get<std::shared_ptr<IBLData>>("IBL data");
 		ibl = iblData->SRVDH.GetGpuHandle();
@@ -1393,7 +1002,7 @@ void StdPipeline::Impl::DrawObjects(
 
 		auto lightCBAdress = commonShaderCB->GetResource()->GetGPUVirtualAddress()
 			+ ctx.lightOffset;
-		PipelineCommonUtils::SetGraphicsRoot_CBV_SRV(cmdList, *shaderCB, shaderCBDesc, *obj.material,
+		SetGraphicsRoot_CBV_SRV(cmdList, *shaderCB, shaderCBDesc, *obj.material,
 			{
 				{StdPipeline_cbPerObject, objCBAddress},
 				{StdPipeline_cbPerCamera, cameraCBAddress},

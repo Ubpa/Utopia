@@ -24,7 +24,7 @@ void RenderQueue::Sort(pointf3 cameraPos) {
 			return false;
 
 		auto lID = lhs.material->shader->GetInstanceID();
-		auto rID = lhs.material->shader->GetInstanceID();
+		auto rID = rhs.material->shader->GetInstanceID();
 		if (lID < rID)
 			return true;
 		if (lID > rID)
@@ -38,7 +38,7 @@ void RenderQueue::Sort(pointf3 cameraPos) {
 		auto lpos = lhs.mesh->GetSubMeshes().at(lhs.submeshIdx).bounds.center() + lhs.translation;
 		auto rpos = rhs.mesh->GetSubMeshes().at(rhs.submeshIdx).bounds.center() + rhs.translation;
 
-		return pointf3::distance(lpos, cameraPos) > pointf3::distance(rpos, cameraPos);
+		return pointf3::distance(lpos, cameraPos) < pointf3::distance(rpos, cameraPos);
 	};
 
 	auto transparentLess = [=](const RenderObject& lhs, const RenderObject& rhs) {

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "PipelineCommonUtils.h"
+#include <Utopia/Render/DX12/PipelineCommonUtils.h>
 
 namespace Ubpa::Utopia {
 	class IPipelineStage {
