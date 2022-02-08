@@ -1,18 +1,18 @@
-#include "PostProcessing.h"
+#include "Tonemapping.h"
 
 #include <Utopia/Render/ShaderMngr.h>
 #include <Utopia/Render/DX12/GPURsrcMngrDX12.h>
 
-Ubpa::Utopia::PostProcessing::PostProcessing()
+Ubpa::Utopia::Tonemapping::Tonemapping()
 	: inputID(static_cast<size_t>(-1))
 	, outputID(static_cast<size_t>(-1))
 	, passID(static_cast<size_t>(-1))
 {
-	shader = ShaderMngr::Instance().Get("StdPipeline/Post Process");
+	shader = ShaderMngr::Instance().Get("StdPipeline/Tonemapping");
 	inputSrvDesc = UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT);
 }
 
-Ubpa::Utopia::PostProcessing::~PostProcessing() {
+Ubpa::Utopia::Tonemapping::~Tonemapping() {
 	//shader.reset();
 	//inputSrvDesc = {};
 	//inputID = static_cast<size_t>(-1);
@@ -20,13 +20,13 @@ Ubpa::Utopia::PostProcessing::~PostProcessing() {
 	//passID = static_cast<size_t>(-1);
 }
 
-void Ubpa::Utopia::PostProcessing::NewFrame() {
+void Ubpa::Utopia::Tonemapping::NewFrame() {
 	inputID = static_cast<size_t>(-1);
 	outputID = static_cast<size_t>(-1);
 	passID = static_cast<size_t>(-1);
 }
 
-bool Ubpa::Utopia::PostProcessing::RegisterInputNodes(std::span<const size_t> inputNodeIDs) {
+bool Ubpa::Utopia::Tonemapping::RegisterInputNodes(std::span<const size_t> inputNodeIDs) {
 	if (inputNodeIDs.size() != 1)
 	{
 		return false;
@@ -37,19 +37,19 @@ bool Ubpa::Utopia::PostProcessing::RegisterInputNodes(std::span<const size_t> in
 	return true;
 }
 
-void Ubpa::Utopia::PostProcessing::RegisterOutputNodes(UFG::FrameGraph& framegraph) {
-	outputID = framegraph.RegisterResourceNode("PostProcessing::output");
+void Ubpa::Utopia::Tonemapping::RegisterOutputNodes(UFG::FrameGraph& framegraph) {
+	outputID = framegraph.RegisterResourceNode("Tonemapping::output");
 }
 
-void Ubpa::Utopia::PostProcessing::RegisterPass(UFG::FrameGraph& framegraph) {
-	passID = framegraph.RegisterGeneralPassNode("PostProcessing", { inputID }, { outputID });
+void Ubpa::Utopia::Tonemapping::RegisterPass(UFG::FrameGraph& framegraph) {
+	passID = framegraph.RegisterGeneralPassNode("Tonemapping", { inputID }, { outputID });
 }
 
-std::span<const size_t> Ubpa::Utopia::PostProcessing::GetOutputNodeIDs() const {
+std::span<const size_t> Ubpa::Utopia::Tonemapping::GetOutputNodeIDs() const {
 	return { &outputID, 1 };
 }
 
-void Ubpa::Utopia::PostProcessing::RegisterPassResources(UDX12::FG::RsrcMngr& rsrcMngr) {
+void Ubpa::Utopia::Tonemapping::RegisterPassResources(UDX12::FG::RsrcMngr& rsrcMngr) {
 	rsrcMngr.RegisterPassRsrc(
 		passID,
 		inputID,
@@ -65,7 +65,7 @@ void Ubpa::Utopia::PostProcessing::RegisterPassResources(UDX12::FG::RsrcMngr& rs
 	);
 }
 
-void Ubpa::Utopia::PostProcessing::RegisterPassFunc(UDX12::FG::Executor& executor) {
+void Ubpa::Utopia::Tonemapping::RegisterPassFunc(UDX12::FG::Executor& executor) {
 	executor.RegisterPassFunc(
 		passID,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {

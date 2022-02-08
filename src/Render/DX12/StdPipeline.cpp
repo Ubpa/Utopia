@@ -39,7 +39,7 @@
 
 #include <UDX12/FrameResourceMngr.h>
 
-#include "PostProcessing.h"
+#include "Tonemapping.h"
 #include "TAA.h"
 
 using namespace Ubpa::Utopia;
@@ -202,7 +202,7 @@ struct StdPipeline::Impl {
 	};
 
 	struct Stages {
-		PostProcessing postProcessing;
+		Tonemapping tonemapping;
 		TAA taa;
 	};
 
@@ -827,7 +827,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 	fgRsrcMngr->NewFrame();
 	fgExecutor->NewFrame();
 	stages->taa.NewFrame();
-	stages->postProcessing.NewFrame();
+	stages->tonemapping.NewFrame();
 
 	const auto& cameraResizeData = cameraRsrcMngr->Get(cameraData).Get<CameraResizeData>(key_CameraResizeData);
 	auto taaPrevRsrc = cameraResizeData.taaPrevRsrc;
@@ -844,12 +844,12 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 	stages->taa.RegisterInputNodes(taaInputs);
 	stages->taa.RegisterOutputNodes(fg);
 	auto taaResult = stages->taa.GetOutputNodeIDs().front();
-	stages->postProcessing.RegisterInputNodes({ &taaResult, 1 });
-	stages->postProcessing.RegisterOutputNodes(fg);
+	stages->tonemapping.RegisterInputNodes({ &taaResult, 1 });
+	stages->tonemapping.RegisterOutputNodes(fg);
 	auto presentedRT = fg.RegisterResourceNode("Present");
 	fg.RegisterMoveNode(deferLightedSkyRT, deferLightedRT);
 	fg.RegisterMoveNode(sceneRT, deferLightedSkyRT);
-	fg.RegisterMoveNode(presentedRT, stages->postProcessing.GetOutputNodeIDs().front());
+	fg.RegisterMoveNode(presentedRT, stages->tonemapping.GetOutputNodeIDs().front());
 	auto deferDS = fg.RegisterResourceNode("Defer Depth Stencil");
 	auto forwardDS = fg.RegisterResourceNode("Forward Depth Stencil");
 	fg.RegisterMoveNode(forwardDS, deferDS);
@@ -876,7 +876,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 		{ forwardDS, sceneRT }
 	);
 	stages->taa.RegisterPass(fg);
-	stages->postProcessing.RegisterPass(fg);
+	stages->tonemapping.RegisterPass(fg);
 
 	D3D12_RESOURCE_DESC dsDesc = UDX12::Desc::RSRC::Basic(
 		D3D12_RESOURCE_DIMENSION_TEXTURE2D,
@@ -927,7 +927,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 			{gbuffer2,srvDesc}
 		})
 
-		.RegisterImportedRsrc(stages->postProcessing.GetOutputNodeIDs().front(), {rtb, D3D12_RESOURCE_STATE_PRESENT})
+		.RegisterImportedRsrc(stages->tonemapping.GetOutputNodeIDs().front(), {rtb, D3D12_RESOURCE_STATE_PRESENT})
 		.RegisterImportedRsrc(irradianceMap, { iblData->irradianceMapResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
 		.RegisterImportedRsrc(prefilterMap, { iblData->prefilterMapResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
 		.RegisterImportedRsrc(taaPrevResult, { taaPrevRsrc.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
@@ -958,7 +958,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 		;
 
 	stages->taa.RegisterPassResources(*fgRsrcMngr);
-	stages->postProcessing.RegisterPassResources(*fgRsrcMngr);
+	stages->tonemapping.RegisterPassResources(*fgRsrcMngr);
 
 	const D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
@@ -1117,7 +1117,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 	stages->taa.RegisterPassFuncData(cameraCBAddress);
 	stages->taa.RegisterPassFunc(*fgExecutor);
 
-	stages->postProcessing.RegisterPassFunc(*fgExecutor);
+	stages->tonemapping.RegisterPassFunc(*fgExecutor);
 
 	static bool flag{ false };
 	if (!flag) {

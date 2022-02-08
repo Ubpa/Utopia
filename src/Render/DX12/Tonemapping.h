@@ -3,10 +3,10 @@
 #include "IPipelineStage.h"
 
 namespace Ubpa::Utopia {
-	class PostProcessing : public IPipelineStage {
+	class Tonemapping : public IPipelineStage {
 	public:
-		PostProcessing();
-		virtual ~PostProcessing();
+		Tonemapping();
+		virtual ~Tonemapping();
 
 		virtual void NewFrame() override;
 

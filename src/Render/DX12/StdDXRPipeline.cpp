@@ -39,7 +39,7 @@
 
 #include <UDX12/FrameResourceMngr.h>
 
-#include "PostProcessing.h"
+#include "Tonemapping.h"
 #include "TAA.h"
 
 using namespace Ubpa::Utopia;
@@ -804,7 +804,7 @@ struct StdDXRPipeline::Impl {
 	};
 
 	struct Stages {
-		PostProcessing postProcessing;
+		Tonemapping tonemapping;
 		TAA taa;
 	};
 
@@ -1531,7 +1531,7 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 	fgExecutor->NewFrame();
 	fgRsrcMngr->NewFrame();
 	stages->taa.NewFrame();
-	stages->postProcessing.NewFrame();
+	stages->tonemapping.NewFrame();
 
 	const auto& cameraResizeData = cameraRsrcMngr->Get(cameraData).Get<CameraResizeData>(key_CameraResizeData);
 	auto rtSRsrc = cameraResizeData.rtSRsrc;
@@ -1576,8 +1576,8 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 	stages->taa.RegisterInputNodes(taaInputs);
 	stages->taa.RegisterOutputNodes(fg);
 	auto taaResult = stages->taa.GetOutputNodeIDs().front();
-	stages->postProcessing.RegisterInputNodes({ &taaResult, 1 });
-	stages->postProcessing.RegisterOutputNodes(fg);
+	stages->tonemapping.RegisterInputNodes({ &taaResult, 1 });
+	stages->tonemapping.RegisterOutputNodes(fg);
 	std::array<std::size_t, ATrousN> rtATrousDenoiseResults;
 	for (std::size_t i = 0; i < ATrousN; i++)
 		rtATrousDenoiseResults[i] = fg.RegisterResourceNode("RT ATrous denoised result " + std::to_string(i));
@@ -1645,14 +1645,14 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 	);
 	fg.RegisterMoveNode(forwardDS, deferDS);
 	fg.RegisterMoveNode(sceneRT, deferLightedSkyRT);
-	fg.RegisterMoveNode(presentedRT, stages->postProcessing.GetOutputNodeIDs().front());
+	fg.RegisterMoveNode(presentedRT, stages->tonemapping.GetOutputNodeIDs().front());
 	auto forwardPass = fg.RegisterGeneralPassNode(
 		"Forward",
 		{ irradianceMap, prefilterMap },
 		{ forwardDS, sceneRT }
 	);
 	stages->taa.RegisterPass(fg);
-	stages->postProcessing.RegisterPass(fg);
+	stages->tonemapping.RegisterPass(fg);
 
 	D3D12_RESOURCE_DESC dsDesc = UDX12::Desc::RSRC::Basic(
 		D3D12_RESOURCE_DIMENSION_TEXTURE2D,
@@ -1757,7 +1757,7 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 		.RegisterImportedRsrc(prevColorMoment, { rtColorMoment.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
 		.RegisterImportedRsrc(historyLength, { rtHistoryLength.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS })
 
-		.RegisterImportedRsrc(stages->postProcessing.GetOutputNodeIDs().front(), { rtb, D3D12_RESOURCE_STATE_PRESENT })
+		.RegisterImportedRsrc(stages->tonemapping.GetOutputNodeIDs().front(), { rtb, D3D12_RESOURCE_STATE_PRESENT })
 		.RegisterImportedRsrc(irradianceMap, { iblData->irradianceMapResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
 		.RegisterImportedRsrc(prefilterMap, { iblData->prefilterMapResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
 		.RegisterImportedRsrc(TLAS, { nullptr /*special for TLAS*/, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE })
@@ -1861,7 +1861,7 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 		;
 
 	stages->taa.RegisterPassResources(*fgRsrcMngr);
-	stages->postProcessing.RegisterPassResources(*fgRsrcMngr);
+	stages->tonemapping.RegisterPassResources(*fgRsrcMngr);
 
 	const D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
@@ -2305,7 +2305,7 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 	stages->taa.RegisterPassFuncData(cameraCBAddress);
 	stages->taa.RegisterPassFunc(*fgExecutor);
 
-	stages->postProcessing.RegisterPassFunc(*fgExecutor);
+	stages->tonemapping.RegisterPassFunc(*fgExecutor);
 
 	static bool flag{ false };
 	if (!flag) {
