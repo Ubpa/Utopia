@@ -40,6 +40,7 @@
 #include <UDX12/FrameResourceMngr.h>
 
 #include "PostProcessing.h"
+#include "TAA.h"
 
 using namespace Ubpa::Utopia;
 using namespace Ubpa::UECS;
@@ -202,6 +203,7 @@ struct StdPipeline::Impl {
 
 	struct Stages {
 		PostProcessing postProcessing;
+		TAA taa;
 	};
 
 	const InitDesc initDesc;
@@ -240,6 +242,15 @@ struct StdPipeline::Impl {
 
 	const DXGI_FORMAT dsFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
+	static constexpr const char key_CameraResizeData[] = "CameraResizeData";
+	static constexpr const char key_CameraResizeData_Backup[] = "CameraResizeData_Backup";
+	struct CameraResizeData {
+		size_t width{ 0 };
+		size_t height{ 0 };
+
+		Microsoft::WRL::ComPtr<ID3D12Resource> taaPrevRsrc;
+	};
+
 	void BuildTextures();
 	void BuildFrameResources();
 	void BuildShaders();
@@ -261,6 +272,7 @@ struct StdPipeline::Impl {
 		DXGI_FORMAT rtFormat,
 		D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress,
 		const ResourceMap& worldRsrc);
+	void UpdateCameraResource(const CameraData& cameraData, size_t width, size_t height);
 };
 
 StdPipeline::Impl::~Impl() {
@@ -476,9 +488,8 @@ void StdPipeline::Impl::UpdateCrossFrameCameraResources(std::span<const CameraDa
 		transformf view = cmptW2L ? cmptW2L->value : transformf::eye();
 		transformf proj = cmptCamera->prjectionMatrix;
 		transformf unjitteredProj = proj;
-		//TODO: TAA
-		//proj[2][0] += JitterX;
-		//proj[2][1] += JitterY;
+		proj[2][0] += JitterX;
+		proj[2][1] += JitterY;
 		cameraConstants.View = view;
 		cameraConstants.InvView = view.inverse();
 		cameraConstants.Proj = proj;
@@ -796,32 +807,44 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 	CD3DX12_VIEWPORT viewport(0.f, 0.f, width, height);
 	D3D12_RECT scissorRect(0.f, 0.f, static_cast<LONG>(width), static_cast<LONG>(height));
 
+	UpdateCameraResource(cameraData, width, height);
+	
 	fg.Clear();
 
-	auto cameraRsrcMapMngr = frameRsrcMngr.GetCurrentFrameResource()
+	auto cameraRsrcMngr = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<CameraRsrcMngr>>("CameraRsrcMngr");
 
 	auto stages = frameRsrcMngr.GetCurrentFrameResource()->GetResource<std::shared_ptr<Stages>>("Stages");
 
-	if (!cameraRsrcMapMngr->Get(cameraData).Contains("FrameGraphRsrcMngr"))
-		cameraRsrcMapMngr->Get(cameraData).Register("FrameGraphRsrcMngr", std::make_shared<UDX12::FG::RsrcMngr>(initDesc.device));
-	auto fgRsrcMngr = cameraRsrcMapMngr->Get(cameraData).Get<std::shared_ptr<UDX12::FG::RsrcMngr>>("FrameGraphRsrcMngr");
+	if (!cameraRsrcMngr->Get(cameraData).Contains("FrameGraphRsrcMngr"))
+		cameraRsrcMngr->Get(cameraData).Register("FrameGraphRsrcMngr", std::make_shared<UDX12::FG::RsrcMngr>(initDesc.device));
+	auto fgRsrcMngr = cameraRsrcMngr->Get(cameraData).Get<std::shared_ptr<UDX12::FG::RsrcMngr>>("FrameGraphRsrcMngr");
 
-	if (!cameraRsrcMapMngr->Get(cameraData).Contains("FrameGraphExecutor"))
-		cameraRsrcMapMngr->Get(cameraData).Register("FrameGraphExecutor", std::make_shared<UDX12::FG::Executor>(initDesc.device));
-	auto fgExecutor = cameraRsrcMapMngr->Get(cameraData).Get<std::shared_ptr<UDX12::FG::Executor>>("FrameGraphExecutor");
+	if (!cameraRsrcMngr->Get(cameraData).Contains("FrameGraphExecutor"))
+		cameraRsrcMngr->Get(cameraData).Register("FrameGraphExecutor", std::make_shared<UDX12::FG::Executor>(initDesc.device));
+	auto fgExecutor = cameraRsrcMngr->Get(cameraData).Get<std::shared_ptr<UDX12::FG::Executor>>("FrameGraphExecutor");
 
 	fgRsrcMngr->NewFrame();
 	fgExecutor->NewFrame();
+	stages->taa.NewFrame();
 	stages->postProcessing.NewFrame();
+
+	const auto& cameraResizeData = cameraRsrcMngr->Get(cameraData).Get<CameraResizeData>(key_CameraResizeData);
+	auto taaPrevRsrc = cameraResizeData.taaPrevRsrc;
 
 	auto gbuffer0 = fg.RegisterResourceNode("GBuffer0");
 	auto gbuffer1 = fg.RegisterResourceNode("GBuffer1");
 	auto gbuffer2 = fg.RegisterResourceNode("GBuffer2");
+	auto motion = fg.RegisterResourceNode("Motion");
 	auto deferLightedRT = fg.RegisterResourceNode("Defer Lighted");
 	auto deferLightedSkyRT = fg.RegisterResourceNode("Defer Lighted with Sky");
 	auto sceneRT = fg.RegisterResourceNode("Scene");
-	stages->postProcessing.RegisterInputNodes({ &sceneRT, 1 });
+	auto taaPrevResult = fg.RegisterResourceNode("TAA Prev Result");
+	const size_t taaInputs[3] = { taaPrevResult, sceneRT, motion };
+	stages->taa.RegisterInputNodes(taaInputs);
+	stages->taa.RegisterOutputNodes(fg);
+	auto taaResult = stages->taa.GetOutputNodeIDs().front();
+	stages->postProcessing.RegisterInputNodes({ &taaResult, 1 });
 	stages->postProcessing.RegisterOutputNodes(fg);
 	auto presentedRT = fg.RegisterResourceNode("Present");
 	fg.RegisterMoveNode(deferLightedSkyRT, deferLightedRT);
@@ -835,7 +858,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 	auto gbPass = fg.RegisterGeneralPassNode(
 		"GBuffer Pass",
 		{},
-		{ gbuffer0,gbuffer1,gbuffer2,deferDS }
+		{ gbuffer0,gbuffer1,gbuffer2,motion,deferDS }
 	);
 	auto deferLightingPass = fg.RegisterGeneralPassNode(
 		"Defer Lighting",
@@ -852,6 +875,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 		{ irradianceMap,prefilterMap },
 		{ forwardDS, sceneRT }
 	);
+	stages->taa.RegisterPass(fg);
 	stages->postProcessing.RegisterPass(fg);
 
 	D3D12_RESOURCE_DESC dsDesc = UDX12::Desc::RSRC::Basic(
@@ -871,6 +895,13 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 	dsClear.DepthStencil.Depth = 1.0f;
 	dsClear.DepthStencil.Stencil = 0;
 
+	D3D12_CLEAR_VALUE gbuffer_clearvalue = {};
+	gbuffer_clearvalue.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+	gbuffer_clearvalue.Color[0] = 0;
+	gbuffer_clearvalue.Color[1] = 0;
+	gbuffer_clearvalue.Color[2] = 0;
+	gbuffer_clearvalue.Color[3] = 0;
+
 	auto srvDesc = UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT);
 	auto dsSrvDesc = UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R24_UNORM_X8_TYPELESS);
 	auto dsvDesc = UDX12::Desc::DSV::Basic(dsFormat);
@@ -880,13 +911,15 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 	auto iblData = worldRsrc.Get<std::shared_ptr<IBLData>>("IBL data");
 
 	(*fgRsrcMngr)
-		.RegisterTemporalRsrcAutoClear(gbuffer0, rt2dDesc)
-		.RegisterTemporalRsrcAutoClear(gbuffer1, rt2dDesc)
-		.RegisterTemporalRsrcAutoClear(gbuffer2, rt2dDesc)
+		.RegisterTemporalRsrc(gbuffer0, rt2dDesc, gbuffer_clearvalue)
+		.RegisterTemporalRsrc(gbuffer1, rt2dDesc, gbuffer_clearvalue)
+		.RegisterTemporalRsrc(gbuffer2, rt2dDesc, gbuffer_clearvalue)
+		.RegisterTemporalRsrc(motion, rt2dDesc, gbuffer_clearvalue)
 		.RegisterTemporalRsrc(deferDS, dsDesc, dsClear)
 		.RegisterTemporalRsrcAutoClear(deferLightedRT, rt2dDesc)
 		//.RegisterTemporalRsrcAutoClear(deferLightedSkyRT, rt2dDesc)
 		//.RegisterTemporalRsrcAutoClear(sceneRT, rt2dDesc)
+		.RegisterTemporalRsrcAutoClear(taaResult, rt2dDesc)
 
 		.RegisterRsrcTable({
 			{gbuffer0,srvDesc},
@@ -897,10 +930,12 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 		.RegisterImportedRsrc(stages->postProcessing.GetOutputNodeIDs().front(), {rtb, D3D12_RESOURCE_STATE_PRESENT})
 		.RegisterImportedRsrc(irradianceMap, { iblData->irradianceMapResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
 		.RegisterImportedRsrc(prefilterMap, { iblData->prefilterMapResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
+		.RegisterImportedRsrc(taaPrevResult, { taaPrevRsrc.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
 
 		.RegisterPassRsrc(gbPass, gbuffer0, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
 		.RegisterPassRsrc(gbPass, gbuffer1, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
 		.RegisterPassRsrc(gbPass, gbuffer2, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
+		.RegisterPassRsrc(gbPass, motion, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
 		.RegisterPassRsrc(gbPass, deferDS, D3D12_RESOURCE_STATE_DEPTH_WRITE, dsvDesc)
 
 		.RegisterPassRsrc(deferLightingPass, gbuffer0, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
@@ -922,6 +957,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 		.RegisterPassRsrc(forwardPass, sceneRT, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
 		;
 
+	stages->taa.RegisterPassResources(*fgRsrcMngr);
 	stages->postProcessing.RegisterPassResources(*fgRsrcMngr);
 
 	const D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress = frameRsrcMngr.GetCurrentFrameResource()
@@ -940,24 +976,27 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 			auto gb0 = rsrcs.at(gbuffer0);
 			auto gb1 = rsrcs.at(gbuffer1);
 			auto gb2 = rsrcs.at(gbuffer2);
+			auto mt = rsrcs.at(motion);
 			auto ds = rsrcs.at(deferDS);
 
 			std::array rtHandles{
 				gb0.info->null_info_rtv.cpuHandle,
 				gb1.info->null_info_rtv.cpuHandle,
-				gb2.info->null_info_rtv.cpuHandle
+				gb2.info->null_info_rtv.cpuHandle,
+				mt.info->null_info_rtv.cpuHandle,
 			};
 			auto dsHandle = ds.info->desc2info_dsv.at(dsvDesc).cpuHandle;
 			// Clear the render texture and depth buffer.
-			cmdList->ClearRenderTargetView(rtHandles[0], DirectX::Colors::Black, 0, nullptr);
-			cmdList->ClearRenderTargetView(rtHandles[1], DirectX::Colors::Black, 0, nullptr);
-			cmdList->ClearRenderTargetView(rtHandles[2], DirectX::Colors::Black, 0, nullptr);
+			cmdList->ClearRenderTargetView(rtHandles[0], gbuffer_clearvalue.Color, 0, nullptr);
+			cmdList->ClearRenderTargetView(rtHandles[1], gbuffer_clearvalue.Color, 0, nullptr);
+			cmdList->ClearRenderTargetView(rtHandles[2], gbuffer_clearvalue.Color, 0, nullptr);
+			cmdList->ClearRenderTargetView(rtHandles[3], gbuffer_clearvalue.Color, 0, nullptr);
 			cmdList->ClearDepthStencilView(dsHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.f, 0, 0, nullptr);
 
 			// Specify the buffers we are going to render to.
 			cmdList->OMSetRenderTargets((UINT)rtHandles.size(), rtHandles.data(), false, &dsHandle);
 
-			DrawObjects(ctx, cmdList, "Deferred", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, cameraCBAddress, worldRsrc);
+			DrawObjects(ctx, cmdList, "Deferred", 4, DXGI_FORMAT_R32G32B32A32_FLOAT, cameraCBAddress, worldRsrc);
 		}
 	);
 
@@ -1074,6 +1113,9 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 			DrawObjects(ctx, cmdList, "Forward", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, cameraCBAddress, worldRsrc);
 		}
 	);
+
+	stages->taa.RegisterPassFuncData(cameraCBAddress);
+	stages->taa.RegisterPassFunc(*fgExecutor);
 
 	stages->postProcessing.RegisterPassFunc(*fgExecutor);
 
@@ -1426,4 +1468,63 @@ void StdPipeline::Render(
 {
 	assert(pImpl);
 	pImpl->Render(worlds, cameras, links, defaultRTs);
+}
+
+void StdPipeline::Impl::UpdateCameraResource(const CameraData& cameraData, size_t width, size_t height) {
+	auto cameraRsrcMngr = frameRsrcMngr.GetCurrentFrameResource()->GetResource<std::shared_ptr<CameraRsrcMngr>>("CameraRsrcMngr");
+	if (cameraRsrcMngr->Get(cameraData).Contains(key_CameraResizeData_Backup))
+		cameraRsrcMngr->Get(cameraData).Unregister(key_CameraResizeData_Backup);
+	if (!cameraRsrcMngr->Get(cameraData).Contains(key_CameraResizeData))
+		cameraRsrcMngr->Get(cameraData).Register(key_CameraResizeData, CameraResizeData{});
+	const auto& currCameraResizeData = cameraRsrcMngr->Get(cameraData).Get<CameraResizeData>(key_CameraResizeData);
+	if (currCameraResizeData.width == width && currCameraResizeData.height == height)
+		return;
+	CameraResizeData cameraResizeData;
+	cameraResizeData.width = width;
+	cameraResizeData.height = height;
+
+	auto rt2dDesc = UDX12::Desc::RSRC::RT2D(width, (UINT)height, DXGI_FORMAT_R32G32B32A32_FLOAT);
+
+	D3D12_CLEAR_VALUE clearvalue = {};
+	clearvalue.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+	clearvalue.Color[0] = 0;
+	clearvalue.Color[1] = 0;
+	clearvalue.Color[2] = 0;
+	clearvalue.Color[3] = 1;
+	const auto defaultHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+	Microsoft::WRL::ComPtr<ID3D12Resource> taaPrevRsrc;
+	initDesc.device->CreateCommittedResource(
+		&defaultHeapProp,
+		D3D12_HEAP_FLAG_NONE,
+		&rt2dDesc,
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+		&clearvalue,
+		IID_PPV_ARGS(&taaPrevRsrc)
+	);
+
+	cameraResizeData.taaPrevRsrc = std::move(taaPrevRsrc);
+
+	cameraRsrcMngr->Get(cameraData).Unregister(key_CameraResizeData);
+	cameraRsrcMngr->Get(cameraData).Register(key_CameraResizeData, cameraResizeData);
+
+	for (auto& frsrc : frameRsrcMngr.GetFrameResources()) {
+		if (frsrc.get() == frameRsrcMngr.GetCurrentFrameResource())
+			continue;
+
+		auto cameraRsrcMngr = frsrc->GetResource<std::shared_ptr<CameraRsrcMngr>>("CameraRsrcMngr");
+		if (!cameraRsrcMngr->Contains(cameraData))
+			continue;
+
+		if (!cameraRsrcMngr->Get(cameraData).Contains(key_CameraResizeData))
+			cameraRsrcMngr->Get(cameraData).Register(key_CameraResizeData, CameraResizeData{});
+
+		if (!cameraRsrcMngr->Get(cameraData).Contains(key_CameraResizeData_Backup)) {
+			cameraRsrcMngr->Get(cameraData).Register(
+				key_CameraResizeData_Backup,
+				std::move(cameraRsrcMngr->Get(cameraData).Get<CameraResizeData>(key_CameraResizeData))
+			);
+		}
+
+		cameraRsrcMngr->Get(cameraData).Get<CameraResizeData>(key_CameraResizeData) = cameraResizeData;
+	}
 }

@@ -1548,8 +1548,8 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 	auto gbuffer0 = fg.RegisterResourceNode("GBuffer0");
 	auto gbuffer1 = fg.RegisterResourceNode("GBuffer1");
 	auto gbuffer2 = fg.RegisterResourceNode("GBuffer2");
-	auto linearZ = fg.RegisterResourceNode("LinearZ");
 	auto motion = fg.RegisterResourceNode("Motion");
+	auto linearZ = fg.RegisterResourceNode("LinearZ");
 	auto deferLightedRT = fg.RegisterResourceNode("Defer Lighted");
 	auto deferLightedSkyRT = fg.RegisterResourceNode("Defer Lighted with Sky");
 	auto sceneRT = fg.RegisterResourceNode("Scene");
@@ -1591,7 +1591,7 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 	auto gbPass = fg.RegisterGeneralPassNode(
 		"GBuffer Pass",
 		{},
-		{ gbuffer0,gbuffer1,gbuffer2,linearZ,motion,deferDS }
+		{ gbuffer0,gbuffer1,gbuffer2,motion,linearZ,deferDS }
 	);
 	auto rtPass = fg.RegisterGeneralPassNode(
 		"RT Pass",
@@ -1739,8 +1739,8 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 		.RegisterTemporalRsrc(gbuffer0, rt2dDesc, gbuffer_clearvalue)
 		.RegisterTemporalRsrc(gbuffer1, rt2dDesc, gbuffer_clearvalue)
 		.RegisterTemporalRsrc(gbuffer2, rt2dDesc, gbuffer_clearvalue)
-		.RegisterTemporalRsrc(linearZ, rt2dDesc, gbuffer_clearvalue)
 		.RegisterTemporalRsrc(motion, rt2dDesc, gbuffer_clearvalue)
+		.RegisterTemporalRsrc(linearZ, rt2dDesc, gbuffer_clearvalue)
 		.RegisterTemporalRsrc(deferDS, dsDesc, dsClear)
 		.RegisterTemporalRsrcAutoClear(deferLightedRT, rt2dDesc)
 		.RegisterTemporalRsrc(rtResult, rtResultDesc, gbuffer_clearvalue)
@@ -1766,8 +1766,8 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 		.RegisterPassRsrc(gbPass, gbuffer0, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
 		.RegisterPassRsrc(gbPass, gbuffer1, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
 		.RegisterPassRsrc(gbPass, gbuffer2, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
-		.RegisterPassRsrc(gbPass, linearZ, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
 		.RegisterPassRsrc(gbPass, motion, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
+		.RegisterPassRsrc(gbPass, linearZ, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
 		.RegisterPassRsrc(gbPass, deferDS, D3D12_RESOURCE_STATE_DEPTH_WRITE, dsvDesc)
 
 		.RegisterRsrcTable({
@@ -1879,16 +1879,16 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 			auto gb0 = rsrcs.at(gbuffer0);
 			auto gb1 = rsrcs.at(gbuffer1);
 			auto gb2 = rsrcs.at(gbuffer2);
-			auto lZ = rsrcs.at(linearZ);
 			auto mt = rsrcs.at(motion);
+			auto lZ = rsrcs.at(linearZ);
 			auto ds = rsrcs.at(deferDS);
 
 			std::array rtHandles{
 				gb0.info->null_info_rtv.cpuHandle,
 				gb1.info->null_info_rtv.cpuHandle,
 				gb2.info->null_info_rtv.cpuHandle,
-				lZ.info->null_info_rtv.cpuHandle,
 				mt.info->null_info_rtv.cpuHandle,
+				lZ.info->null_info_rtv.cpuHandle,
 			};
 			auto dsHandle = ds.info->desc2info_dsv.at(dsvDesc).cpuHandle;
 			// Clear the render texture and depth buffer.

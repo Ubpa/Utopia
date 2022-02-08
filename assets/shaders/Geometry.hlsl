@@ -78,9 +78,9 @@ struct PixelOut {
     float4 gbuffer0 : SV_Target0;
     float4 gbuffer1 : SV_Target1;
     float4 gbuffer2 : SV_Target2;
+    float4 motion   : SV_Target3; // xy: motion (prev -> curr), z: 0, w: normFWidth
 #ifdef UBPA_STD_RAY_TRACING
-    float4 linearZ  : SV_Target3; // x: Z, y: maxChangeZ, z: prevZ, w: objN
-    float4 motion   : SV_Target4; // xy: motion (prev -> curr), z: 0, w: normFWidth
+    float4 linearZ  : SV_Target4; // x: Z, y: maxChangeZ, z: prevZ, w: objN
 #endif // UBPA_STD_RAY_TRACING
 };
 
@@ -114,15 +114,15 @@ PixelOut PS(VertexOut pin)
     pout.gbuffer0 = float4(albedo.xyz, roughness);
     pout.gbuffer1 = float4(N         , metalness);
     pout.gbuffer2 = float4(0, 0, 0   , 1        );
-
-#ifdef UBPA_STD_RAY_TRACING
-    pout.linearZ = float4(Z, maxChangeZ, prevZ, asfloat(DirToOct(pin.NormalL)));
     /*
      * motion is velocity: displacement / time
      * displacement: currTexc - prevTexc
      * time: unit 1
      */
-    pout.motion = float4(currTexc - prevTexc, 0, 1/*normFWidth*/);
+    pout.motion = float4(currTexc - prevTexc, 0, normFWidth);
+
+#ifdef UBPA_STD_RAY_TRACING
+    pout.linearZ = float4(Z, maxChangeZ, prevZ, asfloat(DirToOct(pin.NormalL)));
 #endif // UBPA_STD_RAY_TRACING
 
     return pout;
