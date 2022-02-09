@@ -1,6 +1,8 @@
 #pragma once
 
 #include <Utopia/Render/RenderQueue.h>
+#include <Utopia/Render/Texture2D.h>
+#include <Utopia/Render/TextureCube.h>
 #include <Utopia/Render/DX12/IPipeline.h>
 
 #include <Utopia/Core/SharedVar.h>
@@ -32,10 +34,36 @@ namespace Ubpa::Utopia {
 		bool IsCommonCB(std::string_view cbDescName) const;
 		const UDX12::DescriptorHeapAllocation& GetDefaultIBLSrvDHA() const;
 
+		std::shared_ptr<Texture2D> GetErrorTex2D() const;
+		std::shared_ptr<Texture2D> GetWhiteTex2D() const;
+		std::shared_ptr<Texture2D> GetBlackTex2D() const;
+		std::shared_ptr<Texture2D> GetNormalTex2D() const;
+		std::shared_ptr<Texture2D> GetBrdfLutTex2D() const;
+
+		/** idx: 0 / 1 */
+		std::shared_ptr<Texture2D> GetLtcTex2D(size_t idx) const;
+		const UDX12::DescriptorHeapAllocation& GetLtcSrvDHA() const;
+
+		std::shared_ptr<TextureCube> GetWhiteTexCube() const;
+		std::shared_ptr<TextureCube> GetBlackTexCube() const;
+
 	private:
-		PipelineCommonResourceMngr() = default;
+		PipelineCommonResourceMngr();
+
+		std::shared_ptr<Texture2D> errorTex2D;
+		std::shared_ptr<Texture2D> whiteTex2D;
+		std::shared_ptr<Texture2D> blackTex2D;
+		std::shared_ptr<Texture2D> normalTex2D;
+		std::shared_ptr<Texture2D> brdfLutTex2D;
+
+		std::shared_ptr<Texture2D> ltcTex2Ds[2];
+		UDX12::DescriptorHeapAllocation ltcSrvDHA;
+
+		std::shared_ptr<TextureCube> whiteTexCube;
+		std::shared_ptr<TextureCube> blackTexCube;
 
 		std::shared_ptr<Material> errorMat;
+
 		std::shared_ptr<Shader> skyboxShader;
 		D3D12_GPU_DESCRIPTOR_HANDLE defaultSkyboxGpuHandle;
 		/**

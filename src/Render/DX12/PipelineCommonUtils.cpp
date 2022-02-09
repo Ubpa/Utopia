@@ -20,9 +20,15 @@
 
 #include <UECS/UECS.hpp>
 
+#include "../_deps/LTCTex.h"
+
 using namespace Ubpa;
 using namespace Ubpa::Utopia;
 using namespace Ubpa::UECS;
+
+PipelineCommonResourceMngr::PipelineCommonResourceMngr()
+	: defaultSkyboxGpuHandle{ 0 }
+{}
 
 PipelineCommonResourceMngr& PipelineCommonResourceMngr::GetInstance() {
 	static PipelineCommonResourceMngr instance;
@@ -34,10 +40,38 @@ void PipelineCommonResourceMngr::Init(ID3D12Device* device) {
 
 	skyboxShader = ShaderMngr::Instance().Get("StdPipeline/Skybox");
 
+	blackTex2D = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\textures\black.png)");
+	whiteTex2D = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\textures\white.png)");
+	errorTex2D = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\textures\error.png)");
+	normalTex2D = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\textures\normal.png)");
+	brdfLutTex2D = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\textures\BRDFLUT.png)");
 
-	auto blackTex2D = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\textures\black.png)");
+	ltcTex2Ds[0] = std::make_shared<Texture2D>();
+	ltcTex2Ds[1] = std::make_shared<Texture2D>();
+	ltcTex2Ds[0]->image = Image(LTCTex::SIZE, LTCTex::SIZE, 4, LTCTex::data1);
+	ltcTex2Ds[1]->image = Image(LTCTex::SIZE, LTCTex::SIZE, 4, LTCTex::data2);
+	GPURsrcMngrDX12::Instance().RegisterTexture2D(*ltcTex2Ds[0]);
+	GPURsrcMngrDX12::Instance().RegisterTexture2D(*ltcTex2Ds[1]);
+	ltcSrvDHA = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(2);
+	auto ltc0 = GPURsrcMngrDX12::Instance().GetTexture2DResource(*ltcTex2Ds[0]);
+	auto ltc1 = GPURsrcMngrDX12::Instance().GetTexture2DResource(*ltcTex2Ds[1]);
+	const auto ltc0SRVDesc = UDX12::Desc::SRV::Tex2D(ltc0->GetDesc().Format);
+	const auto ltc1SRVDesc = UDX12::Desc::SRV::Tex2D(ltc1->GetDesc().Format);
+	device->CreateShaderResourceView(
+		ltc0,
+		&ltc0SRVDesc,
+		ltcSrvDHA.GetCpuHandle(static_cast<uint32_t>(0))
+	);
+	device->CreateShaderResourceView(
+		ltc1,
+		&ltc1SRVDesc,
+		ltcSrvDHA.GetCpuHandle(static_cast<uint32_t>(1))
+	);
+
+	blackTexCube = AssetMngr::Instance().LoadAsset<TextureCube>(LR"(_internal\textures\blackCube.png)");
+	whiteTexCube = AssetMngr::Instance().LoadAsset<TextureCube>(LR"(_internal\textures\whiteCube.png)");
+
 	auto blackRsrc = GPURsrcMngrDX12::Instance().GetTexture2DResource(*blackTex2D);
-	auto blackTexCube = SharedVar<TextureCube>(AssetMngr::Instance().LoadAsset<TextureCube>(LR"(_internal\textures\blackCube.png)"));
 	auto blackTexCubeRsrc = GPURsrcMngrDX12::Instance().GetTextureCubeResource(*blackTexCube);
 	defaultSkyboxGpuHandle = GPURsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(*blackTexCube);
 
@@ -56,6 +90,16 @@ void PipelineCommonResourceMngr::Init(ID3D12Device* device) {
 }
 
 void PipelineCommonResourceMngr::Release() {
+	blackTex2D = nullptr;
+	whiteTex2D = nullptr;
+	errorTex2D = nullptr;
+	normalTex2D = nullptr;
+	brdfLutTex2D = nullptr;
+	ltcTex2Ds[0] = nullptr;
+	ltcTex2Ds[1] = nullptr;
+	UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(ltcSrvDHA));
+	blackTexCube = nullptr;
+	whiteTexCube = nullptr;
 	errorMat = nullptr;
 	skyboxShader = nullptr;
 	defaultSkyboxGpuHandle.ptr = 0;
@@ -75,6 +119,43 @@ bool PipelineCommonResourceMngr::IsCommonCB(std::string_view cbDescName) const {
 
 const UDX12::DescriptorHeapAllocation& PipelineCommonResourceMngr::GetDefaultIBLSrvDHA() const {
 	return defaultIBLSrvDHA;
+}
+
+std::shared_ptr<Texture2D> PipelineCommonResourceMngr::GetErrorTex2D() const {
+	return errorTex2D;
+}
+
+std::shared_ptr<Texture2D> PipelineCommonResourceMngr::GetWhiteTex2D() const {
+	return whiteTex2D;
+}
+
+std::shared_ptr<Texture2D> PipelineCommonResourceMngr::GetBlackTex2D() const {
+	return blackTex2D;
+}
+
+std::shared_ptr<Texture2D> PipelineCommonResourceMngr::GetNormalTex2D() const {
+	return normalTex2D;
+}
+
+std::shared_ptr<Texture2D> PipelineCommonResourceMngr::GetBrdfLutTex2D() const {
+	return brdfLutTex2D;
+}
+
+std::shared_ptr<Texture2D> PipelineCommonResourceMngr::GetLtcTex2D(size_t idx) const {
+	assert(idx == 0 || idx == 1);
+	return ltcTex2Ds[idx];
+}
+
+const UDX12::DescriptorHeapAllocation& PipelineCommonResourceMngr::GetLtcSrvDHA() const {
+	return ltcSrvDHA;
+}
+
+std::shared_ptr<TextureCube> PipelineCommonResourceMngr::GetBlackTexCube() const {
+	return blackTexCube;
+}
+
+std::shared_ptr<TextureCube> PipelineCommonResourceMngr::GetWhiteTexCube() const {
+	return whiteTexCube;
 }
 
 ShaderCBDesc Ubpa::Utopia::UpdateShaderCBs(

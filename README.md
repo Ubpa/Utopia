@@ -15,19 +15,20 @@
 ## Environment
 
 - Windows 10
-- VS 2019
+- VS 2019+
 - DirectX 12
 - CMake 3.18.2 +
+- (optional) ASSIMP
 
 ## Feature
 
 - DirectX 12
 - ECS ([UECS](https://github.com/Ubpa/UECS))
-- Lua
+- (temporarily remove) Lua
 - Frame Graph
 - ShaderLab
-- [ImGui](https://github.com/ocornut/imgui) 
-- static reflection ([USRefl](https://github.com/Ubpa/USRefl))
+- [ImGui](https://github.com/ocornut/imgui)
+- Dynamic Reflection ([UDRefl](https://github.com/Ubpa/UDRefl))
 
 ## Documents
 

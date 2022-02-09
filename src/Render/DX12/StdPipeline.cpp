@@ -2,7 +2,6 @@
 
 #include <Utopia/Render/DX12/PipelineCommonUtils.h>
 
-#include "../_deps/LTCTex.h"
 #include <Utopia/Render/DX12/CameraRsrcMngr.h>
 #include <Utopia/Render/DX12/WorldRsrcMngr.h>
 
@@ -114,9 +113,6 @@ struct StdPipeline::Impl {
 	static constexpr char StdPipeline_cbLightArray[] = "StdPipeline_cbLightArray";
 	static constexpr char StdPipeline_srvIBL[] = "StdPipeline_IrradianceMap";
 	static constexpr char StdPipeline_srvLTC[] = "StdPipeline_LTC0";
-
-	Texture2D ltcTexes[2];
-	UDX12::DescriptorHeapAllocation ltcHandles; // 2
 	
 	UDX12::FrameResourceMngr frameRsrcMngr;
 
@@ -167,9 +163,6 @@ struct StdPipeline::Impl {
 };
 
 StdPipeline::Impl::~Impl() {
-	GPURsrcMngrDX12::Instance().UnregisterTexture2D(ltcTexes[0].GetInstanceID());
-	GPURsrcMngrDX12::Instance().UnregisterTexture2D(ltcTexes[1].GetInstanceID());
-	UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(ltcHandles));
 }
 
 void StdPipeline::Impl::IBLData::Init(ID3D12Device* device) {
@@ -231,7 +224,7 @@ void StdPipeline::Impl::IBLData::Init(ID3D12Device* device) {
 		device->CreateShaderResourceView(prefilterMapResource.Get(), &srvDesc, SRVDH.GetCpuHandle(1));
 	}
 	{// BRDF LUT
-		auto brdfLUTTex2D = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\textures\BRDFLUT.png)");
+		auto brdfLUTTex2D = PipelineCommonResourceMngr::GetInstance().GetBrdfLutTex2D();
 		auto brdfLUTTex2DRsrc = GPURsrcMngrDX12::Instance().GetTexture2DResource(*brdfLUTTex2D);
 		auto desc = UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32_FLOAT);
 		device->CreateShaderResourceView(brdfLUTTex2DRsrc, &desc, SRVDH.GetCpuHandle(2));
@@ -239,25 +232,6 @@ void StdPipeline::Impl::IBLData::Init(ID3D12Device* device) {
 }
 
 void StdPipeline::Impl::BuildTextures() {
-	ltcTexes[0].image = Image(LTCTex::SIZE, LTCTex::SIZE, 4, LTCTex::data1);
-	ltcTexes[1].image = Image(LTCTex::SIZE, LTCTex::SIZE, 4, LTCTex::data2);
-	GPURsrcMngrDX12::Instance().RegisterTexture2D(ltcTexes[0]);
-	GPURsrcMngrDX12::Instance().RegisterTexture2D(ltcTexes[1]);
-	ltcHandles = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(2);
-	auto ltc0 = GPURsrcMngrDX12::Instance().GetTexture2DResource(ltcTexes[0]);
-	auto ltc1 = GPURsrcMngrDX12::Instance().GetTexture2DResource(ltcTexes[1]);
-	const auto ltc0SRVDesc = UDX12::Desc::SRV::Tex2D(ltc0->GetDesc().Format);
-	const auto ltc1SRVDesc = UDX12::Desc::SRV::Tex2D(ltc1->GetDesc().Format);
-	initDesc.device->CreateShaderResourceView(
-		ltc0,
-		&ltc0SRVDesc,
-		ltcHandles.GetCpuHandle(static_cast<uint32_t>(0))
-	);
-	initDesc.device->CreateShaderResourceView(
-		ltc1,
-		&ltc1SRVDesc,
-		ltcHandles.GetCpuHandle(static_cast<uint32_t>(1))
-	);
 }
 
 void StdPipeline::Impl::BuildFrameResources() {
@@ -637,7 +611,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 			else
 				cmdList->SetGraphicsRootDescriptorTable(2, iblData->SRVDH.GetGpuHandle());
 
-			cmdList->SetGraphicsRootDescriptorTable(3, ltcHandles.GetGpuHandle());
+			cmdList->SetGraphicsRootDescriptorTable(3, PipelineCommonResourceMngr::GetInstance().GetLtcSrvDHA().GetGpuHandle());
 
 			auto cbLights = frameRsrcMngr.GetCurrentFrameResource()
 				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
@@ -1010,7 +984,7 @@ void StdPipeline::Impl::DrawObjects(
 			},
 			{
 				{StdPipeline_srvIBL, ibl},
-				{StdPipeline_srvLTC, ltcHandles.GetGpuHandle()}
+				{StdPipeline_srvLTC, PipelineCommonResourceMngr::GetInstance().GetLtcSrvDHA().GetGpuHandle()}
 			}
 		);
 

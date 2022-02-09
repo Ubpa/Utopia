@@ -1,7 +1,6 @@
 #include <Utopia/Render/DX12/StdDXRPipeline.h>
 
 #include <Utopia/Render/DX12/PipelineCommonUtils.h>
-#include "../_deps/LTCTex.h"
 
 #include <Utopia/Render/DX12/CameraRsrcMngr.h>
 #include <Utopia/Render/DX12/WorldRsrcMngr.h>
@@ -723,15 +722,6 @@ struct StdDXRPipeline::Impl {
 		StdDXRPipeline_cbLightArray
 	};
 
-	Texture2D ltcTexes[2];
-	UDX12::DescriptorHeapAllocation ltcHandles; // 2
-
-	std::shared_ptr<Material> errorMat;
-	std::shared_ptr<Texture2D> errorTex;
-	std::shared_ptr<Texture2D> dnormalTex;
-	std::shared_ptr<Texture2D> blackTex;
-	std::shared_ptr<Texture2D> whiteTex;
-
 	UDX12::FrameResourceMngr frameRsrcMngr;
 
 	UFG::Compiler fgCompiler;
@@ -880,7 +870,7 @@ void StdDXRPipeline::Impl::IBLData::Init(ID3D12Device* device) {
 		device->CreateShaderResourceView(prefilterMapResource.Get(), &srvDesc, SRVDH.GetCpuHandle(1));
 	}
 	{// BRDF LUT
-		auto brdfLUTTex2D = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\textures\BRDFLUT.png)");
+		auto brdfLUTTex2D = PipelineCommonResourceMngr::GetInstance().GetBrdfLutTex2D();
 		auto brdfLUTTex2DRsrc = GPURsrcMngrDX12::Instance().GetTexture2DResource(*brdfLUTTex2D);
 		auto desc = UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32_FLOAT);
 		device->CreateShaderResourceView(brdfLUTTex2DRsrc, &desc, SRVDH.GetCpuHandle(2));
@@ -926,37 +916,9 @@ void StdDXRPipeline::Impl::TLASData::Reserve(ID3D12Device* device,
 }
 
 StdDXRPipeline::Impl::~Impl() {
-	GPURsrcMngrDX12::Instance().UnregisterTexture2D(ltcTexes[0].GetInstanceID());
-	GPURsrcMngrDX12::Instance().UnregisterTexture2D(ltcTexes[1].GetInstanceID());
-	UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(ltcHandles));
 }
 
 void StdDXRPipeline::Impl::BuildTextures() {
-	ltcTexes[0].image = Image(LTCTex::SIZE, LTCTex::SIZE, 4, LTCTex::data1);
-	ltcTexes[1].image = Image(LTCTex::SIZE, LTCTex::SIZE, 4, LTCTex::data2);
-	GPURsrcMngrDX12::Instance().RegisterTexture2D(ltcTexes[0]);
-	GPURsrcMngrDX12::Instance().RegisterTexture2D(ltcTexes[1]);
-	ltcHandles = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(2);
-	auto ltc0 = GPURsrcMngrDX12::Instance().GetTexture2DResource(ltcTexes[0]);
-	auto ltc1 = GPURsrcMngrDX12::Instance().GetTexture2DResource(ltcTexes[1]);
-	const auto ltc0SRVDesc = UDX12::Desc::SRV::Tex2D(ltc0->GetDesc().Format);
-	const auto ltc1SRVDesc = UDX12::Desc::SRV::Tex2D(ltc1->GetDesc().Format);
-	initDesc.device->CreateShaderResourceView(
-		ltc0,
-		&ltc0SRVDesc,
-		ltcHandles.GetCpuHandle(static_cast<uint32_t>(0))
-	);
-	initDesc.device->CreateShaderResourceView(
-		ltc1,
-		&ltc1SRVDesc,
-		ltcHandles.GetCpuHandle(static_cast<uint32_t>(1))
-	);
-
-	errorMat = AssetMngr::Instance().LoadAsset<Material>(LR"(_internal\materials\error.mat)");
-	errorTex = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\textures\error.png)");
-	dnormalTex = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\textures\normal.png)");
-	blackTex = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\textures\black.png)");
-	whiteTex = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\textures\white.png)");
 }
 
 void StdDXRPipeline::Impl::BuildFrameResources() {
@@ -1551,7 +1513,7 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 			else
 				cmdList->SetGraphicsRootDescriptorTable(2, iblData->SRVDH.GetGpuHandle());
 
-			cmdList->SetGraphicsRootDescriptorTable(3, ltcHandles.GetGpuHandle());
+			cmdList->SetGraphicsRootDescriptorTable(3, PipelineCommonResourceMngr::GetInstance().GetLtcSrvDHA().GetGpuHandle());
 
 			auto cbLights = frameRsrcMngr.GetCurrentFrameResource()
 				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
@@ -2255,10 +2217,10 @@ void StdDXRPipeline::Impl::Render(
 							else { // error material
 								RootTable rootTable{
 									.buffer_table = GPURsrcMngrDX12::Instance().GetMeshBufferTableGpuHandle(*data.mesh, i).ptr,
-									.albedo_table = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*errorTex).ptr,
-									.roughness_table = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*whiteTex).ptr,
-									.metalness_table = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*blackTex).ptr,
-									.normal_table = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*dnormalTex).ptr
+									.albedo_table = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*PipelineCommonResourceMngr::GetInstance().GetErrorTex2D()).ptr,
+									.roughness_table = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*PipelineCommonResourceMngr::GetInstance().GetWhiteTex2D()).ptr,
+									.metalness_table = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*PipelineCommonResourceMngr::GetInstance().GetBlackTex2D()).ptr,
+									.normal_table = GPURsrcMngrDX12::Instance().GetTexture2DSrvGpuHandle(*PipelineCommonResourceMngr::GetInstance().GetNormalTex2D()).ptr
 								};
 								tlasBuffers->hitGroupTable.Set(mHitGroupTableEntrySize * (1 + (tableIdx++)) + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES, &rootTable);
 							}
@@ -2358,9 +2320,9 @@ void StdDXRPipeline::Impl::DrawObjects(
 			},
 			{
 				{StdDXRPipeline_srvIBL, ibl},
-				{StdDXRPipeline_srvLTC, ltcHandles.GetGpuHandle()}
+				{StdDXRPipeline_srvLTC, PipelineCommonResourceMngr::GetInstance().GetLtcSrvDHA().GetGpuHandle()}
 			}
-			);
+		);
 
 		auto& meshGPUBuffer = GPURsrcMngrDX12::Instance().GetMeshGPUBuffer(*obj.mesh);
 		const auto& submesh = obj.mesh->GetSubMeshes().at(obj.submeshIdx);
