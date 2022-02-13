@@ -78,21 +78,6 @@ namespace Ubpa::Utopia {
 		std::set<std::string, std::less<>> commonCBs;
 	};
 
-	struct ShaderCBDesc {
-		// material 0 cbs   -- offset
-		//  material 0 cb 0
-		//  material 0 cb 1
-		//  ...
-		// material 1 cbs   -- offset + materialCBSize
-		// ...
-
-		// global offset = begin_offset + indexMap[material] * materialCBSize + offsetMap[register index]
-		size_t begin_offset;
-		size_t materialCBSize{ 0 };
-		std::map<size_t, size_t> offsetMap; // register index -> local offset
-		std::unordered_map<size_t, size_t> indexMap; // material ID -> index
-	};
-
 	struct ObjectConstants {
 		transformf World;
 		transformf InvWorld;
@@ -171,6 +156,8 @@ namespace Ubpa::Utopia {
 	};
 
 	struct RenderContext {
+		size_t ID = static_cast<size_t>(-1);
+
 		struct EntityData {
 			valf<16> l2w;
 			valf<16> w2l;
@@ -181,38 +168,12 @@ namespace Ubpa::Utopia {
 
 		RenderQueue renderQueue;
 
-		std::unordered_map<const Shader*, ShaderCBDesc> shaderCBDescMap; // shader ID -> desc
-
 		D3D12_GPU_DESCRIPTOR_HANDLE skyboxGpuHandle;
 
 		LightArray lightArray;
 
-		// common
-		size_t cameraOffset;
-		size_t lightOffset;
-		size_t objectOffset;
 		std::unordered_map<size_t, EntityData> entity2data;
-		std::unordered_map<size_t, size_t> entity2offset;
 	};
 
-	ShaderCBDesc UpdateShaderCBs(
-		UDX12::DynamicUploadVector& cb,
-		const Shader& shader,
-		const std::unordered_set<const Material*>& materials
-	);
-
-	void SetGraphicsRoot_CBV_SRV(
-		ID3D12GraphicsCommandList* cmdList,
-		UDX12::DynamicUploadVector& cb,
-		const ShaderCBDesc& shaderCBDesc,
-		const Material& material,
-		const std::map<std::string_view, D3D12_GPU_VIRTUAL_ADDRESS>& commonCBs,
-		const std::map<std::string_view, D3D12_GPU_DESCRIPTOR_HANDLE>& commonSRVs
-	);
-
-	RenderContext GenerateRenderContext(
-		std::span<const UECS::World* const> worlds,
-		std::span<const CameraConstants* const> cameraConstantsSpan,
-		UDX12::DynamicUploadVector& shaderCB,
-		UDX12::DynamicUploadVector& commonShaderCB);
+	RenderContext GenerateRenderContext(size_t ID, std::span<const UECS::World* const> worlds);
 }

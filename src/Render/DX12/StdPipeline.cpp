@@ -1,6 +1,7 @@
 #include <Utopia/Render/DX12/StdPipeline.h>
 
 #include <Utopia/Render/DX12/PipelineCommonUtils.h>
+#include <Utopia/Render/DX12/ShaderCBMngr.h>
 
 #include <Utopia/Render/DX12/CameraRsrcMngr.h>
 #include <Utopia/Render/DX12/WorldRsrcMngr.h>
@@ -236,8 +237,7 @@ void StdPipeline::Impl::BuildTextures() {
 
 void StdPipeline::Impl::BuildFrameResources() {
 	for (const auto& fr : frameRsrcMngr.GetFrameResources()) {
-		fr->RegisterResource("ShaderCB", std::make_shared<UDX12::DynamicUploadVector>(initDesc.device));
-		fr->RegisterResource("CommonShaderCB", std::make_shared<UDX12::DynamicUploadVector>(initDesc.device));
+		fr->RegisterResource("ShaderCBMngr", std::make_shared<ShaderCBMngr>(initDesc.device));
 
 		fr->RegisterResource("CameraRsrcMngr", std::make_shared<CameraRsrcMngr>());
 		fr->RegisterResource("WorldRsrcMngr", std::make_shared<WorldRsrcMngr>());
@@ -531,9 +531,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 	stages->tonemapping.RegisterPassResources(*fgRsrcMngr);
 
 	const D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
-		->GetResource()->GetGPUVirtualAddress()
-		+ ctx.cameraOffset + cameraIdx * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
+		->GetResource<std::shared_ptr<ShaderCBMngr>>("ShaderCBMngr")->GetCameraCBAddress(ctx.ID, cameraIdx);
 
 	fgExecutor->RegisterPassFunc(
 		gbPass,
@@ -613,10 +611,9 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 
 			cmdList->SetGraphicsRootDescriptorTable(3, PipelineCommonResourceMngr::GetInstance().GetLtcSrvDHA().GetGpuHandle());
 
-			auto cbLights = frameRsrcMngr.GetCurrentFrameResource()
-				->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")
-				->GetResource()->GetGPUVirtualAddress() + ctx.lightOffset;
-			cmdList->SetGraphicsRootConstantBufferView(4, cbLights);
+			auto lightCBAddress = frameRsrcMngr.GetCurrentFrameResource()
+				->GetResource<std::shared_ptr<ShaderCBMngr>>("ShaderCBMngr")->GetLightCBAddress(ctx.ID);
+			cmdList->SetGraphicsRootConstantBufferView(4, lightCBAddress);
 
 			cmdList->SetGraphicsRootConstantBufferView(5, cameraCBAddress);
 
@@ -714,11 +711,6 @@ void StdPipeline::Impl::Render(
 	// If not, wait until the GPU has completed commands up to this fence point.
 	frameRsrcMngr.BeginFrame();
 
-	frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("ShaderCB")->Clear();
-	frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB")->Clear();
-
 	UpdateCrossFrameCameraResources(cameras, defaultRTs);
 
 	frameRsrcMngr.GetCurrentFrameResource()
@@ -733,23 +725,25 @@ void StdPipeline::Impl::Render(
 		worldArrs.push_back(std::move(worldArr));
 	}
 
-	auto shaderCB = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("ShaderCB");
-	auto commonShaderCB = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB");
+	auto shaderCBMngr = frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<std::shared_ptr<ShaderCBMngr>>("ShaderCBMngr");
+	shaderCBMngr->NewFrame();
+
 	std::vector<RenderContext> ctxs;
 	for (size_t i = 0; i < worldArrs.size(); ++i) {
+		auto ctx = GenerateRenderContext(i, worldArrs[i]);
+
 		std::vector<CameraData> linkedCameras;
 		for (size_t camIdx : links[i].cameraIndices)
 			linkedCameras.push_back(cameras[camIdx]);
-
 		std::vector<const CameraConstants*> cameraConstantsVector;
 		for (const auto& linkedCamera : linkedCameras) {
 			auto* camConts = &crossFrameCameraRsrcs.Get(linkedCamera).Get<CameraConstants>(key_CameraConstants);
 			cameraConstantsVector.push_back(camConts);
 		}
+		shaderCBMngr->RegisterRenderContext(ctx, cameraConstantsVector);
 
-		ctxs.push_back(GenerateRenderContext(worldArrs[i], cameraConstantsVector, *shaderCB, *commonShaderCB));
+		ctxs.push_back(std::move(ctx));
 	}
 
 	crossFrameWorldRsrcMngr.Update(worldArrs, initDesc.numFrame);
@@ -942,10 +936,8 @@ void StdPipeline::Impl::DrawObjects(
 	D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress,
 	const ResourceMap& worldRsrc)
 {
-	auto& shaderCB = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("ShaderCB");
-	auto& commonShaderCB = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<std::shared_ptr<UDX12::DynamicUploadVector>>("CommonShaderCB");
+	auto& shaderCBMngr = frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<std::shared_ptr<ShaderCBMngr>>("ShaderCBMngr");
 
 	D3D12_GPU_DESCRIPTOR_HANDLE ibl;
 	if (ctx.skyboxGpuHandle.ptr == PipelineCommonResourceMngr::GetInstance().GetDefaultSkyboxGpuHandle().ptr)
@@ -968,15 +960,15 @@ void StdPipeline::Impl::DrawObjects(
 			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*shader));
 		}
 
-		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress =
-			commonShaderCB->GetResource()->GetGPUVirtualAddress()
-			+ ctx.entity2offset.at(obj.entity.index);
+		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = shaderCBMngr->GetObjectCBAddress(ctx.ID, obj.entity.index);
 
-		const auto& shaderCBDesc = ctx.shaderCBDescMap.at(shader.get());
+		auto lightCBAdress = shaderCBMngr->GetLightCBAddress(ctx.ID);
 
-		auto lightCBAdress = commonShaderCB->GetResource()->GetGPUVirtualAddress()
-			+ ctx.lightOffset;
-		SetGraphicsRoot_CBV_SRV(cmdList, *shaderCB, shaderCBDesc, *obj.material,
+		shaderCBMngr->SetGraphicsRoot_CBV_SRV(
+			cmdList,
+			ctx.ID,
+			shader.get(),
+			*obj.material,
 			{
 				{StdPipeline_cbPerObject, objCBAddress},
 				{StdPipeline_cbPerCamera, cameraCBAddress},
@@ -986,7 +978,7 @@ void StdPipeline::Impl::DrawObjects(
 				{StdPipeline_srvIBL, ibl},
 				{StdPipeline_srvLTC, PipelineCommonResourceMngr::GetInstance().GetLtcSrvDHA().GetGpuHandle()}
 			}
-		);
+			);
 
 		auto& meshGPUBuffer = GPURsrcMngrDX12::Instance().GetMeshGPUBuffer(*obj.mesh);
 		const auto& submesh = obj.mesh->GetSubMeshes().at(obj.submeshIdx);
