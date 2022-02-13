@@ -671,34 +671,6 @@ struct StdDXRPipeline::Impl {
 		float resolution;
 	};
 
-	struct IBLData {
-		~IBLData() {
-			if (!RTVsDH.IsNull())
-				UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Free(std::move(RTVsDH));
-			if (!SRVDH.IsNull())
-				UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(SRVDH));
-		}
-
-		void Init(ID3D12Device* device);
-
-		D3D12_GPU_DESCRIPTOR_HANDLE lastSkybox{ 0 };
-		UINT nextIdx{ static_cast<UINT>(-1) };
-
-		static constexpr size_t IrradianceMapSize = 128;
-		static constexpr size_t PreFilterMapSize = 512;
-		static constexpr UINT PreFilterMapMipLevels = 5;
-
-		Microsoft::WRL::ComPtr<ID3D12Resource> irradianceMapResource;
-		Microsoft::WRL::ComPtr<ID3D12Resource> prefilterMapResource;
-		// irradiance map rtv : 0 ~ 5
-		// prefilter map rtv  : 6 ~ 5 + 6 * PreFilterMapMipLevels
-		UDX12::DescriptorHeapAllocation RTVsDH;
-		// irradiance map srv : 0
-		// prefilter map rtv  : 1
-		// BRDF LUT           : 2
-		UDX12::DescriptorHeapAllocation SRVDH;
-	};
-
 	CameraRsrcMngr crossFrameCameraRsrcs;
 	static constexpr const char key_CameraConstants[] = "CameraConstants";
 
@@ -710,18 +682,6 @@ struct StdDXRPipeline::Impl {
 	};
 
 	const InitDesc initDesc;
-
-	static constexpr char StdDXRPipeline_cbPerObject[] = "StdPipeline_cbPerObject";
-	static constexpr char StdDXRPipeline_cbPerCamera[] = "StdPipeline_cbPerCamera";
-	static constexpr char StdDXRPipeline_cbLightArray[] = "StdPipeline_cbLightArray";
-	static constexpr char StdDXRPipeline_srvIBL[] = "StdPipeline_IrradianceMap";
-	static constexpr char StdDXRPipeline_srvLTC[] = "StdPipeline_LTC0";
-
-	const std::set<std::string_view> commonCBs{
-		StdDXRPipeline_cbPerObject,
-		StdDXRPipeline_cbPerCamera,
-		StdDXRPipeline_cbLightArray
-	};
 
 	UDX12::FrameResourceMngr frameRsrcMngr;
 
@@ -801,82 +761,8 @@ struct StdDXRPipeline::Impl {
 		std::span<const WorldCameraLink> links,
 		std::span<ID3D12Resource* const> defaultRTs);
 	void CameraRender(const RenderContext& ctx, const CameraData& cameraData, size_t cameraIdx, ID3D12Resource* rtb, const ResourceMap& worldRsrc);
-	void DrawObjects(
-		const RenderContext& ctx,
-		ID3D12GraphicsCommandList*,
-		std::string_view lightMode,
-		size_t rtNum,
-		DXGI_FORMAT rtFormat,
-		D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress,
-		const ResourceMap& worldRsrc);
 	void UpdateCameraResource(const CameraData& cameraData, size_t width, size_t height);
 };
-
-void StdDXRPipeline::Impl::IBLData::Init(ID3D12Device* device) {
-	D3D12_CLEAR_VALUE clearColor;
-	clearColor.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-	clearColor.Color[0] = 0.f;
-	clearColor.Color[1] = 0.f;
-	clearColor.Color[2] = 0.f;
-	clearColor.Color[3] = 1.f;
-
-	RTVsDH = UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Allocate(6 * (1 + IBLData::PreFilterMapMipLevels));
-	SRVDH = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(3);
-	{ // irradiance
-		auto rsrcDesc = UDX12::Desc::RSRC::TextureCube(
-			IBLData::IrradianceMapSize, IBLData::IrradianceMapSize,
-			1, DXGI_FORMAT_R32G32B32A32_FLOAT
-		);
-		const auto defaultHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-		device->CreateCommittedResource(
-			&defaultHeapProp,
-			D3D12_HEAP_FLAG_NONE,
-			&rsrcDesc,
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-			&clearColor,
-			IID_PPV_ARGS(&irradianceMapResource)
-		);
-		for (UINT i = 0; i < 6; i++) {
-			auto rtvDesc = UDX12::Desc::RTV::Tex2DofTexCube(DXGI_FORMAT_R32G32B32A32_FLOAT, i);
-			device->CreateRenderTargetView(irradianceMapResource.Get(), &rtvDesc, RTVsDH.GetCpuHandle(i));
-		}
-		auto srvDesc = UDX12::Desc::SRV::TexCube(DXGI_FORMAT_R32G32B32A32_FLOAT);
-		device->CreateShaderResourceView(irradianceMapResource.Get(), &srvDesc, SRVDH.GetCpuHandle(0));
-	}
-	{ // prefilter
-		auto rsrcDesc = UDX12::Desc::RSRC::TextureCube(
-			IBLData::PreFilterMapSize, IBLData::PreFilterMapSize,
-			IBLData::PreFilterMapMipLevels, DXGI_FORMAT_R32G32B32A32_FLOAT
-		);
-		const auto defaultHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-		device->CreateCommittedResource(
-			&defaultHeapProp,
-			D3D12_HEAP_FLAG_NONE,
-			&rsrcDesc,
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-			&clearColor,
-			IID_PPV_ARGS(&prefilterMapResource)
-		);
-		for (UINT mip = 0; mip < IBLData::PreFilterMapMipLevels; mip++) {
-			for (UINT i = 0; i < 6; i++) {
-				auto rtvDesc = UDX12::Desc::RTV::Tex2DofTexCube(DXGI_FORMAT_R32G32B32A32_FLOAT, i, mip);
-				device->CreateRenderTargetView(
-					prefilterMapResource.Get(),
-					&rtvDesc,
-					RTVsDH.GetCpuHandle(6 * (1 + mip) + i)
-				);
-			}
-		}
-		auto srvDesc = UDX12::Desc::SRV::TexCube(DXGI_FORMAT_R32G32B32A32_FLOAT, IBLData::PreFilterMapMipLevels);
-		device->CreateShaderResourceView(prefilterMapResource.Get(), &srvDesc, SRVDH.GetCpuHandle(1));
-	}
-	{// BRDF LUT
-		auto brdfLUTTex2D = PipelineCommonResourceMngr::GetInstance().GetBrdfLutTex2D();
-		auto brdfLUTTex2DRsrc = GPURsrcMngrDX12::Instance().GetTexture2DResource(*brdfLUTTex2D);
-		auto desc = UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32_FLOAT);
-		device->CreateShaderResourceView(brdfLUTTex2DRsrc, &desc, SRVDH.GetCpuHandle(2));
-	}
-}
 
 void StdDXRPipeline::Impl::TLASData::Reserve(ID3D12Device* device,
 	const D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO& new_info,
@@ -1429,11 +1315,12 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 	stages->taa.RegisterPassResources(*fgRsrcMngr);
 	stages->tonemapping.RegisterPassResources(*fgRsrcMngr);
 
-	const D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<std::shared_ptr<ShaderCBMngr>>("ShaderCBMngr")->GetCameraCBAddress(ctx.ID, cameraIdx);
+	auto shaderCBMngr = frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<std::shared_ptr<ShaderCBMngr>>("ShaderCBMngr");
 
-	const D3D12_GPU_VIRTUAL_ADDRESS lightCBAddress = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<std::shared_ptr<ShaderCBMngr>>("ShaderCBMngr")->GetLightCBAddress(ctx.ID);
+	const D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress = shaderCBMngr->GetCameraCBAddress(ctx.ID, cameraIdx);
+
+	const D3D12_GPU_VIRTUAL_ADDRESS lightCBAddress = shaderCBMngr->GetLightCBAddress(ctx.ID);
 
 	fgExecutor->RegisterPassFunc(
 		gbPass,
@@ -1469,7 +1356,7 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 			// Specify the buffers we are going to render to.
 			cmdList->OMSetRenderTargets((UINT)rtHandles.size(), rtHandles.data(), false, &dsHandle);
 
-			DrawObjects(ctx, cmdList, "RTDeferred", 5, DXGI_FORMAT_R32G32B32A32_FLOAT, cameraCBAddress, worldRsrc);
+			DrawObjects(*shaderCBMngr, ctx, cmdList, "RTDeferred", 5, DXGI_FORMAT_R32G32B32A32_FLOAT, cameraCBAddress, *iblData);
 		}
 	);
 
@@ -1581,7 +1468,7 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 
 			cmdList->OMSetRenderTargets(1, &rt.info->null_info_rtv.cpuHandle, false, &dsHandle);
 
-			DrawObjects(ctx, cmdList, "Forward", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, cameraCBAddress, worldRsrc);
+			DrawObjects(*shaderCBMngr, ctx, cmdList, "Forward", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, cameraCBAddress, *iblData);
 		}
 	);
 
@@ -2040,9 +1927,9 @@ void StdDXRPipeline::Impl::Render(
 					viewport.MaxDepth = 1.f;
 					viewport.TopLeftX = 0.f;
 					viewport.TopLeftY = 0.f;
-					viewport.Width = Impl::IBLData::IrradianceMapSize;
-					viewport.Height = Impl::IBLData::IrradianceMapSize;
-					D3D12_RECT rect = { 0,0,Impl::IBLData::IrradianceMapSize,Impl::IBLData::IrradianceMapSize };
+					viewport.Width = IBLData::IrradianceMapSize;
+					viewport.Height = IBLData::IrradianceMapSize;
+					D3D12_RECT rect = { 0,0,IBLData::IrradianceMapSize,IBLData::IrradianceMapSize };
 					cmdList->RSSetViewports(1, &viewport);
 					cmdList->RSSetScissorRects(1, &rect);
 
@@ -2075,10 +1962,10 @@ void StdDXRPipeline::Impl::Render(
 					);
 
 					cmdList->SetGraphicsRootDescriptorTable(0, ctx.skyboxGpuHandle);
-					//size_t size = Impl::IBLData::PreFilterMapSize;
-					//for (UINT mip = 0; mip < Impl::IBLData::PreFilterMapMipLevels; mip++) {
+					//size_t size = IBLData::PreFilterMapSize;
+					//for (UINT mip = 0; mip < IBLData::PreFilterMapMipLevels; mip++) {
 					UINT mip = static_cast<UINT>((iblData->nextIdx - 6) / 6);
-					size_t size = Impl::IBLData::PreFilterMapSize >> mip;
+					size_t size = IBLData::PreFilterMapSize >> mip;
 					auto mipinfo = crossFrameShaderCB.GetResource()->GetGPUVirtualAddress()
 						+ offset_mipinfo
 						+ mip * UDX12::Util::CalcConstantBufferByteSize(sizeof(MipInfo));
@@ -2252,107 +2139,6 @@ void StdDXRPipeline::Impl::Render(
 	}
 
 	frameRsrcMngr.EndFrame(initDesc.cmdQueue);
-}
-
-void StdDXRPipeline::Impl::DrawObjects(
-	const RenderContext& ctx,
-	ID3D12GraphicsCommandList* cmdList,
-	std::string_view lightMode,
-	size_t rtNum,
-	DXGI_FORMAT rtFormat,
-	D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress,
-	const ResourceMap& worldRsrc)
-{
-	auto& shaderCBMngr = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<std::shared_ptr<ShaderCBMngr>>("ShaderCBMngr");
-
-	D3D12_GPU_DESCRIPTOR_HANDLE ibl;
-	if (ctx.skyboxGpuHandle.ptr == PipelineCommonResourceMngr::GetInstance().GetDefaultSkyboxGpuHandle().ptr)
-		ibl = PipelineCommonResourceMngr::GetInstance().GetDefaultIBLSrvDHA().GetGpuHandle();
-	else {
-		auto iblData = worldRsrc.Get<std::shared_ptr<IBLData>>("IBL data");
-		ibl = iblData->SRVDH.GetGpuHandle();
-	}
-
-	std::shared_ptr<const Shader> shader;
-
-	auto Draw = [&](const RenderObject& obj) {
-		const auto& pass = obj.material->shader->passes[obj.passIdx];
-
-		if (auto target = pass.tags.find("LightMode"); target == pass.tags.end() || target->second != lightMode)
-			return;
-
-		if (shader.get() != obj.material->shader.get()) {
-			shader = obj.material->shader;
-			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*shader));
-		}
-
-		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = shaderCBMngr->GetObjectCBAddress(ctx.ID, obj.entity.index);
-
-		auto lightCBAdress = shaderCBMngr->GetLightCBAddress(ctx.ID);
-
-		shaderCBMngr->SetGraphicsRoot_CBV_SRV(
-			cmdList,
-			ctx.ID,
-			shader.get(),
-			*obj.material,
-			{
-				{StdDXRPipeline_cbPerObject, objCBAddress},
-				{StdDXRPipeline_cbPerCamera, cameraCBAddress},
-				{StdDXRPipeline_cbLightArray, lightCBAdress}
-			},
-			{
-				{StdDXRPipeline_srvIBL, ibl},
-				{StdDXRPipeline_srvLTC, PipelineCommonResourceMngr::GetInstance().GetLtcSrvDHA().GetGpuHandle()}
-			}
-			);
-
-		auto& meshGPUBuffer = GPURsrcMngrDX12::Instance().GetMeshGPUBuffer(*obj.mesh);
-		const auto& submesh = obj.mesh->GetSubMeshes().at(obj.submeshIdx);
-		const auto meshVBView = meshGPUBuffer.VertexBufferView();
-		const auto meshIBView = meshGPUBuffer.IndexBufferView();
-		cmdList->IASetVertexBuffers(0, 1, &meshVBView);
-		cmdList->IASetIndexBuffer(&meshIBView);
-		// submesh.topology
-		D3D12_PRIMITIVE_TOPOLOGY d3d12Topology;
-		switch (submesh.topology)
-		{
-		case Ubpa::Utopia::MeshTopology::Triangles:
-			d3d12Topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-			break;
-		case Ubpa::Utopia::MeshTopology::Lines:
-			d3d12Topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST;
-			break;
-		case Ubpa::Utopia::MeshTopology::LineStrip:
-			d3d12Topology = D3D_PRIMITIVE_TOPOLOGY_LINESTRIP;
-			break;
-		case Ubpa::Utopia::MeshTopology::Points:
-			d3d12Topology = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
-			break;
-		default:
-			assert(false);
-			d3d12Topology = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
-			break;
-		}
-		cmdList->IASetPrimitiveTopology(d3d12Topology);
-
-		if (shader->passes[obj.passIdx].renderState.stencilState.enable)
-			cmdList->OMSetStencilRef(shader->passes[obj.passIdx].renderState.stencilState.ref);
-		cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetOrCreateShaderPSO(
-			*shader,
-			obj.passIdx,
-			MeshLayoutMngr::Instance().GetMeshLayoutID(*obj.mesh),
-			rtNum,
-			rtFormat
-		));
-		cmdList->DrawIndexedInstanced((UINT)submesh.indexCount, 1, (UINT)submesh.indexStart, (INT)submesh.baseVertex, 0);
-	};
-
-	for (const auto& obj : ctx.renderQueue.GetOpaques())
-		Draw(obj);
-
-	for (const auto& obj : ctx.renderQueue.GetTransparents())
-		Draw(obj);
 }
 
 void StdDXRPipeline::Init(InitDesc desc) {

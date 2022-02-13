@@ -38,7 +38,7 @@ namespace Ubpa::Utopia {
 			const Material& material,
 			const std::map<std::string_view, D3D12_GPU_VIRTUAL_ADDRESS>& commonCBs,
 			const std::map<std::string_view, D3D12_GPU_DESCRIPTOR_HANDLE>& commonSRVs
-		);
+		) const;
 
 	private:
 		MaterialCBDesc RegisterShaderMaterialCB(

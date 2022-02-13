@@ -1,11 +1,12 @@
 #include <Utopia/Render/DX12/PipelineCommonUtils.h>
 
+#include <Utopia/Render/DX12/ShaderCBMngr.h>
+#include <Utopia/Render/DX12/GPURsrcMngrDX12.h>
+#include <Utopia/Render/DX12/MeshLayoutMngr.h>
+
 #include <Utopia/Render/Material.h>
 #include <Utopia/Render/Shader.h>
-
-#include <Utopia/Render/DX12/GPURsrcMngrDX12.h>
 #include <Utopia/Render/ShaderMngr.h>
-
 #include <Utopia/Render/Components/Camera.h>
 #include <Utopia/Render/Components/MeshFilter.h>
 #include <Utopia/Render/Components/MeshRenderer.h>
@@ -156,6 +157,79 @@ std::shared_ptr<TextureCube> PipelineCommonResourceMngr::GetBlackTexCube() const
 
 std::shared_ptr<TextureCube> PipelineCommonResourceMngr::GetWhiteTexCube() const {
 	return whiteTexCube;
+}
+
+IBLData::~IBLData() {
+	if (!RTVsDH.IsNull())
+		UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Free(std::move(RTVsDH));
+	if (!SRVDH.IsNull())
+		UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(SRVDH));
+}
+
+void IBLData::Init(ID3D12Device* device) {
+	D3D12_CLEAR_VALUE clearColor;
+	clearColor.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+	clearColor.Color[0] = 0.f;
+	clearColor.Color[1] = 0.f;
+	clearColor.Color[2] = 0.f;
+	clearColor.Color[3] = 1.f;
+
+	RTVsDH = UDX12::DescriptorHeapMngr::Instance().GetRTVCpuDH()->Allocate(6 * (1 + IBLData::PreFilterMapMipLevels));
+	SRVDH = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Allocate(3);
+	{ // irradiance
+		auto rsrcDesc = UDX12::Desc::RSRC::TextureCube(
+			IBLData::IrradianceMapSize, IBLData::IrradianceMapSize,
+			1, DXGI_FORMAT_R32G32B32A32_FLOAT
+		);
+		const auto defaultHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+		device->CreateCommittedResource(
+			&defaultHeapProp,
+			D3D12_HEAP_FLAG_NONE,
+			&rsrcDesc,
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+			&clearColor,
+			IID_PPV_ARGS(&irradianceMapResource)
+		);
+		for (UINT i = 0; i < 6; i++) {
+			auto rtvDesc = UDX12::Desc::RTV::Tex2DofTexCube(DXGI_FORMAT_R32G32B32A32_FLOAT, i);
+			device->CreateRenderTargetView(irradianceMapResource.Get(), &rtvDesc, RTVsDH.GetCpuHandle(i));
+		}
+		auto srvDesc = UDX12::Desc::SRV::TexCube(DXGI_FORMAT_R32G32B32A32_FLOAT);
+		device->CreateShaderResourceView(irradianceMapResource.Get(), &srvDesc, SRVDH.GetCpuHandle(0));
+	}
+	{ // prefilter
+		auto rsrcDesc = UDX12::Desc::RSRC::TextureCube(
+			IBLData::PreFilterMapSize, IBLData::PreFilterMapSize,
+			IBLData::PreFilterMapMipLevels, DXGI_FORMAT_R32G32B32A32_FLOAT
+		);
+		const auto defaultHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+		device->CreateCommittedResource(
+			&defaultHeapProp,
+			D3D12_HEAP_FLAG_NONE,
+			&rsrcDesc,
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+			&clearColor,
+			IID_PPV_ARGS(&prefilterMapResource)
+		);
+		for (UINT mip = 0; mip < IBLData::PreFilterMapMipLevels; mip++) {
+			for (UINT i = 0; i < 6; i++) {
+				auto rtvDesc = UDX12::Desc::RTV::Tex2DofTexCube(DXGI_FORMAT_R32G32B32A32_FLOAT, i, mip);
+				device->CreateRenderTargetView(
+					prefilterMapResource.Get(),
+					&rtvDesc,
+					RTVsDH.GetCpuHandle(6 * (1 + mip) + i)
+				);
+			}
+		}
+		auto srvDesc = UDX12::Desc::SRV::TexCube(DXGI_FORMAT_R32G32B32A32_FLOAT, IBLData::PreFilterMapMipLevels);
+		device->CreateShaderResourceView(prefilterMapResource.Get(), &srvDesc, SRVDH.GetCpuHandle(1));
+	}
+	{// BRDF LUT
+		auto brdfLUTTex2D = PipelineCommonResourceMngr::GetInstance().GetBrdfLutTex2D();
+		auto brdfLUTTex2DRsrc = GPURsrcMngrDX12::Instance().GetTexture2DResource(*brdfLUTTex2D);
+		auto desc = UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32_FLOAT);
+		device->CreateShaderResourceView(brdfLUTTex2DRsrc, &desc, SRVDH.GetCpuHandle(2));
+	}
 }
 
 RenderContext Ubpa::Utopia::GenerateRenderContext(size_t ID, std::span<const UECS::World* const> worlds)
@@ -379,4 +453,101 @@ RenderContext Ubpa::Utopia::GenerateRenderContext(size_t ID, std::span<const UEC
 	}
 
 	return ctx;
+}
+
+void Ubpa::Utopia::DrawObjects(
+	const ShaderCBMngr& shaderCBMngr,
+	const RenderContext& ctx,
+	ID3D12GraphicsCommandList* cmdList,
+	std::string_view lightMode,
+	size_t rtNum,
+	DXGI_FORMAT rtFormat,
+	D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress,
+	const IBLData& iblData)
+{
+	D3D12_GPU_DESCRIPTOR_HANDLE ibl;
+	if (ctx.skyboxGpuHandle.ptr == PipelineCommonResourceMngr::GetInstance().GetDefaultSkyboxGpuHandle().ptr)
+		ibl = PipelineCommonResourceMngr::GetInstance().GetDefaultIBLSrvDHA().GetGpuHandle();
+	else
+		ibl = iblData.SRVDH.GetGpuHandle();
+
+	std::shared_ptr<const Shader> shader;
+
+	auto Draw = [&](const RenderObject& obj) {
+		const auto& pass = obj.material->shader->passes[obj.passIdx];
+
+		if (auto target = pass.tags.find("LightMode"); target == pass.tags.end() || target->second != lightMode)
+			return;
+
+		if (shader.get() != obj.material->shader.get()) {
+			shader = obj.material->shader;
+			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*shader));
+		}
+
+		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = shaderCBMngr.GetObjectCBAddress(ctx.ID, obj.entity.index);
+
+		auto lightCBAdress = shaderCBMngr.GetLightCBAddress(ctx.ID);
+
+		shaderCBMngr.SetGraphicsRoot_CBV_SRV(
+			cmdList,
+			ctx.ID,
+			shader.get(),
+			*obj.material,
+			{
+				{StdPipeline_cbPerObject, objCBAddress},
+				{StdPipeline_cbPerCamera, cameraCBAddress},
+				{StdPipeline_cbLightArray, lightCBAdress}
+			},
+			{
+				{StdPipeline_srvIBL, ibl},
+				{StdPipeline_srvLTC, PipelineCommonResourceMngr::GetInstance().GetLtcSrvDHA().GetGpuHandle()}
+			}
+			);
+
+		auto& meshGPUBuffer = GPURsrcMngrDX12::Instance().GetMeshGPUBuffer(*obj.mesh);
+		const auto& submesh = obj.mesh->GetSubMeshes().at(obj.submeshIdx);
+		const auto meshVBView = meshGPUBuffer.VertexBufferView();
+		const auto meshIBView = meshGPUBuffer.IndexBufferView();
+		cmdList->IASetVertexBuffers(0, 1, &meshVBView);
+		cmdList->IASetIndexBuffer(&meshIBView);
+		// submesh.topology
+		D3D12_PRIMITIVE_TOPOLOGY d3d12Topology;
+		switch (submesh.topology)
+		{
+		case Ubpa::Utopia::MeshTopology::Triangles:
+			d3d12Topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+			break;
+		case Ubpa::Utopia::MeshTopology::Lines:
+			d3d12Topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST;
+			break;
+		case Ubpa::Utopia::MeshTopology::LineStrip:
+			d3d12Topology = D3D_PRIMITIVE_TOPOLOGY_LINESTRIP;
+			break;
+		case Ubpa::Utopia::MeshTopology::Points:
+			d3d12Topology = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
+			break;
+		default:
+			assert(false);
+			d3d12Topology = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
+			break;
+		}
+		cmdList->IASetPrimitiveTopology(d3d12Topology);
+
+		if (shader->passes[obj.passIdx].renderState.stencilState.enable)
+			cmdList->OMSetStencilRef(shader->passes[obj.passIdx].renderState.stencilState.ref);
+		cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetOrCreateShaderPSO(
+			*shader,
+			obj.passIdx,
+			MeshLayoutMngr::Instance().GetMeshLayoutID(*obj.mesh),
+			rtNum,
+			rtFormat
+		));
+		cmdList->DrawIndexedInstanced((UINT)submesh.indexCount, 1, (UINT)submesh.indexStart, (INT)submesh.baseVertex, 0);
+	};
+
+	for (const auto& obj : ctx.renderQueue.GetOpaques())
+		Draw(obj);
+
+	for (const auto& obj : ctx.renderQueue.GetTransparents())
+		Draw(obj);
 }

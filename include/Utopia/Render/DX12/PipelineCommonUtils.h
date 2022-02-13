@@ -6,6 +6,7 @@
 #include <Utopia/Render/DX12/IPipeline.h>
 
 #include <Utopia/Core/SharedVar.h>
+#include <Utopia/Core/ResourceMap.h>
 
 #include <UDX12/UDX12.h>
 
@@ -21,6 +22,13 @@ namespace Ubpa::Utopia {
 	struct Material;
 	struct Shader;
 	struct RenderState;
+	class ShaderCBMngr;
+
+	static constexpr char StdPipeline_cbPerObject[] = "StdPipeline_cbPerObject";
+	static constexpr char StdPipeline_cbPerCamera[] = "StdPipeline_cbPerCamera";
+	static constexpr char StdPipeline_cbLightArray[] = "StdPipeline_cbLightArray";
+	static constexpr char StdPipeline_srvIBL[] = "StdPipeline_IrradianceMap";
+	static constexpr char StdPipeline_srvLTC[] = "StdPipeline_LTC0";
 
 	class PipelineCommonResourceMngr {
 	public:
@@ -175,5 +183,38 @@ namespace Ubpa::Utopia {
 		std::unordered_map<size_t, EntityData> entity2data;
 	};
 
+	struct IBLData {
+		~IBLData();
+
+		void Init(ID3D12Device* device);
+
+		D3D12_GPU_DESCRIPTOR_HANDLE lastSkybox{ 0 };
+		UINT nextIdx{ static_cast<UINT>(-1) };
+
+		static constexpr size_t IrradianceMapSize = 128;
+		static constexpr size_t PreFilterMapSize = 512;
+		static constexpr UINT PreFilterMapMipLevels = 5;
+
+		Microsoft::WRL::ComPtr<ID3D12Resource> irradianceMapResource;
+		Microsoft::WRL::ComPtr<ID3D12Resource> prefilterMapResource;
+		// irradiance map rtv : 0 ~ 5
+		// prefilter map rtv  : 6 ~ 5 + 6 * PreFilterMapMipLevels
+		UDX12::DescriptorHeapAllocation RTVsDH;
+		// irradiance map srv : 0
+		// prefilter map rtv  : 1
+		// BRDF LUT           : 2
+		UDX12::DescriptorHeapAllocation SRVDH;
+	};
+
 	RenderContext GenerateRenderContext(size_t ID, std::span<const UECS::World* const> worlds);
+
+	void DrawObjects(
+		const ShaderCBMngr& shaderCBMngr,
+		const RenderContext& ctx,
+		ID3D12GraphicsCommandList* cmdList,
+		std::string_view lightMode,
+		size_t rtNum,
+		DXGI_FORMAT rtFormat,
+		D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress,
+		const IBLData& iblData);
 }
