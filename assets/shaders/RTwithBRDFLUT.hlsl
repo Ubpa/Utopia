@@ -82,5 +82,7 @@ float4 PS(VertexOut pin) : SV_Target
 	float2 scale_bias = STD_PIPELINE_SAMPLE_BRDFLUT(NdotV, roughness);
 	float3 diffuseBRDF = (1-metalness)*albedo;
 	float3 specBRDF = F0 * scale_bias.x + scale_bias.y;
-	return float4(diffuseBRDF * Sn + specBRDF * Un, 1);
+	float Ess = scale_bias.x + scale_bias.y;
+	float3 factor_ss_add_ms = (1.0 + (1.0 - Ess) / Ess) * F0;
+	return float4(diffuseBRDF * Sn + specBRDF * factor_ss_add_ms * Un, 1);
 }
