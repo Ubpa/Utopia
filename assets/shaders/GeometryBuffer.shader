@@ -1,4 +1,4 @@
-Shader "StdPipeline/Geometry" {
+Shader "StdPipeline/Geometry Buffer" {
 	HLSL : "008cb2d7-59b2-45e1-a765-36538a9d12ec"
 	RootSignature {
 		SRV[1] : 0

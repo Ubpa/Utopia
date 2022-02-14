@@ -2027,7 +2027,7 @@ void StdDXRPipeline::Impl::Render(
 						bool valid = true;
 						size_t N = std::min(data.mesh->GetSubMeshes().size(), data.materials.size());
 						for (size_t i = 0; i < N; i++) {
-							if (data.materials[i] && data.materials[i]->shader->name != "StdPipeline/Geometry") {
+							if (data.materials[i] && data.materials[i]->shader->name != "StdPipeline/Geometry Buffer") {
 								valid = false;
 								break;
 							}

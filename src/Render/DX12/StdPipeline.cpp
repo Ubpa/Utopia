@@ -41,6 +41,7 @@
 
 #include "Tonemapping.h"
 #include "TAA.h"
+#include "GeometryBuffer.h"
 
 using namespace Ubpa::Utopia;
 using namespace Ubpa::UECS;
@@ -75,6 +76,7 @@ struct StdPipeline::Impl {
 	static constexpr const char key_CameraConstants[] = "CameraConstants";
 
 	struct Stages {
+		GeometryBuffer geometryBuffer;
 		Tonemapping tonemapping;
 		TAA taa;
 	};
@@ -288,16 +290,21 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 
 	fgRsrcMngr->NewFrame();
 	fgExecutor->NewFrame();
+	stages->geometryBuffer.NewFrame();
 	stages->taa.NewFrame();
 	stages->tonemapping.NewFrame();
 
 	const auto& cameraResizeData = cameraRsrcMngr->Get(cameraData).Get<CameraResizeData>(key_CameraResizeData);
 	auto taaPrevRsrc = cameraResizeData.taaPrevRsrc;
 
-	auto gbuffer0 = fg.RegisterResourceNode("GBuffer0");
-	auto gbuffer1 = fg.RegisterResourceNode("GBuffer1");
-	auto gbuffer2 = fg.RegisterResourceNode("GBuffer2");
-	auto motion = fg.RegisterResourceNode("Motion");
+	stages->geometryBuffer.RegisterInputNodes({});
+	stages->geometryBuffer.RegisterOutputNodes(fg);
+
+	auto gbuffer0 = stages->geometryBuffer.GetOutputNodeIDs()[0];
+	auto gbuffer1 = stages->geometryBuffer.GetOutputNodeIDs()[1];
+	auto gbuffer2 = stages->geometryBuffer.GetOutputNodeIDs()[2];
+	auto motion = stages->geometryBuffer.GetOutputNodeIDs()[3];
+	auto deferDS = stages->geometryBuffer.GetOutputNodeIDs()[4];
 	auto deferLightedRT = fg.RegisterResourceNode("Defer Lighted");
 	auto deferLightedSkyRT = fg.RegisterResourceNode("Defer Lighted with Sky");
 	auto sceneRT = fg.RegisterResourceNode("Scene");
@@ -312,16 +319,11 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 	fg.RegisterMoveNode(deferLightedSkyRT, deferLightedRT);
 	fg.RegisterMoveNode(sceneRT, deferLightedSkyRT);
 	fg.RegisterMoveNode(presentedRT, stages->tonemapping.GetOutputNodeIDs().front());
-	auto deferDS = fg.RegisterResourceNode("Defer Depth Stencil");
 	auto forwardDS = fg.RegisterResourceNode("Forward Depth Stencil");
 	fg.RegisterMoveNode(forwardDS, deferDS);
 	auto irradianceMap = fg.RegisterResourceNode("Irradiance Map");
 	auto prefilterMap = fg.RegisterResourceNode("PreFilter Map");
-	auto gbPass = fg.RegisterGeneralPassNode(
-		"GBuffer Pass",
-		{},
-		{ gbuffer0,gbuffer1,gbuffer2,motion,deferDS }
-	);
+	stages->geometryBuffer.RegisterPass(fg);
 	auto deferLightingPass = fg.RegisterGeneralPassNode(
 		"Defer Lighting",
 		{ gbuffer0,gbuffer1,gbuffer2,deferDS,irradianceMap,prefilterMap },
@@ -394,12 +396,6 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 		.RegisterImportedRsrc(prefilterMap, { iblData->prefilterMapResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
 		.RegisterImportedRsrc(taaPrevResult, { taaPrevRsrc.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
 
-		.RegisterPassRsrc(gbPass, gbuffer0, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
-		.RegisterPassRsrc(gbPass, gbuffer1, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
-		.RegisterPassRsrc(gbPass, gbuffer2, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
-		.RegisterPassRsrc(gbPass, motion, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
-		.RegisterPassRsrc(gbPass, deferDS, D3D12_RESOURCE_STATE_DEPTH_WRITE, dsvDesc)
-
 		.RegisterPassRsrc(deferLightingPass, gbuffer0, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
 		.RegisterPassRsrc(deferLightingPass, gbuffer1, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
 		.RegisterPassRsrc(deferLightingPass, gbuffer2, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
@@ -419,6 +415,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 		.RegisterPassRsrc(forwardPass, sceneRT, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
 		;
 
+	stages->geometryBuffer.RegisterPassResources(*fgRsrcMngr);
 	stages->taa.RegisterPassResources(*fgRsrcMngr);
 	stages->tonemapping.RegisterPassResources(*fgRsrcMngr);
 
@@ -427,40 +424,8 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 
 	const D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress = shaderCBMngr->GetCameraCBAddress(ctx.ID, cameraIdx);
 
-	fgExecutor->RegisterPassFunc(
-		gbPass,
-		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
-			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
-			cmdList->SetDescriptorHeaps(1, &heap);
-			cmdList->RSSetViewports(1, &viewport);
-			cmdList->RSSetScissorRects(1, &scissorRect);
-
-			auto gb0 = rsrcs.at(gbuffer0);
-			auto gb1 = rsrcs.at(gbuffer1);
-			auto gb2 = rsrcs.at(gbuffer2);
-			auto mt = rsrcs.at(motion);
-			auto ds = rsrcs.at(deferDS);
-
-			std::array rtHandles{
-				gb0.info->null_info_rtv.cpuHandle,
-				gb1.info->null_info_rtv.cpuHandle,
-				gb2.info->null_info_rtv.cpuHandle,
-				mt.info->null_info_rtv.cpuHandle,
-			};
-			auto dsHandle = ds.info->desc2info_dsv.at(dsvDesc).cpuHandle;
-			// Clear the render texture and depth buffer.
-			cmdList->ClearRenderTargetView(rtHandles[0], gbuffer_clearvalue.Color, 0, nullptr);
-			cmdList->ClearRenderTargetView(rtHandles[1], gbuffer_clearvalue.Color, 0, nullptr);
-			cmdList->ClearRenderTargetView(rtHandles[2], gbuffer_clearvalue.Color, 0, nullptr);
-			cmdList->ClearRenderTargetView(rtHandles[3], gbuffer_clearvalue.Color, 0, nullptr);
-			cmdList->ClearDepthStencilView(dsHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.f, 0, 0, nullptr);
-
-			// Specify the buffers we are going to render to.
-			cmdList->OMSetRenderTargets((UINT)rtHandles.size(), rtHandles.data(), false, &dsHandle);
-
-			DrawObjects(*shaderCBMngr, ctx, cmdList, "Deferred", 4, DXGI_FORMAT_R32G32B32A32_FLOAT, cameraCBAddress, *iblData);
-		}
-	);
+	stages->geometryBuffer.RegisterPassFuncData(cameraCBAddress, shaderCBMngr.get(), &ctx, iblData.get());
+	stages->geometryBuffer.RegisterPassFunc(*fgExecutor);
 
 	fgExecutor->RegisterPassFunc(
 		deferLightingPass,

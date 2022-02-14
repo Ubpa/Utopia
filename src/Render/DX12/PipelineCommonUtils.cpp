@@ -245,12 +245,6 @@ RenderContext Ubpa::Utopia::GenerateRenderContext(size_t ID, std::span<const UEC
 	ctx.ID = ID;
 
 	{ // object
-		ArchetypeFilter filter;
-		filter.all = {
-			AccessTypeID_of<Latest<MeshFilter>>,
-			AccessTypeID_of<Latest<MeshRenderer>>,
-			AccessTypeID_of<Latest<LocalToWorld>>,
-		};
 		for (auto world : worlds) {
 			world->RunChunkJob(
 				[&](ChunkView chunk) {
@@ -316,9 +310,15 @@ RenderContext Ubpa::Utopia::GenerateRenderContext(size_t ID, std::span<const UEC
 						ctx.entity2data.emplace_hint(target, std::pair{ obj.entity.index, data });
 					}
 				},
-				filter,
-					false
-					);
+				{ // ArchetypeFilter
+					.all = {
+						AccessTypeID_of<Latest<MeshFilter>>,
+						AccessTypeID_of<Latest<MeshRenderer>>,
+						AccessTypeID_of<Latest<LocalToWorld>>,
+					}
+				},
+				false
+			);
 		}
 	}
 
@@ -334,8 +334,6 @@ RenderContext Ubpa::Utopia::GenerateRenderContext(size_t ID, std::span<const UEC
 		ctx.lightArray.rectLightNum = 0;
 		ctx.lightArray.diskLightNum = 0;
 
-		UECS::ArchetypeFilter filter;
-		filter.all = { UECS::AccessTypeID_of<UECS::Latest<LocalToWorld>> };
 		for (auto world : worlds) {
 			world->RunEntityJob(
 				[&](const Light* light) {
@@ -362,8 +360,10 @@ RenderContext Ubpa::Utopia::GenerateRenderContext(size_t ID, std::span<const UEC
 					}
 				},
 				false,
-					filter
-					);
+				{ // ArchetypeFilter
+					.all = { UECS::AccessTypeID_of<UECS::Latest<LocalToWorld>> }
+				}
+			);
 		}
 
 		size_t offset_diectionalLight = 0;
@@ -432,9 +432,8 @@ RenderContext Ubpa::Utopia::GenerateRenderContext(size_t ID, std::span<const UEC
 					}
 				},
 				false
-					);
+			);
 		}
-
 	}
 
 	// use first skybox in the world vector
@@ -442,9 +441,7 @@ RenderContext Ubpa::Utopia::GenerateRenderContext(size_t ID, std::span<const UEC
 	for (auto world : worlds) {
 		if (auto ptr = world->entityMngr.ReadSingleton<Skybox>(); ptr && ptr->material && ptr->material->shader.get() == skyboxShader.get()) {
 			auto target = ptr->material->properties.find("gSkybox");
-			if (target != ptr->material->properties.end()
-				&& std::holds_alternative<SharedVar<TextureCube>>(target->second.value)
-				) {
+			if (target != ptr->material->properties.end() && std::holds_alternative<SharedVar<TextureCube>>(target->second.value)) {
 				auto texcube = std::get<SharedVar<TextureCube>>(target->second.value);
 				ctx.skyboxGpuHandle = GPURsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(*texcube);
 				break;
