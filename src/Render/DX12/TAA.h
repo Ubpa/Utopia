@@ -15,9 +15,7 @@ namespace Ubpa::Utopia {
 		 * current scene color
 		 * motion
 		 */
-		virtual bool RegisterInputNodes(std::span<const size_t> inputNodeIDs) override;
-		virtual void RegisterOutputNodes(UFG::FrameGraph& framegraph) override;
-		virtual void RegisterPass(UFG::FrameGraph& framegraph) override;
+		virtual bool RegisterInputOutputPassNodes(UFG::FrameGraph& framegraph, std::span<const size_t> inputNodeIDs) override;
 
 		virtual void RegisterPassResources(UDX12::FG::RsrcMngr& rsrcMngr) override;
 
@@ -28,6 +26,8 @@ namespace Ubpa::Utopia {
 		virtual std::span<const size_t> GetOutputNodeIDs() const override;
 	private:
 		std::shared_ptr<Shader> shader;
+
+		static constexpr const char RsrcTableID[] = "TAA::RsrcTable";
 
 		D3D12_SHADER_RESOURCE_VIEW_DESC prevSceneColorSrvDesc;
 		D3D12_SHADER_RESOURCE_VIEW_DESC currSceneColorSrvDesc;

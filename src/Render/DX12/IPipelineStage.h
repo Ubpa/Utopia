@@ -9,9 +9,7 @@ namespace Ubpa::Utopia {
 
 		virtual void NewFrame() = 0;
 
-		virtual bool RegisterInputNodes(std::span<const size_t> inputNodeIDs) = 0;
-		virtual void RegisterOutputNodes(UFG::FrameGraph& framegraph) = 0;
-		virtual void RegisterPass(UFG::FrameGraph& framegraph) = 0;
+		virtual bool RegisterInputOutputPassNodes(UFG::FrameGraph& framegraph, std::span<const size_t> inputNodeIDs) = 0;
 
 		virtual void RegisterPassResources(UDX12::FG::RsrcMngr& rsrcMngr) = 0;
 		virtual void RegisterPassFunc(UDX12::FG::Executor& executor) = 0;

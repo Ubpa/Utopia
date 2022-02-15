@@ -26,7 +26,7 @@ void Ubpa::Utopia::Tonemapping::NewFrame() {
 	passID = static_cast<size_t>(-1);
 }
 
-bool Ubpa::Utopia::Tonemapping::RegisterInputNodes(std::span<const size_t> inputNodeIDs) {
+bool Ubpa::Utopia::Tonemapping::RegisterInputOutputPassNodes(UFG::FrameGraph& framegraph, std::span<const size_t> inputNodeIDs) {
 	if (inputNodeIDs.size() != 1)
 	{
 		return false;
@@ -34,15 +34,11 @@ bool Ubpa::Utopia::Tonemapping::RegisterInputNodes(std::span<const size_t> input
 
 	inputID = inputNodeIDs[0];
 
-	return true;
-}
-
-void Ubpa::Utopia::Tonemapping::RegisterOutputNodes(UFG::FrameGraph& framegraph) {
 	outputID = framegraph.RegisterResourceNode("Tonemapping::output");
-}
 
-void Ubpa::Utopia::Tonemapping::RegisterPass(UFG::FrameGraph& framegraph) {
 	passID = framegraph.RegisterGeneralPassNode("Tonemapping", { inputID }, { outputID });
+
+	return true;
 }
 
 std::span<const size_t> Ubpa::Utopia::Tonemapping::GetOutputNodeIDs() const {
@@ -108,7 +104,7 @@ void Ubpa::Utopia::Tonemapping::RegisterPassFunc(UDX12::FG::Executor& executor) 
 			// Specify the buffers we are going to render to.
 			cmdList->OMSetRenderTargets(1, &rt.info->null_info_rtv.cpuHandle, false, nullptr);
 
-			cmdList->SetGraphicsRootDescriptorTable(0, img.info->desc2info_srv.at(inputSrvDesc).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(0, img.info->GetAnySRV(inputSrvDesc).gpuHandle);
 
 			cmdList->IASetVertexBuffers(0, 0, nullptr);
 			cmdList->IASetIndexBuffer(nullptr);

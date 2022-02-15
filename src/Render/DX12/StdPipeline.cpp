@@ -297,8 +297,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 	const auto& cameraResizeData = cameraRsrcMngr->Get(cameraData).Get<CameraResizeData>(key_CameraResizeData);
 	auto taaPrevRsrc = cameraResizeData.taaPrevRsrc;
 
-	stages->geometryBuffer.RegisterInputNodes({});
-	stages->geometryBuffer.RegisterOutputNodes(fg);
+	stages->geometryBuffer.RegisterInputOutputPassNodes(fg, {});
 
 	auto gbuffer0 = stages->geometryBuffer.GetOutputNodeIDs()[0];
 	auto gbuffer1 = stages->geometryBuffer.GetOutputNodeIDs()[1];
@@ -310,11 +309,9 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 	auto sceneRT = fg.RegisterResourceNode("Scene");
 	auto taaPrevResult = fg.RegisterResourceNode("TAA Prev Result");
 	const size_t taaInputs[3] = { taaPrevResult, sceneRT, motion };
-	stages->taa.RegisterInputNodes(taaInputs);
-	stages->taa.RegisterOutputNodes(fg);
+	stages->taa.RegisterInputOutputPassNodes(fg, taaInputs);
 	auto taaResult = stages->taa.GetOutputNodeIDs().front();
-	stages->tonemapping.RegisterInputNodes({ &taaResult, 1 });
-	stages->tonemapping.RegisterOutputNodes(fg);
+	stages->tonemapping.RegisterInputOutputPassNodes(fg, { &taaResult, 1 });
 	auto presentedRT = fg.RegisterResourceNode("Present");
 	fg.RegisterMoveNode(deferLightedSkyRT, deferLightedRT);
 	fg.RegisterMoveNode(sceneRT, deferLightedSkyRT);
@@ -323,7 +320,6 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 	fg.RegisterMoveNode(forwardDS, deferDS);
 	auto irradianceMap = fg.RegisterResourceNode("Irradiance Map");
 	auto prefilterMap = fg.RegisterResourceNode("PreFilter Map");
-	stages->geometryBuffer.RegisterPass(fg);
 	auto deferLightingPass = fg.RegisterGeneralPassNode(
 		"Defer Lighting",
 		{ gbuffer0,gbuffer1,gbuffer2,deferDS,irradianceMap,prefilterMap },
@@ -339,8 +335,6 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 		{ irradianceMap,prefilterMap },
 		{ forwardDS, sceneRT }
 	);
-	stages->taa.RegisterPass(fg);
-	stages->tonemapping.RegisterPass(fg);
 
 	D3D12_RESOURCE_DESC dsDesc = UDX12::Desc::RSRC::Basic(
 		D3D12_RESOURCE_DIMENSION_TEXTURE2D,
@@ -374,6 +368,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 
 	auto iblData = worldRsrc.Get<std::shared_ptr<IBLData>>("IBL data");
 
+	static constexpr const char GBufferRsrcTableID[] = "GBufferRsrcTableID";
 	(*fgRsrcMngr)
 		.RegisterTemporalRsrc(gbuffer0, rt2dDesc, gbuffer_clearvalue)
 		.RegisterTemporalRsrc(gbuffer1, rt2dDesc, gbuffer_clearvalue)
@@ -385,11 +380,14 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 		//.RegisterTemporalRsrcAutoClear(sceneRT, rt2dDesc)
 		.RegisterTemporalRsrcAutoClear(taaResult, rt2dDesc)
 
-		.RegisterRsrcTable({
-			{gbuffer0,srvDesc},
-			{gbuffer1,srvDesc},
-			{gbuffer2,srvDesc}
-		})
+		.RegisterRsrcTable(
+			GBufferRsrcTableID,
+			{
+				{gbuffer0,srvDesc},
+				{gbuffer1,srvDesc},
+				{gbuffer2,srvDesc},
+			}
+		)
 
 		.RegisterImportedRsrc(stages->tonemapping.GetOutputNodeIDs().front(), {rtb, D3D12_RESOURCE_STATE_PRESENT})
 		.RegisterImportedRsrc(irradianceMap, { iblData->irradianceMapResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
@@ -459,8 +457,8 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 				DXGI_FORMAT_R32G32B32A32_FLOAT)
 			);
 
-			cmdList->SetGraphicsRootDescriptorTable(0, gb0.info->desc2info_srv.at(srvDesc).gpuHandle);
-			cmdList->SetGraphicsRootDescriptorTable(1, ds.info->desc2info_srv.at(dsSrvDesc).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(0, gb0.info->desc2info_srv.at(srvDesc).at(GBufferRsrcTableID).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(1, ds.info->GetAnySRV(dsSrvDesc).gpuHandle);
 
 			// irradiance, prefilter, BRDF LUT
 			if (ctx.skyboxGpuHandle.ptr == PipelineCommonResourceMngr::GetInstance().GetDefaultSkyboxGpuHandle().ptr)

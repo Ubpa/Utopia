@@ -10,9 +10,7 @@ namespace Ubpa::Utopia {
 
 		virtual void NewFrame() override;
 
-		virtual bool RegisterInputNodes(std::span<const size_t> inputNodeIDs) override;
-		virtual void RegisterOutputNodes(UFG::FrameGraph& framegraph) override;
-		virtual void RegisterPass(UFG::FrameGraph& framegraph) override;
+		virtual bool RegisterInputOutputPassNodes(UFG::FrameGraph& framegraph, std::span<const size_t> inputNodeIDs) override;
 
 		virtual void RegisterPassResources(UDX12::FG::RsrcMngr& rsrcMngr) override;
 		virtual void RegisterPassFunc(UDX12::FG::Executor& executor) override;

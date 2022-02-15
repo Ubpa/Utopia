@@ -32,7 +32,7 @@ void Ubpa::Utopia::TAA::NewFrame() {
 	copyPassID = static_cast<size_t>(-1);
 }
 
-bool Ubpa::Utopia::TAA::RegisterInputNodes(std::span<const size_t> inputNodeIDs) {
+bool Ubpa::Utopia::TAA::RegisterInputOutputPassNodes(UFG::FrameGraph& framegraph, std::span<const size_t> inputNodeIDs) {
 	if (inputNodeIDs.size() != 3)
 	{
 		return false;
@@ -42,14 +42,8 @@ bool Ubpa::Utopia::TAA::RegisterInputNodes(std::span<const size_t> inputNodeIDs)
 	currSceneColorID = inputNodeIDs[1];
 	motionID = inputNodeIDs[2];
 
-	return true;
-}
-
-void Ubpa::Utopia::TAA::RegisterOutputNodes(UFG::FrameGraph& framegraph) {
 	mixSceneColorID = framegraph.RegisterResourceNode("TAA::MixSceneColor");
-}
 
-void Ubpa::Utopia::TAA::RegisterPass(UFG::FrameGraph& framegraph) {
 	taaPassID = framegraph.RegisterGeneralPassNode(
 		"TAA",
 		{ prevSceneColorID, currSceneColorID, motionID },
@@ -57,6 +51,8 @@ void Ubpa::Utopia::TAA::RegisterPass(UFG::FrameGraph& framegraph) {
 	);
 
 	copyPassID = framegraph.RegisterCopyPassNode({ mixSceneColorID }, { prevSceneColorID });
+
+	return true;
 }
 
 std::span<const size_t> Ubpa::Utopia::TAA::GetOutputNodeIDs() const {
@@ -92,12 +88,19 @@ void Ubpa::Utopia::TAA::RegisterPassResources(UDX12::FG::RsrcMngr& rsrcMngr) {
 		UDX12::FG::RsrcImplDesc_RTV_Null{}
 	);
 
-	rsrcMngr.RegisterRsrcTable({
-		{ prevSceneColorID,prevSceneColorSrvDesc },
-		{ currSceneColorID, currSceneColorSrvDesc },
-	});
+	rsrcMngr.RegisterRsrcTable(
+		RsrcTableID,
+		{
+			{ prevSceneColorID, prevSceneColorSrvDesc },
+			{ currSceneColorID, currSceneColorSrvDesc },
+		}
+	);
 
-	rsrcMngr.RegisterCopyPassRsrcState(copyPassID, { &mixSceneColorID, 1 }, {&prevSceneColorID, 1});
+	rsrcMngr.RegisterCopyPassRsrcState(
+		copyPassID,
+		{ &mixSceneColorID, 1 },
+		{ &prevSceneColorID, 1 }
+	);
 }
 
 void Ubpa::Utopia::TAA::RegisterPassFuncData(D3D12_GPU_VIRTUAL_ADDRESS inCameraCB) {
@@ -108,10 +111,10 @@ void Ubpa::Utopia::TAA::RegisterPassFunc(UDX12::FG::Executor& executor) {
 	executor.RegisterPassFunc(
 		taaPassID,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
-			auto prevSceneColorRsrc = rsrcs.at(prevSceneColorID); // table {prev, curr}
-			auto currSceneColorRsrc = rsrcs.at(currSceneColorID);
-			auto motionRsrc = rsrcs.at(motionID);
-			auto mixSceneColorRsrc = rsrcs.at(mixSceneColorID);
+			const auto& prevSceneColorRsrc = rsrcs.at(prevSceneColorID); // table {prev, curr}
+			const auto& currSceneColorRsrc = rsrcs.at(currSceneColorID);
+			const auto& motionRsrc = rsrcs.at(motionID);
+			const auto& mixSceneColorRsrc = rsrcs.at(mixSceneColorID);
 
 			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*shader));
 			cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetOrCreateShaderPSO(
@@ -149,8 +152,8 @@ void Ubpa::Utopia::TAA::RegisterPassFunc(UDX12::FG::Executor& executor) {
 			// Specify the buffers we are going to render to.
 			cmdList->OMSetRenderTargets(1, &mixSceneColorRsrc.info->null_info_rtv.cpuHandle, false, nullptr);
 
-			cmdList->SetGraphicsRootDescriptorTable(0, prevSceneColorRsrc.info->desc2info_srv.at(prevSceneColorSrvDesc).gpuHandle);
-			cmdList->SetGraphicsRootDescriptorTable(1, motionRsrc.info->desc2info_srv.at(motionSrvDesc).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(0, prevSceneColorRsrc.info->desc2info_srv.at(prevSceneColorSrvDesc).at(RsrcTableID).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(1, motionRsrc.info->GetAnySRV(motionSrvDesc).gpuHandle);
 
 			assert(cameraCB != 0);
 			cmdList->SetGraphicsRootConstantBufferView(2, cameraCB);

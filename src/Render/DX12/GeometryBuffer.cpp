@@ -35,16 +35,12 @@ void Ubpa::Utopia::GeometryBuffer::NewFrame() {
 	geometryBufferPassID = static_cast<size_t>(-1);
 }
 
-bool Ubpa::Utopia::GeometryBuffer::RegisterInputNodes(std::span<const size_t> inputNodeIDs) {
+bool Ubpa::Utopia::GeometryBuffer::RegisterInputOutputPassNodes(UFG::FrameGraph& framegraph, std::span<const size_t> inputNodeIDs) {
 	if (inputNodeIDs.size() != 0)
 	{
 		return false;
 	}
 
-	return true;
-}
-
-void Ubpa::Utopia::GeometryBuffer::RegisterOutputNodes(UFG::FrameGraph& framegraph) {
 	outputIDs[0] = framegraph.RegisterResourceNode("GeometryBuffer::GeometryBuffer0");
 	outputIDs[1] = framegraph.RegisterResourceNode("GeometryBuffer::GeometryBuffer1");
 	outputIDs[2] = framegraph.RegisterResourceNode("GeometryBuffer::GeometryBuffer2");
@@ -52,15 +48,15 @@ void Ubpa::Utopia::GeometryBuffer::RegisterOutputNodes(UFG::FrameGraph& framegra
 	outputIDs[4] = framegraph.RegisterResourceNode("GeometryBuffer::DepthStencil");
 	if (needLinearZ)
 		outputIDs[5] = framegraph.RegisterResourceNode("GeometryBuffer::LinearZ");
-}
 
-void Ubpa::Utopia::GeometryBuffer::RegisterPass(UFG::FrameGraph& framegraph) {
-	std::span<const size_t> outputIDs = GetOutputNodeIDs();
+	const std::span<const size_t> outputIDs = GetOutputNodeIDs();
 	geometryBufferPassID = framegraph.RegisterGeneralPassNode(
 		"GeometryBuffer",
 		{ },
-		{ outputIDs.begin(), outputIDs.end()}
+		{ outputIDs.begin(), outputIDs.end() }
 	);
+
+	return true;
 }
 
 std::span<const size_t> Ubpa::Utopia::GeometryBuffer::GetOutputNodeIDs() const {

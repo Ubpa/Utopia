@@ -1001,8 +1001,7 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 
 	fg.Clear();
 
-	stages->geometryBuffer.RegisterInputNodes({});
-	stages->geometryBuffer.RegisterOutputNodes(fg);
+	stages->geometryBuffer.RegisterInputOutputPassNodes(fg, {});
 
 	auto gbuffer0 = stages->geometryBuffer.GetOutputNodeIDs()[0];
 	auto gbuffer1 = stages->geometryBuffer.GetOutputNodeIDs()[1];
@@ -1032,11 +1031,9 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 	auto colorMoment = fg.RegisterResourceNode("Color Moment");
 	auto taaPrevResult = fg.RegisterResourceNode("TAA Prev Result");
 	const size_t taaInputs[3] = {taaPrevResult, sceneRT, motion};
-	stages->taa.RegisterInputNodes(taaInputs);
-	stages->taa.RegisterOutputNodes(fg);
+	stages->taa.RegisterInputOutputPassNodes(fg, taaInputs);
 	auto taaResult = stages->taa.GetOutputNodeIDs().front();
-	stages->tonemapping.RegisterInputNodes({ &taaResult, 1 });
-	stages->tonemapping.RegisterOutputNodes(fg);
+	stages->tonemapping.RegisterInputOutputPassNodes(fg, { &taaResult, 1 });
 	std::array<std::size_t, ATrousN> rtATrousDenoiseResults;
 	for (std::size_t i = 0; i < ATrousN; i++)
 		rtATrousDenoiseResults[i] = fg.RegisterResourceNode("RT ATrous denoised result " + std::to_string(i));
@@ -1047,7 +1044,6 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 	auto rtDenoisedResult = fg.RegisterResourceNode("RT Denoised Result");
 	auto rtUDenoisedResult = fg.RegisterResourceNode("RT U Denoised Result");
 
-	stages->geometryBuffer.RegisterPass(fg);
 	auto rtPass = fg.RegisterGeneralPassNode(
 		"RT Pass",
 		{ gbuffer0,gbuffer1,gbuffer2,deferDS,TLAS },
@@ -1106,8 +1102,6 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 		{ irradianceMap, prefilterMap },
 		{ forwardDS, sceneRT }
 	);
-	stages->taa.RegisterPass(fg);
-	stages->tonemapping.RegisterPass(fg);
 
 	D3D12_RESOURCE_DESC dsDesc = UDX12::Desc::RSRC::Basic(
 		D3D12_RESOURCE_DIMENSION_TEXTURE2D,
@@ -1162,15 +1156,25 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 	gbuffer_clearvalue.Color[2] = 0;
 	gbuffer_clearvalue.Color[3] = 0;
 
+	static constexpr const char RTATrousDenoiseRsrcTableID[] = "RTATrousDenoiseRsrcTableID";
+	static constexpr const char GBufferRsrcTableID[] = "GBufferRsrcTableID";
+	static constexpr const char ReprojectRsrcTable0ID[] = "ReprojectRsrcTable0ID";
+	static constexpr const char ReprojectRsrcTable1ID[] = "ReprojectRsrcTable1ID";
+	static constexpr const char FilterMomentsRsrcTableID[] = "FilterMomentsRsrcTableID";
+	static constexpr const char RTWithBRDFLUTRsrcTableID[] = "RTWithBRDFLUTRsrcTableID";
+
 	for (std::size_t i = 0; i < ATrousN; i++) {
 		fgRsrcMngr->RegisterTemporalRsrcAutoClear(rtATrousDenoiseResults[i], rt2dDesc);
 		fgRsrcMngr->RegisterTemporalRsrcAutoClear(rtUATrousDenoiseResults[i], rt2dDesc);
 
 		// rts, rtu
-		fgRsrcMngr->RegisterRsrcTable({
-			{fg.GetPassNodes()[rtATrousDenoisePasses[i]].Inputs()[0], srvDesc},
-			{fg.GetPassNodes()[rtATrousDenoisePasses[i]].Inputs()[1], srvDesc}
-		});
+		fgRsrcMngr->RegisterRsrcTable(
+			RTATrousDenoiseRsrcTableID,
+			{
+				{fg.GetPassNodes()[rtATrousDenoisePasses[i]].Inputs()[0], srvDesc},
+				{fg.GetPassNodes()[rtATrousDenoisePasses[i]].Inputs()[1], srvDesc},
+			}
+		);
 
 		fgRsrcMngr->RegisterPassRsrc(rtATrousDenoisePasses[i],
 			fg.GetPassNodes()[rtATrousDenoisePasses[i]].Inputs()[0],
@@ -1218,11 +1222,15 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 		.RegisterImportedRsrc(TLAS, { nullptr /*special for TLAS*/, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE })
 		.RegisterImportedRsrc(taaPrevResult, { taaPrevRsrc.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
 
-		.RegisterRsrcTable({
-			{gbuffer0,srvDesc},
-			{gbuffer1,srvDesc},
-			{gbuffer2,srvDesc}
-		})
+		.RegisterRsrcTable(
+			GBufferRsrcTableID,
+			{
+				{gbuffer0,srvDesc},
+				{gbuffer1,srvDesc},
+				{gbuffer2,srvDesc},
+			}
+		)
+
 		.RegisterPassRsrc(deferLightingPass, gbuffer0, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
 		.RegisterPassRsrc(deferLightingPass, gbuffer1, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
 		.RegisterPassRsrc(deferLightingPass, gbuffer2, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
@@ -1247,20 +1255,28 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 		.RegisterPassRsrc(rtPass, gbuffer2, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
 		.RegisterPassRsrc(rtPass, deferDS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_DEPTH_READ, dsSrvDesc)
 
-		.RegisterRsrcTable({
-			{ prevRTResult, srvDesc },
-			{ prevRTUResult, srvDesc },
-			{ prevColorMoment, srvDesc },
-			{ motion, srvDesc },
-			{ prevLinearZ, srvDesc },
-			{ linearZ, srvDesc },
-		})
-		.RegisterRsrcTable({
-			{ accRTResult, tex2dUAVDesc },
-			{ accRTUResult, tex2dUAVDesc },
-			{ colorMoment, tex2dUAVDesc },
-			{ historyLength, tex2dUAVDesc },
-			})
+		.RegisterRsrcTable(
+			ReprojectRsrcTable0ID,
+			{
+				{ prevRTResult, srvDesc },
+				{ prevRTUResult, srvDesc },
+				{ prevColorMoment, srvDesc },
+				{ motion, srvDesc },
+				{ prevLinearZ, srvDesc },
+				{ linearZ, srvDesc },
+			}
+		)
+
+		.RegisterRsrcTable(
+			ReprojectRsrcTable1ID,
+			{
+				{ accRTResult, tex2dUAVDesc },
+				{ accRTUResult, tex2dUAVDesc },
+				{ colorMoment, tex2dUAVDesc },
+				{ historyLength, tex2dUAVDesc },
+			}
+		)
+
 		.RegisterPassRsrc(reprojectPass, prevLinearZ, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
 		.RegisterPassRsrc(reprojectPass, linearZ, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
 		.RegisterPassRsrc(reprojectPass, prevRTResult, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
@@ -1272,12 +1288,16 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 		.RegisterPassRsrc(reprojectPass, colorMoment, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, tex2dUAVDesc)
 		.RegisterPassRsrc(reprojectPass, historyLength, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, tex2dUAVDesc)
 
-		.RegisterRsrcTable({
-			{ accRTResult, srvDesc },
-			{ accRTUResult, srvDesc },
-			{ colorMoment, srvDesc },
-			{ historyLength, UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32_UINT) },
-		})
+		.RegisterRsrcTable(
+			FilterMomentsRsrcTableID,
+			{
+				{ accRTResult, srvDesc },
+				{ accRTUResult, srvDesc },
+				{ colorMoment, srvDesc },
+				{ historyLength, UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32_UINT) },
+			}
+		)
+
 		.RegisterPassRsrc(filterMomentsPass, accRTResult, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
 		.RegisterPassRsrc(filterMomentsPass, accRTUResult, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
 		.RegisterPassRsrc(filterMomentsPass, colorMoment, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
@@ -1289,10 +1309,13 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 
 		.RegisterCopyPassRsrcState(fg, copyPass)
 
-		.RegisterRsrcTable({
-			{rtDenoisedResult,srvDesc},
-			{rtUDenoisedResult,srvDesc}
-		})
+		.RegisterRsrcTable(
+			RTWithBRDFLUTRsrcTableID,
+			{
+				{rtDenoisedResult,srvDesc},
+				{rtUDenoisedResult,srvDesc},
+			}
+		)
 
 		.RegisterPassRsrc(rtWithBRDFLUTPass, gbuffer0, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
 		.RegisterPassRsrc(rtWithBRDFLUTPass, gbuffer1, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
@@ -1354,8 +1377,8 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 				DXGI_FORMAT_R32G32B32A32_FLOAT)
 			);
 
-			cmdList->SetGraphicsRootDescriptorTable(0, gb0.info->desc2info_srv.at(srvDesc).gpuHandle);
-			cmdList->SetGraphicsRootDescriptorTable(1, ds.info->desc2info_srv.at(dsSrvDesc).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(0, gb0.info->desc2info_srv.at(srvDesc).at(GBufferRsrcTableID).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(1, ds.info->GetAnySRV(dsSrvDesc).gpuHandle);
 
 			// irradiance, prefilter, BRDF LUT
 			if (ctx.skyboxGpuHandle.ptr == PipelineCommonResourceMngr::GetInstance().GetDefaultSkyboxGpuHandle().ptr)
@@ -1465,10 +1488,10 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 				// *(uint64_t*)(pData + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + 0)
 
 				// gbuffers
-				*(uint64_t*)(pData + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + 8) = gb0.info->desc2info_srv.at(srvDesc).gpuHandle.ptr;
+				*(uint64_t*)(pData + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + 8) = gb0.info->desc2info_srv.at(srvDesc).at(GBufferRsrcTableID).gpuHandle.ptr;
 
 				// depth
-				*(uint64_t*)(pData + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + 16) = ds.info->desc2info_srv.at(dsSrvDesc).gpuHandle.ptr;
+				*(uint64_t*)(pData + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + 16) = ds.info->GetAnySRV(dsSrvDesc).gpuHandle.ptr;
 
 				// brdf lut
 				*(uint64_t*)(pData + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + 24) = iblData->SRVDH.GetGpuHandle(2).ptr;
@@ -1504,7 +1527,7 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 
 			// Dispatch
 			dxr_cmdlist->SetPipelineState1(rtpso.Get());
-			dxr_cmdlist->SetComputeRootDescriptorTable(0, tlas.info->desc2info_srv.at(tlasSrvDesc).gpuHandle);
+			dxr_cmdlist->SetComputeRootDescriptorTable(0, tlas.info->GetAnySRV(tlasSrvDesc).gpuHandle);
 			dxr_cmdlist->SetComputeRootConstantBufferView(1, lightCBAddress);
 			dxr_cmdlist->DispatchRays(&raytraceDesc);
 		}
@@ -1534,8 +1557,8 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 			// Specify the buffers we are going to render to.
 			cmdList->OMSetRenderTargets(0, nullptr, false, nullptr);
 
-			cmdList->SetGraphicsRootDescriptorTable(0, in_table.info->desc2info_srv.at(srvDesc).gpuHandle);
-			cmdList->SetGraphicsRootDescriptorTable(1, out_table.info->desc2info_uav.at(tex2dUAVDesc).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(0, in_table.info->desc2info_srv.at(srvDesc).at(ReprojectRsrcTable0ID).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(1, out_table.info->desc2info_uav.at(tex2dUAVDesc).at(ReprojectRsrcTable1ID).gpuHandle);
 
 			cmdList->SetGraphicsRootConstantBufferView(2, cameraCBAddress);
 
@@ -1584,9 +1607,9 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 			D3D12_CPU_DESCRIPTOR_HANDLE rts[2] = { rt0.info->null_info_rtv.cpuHandle, rt1.info->null_info_rtv.cpuHandle };
 			cmdList->OMSetRenderTargets(2, rts, false, nullptr);
 
-			cmdList->SetGraphicsRootDescriptorTable(0, rtS.info->desc2info_srv.at(srvDesc).gpuHandle);
-			cmdList->SetGraphicsRootDescriptorTable(1, gb1.info->desc2info_srv.at(srvDesc).gpuHandle);
-			cmdList->SetGraphicsRootDescriptorTable(2, lz.info->desc2info_srv.at(srvDesc).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(0, rtS.info->desc2info_srv.at(srvDesc).at(FilterMomentsRsrcTableID).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(1, gb1.info->desc2info_srv.at(srvDesc).at(GBufferRsrcTableID).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(2, lz.info->GetAnySRV(srvDesc).gpuHandle);
 
 			cmdList->SetGraphicsRootConstantBufferView(3, cameraCBAddress);
 
@@ -1623,7 +1646,7 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 					auto rtS = rsrcs.at(fg.GetPassNodes()[rtATrousDenoisePasses[i]].Outputs()[0]);
 					auto rtU = rsrcs.at(fg.GetPassNodes()[rtATrousDenoisePasses[i]].Outputs()[1]);
 					auto imgS = rsrcs.at(fg.GetPassNodes()[rtATrousDenoisePasses[i]].Inputs()[0]);
-					auto imgU = rsrcs.at(fg.GetPassNodes()[rtATrousDenoisePasses[i]].Inputs()[1]);
+					//auto imgU = rsrcs.at(fg.GetPassNodes()[rtATrousDenoisePasses[i]].Inputs()[1]);
 					auto gb1 = rsrcs.at(gbuffer1);
 					auto lz = rsrcs.at(linearZ);
 
@@ -1635,9 +1658,9 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 					D3D12_CPU_DESCRIPTOR_HANDLE rts[2] = { rtS.info->null_info_rtv.cpuHandle, rtU.info->null_info_rtv.cpuHandle };
 					cmdList->OMSetRenderTargets(2, rts, false, nullptr);
 
-					cmdList->SetGraphicsRootDescriptorTable(0, imgS.info->desc2info_srv.at(srvDesc).gpuHandle);
-					cmdList->SetGraphicsRootDescriptorTable(1, gb1.info->desc2info_srv.at(srvDesc).gpuHandle);
-					cmdList->SetGraphicsRootDescriptorTable(2, lz.info->desc2info_srv.at(srvDesc).gpuHandle);
+					cmdList->SetGraphicsRootDescriptorTable(0, imgS.info->desc2info_srv.at(srvDesc).at(RTATrousDenoiseRsrcTableID).gpuHandle);
+					cmdList->SetGraphicsRootDescriptorTable(1, gb1.info->desc2info_srv.at(srvDesc).at(GBufferRsrcTableID).gpuHandle);
+					cmdList->SetGraphicsRootDescriptorTable(2, lz.info->GetAnySRV(srvDesc).gpuHandle);
 
 					cmdList->SetGraphicsRootConstantBufferView(3, cameraCBAddress);
 
@@ -1691,9 +1714,9 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 				DXGI_FORMAT_UNKNOWN)
 			);
 
-			cmdList->SetGraphicsRootDescriptorTable(0, rtDR.info->desc2info_srv.at(srvDesc).gpuHandle);
-			cmdList->SetGraphicsRootDescriptorTable(1, gb0.info->desc2info_srv.at(srvDesc).gpuHandle);
-			cmdList->SetGraphicsRootDescriptorTable(2, ds.info->desc2info_srv.at(dsSrvDesc).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(0, rtDR.info->desc2info_srv.at(srvDesc).at(RTWithBRDFLUTRsrcTableID).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(1, gb0.info->desc2info_srv.at(srvDesc).at(GBufferRsrcTableID).gpuHandle);
+			cmdList->SetGraphicsRootDescriptorTable(2, ds.info->GetAnySRV(dsSrvDesc).gpuHandle);
 			cmdList->SetGraphicsRootDescriptorTable(3, iblData->SRVDH.GetGpuHandle(2));
 
 			cmdList->SetGraphicsRootConstantBufferView(4, cameraCBAddress);
