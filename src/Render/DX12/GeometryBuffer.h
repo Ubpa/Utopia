@@ -5,7 +5,7 @@
 namespace Ubpa::Utopia {
 	class GeometryBuffer : public IPipelineStage {
 	public:
-		GeometryBuffer();
+		GeometryBuffer(bool inNeedLinearZ = false);
 		virtual ~GeometryBuffer();
 
 		virtual void NewFrame() override;
@@ -21,7 +21,8 @@ namespace Ubpa::Utopia {
 			D3D12_GPU_VIRTUAL_ADDRESS inCameraCBAddress,
 			const ShaderCBMngr* inShaderCBMngr,
 			const RenderContext* inRenderCtx,
-			const IBLData* inIblData);
+			const IBLData* inIblData,
+			std::string inLightMode);
 
 		virtual void RegisterPassFunc(UDX12::FG::Executor& executor) override;
 
@@ -31,9 +32,12 @@ namespace Ubpa::Utopia {
 		 * Geometry Buffer 2
 		 * Motion
 		 * Depth Stencil
+		 * (optional) Linear Z
 		 */
 		virtual std::span<const size_t> GetOutputNodeIDs() const override;
 	private:
+		bool needLinearZ;
+
 		std::shared_ptr<Shader> shader;
 
 		D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
@@ -42,6 +46,7 @@ namespace Ubpa::Utopia {
 		const ShaderCBMngr* shaderCBMngr;
 		const RenderContext* renderCtx;
 		const IBLData* iblData;
+		std::string lightMode;
 
 		/**
 		 * GeometryBuffer0
@@ -49,8 +54,9 @@ namespace Ubpa::Utopia {
 		 * GeometryBuffer2
 		 * Motion
 		 * Depth Stencil
+		 * (optional) Linear Z
 		 */
-		size_t outputIDs[5];
+		size_t outputIDs[6];
 
 		size_t geometryBufferPassID;
 	};

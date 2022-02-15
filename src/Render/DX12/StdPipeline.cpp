@@ -424,7 +424,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 
 	const D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress = shaderCBMngr->GetCameraCBAddress(ctx.ID, cameraIdx);
 
-	stages->geometryBuffer.RegisterPassFuncData(cameraCBAddress, shaderCBMngr.get(), &ctx, iblData.get());
+	stages->geometryBuffer.RegisterPassFuncData(cameraCBAddress, shaderCBMngr.get(), &ctx, iblData.get(), "Deferred");
 	stages->geometryBuffer.RegisterPassFunc(*fgExecutor);
 
 	fgExecutor->RegisterPassFunc(

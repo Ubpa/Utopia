@@ -3,8 +3,10 @@
 #include <Utopia/Render/ShaderMngr.h>
 #include <Utopia/Render/DX12/GPURsrcMngrDX12.h>
 
-Ubpa::Utopia::GeometryBuffer::GeometryBuffer()
-	: outputIDs {
+Ubpa::Utopia::GeometryBuffer::GeometryBuffer(bool inNeedLinearZ)
+	: needLinearZ(inNeedLinearZ)
+	, outputIDs {
+		static_cast<size_t>(-1),
 		static_cast<size_t>(-1),
 		static_cast<size_t>(-1),
 		static_cast<size_t>(-1),
@@ -21,13 +23,14 @@ Ubpa::Utopia::GeometryBuffer::~GeometryBuffer() {
 }
 
 void Ubpa::Utopia::GeometryBuffer::NewFrame() {
-	for (size_t i = 0; i < 5; i++)
+	for (size_t i = 0; i < 6; i++)
 		outputIDs[i] = static_cast<size_t>(-1);
 
 	cameraCBAddress = 0;
 	shaderCBMngr = nullptr;
 	renderCtx = nullptr;
 	iblData = nullptr;
+	lightMode.clear();
 
 	geometryBufferPassID = static_cast<size_t>(-1);
 }
@@ -47,18 +50,24 @@ void Ubpa::Utopia::GeometryBuffer::RegisterOutputNodes(UFG::FrameGraph& framegra
 	outputIDs[2] = framegraph.RegisterResourceNode("GeometryBuffer::GeometryBuffer2");
 	outputIDs[3] = framegraph.RegisterResourceNode("GeometryBuffer::Motion");
 	outputIDs[4] = framegraph.RegisterResourceNode("GeometryBuffer::DepthStencil");
+	if (needLinearZ)
+		outputIDs[5] = framegraph.RegisterResourceNode("GeometryBuffer::LinearZ");
 }
 
 void Ubpa::Utopia::GeometryBuffer::RegisterPass(UFG::FrameGraph& framegraph) {
+	std::span<const size_t> outputIDs = GetOutputNodeIDs();
 	geometryBufferPassID = framegraph.RegisterGeneralPassNode(
 		"GeometryBuffer",
 		{ },
-		{ std::begin(outputIDs), std::end(outputIDs) }
+		{ outputIDs.begin(), outputIDs.end()}
 	);
 }
 
 std::span<const size_t> Ubpa::Utopia::GeometryBuffer::GetOutputNodeIDs() const {
-	return { outputIDs, 5 };
+	size_t num = 5;
+	if (needLinearZ)
+		++num;
+	return { outputIDs, num };
 }
 
 void Ubpa::Utopia::GeometryBuffer::RegisterPassResources(UDX12::FG::RsrcMngr& rsrcMngr) {
@@ -92,17 +101,27 @@ void Ubpa::Utopia::GeometryBuffer::RegisterPassResources(UDX12::FG::RsrcMngr& rs
 		D3D12_RESOURCE_STATE_DEPTH_WRITE,
 		dsvDesc
 	);
+	if (needLinearZ) {
+		rsrcMngr.RegisterPassRsrc(
+			geometryBufferPassID,
+			outputIDs[5],
+			D3D12_RESOURCE_STATE_RENDER_TARGET,
+			UDX12::FG::RsrcImplDesc_RTV_Null{}
+		);
+	}
 }
 
 void Ubpa::Utopia::GeometryBuffer::RegisterPassFuncData(
 	D3D12_GPU_VIRTUAL_ADDRESS inCameraCBAddress,
 	const ShaderCBMngr* inShaderCBMngr,
 	const RenderContext* inRenderCtx,
-	const IBLData* inIblData) {
+	const IBLData* inIblData,
+	std::string inLightMode) {
 	cameraCBAddress = inCameraCBAddress;
 	shaderCBMngr = inShaderCBMngr;
 	renderCtx = inRenderCtx;
 	iblData = inIblData;
+	lightMode = std::move(inLightMode);
 }
 
 void Ubpa::Utopia::GeometryBuffer::RegisterPassFunc(UDX12::FG::Executor& executor) {
@@ -135,25 +154,33 @@ void Ubpa::Utopia::GeometryBuffer::RegisterPassFunc(UDX12::FG::Executor& executo
 			cmdList->RSSetViewports(1, &viewport);
 			cmdList->RSSetScissorRects(1, &scissorRect);
 
-			std::array rtHandles{
+			std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> rtHandles{
 				gb0.info->null_info_rtv.cpuHandle,
 				gb1.info->null_info_rtv.cpuHandle,
 				gb2.info->null_info_rtv.cpuHandle,
 				mt.info->null_info_rtv.cpuHandle,
 			};
+			if (needLinearZ)
+				rtHandles.push_back(rsrcs.at(outputIDs[5]).info->null_info_rtv.cpuHandle);
 			auto dsHandle = ds.info->desc2info_dsv.at(dsvDesc).cpuHandle;
 			// Clear the render texture and depth buffer.
 			constexpr FLOAT clearColor[4] = { 0.f,0.f,0.f,0.f };
-			cmdList->ClearRenderTargetView(rtHandles[0], clearColor, 0, nullptr);
-			cmdList->ClearRenderTargetView(rtHandles[1], clearColor, 0, nullptr);
-			cmdList->ClearRenderTargetView(rtHandles[2], clearColor, 0, nullptr);
-			cmdList->ClearRenderTargetView(rtHandles[3], clearColor, 0, nullptr);
+			for (size_t i = 0; i < rtHandles.size(); i++)
+				cmdList->ClearRenderTargetView(rtHandles[i], clearColor, 0, nullptr);
 			cmdList->ClearDepthStencilView(dsHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.f, 0, 0, nullptr);
 
 			// Specify the buffers we are going to render to.
 			cmdList->OMSetRenderTargets((UINT)rtHandles.size(), rtHandles.data(), false, &dsHandle);
 
-			DrawObjects(*shaderCBMngr, *renderCtx, cmdList, "Deferred", 4, DXGI_FORMAT_R32G32B32A32_FLOAT, cameraCBAddress, *iblData);
+			DrawObjects(
+				*shaderCBMngr,
+				*renderCtx,
+				cmdList,
+				lightMode,
+				rtHandles.size(),
+				DXGI_FORMAT_R32G32B32A32_FLOAT,
+				cameraCBAddress,
+				*iblData);
 		}
 	);
 }
