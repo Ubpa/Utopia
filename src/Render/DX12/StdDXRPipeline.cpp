@@ -39,9 +39,10 @@
 
 #include <UDX12/FrameResourceMngr.h>
 
+#include "GeometryBuffer.h"
+#include "DeferredLighting.h"
 #include "Tonemapping.h"
 #include "TAA.h"
-#include "GeometryBuffer.h"
 
 using namespace Ubpa::Utopia;
 using namespace Ubpa::UECS;
@@ -679,6 +680,7 @@ struct StdDXRPipeline::Impl {
 
 	struct Stages {
 		GeometryBuffer geometryBuffer{ true };
+		DeferredLighting deferredLighting;
 		Tonemapping tonemapping;
 		TAA taa;
 	};
@@ -822,7 +824,7 @@ void StdDXRPipeline::Impl::BuildFrameResources() {
 }
 
 void StdDXRPipeline::Impl::BuildShaders() {
-	deferLightingShader = ShaderMngr::Instance().Get("StdPipeline/Defer Lighting");
+	deferLightingShader = ShaderMngr::Instance().Get("StdPipeline/Deferred Lighting");
 	irradianceShader = ShaderMngr::Instance().Get("StdPipeline/Irradiance");
 	prefilterShader = ShaderMngr::Instance().Get("StdPipeline/PreFilter");
 	gaussBlurXShader = ShaderMngr::Instance().Get("StdPipeline/GaussBlur_x");
@@ -985,6 +987,7 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 	fgExecutor->NewFrame();
 	fgRsrcMngr->NewFrame();
 	stages->geometryBuffer.NewFrame();
+	stages->deferredLighting.NewFrame();
 	stages->taa.NewFrame();
 	stages->tonemapping.NewFrame();
 
@@ -1009,13 +1012,15 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 	auto motion = stages->geometryBuffer.GetOutputNodeIDs()[3];
 	auto deferDS = stages->geometryBuffer.GetOutputNodeIDs()[4];
 	auto linearZ = stages->geometryBuffer.GetOutputNodeIDs()[5];
-	auto deferLightedRT = fg.RegisterResourceNode("Defer Lighted");
+	auto irradianceMap = fg.RegisterResourceNode("Irradiance Map");
+	auto prefilterMap = fg.RegisterResourceNode("PreFilter Map");
+	const size_t deferredLightingInputs[6] = { gbuffer0, gbuffer1, gbuffer2, deferDS, irradianceMap, prefilterMap };
+	stages->deferredLighting.RegisterInputOutputPassNodes(fg, deferredLightingInputs);
+	auto deferLightedRT = stages->deferredLighting.GetOutputNodeIDs()[0];
 	auto deferLightedSkyRT = fg.RegisterResourceNode("Defer Lighted with Sky");
 	auto sceneRT = fg.RegisterResourceNode("Scene");
 	auto presentedRT = fg.RegisterResourceNode("Present");
 	auto forwardDS = fg.RegisterResourceNode("Forward Depth Stencil");
-	auto irradianceMap = fg.RegisterResourceNode("Irradiance Map");
-	auto prefilterMap = fg.RegisterResourceNode("PreFilter Map");
 	auto TLAS = fg.RegisterResourceNode("TLAS");
 	auto historyLength = fg.RegisterResourceNode("History Length");
 	auto prevRTResult = fg.RegisterResourceNode("Prev RT result");
@@ -1060,11 +1065,6 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 		"Filter Moments Pass",
 		{ accRTResult, accRTUResult, colorMoment, historyLength, gbuffer1, linearZ },
 		{ fAccRTResult, fAccRTUResult }
-	);
-	auto deferLightingPass = fg.RegisterGeneralPassNode(
-		"Defer Lighting",
-		{ gbuffer0,gbuffer1,gbuffer2,deferDS,irradianceMap,prefilterMap },
-		{ deferLightedRT }
 	);
 	std::array<std::size_t, ATrousN> rtATrousDenoisePasses;
 	for (std::size_t i = 0; i < ATrousN; i++) {
@@ -1231,16 +1231,6 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 			}
 		)
 
-		.RegisterPassRsrc(deferLightingPass, gbuffer0, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
-		.RegisterPassRsrc(deferLightingPass, gbuffer1, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
-		.RegisterPassRsrc(deferLightingPass, gbuffer2, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
-		.RegisterPassRsrcState(deferLightingPass, deferDS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_DEPTH_READ)
-		.RegisterPassRsrcImplDesc(deferLightingPass, deferDS, dsvDesc)
-		.RegisterPassRsrcImplDesc(deferLightingPass, deferDS, dsSrvDesc)
-		.RegisterPassRsrcState(deferLightingPass, irradianceMap, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
-		.RegisterPassRsrcState(deferLightingPass, prefilterMap, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
-		.RegisterPassRsrc(deferLightingPass, deferLightedRT, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
-
 		.RegisterPassRsrc(skyboxPass, deferDS, D3D12_RESOURCE_STATE_DEPTH_READ, dsvDesc)
 		.RegisterPassRsrc(skyboxPass, deferLightedSkyRT, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
 
@@ -1332,6 +1322,7 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 		;
 
 	stages->geometryBuffer.RegisterPassResources(*fgRsrcMngr);
+	stages->deferredLighting.RegisterPassResources(*fgRsrcMngr);
 	stages->taa.RegisterPassResources(*fgRsrcMngr);
 	stages->tonemapping.RegisterPassResources(*fgRsrcMngr);
 
@@ -1342,62 +1333,16 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 
 	const D3D12_GPU_VIRTUAL_ADDRESS lightCBAddress = shaderCBMngr->GetLightCBAddress(ctx.ID);
 
+	// irradiance, prefilter, BRDF LUT
+	const D3D12_GPU_DESCRIPTOR_HANDLE iblDataSrvGpuHandle = ctx.skyboxGpuHandle.ptr == PipelineCommonResourceMngr::GetInstance().GetDefaultSkyboxGpuHandle().ptr ?
+		PipelineCommonResourceMngr::GetInstance().GetDefaultIBLSrvDHA().GetGpuHandle()
+		: iblData->SRVDH.GetGpuHandle();
+
 	stages->geometryBuffer.RegisterPassFuncData(cameraCBAddress, shaderCBMngr.get(), &ctx, iblData.get(), "RTDeferred");
 	stages->geometryBuffer.RegisterPassFunc(*fgExecutor);
 
-	fgExecutor->RegisterPassFunc(
-		deferLightingPass,
-		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
-			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
-			cmdList->SetDescriptorHeaps(1, &heap);
-			cmdList->RSSetViewports(1, &viewport);
-			cmdList->RSSetScissorRects(1, &scissorRect);
-
-			auto gb0 = rsrcs.at(gbuffer0); // table {gb0, gb1, gb2}
-			//auto gb1 = rsrcs.at(gbuffer1);
-			//auto gb2 = rsrcs.at(gbuffer2);
-			auto ds = rsrcs.at(deferDS);
-
-			auto rt = rsrcs.at(deferLightedRT);
-
-			//cmdList->CopyResource(bb.resource, rt.resource);
-
-			// Clear the render texture and depth buffer.
-			cmdList->ClearRenderTargetView(rt.info->null_info_rtv.cpuHandle, DirectX::Colors::Black, 0, nullptr);
-
-			// Specify the buffers we are going to render to.
-			cmdList->OMSetRenderTargets(1, &rt.info->null_info_rtv.cpuHandle, false, &ds.info->desc2info_dsv.at(dsvDesc).cpuHandle);
-
-			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*deferLightingShader));
-			cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetOrCreateShaderPSO(
-				*deferLightingShader,
-				0,
-				static_cast<size_t>(-1),
-				1,
-				DXGI_FORMAT_R32G32B32A32_FLOAT)
-			);
-
-			cmdList->SetGraphicsRootDescriptorTable(0, gb0.info->desc2info_srv.at(srvDesc).at(GBufferRsrcTableID).gpuHandle);
-			cmdList->SetGraphicsRootDescriptorTable(1, ds.info->GetAnySRV(dsSrvDesc).gpuHandle);
-
-			// irradiance, prefilter, BRDF LUT
-			if (ctx.skyboxGpuHandle.ptr == PipelineCommonResourceMngr::GetInstance().GetDefaultSkyboxGpuHandle().ptr)
-				cmdList->SetGraphicsRootDescriptorTable(2, PipelineCommonResourceMngr::GetInstance().GetDefaultIBLSrvDHA().GetGpuHandle());
-			else
-				cmdList->SetGraphicsRootDescriptorTable(2, iblData->SRVDH.GetGpuHandle());
-
-			cmdList->SetGraphicsRootDescriptorTable(3, PipelineCommonResourceMngr::GetInstance().GetLtcSrvDHA().GetGpuHandle());
-
-			cmdList->SetGraphicsRootConstantBufferView(4, lightCBAddress);
-
-			cmdList->SetGraphicsRootConstantBufferView(5, cameraCBAddress);
-
-			cmdList->IASetVertexBuffers(0, 0, nullptr);
-			cmdList->IASetIndexBuffer(nullptr);
-			cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-			cmdList->DrawInstanced(6, 1, 0, 0);
-		}
-	);
+	stages->deferredLighting.RegisterPassFuncData(iblDataSrvGpuHandle, cameraCBAddress, lightCBAddress);
+	stages->deferredLighting.RegisterPassFunc(*fgExecutor);
 
 	fgExecutor->RegisterPassFunc(
 		skyboxPass,

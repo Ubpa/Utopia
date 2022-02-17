@@ -1,4 +1,4 @@
-Shader "StdPipeline/Defer Lighting" {
+Shader "StdPipeline/Deferred Lighting" {
 	HLSL : "adf8c17e-cbbb-4921-83d8-5a755793bc21"
 	RootSignature {
 		SRV[3] : 0
