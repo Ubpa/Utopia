@@ -202,7 +202,7 @@ float4 PS(VertexOut pin) : SV_Target
 	float3 prefilterColor = STD_PIPELINE_SAMPLE_PREFILTER(R, roughness);
 	float2 scale_bias = STD_PIPELINE_SAMPLE_BRDFLUT(NdotV, roughness);
 	float Ess = scale_bias.x + scale_bias.y;
-	float3 factor_ss_add_ms = (1.0 + (1.0 - Ess) / Ess) * F0;
+	float3 factor_ss_add_ms = 1.0 + saturate(rcp(Ess) - 1.0) * F0;
 	float3 specular = prefilterColor * factor_ss_add_ms * (F0 * scale_bias.x + scale_bias.y);
 	
 	Lo += kD * diffuse + specular;
