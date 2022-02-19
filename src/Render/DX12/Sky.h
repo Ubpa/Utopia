@@ -3,24 +3,25 @@
 #include "IPipelineStage.h"
 
 namespace Ubpa::Utopia {
-	class TAA : public IPipelineStage {
+	class Sky : public IPipelineStage {
 	public:
-		TAA();
-		virtual ~TAA();
+		Sky();
+		virtual ~Sky();
 
 		virtual void NewFrame() override;
 
 		/**
 		 * inputs
-		 * - Previous Scene Color
-		 * - Current Scene Color
-		 * - Motion
+		 * - Depth Stencil
 		 */
 		virtual bool RegisterInputOutputPassNodes(UFG::FrameGraph& framegraph, std::span<const size_t> inputNodeIDs) override;
 
 		virtual void RegisterPassResources(UDX12::FG::RsrcMngr& rsrcMngr) override;
 
-		void RegisterPassFuncData(D3D12_GPU_VIRTUAL_ADDRESS inCameraCBAddress);
+		void RegisterPassFuncData(
+			D3D12_GPU_DESCRIPTOR_HANDLE inSkyboxSrvGpuHandle,
+			D3D12_GPU_VIRTUAL_ADDRESS inCameraCBAddress);
+
 		virtual void RegisterPassFunc(UDX12::FG::Executor& executor) override;
 
 		/** mixed scene color */
@@ -28,21 +29,15 @@ namespace Ubpa::Utopia {
 	private:
 		std::shared_ptr<Shader> shader;
 
-		static constexpr const char RsrcTableID[] = "TAA::RsrcTable";
+		D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
 
-		D3D12_SHADER_RESOURCE_VIEW_DESC prevSceneColorSrvDesc;
-		D3D12_SHADER_RESOURCE_VIEW_DESC currSceneColorSrvDesc;
-		D3D12_SHADER_RESOURCE_VIEW_DESC motionSrvDesc;
-
+		D3D12_GPU_DESCRIPTOR_HANDLE skyboxSrvGpuHandle;
 		D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress;
 
-		size_t prevSceneColorID;
-		size_t currSceneColorID;
-		size_t motionID;
+		size_t depthStencilID;
 
-		size_t mixSceneColorID;
+		size_t outputID;
 
-		size_t taaPassID;
-		size_t copyPassID;
+		size_t passID;
 	};
 }

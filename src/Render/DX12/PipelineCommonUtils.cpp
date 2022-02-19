@@ -39,8 +39,6 @@ PipelineCommonResourceMngr& PipelineCommonResourceMngr::GetInstance() {
 void PipelineCommonResourceMngr::Init(ID3D12Device* device) {
 	errorMat = AssetMngr::Instance().LoadAsset<Material>(LR"(_internal\materials\error.mat)");
 
-	skyboxShader = ShaderMngr::Instance().Get("StdPipeline/Skybox");
-
 	blackTex2D = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\textures\black.png)");
 	whiteTex2D = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\textures\white.png)");
 	errorTex2D = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\textures\error.png)");
@@ -102,15 +100,12 @@ void PipelineCommonResourceMngr::Release() {
 	blackTexCube = nullptr;
 	whiteTexCube = nullptr;
 	errorMat = nullptr;
-	skyboxShader = nullptr;
 	defaultSkyboxGpuHandle.ptr = 0;
 	UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(defaultIBLSrvDHA));
 	commonCBs.clear();
 }
 
 std::shared_ptr<Material> PipelineCommonResourceMngr::GetErrorMaterial() const { return errorMat; }
-
-std::shared_ptr<Shader> PipelineCommonResourceMngr::GetSkyboxShader() const { return skyboxShader; }
 
 D3D12_GPU_DESCRIPTOR_HANDLE PipelineCommonResourceMngr::GetDefaultSkyboxGpuHandle() const { return defaultSkyboxGpuHandle; }
 
@@ -235,8 +230,6 @@ void IBLData::Init(ID3D12Device* device) {
 RenderContext Ubpa::Utopia::GenerateRenderContext(size_t ID, std::span<const UECS::World* const> worlds)
 {
 	auto errorMat = PipelineCommonResourceMngr::GetInstance().GetErrorMaterial();
-
-	auto skyboxShader = PipelineCommonResourceMngr::GetInstance().GetSkyboxShader();
 
 	auto defaultSkyboxGpuHandle = PipelineCommonResourceMngr::GetInstance().GetDefaultSkyboxGpuHandle();
 
@@ -437,13 +430,13 @@ RenderContext Ubpa::Utopia::GenerateRenderContext(size_t ID, std::span<const UEC
 	}
 
 	// use first skybox in the world vector
-	ctx.skyboxGpuHandle = defaultSkyboxGpuHandle;
+	ctx.skyboxSrvGpuHandle = defaultSkyboxGpuHandle;
 	for (auto world : worlds) {
-		if (auto ptr = world->entityMngr.ReadSingleton<Skybox>(); ptr && ptr->material && ptr->material->shader.get() == skyboxShader.get()) {
+		if (auto ptr = world->entityMngr.ReadSingleton<Skybox>(); ptr && ptr->material) {
 			auto target = ptr->material->properties.find("gSkybox");
 			if (target != ptr->material->properties.end() && std::holds_alternative<SharedVar<TextureCube>>(target->second.value)) {
 				auto texcube = std::get<SharedVar<TextureCube>>(target->second.value);
-				ctx.skyboxGpuHandle = GPURsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(*texcube);
+				ctx.skyboxSrvGpuHandle = GPURsrcMngrDX12::Instance().GetTextureCubeSrvGpuHandle(*texcube);
 				break;
 			}
 		}
@@ -463,7 +456,7 @@ void Ubpa::Utopia::DrawObjects(
 	D3D12_GPU_DESCRIPTOR_HANDLE iblDataSrvGpuHandle)
 {
 	D3D12_GPU_DESCRIPTOR_HANDLE ibl;
-	if (ctx.skyboxGpuHandle.ptr == PipelineCommonResourceMngr::GetInstance().GetDefaultSkyboxGpuHandle().ptr)
+	if (ctx.skyboxSrvGpuHandle.ptr == PipelineCommonResourceMngr::GetInstance().GetDefaultSkyboxGpuHandle().ptr)
 		ibl = PipelineCommonResourceMngr::GetInstance().GetDefaultIBLSrvDHA().GetGpuHandle();
 	else
 		ibl = iblDataSrvGpuHandle;

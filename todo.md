@@ -34,6 +34,8 @@
 - [ ] physics engine
 - [ ] audio
 - [ ] project
+- [ ] split forward with opaque and transparent
+- [ ] custom sky box material
 
 ## Bugs
 

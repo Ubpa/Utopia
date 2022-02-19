@@ -34,7 +34,7 @@ bool Ubpa::Utopia::Tonemapping::RegisterInputOutputPassNodes(UFG::FrameGraph& fr
 
 	inputID = inputNodeIDs[0];
 
-	outputID = framegraph.RegisterResourceNode("Tonemapping::output");
+	outputID = framegraph.RegisterResourceNode("Tonemapping::LDRImage");
 
 	passID = framegraph.RegisterGeneralPassNode("Tonemapping", { inputID }, { outputID });
 

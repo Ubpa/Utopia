@@ -17,16 +17,16 @@ Ubpa::Utopia::TAA::TAA()
 	motionSrvDesc = UDX12::Desc::SRV::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT);
 }
 
-Ubpa::Utopia::TAA::~TAA() {
-}
+Ubpa::Utopia::TAA::~TAA() = default;
 
 void Ubpa::Utopia::TAA::NewFrame() {
+	cameraCBAddress = 0;
+
 	prevSceneColorID = static_cast<size_t>(-1);
 	currSceneColorID = static_cast<size_t>(-1);
 	motionID = static_cast<size_t>(-1);
-	mixSceneColorID = static_cast<size_t>(-1);
 
-	cameraCB = 0;
+	mixSceneColorID = static_cast<size_t>(-1);
 
 	taaPassID = static_cast<size_t>(-1);
 	copyPassID = static_cast<size_t>(-1);
@@ -103,8 +103,8 @@ void Ubpa::Utopia::TAA::RegisterPassResources(UDX12::FG::RsrcMngr& rsrcMngr) {
 	);
 }
 
-void Ubpa::Utopia::TAA::RegisterPassFuncData(D3D12_GPU_VIRTUAL_ADDRESS inCameraCB) {
-	cameraCB = inCameraCB;
+void Ubpa::Utopia::TAA::RegisterPassFuncData(D3D12_GPU_VIRTUAL_ADDRESS inCameraCBAddress) {
+	cameraCBAddress = inCameraCBAddress;
 }
 
 void Ubpa::Utopia::TAA::RegisterPassFunc(UDX12::FG::Executor& executor) {
@@ -155,8 +155,7 @@ void Ubpa::Utopia::TAA::RegisterPassFunc(UDX12::FG::Executor& executor) {
 			cmdList->SetGraphicsRootDescriptorTable(0, prevSceneColorRsrc.info->desc2info_srv.at(prevSceneColorSrvDesc).at(RsrcTableID).gpuHandle);
 			cmdList->SetGraphicsRootDescriptorTable(1, motionRsrc.info->GetAnySRV(motionSrvDesc).gpuHandle);
 
-			assert(cameraCB != 0);
-			cmdList->SetGraphicsRootConstantBufferView(2, cameraCB);
+			cmdList->SetGraphicsRootConstantBufferView(2, cameraCBAddress);
 
 			cmdList->IASetVertexBuffers(0, 0, nullptr);
 			cmdList->IASetIndexBuffer(nullptr);

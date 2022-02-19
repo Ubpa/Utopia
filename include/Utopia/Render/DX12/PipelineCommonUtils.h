@@ -37,7 +37,6 @@ namespace Ubpa::Utopia {
 		void Release();
 
 		std::shared_ptr<Material> GetErrorMaterial() const;
-		std::shared_ptr<Shader> GetSkyboxShader() const;
 		D3D12_GPU_DESCRIPTOR_HANDLE GetDefaultSkyboxGpuHandle() const;
 		bool IsCommonCB(std::string_view cbDescName) const;
 		const UDX12::DescriptorHeapAllocation& GetDefaultIBLSrvDHA() const;
@@ -72,7 +71,6 @@ namespace Ubpa::Utopia {
 
 		std::shared_ptr<Material> errorMat;
 
-		std::shared_ptr<Shader> skyboxShader;
 		D3D12_GPU_DESCRIPTOR_HANDLE defaultSkyboxGpuHandle;
 		/**
 		 * use black cube texture and balck texture 2d to generate the ibl resources
@@ -176,7 +174,7 @@ namespace Ubpa::Utopia {
 
 		RenderQueue renderQueue;
 
-		D3D12_GPU_DESCRIPTOR_HANDLE skyboxGpuHandle;
+		D3D12_GPU_DESCRIPTOR_HANDLE skyboxSrvGpuHandle;
 
 		LightArray lightArray;
 

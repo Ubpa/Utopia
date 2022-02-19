@@ -28,8 +28,9 @@ namespace Ubpa::Utopia {
 		virtual void RegisterPassFunc(UDX12::FG::Executor& executor) override;
 
 		/**
-		 * Lighted Result
-		 * Depth Stencil
+		 * inputs
+		 * - Lighted Result
+		 * - Depth Stencil
 		 */
 		virtual std::span<const size_t> GetOutputNodeIDs() const override;
 	private:

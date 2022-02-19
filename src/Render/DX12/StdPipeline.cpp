@@ -42,6 +42,7 @@
 #include "GeometryBuffer.h"
 #include "DeferredLighting.h"
 #include "ForwardLighting.h"
+#include "Sky.h"
 #include "Tonemapping.h"
 #include "TAA.h"
 
@@ -81,6 +82,7 @@ struct StdPipeline::Impl {
 		GeometryBuffer geometryBuffer;
 		DeferredLighting deferredLighting;
 		ForwardLighting forwardLighting;
+		Sky sky;
 		Tonemapping tonemapping;
 		TAA taa;
 	};
@@ -295,6 +297,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 	stages->geometryBuffer.NewFrame();
 	stages->deferredLighting.NewFrame();
 	stages->forwardLighting.NewFrame();
+	stages->sky.NewFrame();
 	stages->taa.NewFrame();
 	stages->tonemapping.NewFrame();
 
@@ -313,12 +316,13 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 	const size_t deferredLightingInputs[6] = { gbuffer0, gbuffer1, gbuffer2, deferDS, irradianceMap, prefilterMap };
 	stages->deferredLighting.RegisterInputOutputPassNodes(fg, deferredLightingInputs);
 	auto deferLightedRT = stages->deferredLighting.GetOutputNodeIDs()[0];
-	auto deferLightedSkyRT = fg.RegisterResourceNode("Defer Lighted with Sky");
 	const size_t forwardLightingInputs[2] = { irradianceMap, prefilterMap };
 	stages->forwardLighting.RegisterInputOutputPassNodes(fg, forwardLightingInputs);
 	auto sceneRT = stages->forwardLighting.GetOutputNodeIDs()[0];
 	auto forwardDS = stages->forwardLighting.GetOutputNodeIDs()[1];
 	fg.RegisterMoveNode(forwardDS, deferDS);
+	stages->sky.RegisterInputOutputPassNodes(fg, { &deferDS, 1 });
+	auto deferLightedSkyRT = stages->sky.GetOutputNodeIDs()[0];
 	auto taaPrevResult = fg.RegisterResourceNode("TAA Prev Result");
 	const size_t taaInputs[3] = { taaPrevResult, sceneRT, motion };
 	stages->taa.RegisterInputOutputPassNodes(fg, taaInputs);
@@ -329,11 +333,6 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 	fg.RegisterMoveNode(deferLightedSkyRT, deferLightedRT);
 	fg.RegisterMoveNode(sceneRT, deferLightedSkyRT);
 	fg.RegisterMoveNode(presentedRT, tonemappedRT);
-	auto skyboxPass = fg.RegisterGeneralPassNode(
-		"Skybox",
-		{ deferDS },
-		{ deferLightedSkyRT }
-	);
 
 	D3D12_RESOURCE_DESC dsDesc = UDX12::Desc::RSRC::Basic(
 		D3D12_RESOURCE_DIMENSION_TEXTURE2D,
@@ -361,7 +360,6 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 
 	auto dsvDesc = UDX12::Desc::DSV::Basic(dsFormat);
 	auto rt2dDesc = UDX12::Desc::RSRC::RT2D(width, (UINT)height, DXGI_FORMAT_R32G32B32A32_FLOAT);
-	const UDX12::FG::RsrcImplDesc_RTV_Null rtvNull;
 
 	auto iblData = worldRsrc.Get<std::shared_ptr<IBLData>>("IBL data");
 
@@ -380,14 +378,12 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 		.RegisterImportedRsrc(irradianceMap, { iblData->irradianceMapResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
 		.RegisterImportedRsrc(prefilterMap, { iblData->prefilterMapResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
 		.RegisterImportedRsrc(taaPrevResult, { taaPrevRsrc.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
-
-		.RegisterPassRsrc(skyboxPass, deferDS, D3D12_RESOURCE_STATE_DEPTH_READ, dsvDesc)
-		.RegisterPassRsrc(skyboxPass, deferLightedSkyRT, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
 		;
 
 	stages->geometryBuffer.RegisterPassResources(*fgRsrcMngr);
 	stages->deferredLighting.RegisterPassResources(*fgRsrcMngr);
 	stages->forwardLighting.RegisterPassResources(*fgRsrcMngr);
+	stages->sky.RegisterPassResources(*fgRsrcMngr);
 	stages->taa.RegisterPassResources(*fgRsrcMngr);
 	stages->tonemapping.RegisterPassResources(*fgRsrcMngr);
 
@@ -397,7 +393,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 	const D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress = shaderCBMngr->GetCameraCBAddress(ctx.ID, cameraIdx);
 	const D3D12_GPU_VIRTUAL_ADDRESS lightCBAddress = shaderCBMngr->GetLightCBAddress(ctx.ID);
 	// irradiance, prefilter, BRDF LUT
-	const D3D12_GPU_DESCRIPTOR_HANDLE iblDataSrvGpuHandle = ctx.skyboxGpuHandle.ptr == PipelineCommonResourceMngr::GetInstance().GetDefaultSkyboxGpuHandle().ptr ?
+	const D3D12_GPU_DESCRIPTOR_HANDLE iblDataSrvGpuHandle = ctx.skyboxSrvGpuHandle.ptr == PipelineCommonResourceMngr::GetInstance().GetDefaultSkyboxGpuHandle().ptr ?
 		PipelineCommonResourceMngr::GetInstance().GetDefaultIBLSrvDHA().GetGpuHandle()
 		: iblData->SRVDH.GetGpuHandle();
 
@@ -407,46 +403,11 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 	stages->deferredLighting.RegisterPassFuncData(iblDataSrvGpuHandle, cameraCBAddress, lightCBAddress);
 	stages->deferredLighting.RegisterPassFunc(*fgExecutor);
 
-	fgExecutor->RegisterPassFunc(
-		skyboxPass,
-		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
-			if (ctx.skyboxGpuHandle.ptr == PipelineCommonResourceMngr::GetInstance().GetDefaultSkyboxGpuHandle().ptr)
-				return;
-
-			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
-			cmdList->SetDescriptorHeaps(1, &heap);
-			auto skyboxShader = PipelineCommonResourceMngr::GetInstance().GetSkyboxShader();
-			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*skyboxShader));
-			cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetOrCreateShaderPSO(
-				*skyboxShader,
-				0,
-				static_cast<size_t>(-1),
-				1,
-				DXGI_FORMAT_R32G32B32A32_FLOAT)
-			);
-
-			cmdList->RSSetViewports(1, &viewport);
-			cmdList->RSSetScissorRects(1, &scissorRect);
-
-			auto rt = rsrcs.at(deferLightedSkyRT);
-			auto ds = rsrcs.at(deferDS);
-
-			// Specify the buffers we are going to render to.
-			cmdList->OMSetRenderTargets(1, &rt.info->null_info_rtv.cpuHandle, false, &ds.info->desc2info_dsv.at(dsvDesc).cpuHandle);
-
-			cmdList->SetGraphicsRootDescriptorTable(0, ctx.skyboxGpuHandle);
-
-			cmdList->SetGraphicsRootConstantBufferView(1, cameraCBAddress);
-
-			cmdList->IASetVertexBuffers(0, 0, nullptr);
-			cmdList->IASetIndexBuffer(nullptr);
-			cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-			cmdList->DrawInstanced(36, 1, 0, 0);
-		}
-	);
-
 	stages->forwardLighting.RegisterPassFuncData(iblData->SRVDH.GetGpuHandle(), cameraCBAddress, shaderCBMngr.get(), &ctx);
 	stages->forwardLighting.RegisterPassFunc(*fgExecutor);
+
+	stages->sky.RegisterPassFuncData(ctx.skyboxSrvGpuHandle, cameraCBAddress);
+	stages->sky.RegisterPassFunc(*fgExecutor);
 
 	stages->taa.RegisterPassFuncData(cameraCBAddress);
 	stages->taa.RegisterPassFunc(*fgExecutor);
@@ -561,17 +522,17 @@ void StdPipeline::Impl::Render(
 		fgExecutor->RegisterPassFunc(
 			iblPass,
 			[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& /*rsrcs*/) {
-				if (iblData->lastSkybox.ptr == ctx.skyboxGpuHandle.ptr) {
+				if (iblData->lastSkybox.ptr == ctx.skyboxSrvGpuHandle.ptr) {
 					if (iblData->nextIdx >= 6 * (1 + IBLData::PreFilterMapMipLevels))
 						return;
 				}
 				else {
 					auto defaultSkyboxGpuHandle = PipelineCommonResourceMngr::GetInstance().GetDefaultSkyboxGpuHandle();
-					if (ctx.skyboxGpuHandle.ptr == defaultSkyboxGpuHandle.ptr) {
+					if (ctx.skyboxSrvGpuHandle.ptr == defaultSkyboxGpuHandle.ptr) {
 						iblData->lastSkybox.ptr = defaultSkyboxGpuHandle.ptr;
 						return;
 					}
-					iblData->lastSkybox = ctx.skyboxGpuHandle;
+					iblData->lastSkybox = ctx.skyboxSrvGpuHandle;
 					iblData->nextIdx = 0;
 				}
 
@@ -600,7 +561,7 @@ void StdPipeline::Impl::Render(
 					cmdList->RSSetViewports(1, &viewport);
 					cmdList->RSSetScissorRects(1, &rect);
 
-					cmdList->SetGraphicsRootDescriptorTable(0, ctx.skyboxGpuHandle);
+					cmdList->SetGraphicsRootDescriptorTable(0, ctx.skyboxSrvGpuHandle);
 					//for (UINT i = 0; i < 6; i++) {
 					UINT i = static_cast<UINT>(iblData->nextIdx);
 					// Specify the buffers we are going to render to.
@@ -627,7 +588,7 @@ void StdPipeline::Impl::Render(
 						DXGI_FORMAT_UNKNOWN)
 					);
 
-					cmdList->SetGraphicsRootDescriptorTable(0, ctx.skyboxGpuHandle);
+					cmdList->SetGraphicsRootDescriptorTable(0, ctx.skyboxSrvGpuHandle);
 					//size_t size = Impl::IBLData::PreFilterMapSize;
 					//for (UINT mip = 0; mip < Impl::IBLData::PreFilterMapMipLevels; mip++) {
 					UINT mip = static_cast<UINT>((iblData->nextIdx - 6) / 6);
