@@ -1,4 +1,4 @@
-Shader "StdPipeline/Forward" {
+Shader "StdPipeline/Forward Lighting" {
 	HLSL : "2b806620-2ddb-4de4-9b24-a67e537141a3"
 	RootSignature {
 		SRV[1] : 0

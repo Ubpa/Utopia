@@ -5,6 +5,10 @@
 
 Ubpa::Utopia::GeometryBuffer::GeometryBuffer(bool inNeedLinearZ)
 	: needLinearZ(inNeedLinearZ)
+	, cameraCBAddress(0)
+	, shaderCBMngr(nullptr)
+	, renderCtx(nullptr)
+	, iblData(nullptr)
 	, outputIDs {
 		static_cast<size_t>(-1),
 		static_cast<size_t>(-1),
@@ -13,7 +17,7 @@ Ubpa::Utopia::GeometryBuffer::GeometryBuffer(bool inNeedLinearZ)
 		static_cast<size_t>(-1),
 		static_cast<size_t>(-1),
 	}
-	, geometryBufferPassID(static_cast<size_t>(-1))
+	, passID(static_cast<size_t>(-1))
 {
 	shader = ShaderMngr::Instance().Get("StdPipeline/Geometry Buffer");
 	dsvDesc = UDX12::Desc::DSV::Basic(DXGI_FORMAT_D24_UNORM_S8_UINT);
@@ -32,7 +36,7 @@ void Ubpa::Utopia::GeometryBuffer::NewFrame() {
 	iblData = nullptr;
 	lightMode.clear();
 
-	geometryBufferPassID = static_cast<size_t>(-1);
+	passID = static_cast<size_t>(-1);
 }
 
 bool Ubpa::Utopia::GeometryBuffer::RegisterInputOutputPassNodes(UFG::FrameGraph& framegraph, std::span<const size_t> inputNodeIDs) {
@@ -50,7 +54,7 @@ bool Ubpa::Utopia::GeometryBuffer::RegisterInputOutputPassNodes(UFG::FrameGraph&
 		outputIDs[5] = framegraph.RegisterResourceNode("GeometryBuffer::LinearZ");
 
 	const std::span<const size_t> outputIDs = GetOutputNodeIDs();
-	geometryBufferPassID = framegraph.RegisterGeneralPassNode(
+	passID = framegraph.RegisterGeneralPassNode(
 		"GeometryBuffer",
 		{ },
 		{ outputIDs.begin(), outputIDs.end() }
@@ -68,38 +72,38 @@ std::span<const size_t> Ubpa::Utopia::GeometryBuffer::GetOutputNodeIDs() const {
 
 void Ubpa::Utopia::GeometryBuffer::RegisterPassResources(UDX12::FG::RsrcMngr& rsrcMngr) {
 	rsrcMngr.RegisterPassRsrc(
-		geometryBufferPassID,
+		passID,
 		outputIDs[0],
 		D3D12_RESOURCE_STATE_RENDER_TARGET,
 		UDX12::FG::RsrcImplDesc_RTV_Null{}
 	);
 	rsrcMngr.RegisterPassRsrc(
-		geometryBufferPassID,
+		passID,
 		outputIDs[1],
 		D3D12_RESOURCE_STATE_RENDER_TARGET,
 		UDX12::FG::RsrcImplDesc_RTV_Null{}
 	);
 	rsrcMngr.RegisterPassRsrc(
-		geometryBufferPassID,
+		passID,
 		outputIDs[2],
 		D3D12_RESOURCE_STATE_RENDER_TARGET,
 		UDX12::FG::RsrcImplDesc_RTV_Null{}
 	);
 	rsrcMngr.RegisterPassRsrc(
-		geometryBufferPassID,
+		passID,
 		outputIDs[3],
 		D3D12_RESOURCE_STATE_RENDER_TARGET,
 		UDX12::FG::RsrcImplDesc_RTV_Null{}
 	);
 	rsrcMngr.RegisterPassRsrc(
-		geometryBufferPassID,
+		passID,
 		outputIDs[4],
 		D3D12_RESOURCE_STATE_DEPTH_WRITE,
 		dsvDesc
 	);
 	if (needLinearZ) {
 		rsrcMngr.RegisterPassRsrc(
-			geometryBufferPassID,
+			passID,
 			outputIDs[5],
 			D3D12_RESOURCE_STATE_RENDER_TARGET,
 			UDX12::FG::RsrcImplDesc_RTV_Null{}
@@ -122,7 +126,7 @@ void Ubpa::Utopia::GeometryBuffer::RegisterPassFuncData(
 
 void Ubpa::Utopia::GeometryBuffer::RegisterPassFunc(UDX12::FG::Executor& executor) {
 	executor.RegisterPassFunc(
-		geometryBufferPassID,
+		passID,
 		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 			auto gb0 = rsrcs.at(outputIDs[0]);
 			auto gb1 = rsrcs.at(outputIDs[1]);

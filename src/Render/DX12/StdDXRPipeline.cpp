@@ -41,6 +41,7 @@
 
 #include "GeometryBuffer.h"
 #include "DeferredLighting.h"
+#include "ForwardLighting.h"
 #include "Tonemapping.h"
 #include "TAA.h"
 
@@ -681,6 +682,7 @@ struct StdDXRPipeline::Impl {
 	struct Stages {
 		GeometryBuffer geometryBuffer{ true };
 		DeferredLighting deferredLighting;
+		ForwardLighting forwardLighting;
 		Tonemapping tonemapping;
 		TAA taa;
 	};
@@ -692,7 +694,6 @@ struct StdDXRPipeline::Impl {
 	UFG::Compiler fgCompiler;
 	UFG::FrameGraph fg;
 
-	std::shared_ptr<Shader> deferLightingShader;
 	std::shared_ptr<Shader> irradianceShader;
 	std::shared_ptr<Shader> prefilterShader;
 	std::shared_ptr<Shader> gaussBlurXShader;
@@ -824,7 +825,6 @@ void StdDXRPipeline::Impl::BuildFrameResources() {
 }
 
 void StdDXRPipeline::Impl::BuildShaders() {
-	deferLightingShader = ShaderMngr::Instance().Get("StdPipeline/Deferred Lighting");
 	irradianceShader = ShaderMngr::Instance().Get("StdPipeline/Irradiance");
 	prefilterShader = ShaderMngr::Instance().Get("StdPipeline/PreFilter");
 	gaussBlurXShader = ShaderMngr::Instance().Get("StdPipeline/GaussBlur_x");
@@ -988,6 +988,7 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 	fgRsrcMngr->NewFrame();
 	stages->geometryBuffer.NewFrame();
 	stages->deferredLighting.NewFrame();
+	stages->forwardLighting.NewFrame();
 	stages->taa.NewFrame();
 	stages->tonemapping.NewFrame();
 
@@ -1018,9 +1019,11 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 	stages->deferredLighting.RegisterInputOutputPassNodes(fg, deferredLightingInputs);
 	auto deferLightedRT = stages->deferredLighting.GetOutputNodeIDs()[0];
 	auto deferLightedSkyRT = fg.RegisterResourceNode("Defer Lighted with Sky");
-	auto sceneRT = fg.RegisterResourceNode("Scene");
+	const size_t forwardLightingInputs[2] = { irradianceMap, prefilterMap };
+	stages->forwardLighting.RegisterInputOutputPassNodes(fg, forwardLightingInputs);
+	auto sceneRT = stages->forwardLighting.GetOutputNodeIDs()[0];
+	auto forwardDS = stages->forwardLighting.GetOutputNodeIDs()[1];
 	auto presentedRT = fg.RegisterResourceNode("Present");
-	auto forwardDS = fg.RegisterResourceNode("Forward Depth Stencil");
 	auto TLAS = fg.RegisterResourceNode("TLAS");
 	auto historyLength = fg.RegisterResourceNode("History Length");
 	auto prevRTResult = fg.RegisterResourceNode("Prev RT result");
@@ -1039,6 +1042,7 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 	stages->taa.RegisterInputOutputPassNodes(fg, taaInputs);
 	auto taaResult = stages->taa.GetOutputNodeIDs().front();
 	stages->tonemapping.RegisterInputOutputPassNodes(fg, { &taaResult, 1 });
+	auto tonemappedRT = stages->tonemapping.GetOutputNodeIDs().front();
 	std::array<std::size_t, ATrousN> rtATrousDenoiseResults;
 	for (std::size_t i = 0; i < ATrousN; i++)
 		rtATrousDenoiseResults[i] = fg.RegisterResourceNode("RT ATrous denoised result " + std::to_string(i));
@@ -1096,12 +1100,7 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 	);
 	fg.RegisterMoveNode(forwardDS, deferDS);
 	fg.RegisterMoveNode(sceneRT, deferLightedSkyRT);
-	fg.RegisterMoveNode(presentedRT, stages->tonemapping.GetOutputNodeIDs().front());
-	auto forwardPass = fg.RegisterGeneralPassNode(
-		"Forward",
-		{ irradianceMap, prefilterMap },
-		{ forwardDS, sceneRT }
-	);
+	fg.RegisterMoveNode(presentedRT, tonemappedRT);
 
 	D3D12_RESOURCE_DESC dsDesc = UDX12::Desc::RSRC::Basic(
 		D3D12_RESOURCE_DIMENSION_TEXTURE2D,
@@ -1216,7 +1215,7 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 		.RegisterImportedRsrc(prevColorMoment, { rtColorMoment.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
 		.RegisterImportedRsrc(historyLength, { rtHistoryLength.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS })
 
-		.RegisterImportedRsrc(stages->tonemapping.GetOutputNodeIDs().front(), { rtb, D3D12_RESOURCE_STATE_PRESENT })
+		.RegisterImportedRsrc(tonemappedRT, { rtb, D3D12_RESOURCE_STATE_PRESENT })
 		.RegisterImportedRsrc(irradianceMap, { iblData->irradianceMapResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
 		.RegisterImportedRsrc(prefilterMap, { iblData->prefilterMapResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
 		.RegisterImportedRsrc(TLAS, { nullptr /*special for TLAS*/, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE })
@@ -1314,15 +1313,11 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 		.RegisterPassRsrc(rtWithBRDFLUTPass, rtDenoisedResult, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
 		.RegisterPassRsrc(rtWithBRDFLUTPass, rtUDenoisedResult, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, srvDesc)
 		.RegisterPassRsrc(rtWithBRDFLUTPass, rtWithBRDFLUT, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
-
-		.RegisterPassRsrcState(forwardPass, irradianceMap, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
-		.RegisterPassRsrcState(forwardPass, prefilterMap, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
-		.RegisterPassRsrc(forwardPass, forwardDS, D3D12_RESOURCE_STATE_DEPTH_WRITE, dsvDesc)
-		.RegisterPassRsrc(forwardPass, sceneRT, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
 		;
 
 	stages->geometryBuffer.RegisterPassResources(*fgRsrcMngr);
 	stages->deferredLighting.RegisterPassResources(*fgRsrcMngr);
+	stages->forwardLighting.RegisterPassResources(*fgRsrcMngr);
 	stages->taa.RegisterPassResources(*fgRsrcMngr);
 	stages->tonemapping.RegisterPassResources(*fgRsrcMngr);
 
@@ -1383,24 +1378,8 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 		}
 	);
 
-	fgExecutor->RegisterPassFunc(
-		forwardPass,
-		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
-			auto heap = UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->GetDescriptorHeap();
-			cmdList->SetDescriptorHeaps(1, &heap);
-			cmdList->RSSetViewports(1, &viewport);
-			cmdList->RSSetScissorRects(1, &scissorRect);
-
-			auto rt = rsrcs.at(sceneRT);
-			auto ds = rsrcs.at(forwardDS);
-
-			auto dsHandle = ds.info->desc2info_dsv.at(dsvDesc).cpuHandle;
-
-			cmdList->OMSetRenderTargets(1, &rt.info->null_info_rtv.cpuHandle, false, &dsHandle);
-
-			DrawObjects(*shaderCBMngr, ctx, cmdList, "Forward", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, cameraCBAddress, *iblData);
-		}
-	);
+	stages->forwardLighting.RegisterPassFuncData(cameraCBAddress, shaderCBMngr.get(), &ctx, iblData.get());
+	stages->forwardLighting.RegisterPassFunc(*fgExecutor);
 
 	fgExecutor->RegisterPassFunc(
 		rtPass,

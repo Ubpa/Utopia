@@ -3,39 +3,36 @@
 #include "IPipelineStage.h"
 
 namespace Ubpa::Utopia {
-	class GeometryBuffer : public IPipelineStage {
+	class ForwardLighting : public IPipelineStage {
 	public:
-		GeometryBuffer(bool inNeedLinearZ = false);
-		virtual ~GeometryBuffer();
+		ForwardLighting();
+		virtual ~ForwardLighting();
 
 		virtual void NewFrame() override;
 
-		/** Empty input nodes. */
+		/**
+		 * Irradiance Map
+		 * Prefilltered Map
+		 */
 		virtual bool RegisterInputOutputPassNodes(UFG::FrameGraph& framegraph, std::span<const size_t> inputNodeIDs) override;
 
 		virtual void RegisterPassResources(UDX12::FG::RsrcMngr& rsrcMngr) override;
+
 
 		void RegisterPassFuncData(
 			D3D12_GPU_VIRTUAL_ADDRESS inCameraCBAddress,
 			const ShaderCBMngr* inShaderCBMngr,
 			const RenderContext* inRenderCtx,
-			const IBLData* inIblData,
-			std::string inLightMode);
+			const IBLData* inIblData);
 
 		virtual void RegisterPassFunc(UDX12::FG::Executor& executor) override;
 
 		/**
-		 * Geometry Buffer 0
-		 * Geometry Buffer 1
-		 * Geometry Buffer 2
-		 * Motion
+		 * Lighted Result
 		 * Depth Stencil
-		 * (optional) Linear Z
 		 */
 		virtual std::span<const size_t> GetOutputNodeIDs() const override;
 	private:
-		bool needLinearZ;
-
 		std::shared_ptr<Shader> shader;
 
 		D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
@@ -44,17 +41,15 @@ namespace Ubpa::Utopia {
 		const ShaderCBMngr* shaderCBMngr;
 		const RenderContext* renderCtx;
 		const IBLData* iblData;
-		std::string lightMode;
+
+		size_t irradianceMapID;
+		size_t prefillteredMapID;
 
 		/**
-		 * GeometryBuffer0
-		 * GeometryBuffer1
-		 * GeometryBuffer2
-		 * Motion
-		 * Depth Stencil
-		 * (optional) Linear Z
+		 * Lighted Result ID
+		 * Depth Stencil ID
 		 */
-		size_t outputIDs[6];
+		size_t outputIDs[2];
 
 		size_t passID;
 	};

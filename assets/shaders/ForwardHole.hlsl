@@ -1,4 +1,4 @@
-#include "Forward.hlsl"
+#include "ForwardLighting.hlsl"
 
 float4 HoleVS(float3 PosL : POSITION) : SV_POSITION {
 	float4 posW = mul(gWorld, float4(0.80f * PosL, 1.0f));
