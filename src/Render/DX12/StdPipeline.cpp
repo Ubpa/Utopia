@@ -401,7 +401,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 		PipelineCommonResourceMngr::GetInstance().GetDefaultIBLSrvDHA().GetGpuHandle()
 		: iblData->SRVDH.GetGpuHandle();
 
-	stages->geometryBuffer.RegisterPassFuncData(cameraCBAddress, shaderCBMngr.get(), &ctx, iblData.get(), "Deferred");
+	stages->geometryBuffer.RegisterPassFuncData(cameraCBAddress, shaderCBMngr.get(), &ctx, "Deferred");
 	stages->geometryBuffer.RegisterPassFunc(*fgExecutor);
 
 	stages->deferredLighting.RegisterPassFuncData(iblDataSrvGpuHandle, cameraCBAddress, lightCBAddress);
@@ -445,7 +445,7 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 		}
 	);
 
-	stages->forwardLighting.RegisterPassFuncData(cameraCBAddress, shaderCBMngr.get(), &ctx, iblData.get());
+	stages->forwardLighting.RegisterPassFuncData(iblData->SRVDH.GetGpuHandle(), cameraCBAddress, shaderCBMngr.get(), &ctx);
 	stages->forwardLighting.RegisterPassFunc(*fgExecutor);
 
 	stages->taa.RegisterPassFuncData(cameraCBAddress);

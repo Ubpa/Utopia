@@ -19,7 +19,6 @@ namespace Ubpa::Utopia {
 			D3D12_GPU_VIRTUAL_ADDRESS inCameraCBAddress,
 			const ShaderCBMngr* inShaderCBMngr,
 			const RenderContext* inRenderCtx,
-			const IBLData* inIblData,
 			std::string inLightMode);
 
 		virtual void RegisterPassFunc(UDX12::FG::Executor& executor) override;
@@ -43,7 +42,6 @@ namespace Ubpa::Utopia {
 		D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress;
 		const ShaderCBMngr* shaderCBMngr;
 		const RenderContext* renderCtx;
-		const IBLData* iblData;
 		std::string lightMode;
 
 		/**

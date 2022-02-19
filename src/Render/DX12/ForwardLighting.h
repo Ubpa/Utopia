@@ -20,10 +20,10 @@ namespace Ubpa::Utopia {
 
 
 		void RegisterPassFuncData(
+			D3D12_GPU_DESCRIPTOR_HANDLE inIblDataSrvGpuHandle,
 			D3D12_GPU_VIRTUAL_ADDRESS inCameraCBAddress,
 			const ShaderCBMngr* inShaderCBMngr,
-			const RenderContext* inRenderCtx,
-			const IBLData* inIblData);
+			const RenderContext* inRenderCtx);
 
 		virtual void RegisterPassFunc(UDX12::FG::Executor& executor) override;
 
@@ -37,10 +37,10 @@ namespace Ubpa::Utopia {
 
 		D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
 
+		D3D12_GPU_DESCRIPTOR_HANDLE iblDataSrvGpuHandle;
 		D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress;
 		const ShaderCBMngr* shaderCBMngr;
 		const RenderContext* renderCtx;
-		const IBLData* iblData;
 
 		size_t irradianceMapID;
 		size_t prefillteredMapID;

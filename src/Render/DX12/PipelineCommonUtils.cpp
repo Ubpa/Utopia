@@ -460,13 +460,13 @@ void Ubpa::Utopia::DrawObjects(
 	size_t rtNum,
 	DXGI_FORMAT rtFormat,
 	D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress,
-	const IBLData& iblData)
+	D3D12_GPU_DESCRIPTOR_HANDLE iblDataSrvGpuHandle)
 {
 	D3D12_GPU_DESCRIPTOR_HANDLE ibl;
 	if (ctx.skyboxGpuHandle.ptr == PipelineCommonResourceMngr::GetInstance().GetDefaultSkyboxGpuHandle().ptr)
 		ibl = PipelineCommonResourceMngr::GetInstance().GetDefaultIBLSrvDHA().GetGpuHandle();
 	else
-		ibl = iblData.SRVDH.GetGpuHandle();
+		ibl = iblDataSrvGpuHandle;
 
 	std::shared_ptr<const Shader> shader;
 

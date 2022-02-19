@@ -216,5 +216,5 @@ namespace Ubpa::Utopia {
 		size_t rtNum,
 		DXGI_FORMAT rtFormat,
 		D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress,
-		const IBLData& iblData);
+		D3D12_GPU_DESCRIPTOR_HANDLE iblDataSrvGpuHandle);
 }

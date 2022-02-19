@@ -4,10 +4,10 @@
 #include <Utopia/Render/DX12/GPURsrcMngrDX12.h>
 
 Ubpa::Utopia::ForwardLighting::ForwardLighting()
-	: cameraCBAddress(0)
+	: iblDataSrvGpuHandle{ .ptr = 0 }
+	, cameraCBAddress(0)
 	, shaderCBMngr(nullptr)
 	, renderCtx(nullptr)
-	, iblData(nullptr)
 	, irradianceMapID(static_cast<size_t>(-1))
 	, prefillteredMapID(static_cast<size_t>(-1))
 	, outputIDs{
@@ -23,10 +23,10 @@ Ubpa::Utopia::ForwardLighting::ForwardLighting()
 Ubpa::Utopia::ForwardLighting::~ForwardLighting() {}
 
 void Ubpa::Utopia::ForwardLighting::NewFrame() {
+	iblDataSrvGpuHandle.ptr = 0;
 	cameraCBAddress = 0;
 	shaderCBMngr = nullptr;
 	renderCtx = nullptr;
-	iblData = nullptr;
 
 	irradianceMapID = static_cast<size_t>(-1);
 	prefillteredMapID = static_cast<size_t>(-1);
@@ -93,15 +93,15 @@ void Ubpa::Utopia::ForwardLighting::RegisterPassResources(UDX12::FG::RsrcMngr& r
 }
 
 void Ubpa::Utopia::ForwardLighting::RegisterPassFuncData(
+	D3D12_GPU_DESCRIPTOR_HANDLE inIblDataSrvGpuHandle,
 	D3D12_GPU_VIRTUAL_ADDRESS inCameraCBAddress,
 	const ShaderCBMngr* inShaderCBMngr,
-	const RenderContext* inRenderCtx,
-	const IBLData* inIblData
+	const RenderContext* inRenderCtx
 ) {
+	iblDataSrvGpuHandle = inIblDataSrvGpuHandle;
 	cameraCBAddress = inCameraCBAddress;
 	shaderCBMngr = inShaderCBMngr;
 	renderCtx = inRenderCtx;
-	iblData = inIblData;
 }
 
 void Ubpa::Utopia::ForwardLighting::RegisterPassFunc(UDX12::FG::Executor& executor) {
@@ -142,7 +142,7 @@ void Ubpa::Utopia::ForwardLighting::RegisterPassFunc(UDX12::FG::Executor& execut
 				1,
 				DXGI_FORMAT_R32G32B32A32_FLOAT,
 				cameraCBAddress,
-				*iblData);
+				iblDataSrvGpuHandle);
 		}
 	);
 }

@@ -8,7 +8,6 @@ Ubpa::Utopia::GeometryBuffer::GeometryBuffer(bool inNeedLinearZ)
 	, cameraCBAddress(0)
 	, shaderCBMngr(nullptr)
 	, renderCtx(nullptr)
-	, iblData(nullptr)
 	, outputIDs {
 		static_cast<size_t>(-1),
 		static_cast<size_t>(-1),
@@ -33,7 +32,6 @@ void Ubpa::Utopia::GeometryBuffer::NewFrame() {
 	cameraCBAddress = 0;
 	shaderCBMngr = nullptr;
 	renderCtx = nullptr;
-	iblData = nullptr;
 	lightMode.clear();
 
 	passID = static_cast<size_t>(-1);
@@ -115,12 +113,10 @@ void Ubpa::Utopia::GeometryBuffer::RegisterPassFuncData(
 	D3D12_GPU_VIRTUAL_ADDRESS inCameraCBAddress,
 	const ShaderCBMngr* inShaderCBMngr,
 	const RenderContext* inRenderCtx,
-	const IBLData* inIblData,
 	std::string inLightMode) {
 	cameraCBAddress = inCameraCBAddress;
 	shaderCBMngr = inShaderCBMngr;
 	renderCtx = inRenderCtx;
-	iblData = inIblData;
 	lightMode = std::move(inLightMode);
 }
 
@@ -180,7 +176,7 @@ void Ubpa::Utopia::GeometryBuffer::RegisterPassFunc(UDX12::FG::Executor& executo
 				rtHandles.size(),
 				DXGI_FORMAT_R32G32B32A32_FLOAT,
 				cameraCBAddress,
-				*iblData);
+				D3D12_GPU_DESCRIPTOR_HANDLE{ .ptr = 0 });
 		}
 	);
 }
