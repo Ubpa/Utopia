@@ -43,6 +43,12 @@ Ubpa_DownloadZip(
   SHA256 3EA64433EE71EEE0F4EC02D877E137DC7C0CD2DDEECE3610E6B06C961895BA84
 )
 
+Ubpa_DownloadZip(
+  https://udata-1308066321.cos.ap-guangzhou.myqcloud.com/assets_internal_pngs_20220219.zip
+  assets_internal_pngs_20220219.zip
+  SHA256 39e629196f462c6de75c964203e068bde3d5120d72ad4d9a921d7b9f32dd7df6
+)
+
 if(Ubpa_BuildTest_Utopia)
   find_package(GTest QUIET)
   if(GTest_FOUND)
