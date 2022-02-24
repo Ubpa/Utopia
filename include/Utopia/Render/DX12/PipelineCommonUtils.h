@@ -181,6 +181,17 @@ namespace Ubpa::Utopia {
 		std::unordered_map<size_t, EntityData> entity2data;
 	};
 
+	struct QuadPositionLs {
+		valf4 positionL4x;
+		valf4 positionL4y;
+		valf4 positionL4z;
+	};
+
+	struct MipInfo {
+		float roughness;
+		float resolution;
+	};
+
 	struct IBLData {
 		~IBLData();
 
