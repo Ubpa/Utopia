@@ -84,9 +84,6 @@ struct StdPipeline::Impl {
 	UFG::Compiler fgCompiler;
 	UFG::FrameGraph fg;
 
-	std::shared_ptr<Shader> irradianceShader;
-	std::shared_ptr<Shader> prefilterShader;
-
 	UDX12::DynamicUploadVector crossFrameShaderCB;
 	WorldRsrcMngr crossFrameWorldRsrcMngr;
 
@@ -136,9 +133,6 @@ void StdPipeline::Impl::BuildFrameResources() {
 }
 
 void StdPipeline::Impl::BuildShaders() {
-	irradianceShader = ShaderMngr::Instance().Get("StdPipeline/Irradiance");
-	prefilterShader = ShaderMngr::Instance().Get("StdPipeline/PreFilter");
-
 	vecf3 origin[6] = {
 		{ 1,-1, 1}, // +x right
 		{-1,-1,-1}, // -x left

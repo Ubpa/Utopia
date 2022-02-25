@@ -686,8 +686,6 @@ struct StdDXRPipeline::Impl {
 	UFG::Compiler fgCompiler;
 	UFG::FrameGraph fg;
 
-	std::shared_ptr<Shader> irradianceShader;
-	std::shared_ptr<Shader> prefilterShader;
 	std::shared_ptr<Shader> gaussBlurXShader;
 	std::shared_ptr<Shader> gaussBlurYShader;
 	std::shared_ptr<Shader> atrousShader;
@@ -817,8 +815,6 @@ void StdDXRPipeline::Impl::BuildFrameResources() {
 }
 
 void StdDXRPipeline::Impl::BuildShaders() {
-	irradianceShader = ShaderMngr::Instance().Get("StdPipeline/Irradiance");
-	prefilterShader = ShaderMngr::Instance().Get("StdPipeline/PreFilter");
 	gaussBlurXShader = ShaderMngr::Instance().Get("StdPipeline/GaussBlur_x");
 	gaussBlurYShader = ShaderMngr::Instance().Get("StdPipeline/GaussBlur_y");
 	atrousShader = ShaderMngr::Instance().Get("StdPipeline/ATrous");
