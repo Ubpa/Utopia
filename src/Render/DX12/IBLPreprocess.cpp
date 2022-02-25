@@ -3,11 +3,8 @@
 #include <Utopia/Render/ShaderMngr.h>
 #include <Utopia/Render/DX12/GPURsrcMngrDX12.h>
 
-Ubpa::Utopia::IBLPreprocess::IBLPreprocess(D3D12_GPU_VIRTUAL_ADDRESS inQuadPositionLocalArrayBaseGpuAddress,
-	D3D12_GPU_VIRTUAL_ADDRESS inMipInfoArrayBaseGpuAddress)
-	: quadPositionLocalArrayBaseGpuAddress(inQuadPositionLocalArrayBaseGpuAddress)
-	, mipInfoArrayBaseGpuAddress(inMipInfoArrayBaseGpuAddress)
-	, iblData(nullptr)
+Ubpa::Utopia::IBLPreprocess::IBLPreprocess()
+	: iblData(nullptr)
 	, skyboxSrvGpuHandle{.ptr = 0}
 	, outputIDs{
 		static_cast<size_t>(-1),
@@ -124,10 +121,7 @@ void Ubpa::Utopia::IBLPreprocess::RegisterPassFunc(UDX12::FG::Executor& executor
 				// Specify the buffers we are going to render to.
 				const auto iblRTVHandle = iblData->RTVsDH.GetCpuHandle(i);
 				cmdList->OMSetRenderTargets(1, &iblRTVHandle, false, nullptr);
-				D3D12_GPU_VIRTUAL_ADDRESS quadPositionLocalGpuAddress = 
-					quadPositionLocalArrayBaseGpuAddress
-					+ i * UDX12::Util::CalcConstantBufferByteSize(sizeof(QuadPositionLs));
-				cmdList->SetGraphicsRootConstantBufferView(1, quadPositionLocalGpuAddress);
+				cmdList->SetGraphicsRootConstantBufferView(1, PipelineCommonResourceMngr::GetInstance().GetQuadPositionLocalGpuAddress(i));
 
 				cmdList->IASetVertexBuffers(0, 0, nullptr);
 				cmdList->IASetIndexBuffer(nullptr);
@@ -151,9 +145,7 @@ void Ubpa::Utopia::IBLPreprocess::RegisterPassFunc(UDX12::FG::Executor& executor
 				//for (UINT mip = 0; mip < Impl::IBLData::PreFilterMapMipLevels; mip++) {
 				UINT mip = static_cast<UINT>((iblData->nextIdx - 6) / 6);
 				size_t size = IBLData::PreFilterMapSize >> mip;
-				D3D12_GPU_VIRTUAL_ADDRESS mipinfoGpuAddress = mipInfoArrayBaseGpuAddress
-					+ mip * UDX12::Util::CalcConstantBufferByteSize(sizeof(MipInfo));
-				cmdList->SetGraphicsRootConstantBufferView(2, mipinfoGpuAddress);
+				cmdList->SetGraphicsRootConstantBufferView(2, PipelineCommonResourceMngr::GetInstance().GetMipInfoGpuAddress(mip));
 
 				D3D12_VIEWPORT viewport;
 				viewport.MinDepth = 0.f;
@@ -168,10 +160,7 @@ void Ubpa::Utopia::IBLPreprocess::RegisterPassFunc(UDX12::FG::Executor& executor
 
 				//for (UINT i = 0; i < 6; i++) {
 				UINT i = iblData->nextIdx % 6;
-				D3D12_GPU_VIRTUAL_ADDRESS quadPositionLocalGpuAddress =
-					quadPositionLocalArrayBaseGpuAddress
-					+ i * UDX12::Util::CalcConstantBufferByteSize(sizeof(QuadPositionLs));
-				cmdList->SetGraphicsRootConstantBufferView(1, quadPositionLocalGpuAddress);
+				cmdList->SetGraphicsRootConstantBufferView(1, PipelineCommonResourceMngr::GetInstance().GetQuadPositionLocalGpuAddress(i));
 
 				// Specify the buffers we are going to render to.
 				const auto iblRTVHandle = iblData->RTVsDH.GetCpuHandle(6 * (1 + mip) + i);

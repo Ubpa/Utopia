@@ -621,8 +621,7 @@ struct StdDXRPipeline::Impl {
 	Impl(InitDesc initDesc) :
 		initDesc{ initDesc },
 		frameRsrcMngr{ initDesc.numFrame, initDesc.device },
-		fg{ "Standard RT Pipeline" },
-		crossFrameShaderCB{ initDesc.device }
+		fg{ "Standard RT Pipeline" }
 	{
 		ThrowIfFailed(initDesc.device->QueryInterface(IID_PPV_ARGS(&dxr_device)));
 		rtpso = createRtPipelineState(dxr_device.Get());
@@ -693,12 +692,6 @@ struct StdDXRPipeline::Impl {
 	std::shared_ptr<Shader> rtReprojectShader;
 	std::shared_ptr<Shader> filterMomentsShader;
 
-	struct ATrousConfig { int gKernelStep; };
-	static constexpr std::size_t ATrousN = 5;
-	static constexpr size_t offset_quad = 0;
-	static constexpr size_t offset_mipinfo = offset_quad + 6 * UDX12::Util::CalcConstantBufferByteSize(sizeof(QuadPositionLs));
-	static constexpr size_t offset_atrousconfig = offset_mipinfo + IBLData::PreFilterMapMipLevels * UDX12::Util::CalcConstantBufferByteSize(sizeof(MipInfo));
-	UDX12::DynamicUploadVector crossFrameShaderCB;
 	WorldRsrcMngr crossFrameWorldRsrcMngr;
 
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
@@ -821,66 +814,6 @@ void StdDXRPipeline::Impl::BuildShaders() {
 	rtWithBRDFLUTShader = ShaderMngr::Instance().Get("StdPipeline/RTwithBRDFLUT");
 	rtReprojectShader = ShaderMngr::Instance().Get("StdPipeline/RTRepeoject");
 	filterMomentsShader = ShaderMngr::Instance().Get("StdPipeline/FilterMoments");
-
-	vecf3 origin[6] = {
-		{ 1,-1, 1}, // +x right
-		{-1,-1,-1}, // -x left
-		{-1, 1, 1}, // +y top
-		{-1,-1,-1}, // -y buttom
-		{-1,-1, 1}, // +z front
-		{ 1,-1,-1}, // -z back
-	};
-
-	vecf3 right[6] = {
-		{ 0, 0,-2}, // +x
-		{ 0, 0, 2}, // -x
-		{ 2, 0, 0}, // +y
-		{ 2, 0, 0}, // -y
-		{ 2, 0, 0}, // +z
-		{-2, 0, 0}, // -z
-	};
-
-	vecf3 up[6] = {
-		{ 0, 2, 0}, // +x
-		{ 0, 2, 0}, // -x
-		{ 0, 0,-2}, // +y
-		{ 0, 0, 2}, // -y
-		{ 0, 2, 0}, // +z
-		{ 0, 2, 0}, // -z
-	};
-
-	constexpr auto quadPositionsSize = UDX12::Util::CalcConstantBufferByteSize(sizeof(QuadPositionLs));
-	constexpr auto mipInfoSize = UDX12::Util::CalcConstantBufferByteSize(sizeof(MipInfo));
-	crossFrameShaderCB.Resize(
-		6 * quadPositionsSize
-		+ IBLData::PreFilterMapMipLevels * mipInfoSize
-		+ ATrousN * UDX12::Util::CalcConstantBufferByteSize(sizeof(ATrousConfig))
-	);
-	for (size_t i = 0; i < 6; i++) {
-		QuadPositionLs positionLs;
-		auto p0 = origin[i];
-		auto p1 = origin[i] + right[i];
-		auto p2 = origin[i] + right[i] + up[i];
-		auto p3 = origin[i] + up[i];
-		positionLs.positionL4x = { p0[0], p1[0], p2[0], p3[0] };
-		positionLs.positionL4y = { p0[1], p1[1], p2[1], p3[1] };
-		positionLs.positionL4z = { p0[2], p1[2], p2[2], p3[2] };
-		crossFrameShaderCB.Set(i * quadPositionsSize, &positionLs, sizeof(QuadPositionLs));
-	}
-	size_t size = IBLData::PreFilterMapSize;
-	for (UINT i = 0; i < IBLData::PreFilterMapMipLevels; i++) {
-		MipInfo info;
-		info.roughness = i / float(IBLData::PreFilterMapMipLevels - 1);
-		info.resolution = (float)size;
-
-		crossFrameShaderCB.Set(6 * quadPositionsSize + i * mipInfoSize, &info, sizeof(MipInfo));
-		size /= 2;
-	}
-	for (size_t i = 0; i < ATrousN; i++) {
-		ATrousConfig config;
-		config.gKernelStep = (int)(i + 1);
-		crossFrameShaderCB.Set(offset_atrousconfig + i * UDX12::Util::CalcConstantBufferByteSize(sizeof(ATrousConfig)), &config, sizeof(ATrousConfig));
-	}
 }
 
 void StdDXRPipeline::Impl::UpdateCrossFrameCameraResources(std::span<const CameraData> cameras, std::span<ID3D12Resource* const> defaultRTs) {
@@ -1535,11 +1468,7 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 
 					cmdList->SetGraphicsRootConstantBufferView(3, cameraCBAddress);
 
-					auto atrousConfigCBAdress = crossFrameShaderCB
-						.GetResource()->GetGPUVirtualAddress()
-						+ offset_atrousconfig
-						+ i * UDX12::Util::CalcConstantBufferByteSize(sizeof(ATrousConfig));
-					cmdList->SetGraphicsRootConstantBufferView(4, atrousConfigCBAdress);
+					cmdList->SetGraphicsRootConstantBufferView(4, PipelineCommonResourceMngr::GetInstance().GetATrousConfigGpuAddress(i));
 
 					cmdList->IASetVertexBuffers(0, 0, nullptr);
 					cmdList->IASetIndexBuffer(nullptr);
@@ -1691,17 +1620,8 @@ void StdDXRPipeline::Impl::Render(
 			crossFrameWorldRsrc.Register("IBL data", iblData);
 		}
 
-		if (!crossFrameWorldRsrc.Contains("IBLPreprocess")) {
-			D3D12_GPU_VIRTUAL_ADDRESS quadPositionLocalArrayBaseGpuAddress = crossFrameShaderCB.GetResource()->GetGPUVirtualAddress();
-			D3D12_GPU_VIRTUAL_ADDRESS mipInfoArrayBaseGpuAddress =
-				quadPositionLocalArrayBaseGpuAddress
-				+ 6 * UDX12::Util::CalcConstantBufferByteSize(sizeof(QuadPositionLs));
-			auto iblPreprocess = std::make_shared<IBLPreprocess>(
-				quadPositionLocalArrayBaseGpuAddress,
-				mipInfoArrayBaseGpuAddress);
-
-			crossFrameWorldRsrc.Register("IBLPreprocess", iblPreprocess);
-		}
+		if (!crossFrameWorldRsrc.Contains("IBLPreprocess"))
+			crossFrameWorldRsrc.Register("IBLPreprocess", std::make_shared<IBLPreprocess>());
 		auto iblPreprocess = crossFrameWorldRsrc.Get<std::shared_ptr<IBLPreprocess>>("IBLPreprocess");
 		iblPreprocess->NewFrame();
 

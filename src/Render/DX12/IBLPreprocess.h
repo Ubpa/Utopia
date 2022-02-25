@@ -5,8 +5,7 @@
 namespace Ubpa::Utopia {
 	class IBLPreprocess : public IPipelineStage {
 	public:
-		IBLPreprocess(D3D12_GPU_VIRTUAL_ADDRESS inQuadPositionLocalArrayBaseGpuAddress,
-			D3D12_GPU_VIRTUAL_ADDRESS inMipInfoArrayBaseGpuAddress);
+		IBLPreprocess();
 		virtual ~IBLPreprocess();
 
 		virtual void NewFrame() override;
@@ -24,9 +23,6 @@ namespace Ubpa::Utopia {
 		 */
 		virtual std::span<const size_t> GetOutputNodeIDs() const override;
 	private:
-		D3D12_GPU_VIRTUAL_ADDRESS quadPositionLocalArrayBaseGpuAddress;
-		D3D12_GPU_VIRTUAL_ADDRESS mipInfoArrayBaseGpuAddress;
-
 		std::shared_ptr<Shader> irradianceShader;
 		std::shared_ptr<Shader> prefilterShader;
 

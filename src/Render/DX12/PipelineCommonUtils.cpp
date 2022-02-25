@@ -86,6 +86,67 @@ void PipelineCommonResourceMngr::Init(ID3D12Device* device) {
 		"StdPipeline_cbPerCamera",
 		"StdPipeline_cbLightArray",
 	};
+	const vecf3 origin[6] = {
+		{ 1,-1, 1}, // +x right
+		{-1,-1,-1}, // -x left
+		{-1, 1, 1}, // +y top
+		{-1,-1,-1}, // -y buttom
+		{-1,-1, 1}, // +z front
+		{ 1,-1,-1}, // -z back
+	};
+
+	const vecf3 right[6] = {
+		{ 0, 0,-2}, // +x
+		{ 0, 0, 2}, // -x
+		{ 2, 0, 0}, // +y
+		{ 2, 0, 0}, // -y
+		{ 2, 0, 0}, // +z
+		{-2, 0, 0}, // -z
+	};
+
+	const vecf3 up[6] = {
+		{ 0, 2, 0}, // +x
+		{ 0, 2, 0}, // -x
+		{ 0, 0,-2}, // +y
+		{ 0, 0, 2}, // -y
+		{ 0, 2, 0}, // +z
+		{ 0, 2, 0}, // -z
+	};
+	constexpr auto quadPositionsSize = UDX12::Util::CalcConstantBufferByteSize(sizeof(QuadPositionLs));
+	constexpr auto mipInfoSize = UDX12::Util::CalcConstantBufferByteSize(sizeof(MipInfo));
+	constexpr auto atrousConfigSize = UDX12::Util::CalcConstantBufferByteSize(sizeof(ATrousConfig));
+	constexpr auto persistentCBBufferSize = 6 * quadPositionsSize
+		+ IBLData::PreFilterMapMipLevels * mipInfoSize
+		+ UINT(ATrousN) * atrousConfigSize;
+	persistentCBBuffer.emplace(device, persistentCBBufferSize);
+	for (size_t i = 0; i < 6; i++) {
+		QuadPositionLs positionLs;
+		auto p0 = origin[i];
+		auto p1 = origin[i] + right[i];
+		auto p2 = origin[i] + right[i] + up[i];
+		auto p3 = origin[i] + up[i];
+		positionLs.positionL4x = { p0[0], p1[0], p2[0], p3[0] };
+		positionLs.positionL4y = { p0[1], p1[1], p2[1], p3[1] };
+		positionLs.positionL4z = { p0[2], p1[2], p2[2], p3[2] };
+		persistentCBBuffer->Set(i * quadPositionsSize, &positionLs, sizeof(QuadPositionLs));
+	}
+	size_t size = IBLData::PreFilterMapSize;
+	for (UINT i = 0; i < IBLData::PreFilterMapMipLevels; i++) {
+		MipInfo info;
+		info.roughness = i / float(IBLData::PreFilterMapMipLevels - 1);
+		info.resolution = (float)size;
+
+		persistentCBBuffer->Set(6 * quadPositionsSize + i * mipInfoSize, &info, sizeof(MipInfo));
+		size /= 2;
+	}
+	for (size_t i = 0; i < ATrousN; i++) {
+		ATrousConfig config;
+		config.gKernelStep = (int)(i + 1);
+		persistentCBBuffer->Set(
+			6 * quadPositionsSize + IBLData::PreFilterMapMipLevels * mipInfoSize + i * atrousConfigSize,
+			&config,
+			sizeof(ATrousConfig));
+	}
 }
 
 void PipelineCommonResourceMngr::Release() {
@@ -103,6 +164,7 @@ void PipelineCommonResourceMngr::Release() {
 	defaultSkyboxGpuHandle.ptr = 0;
 	UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(defaultIBLSrvDHA));
 	commonCBs.clear();
+	persistentCBBuffer.reset();
 }
 
 std::shared_ptr<Material> PipelineCommonResourceMngr::GetErrorMaterial() const { return errorMat; }
@@ -152,6 +214,27 @@ std::shared_ptr<TextureCube> PipelineCommonResourceMngr::GetBlackTexCube() const
 
 std::shared_ptr<TextureCube> PipelineCommonResourceMngr::GetWhiteTexCube() const {
 	return whiteTexCube;
+}
+
+D3D12_GPU_VIRTUAL_ADDRESS PipelineCommonResourceMngr::GetQuadPositionLocalGpuAddress(size_t idx) const {
+	assert(idx < 6);
+	return persistentCBBuffer->GetResource()->GetGPUVirtualAddress()
+		+ idx * UDX12::Util::CalcConstantBufferByteSize(sizeof(QuadPositionLs));
+}
+
+D3D12_GPU_VIRTUAL_ADDRESS PipelineCommonResourceMngr::GetMipInfoGpuAddress(size_t idx) const {
+	assert(idx < IBLData::PreFilterMapMipLevels);
+	return persistentCBBuffer->GetResource()->GetGPUVirtualAddress()
+		+ 6 * UDX12::Util::CalcConstantBufferByteSize(sizeof(QuadPositionLs))
+		+ idx * UDX12::Util::CalcConstantBufferByteSize(sizeof(MipInfo));
+}
+
+D3D12_GPU_VIRTUAL_ADDRESS PipelineCommonResourceMngr::GetATrousConfigGpuAddress(size_t idx) const {
+	assert(idx < ATrousN);
+	return persistentCBBuffer->GetResource()->GetGPUVirtualAddress()
+		+ 6 * UDX12::Util::CalcConstantBufferByteSize(sizeof(QuadPositionLs))
+		+ IBLData::PreFilterMapMipLevels * UDX12::Util::CalcConstantBufferByteSize(sizeof(MipInfo))
+		+ idx * UDX12::Util::CalcConstantBufferByteSize(sizeof(ATrousConfig));
 }
 
 IBLData::~IBLData() {

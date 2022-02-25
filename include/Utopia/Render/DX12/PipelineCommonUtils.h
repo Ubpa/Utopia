@@ -30,60 +30,6 @@ namespace Ubpa::Utopia {
 	static constexpr char StdPipeline_srvIBL[] = "StdPipeline_IrradianceMap";
 	static constexpr char StdPipeline_srvLTC[] = "StdPipeline_LTC0";
 
-	class PipelineCommonResourceMngr {
-	public:
-		static PipelineCommonResourceMngr& GetInstance();
-		void Init(ID3D12Device* device);
-		void Release();
-
-		std::shared_ptr<Material> GetErrorMaterial() const;
-		D3D12_GPU_DESCRIPTOR_HANDLE GetDefaultSkyboxGpuHandle() const;
-		bool IsCommonCB(std::string_view cbDescName) const;
-		const UDX12::DescriptorHeapAllocation& GetDefaultIBLSrvDHA() const;
-
-		std::shared_ptr<Texture2D> GetErrorTex2D() const;
-		std::shared_ptr<Texture2D> GetWhiteTex2D() const;
-		std::shared_ptr<Texture2D> GetBlackTex2D() const;
-		std::shared_ptr<Texture2D> GetNormalTex2D() const;
-		std::shared_ptr<Texture2D> GetBrdfLutTex2D() const;
-
-		/** idx: 0 / 1 */
-		std::shared_ptr<Texture2D> GetLtcTex2D(size_t idx) const;
-		const UDX12::DescriptorHeapAllocation& GetLtcSrvDHA() const;
-
-		std::shared_ptr<TextureCube> GetWhiteTexCube() const;
-		std::shared_ptr<TextureCube> GetBlackTexCube() const;
-
-	private:
-		PipelineCommonResourceMngr();
-
-		std::shared_ptr<Texture2D> errorTex2D;
-		std::shared_ptr<Texture2D> whiteTex2D;
-		std::shared_ptr<Texture2D> blackTex2D;
-		std::shared_ptr<Texture2D> normalTex2D;
-		std::shared_ptr<Texture2D> brdfLutTex2D;
-
-		std::shared_ptr<Texture2D> ltcTex2Ds[2];
-		UDX12::DescriptorHeapAllocation ltcSrvDHA;
-
-		std::shared_ptr<TextureCube> whiteTexCube;
-		std::shared_ptr<TextureCube> blackTexCube;
-
-		std::shared_ptr<Material> errorMat;
-
-		D3D12_GPU_DESCRIPTOR_HANDLE defaultSkyboxGpuHandle;
-		/**
-		 * use black cube texture and balck texture 2d to generate the ibl resources
-		 * 3 SRV
-		 * - irradiance
-		 * - prefilter
-		 * - IBL lut
-		 */
-		UDX12::DescriptorHeapAllocation defaultIBLSrvDHA;
-
-		std::set<std::string, std::less<>> commonCBs;
-	};
-
 	struct ObjectConstants {
 		transformf World;
 		transformf InvWorld;
@@ -192,6 +138,9 @@ namespace Ubpa::Utopia {
 		float resolution;
 	};
 
+	struct ATrousConfig { int gKernelStep; };
+	static constexpr std::size_t ATrousN = 5;
+
 	struct IBLData {
 		~IBLData();
 
@@ -226,4 +175,64 @@ namespace Ubpa::Utopia {
 		DXGI_FORMAT rtFormat,
 		D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress,
 		D3D12_GPU_DESCRIPTOR_HANDLE iblDataSrvGpuHandle);
+
+	class PipelineCommonResourceMngr {
+	public:
+		static PipelineCommonResourceMngr& GetInstance();
+		void Init(ID3D12Device* device);
+		void Release();
+
+		std::shared_ptr<Material> GetErrorMaterial() const;
+		D3D12_GPU_DESCRIPTOR_HANDLE GetDefaultSkyboxGpuHandle() const;
+		bool IsCommonCB(std::string_view cbDescName) const;
+		const UDX12::DescriptorHeapAllocation& GetDefaultIBLSrvDHA() const;
+
+		std::shared_ptr<Texture2D> GetErrorTex2D() const;
+		std::shared_ptr<Texture2D> GetWhiteTex2D() const;
+		std::shared_ptr<Texture2D> GetBlackTex2D() const;
+		std::shared_ptr<Texture2D> GetNormalTex2D() const;
+		std::shared_ptr<Texture2D> GetBrdfLutTex2D() const;
+
+		/** idx: 0 / 1 */
+		std::shared_ptr<Texture2D> GetLtcTex2D(size_t idx) const;
+		const UDX12::DescriptorHeapAllocation& GetLtcSrvDHA() const;
+
+		std::shared_ptr<TextureCube> GetWhiteTexCube() const;
+		std::shared_ptr<TextureCube> GetBlackTexCube() const;
+
+		D3D12_GPU_VIRTUAL_ADDRESS GetQuadPositionLocalGpuAddress(size_t idx) const;
+		D3D12_GPU_VIRTUAL_ADDRESS GetMipInfoGpuAddress(size_t idx) const;
+		D3D12_GPU_VIRTUAL_ADDRESS GetATrousConfigGpuAddress(size_t idx) const;
+
+	private:
+		PipelineCommonResourceMngr();
+
+		std::shared_ptr<Texture2D> errorTex2D;
+		std::shared_ptr<Texture2D> whiteTex2D;
+		std::shared_ptr<Texture2D> blackTex2D;
+		std::shared_ptr<Texture2D> normalTex2D;
+		std::shared_ptr<Texture2D> brdfLutTex2D;
+
+		std::shared_ptr<Texture2D> ltcTex2Ds[2];
+		UDX12::DescriptorHeapAllocation ltcSrvDHA;
+
+		std::shared_ptr<TextureCube> whiteTexCube;
+		std::shared_ptr<TextureCube> blackTexCube;
+
+		std::shared_ptr<Material> errorMat;
+
+		D3D12_GPU_DESCRIPTOR_HANDLE defaultSkyboxGpuHandle;
+		/**
+		 * use black cube texture and balck texture 2d to generate the ibl resources
+		 * 3 SRV
+		 * - irradiance
+		 * - prefilter
+		 * - IBL lut
+		 */
+		UDX12::DescriptorHeapAllocation defaultIBLSrvDHA;
+
+		std::set<std::string, std::less<>> commonCBs;
+
+		std::optional<UDX12::UploadBuffer> persistentCBBuffer;
+	};
 }
