@@ -24,7 +24,6 @@
 #include <Utopia/Render/Components/MeshRenderer.h>
 #include <Utopia/Render/Components/Skybox.h>
 #include <Utopia/Render/Components/Light.h>
-#include <Utopia/Core/GameTimer.h>
 
 #include <Utopia/Core/Components/LocalToWorld.h>
 #include <Utopia/Core/Components/Translation.h>
@@ -664,7 +663,7 @@ struct StdDXRPipeline::Impl {
 
 	~Impl();
 
-	CameraRsrcMngr crossFrameCameraRsrcs;
+	CameraRsrcMngr crossFrameCameraRsrcMngr;
 	static constexpr const char key_CameraConstants[] = "CameraConstants";
 	static constexpr const char key_CameraJitterIndex[] = "CameraJitterIndex";
 
@@ -743,7 +742,6 @@ struct StdDXRPipeline::Impl {
 	void BuildFrameResources();
 	void BuildShaders();
 
-	void UpdateCrossFrameCameraResources(std::span<const CameraData> cameras, std::span<ID3D12Resource* const> defaultRTs);
 	void Render(
 		std::span<const UECS::World* const> worlds,
 		std::span<const CameraData> cameras,
@@ -815,67 +813,6 @@ void StdDXRPipeline::Impl::BuildShaders() {
 	rtWithBRDFLUTShader = ShaderMngr::Instance().Get("StdPipeline/RTwithBRDFLUT");
 	rtReprojectShader = ShaderMngr::Instance().Get("StdPipeline/RTRepeoject");
 	filterMomentsShader = ShaderMngr::Instance().Get("StdPipeline/FilterMoments");
-}
-
-void StdDXRPipeline::Impl::UpdateCrossFrameCameraResources(std::span<const CameraData> cameras, std::span<ID3D12Resource* const> defaultRTs) {
-	crossFrameCameraRsrcs.Update(cameras);
-
-	for (size_t i = 0; i < cameras.size(); ++i) {
-		const auto& camera = cameras[i];
-		auto desc = defaultRTs[i]->GetDesc();
-		size_t defalut_width = desc.Width;
-		size_t defalut_height = desc.Height;
-
-		auto& cameraRsrcMap = crossFrameCameraRsrcs.Get(camera);
-		if (!cameraRsrcMap.Contains(key_CameraConstants))
-			cameraRsrcMap.Register(key_CameraConstants, CameraConstants{});
-		auto& cameraConstants = cameraRsrcMap.Get<CameraConstants>(key_CameraConstants);
-		if (!cameraRsrcMap.Contains(key_CameraJitterIndex))
-			cameraRsrcMap.Register(key_CameraJitterIndex, 0);
-		auto& cameraJitterIndex = cameraRsrcMap.Get<int>(key_CameraJitterIndex);
-
-		auto cmptCamera = camera.world->entityMngr.ReadComponent<Camera>(camera.entity);
-		auto cmptW2L = camera.world->entityMngr.ReadComponent<WorldToLocal>(camera.entity);
-		auto cmptTranslation = camera.world->entityMngr.ReadComponent<Translation>(camera.entity);
-		size_t rt_width = defalut_width, rt_height = defalut_height;
-		if (cmptCamera->renderTarget) {
-			rt_width = cmptCamera->renderTarget->image.GetWidth();
-			rt_height = cmptCamera->renderTarget->image.GetHeight();
-		}
-
-		float SampleX = HaltonSequence2[(cameraJitterIndex % 8)];
-		float SampleY = HaltonSequence3[(cameraJitterIndex % 8)];
-		cameraJitterIndex++;
-		float JitterX = (SampleX * 2.0f - 1.0f) / rt_width;
-		float JitterY = (SampleY * 2.0f - 1.0f) / rt_height;
-		transformf view = cmptW2L ? cmptW2L->value : transformf::eye();
-		transformf proj = cmptCamera->prjectionMatrix;
-		transformf unjitteredProj = proj;
-		proj[2][0] += JitterX;
-		proj[2][1] += JitterY;
-		cameraConstants.View = view;
-		cameraConstants.InvView = view.inverse();
-		cameraConstants.Proj = proj;
-		cameraConstants.InvProj = proj.inverse();
-		cameraConstants.PrevViewProj = cameraConstants.UnjitteredViewProj;
-		cameraConstants.ViewProj = proj * view;
-		cameraConstants.UnjitteredViewProj = unjitteredProj * view;
-		cameraConstants.InvViewProj = view.inverse() * proj.inverse();
-		cameraConstants.EyePosW = cmptTranslation ? cmptTranslation->value.as<pointf3>() : pointf3{ 0.f };
-		cameraConstants.FrameCount = cameraConstants.FrameCount + 1;
-		cameraConstants.RenderTargetSize = { rt_width, rt_height };
-		cameraConstants.InvRenderTargetSize = { 1.0f / rt_width, 1.0f / rt_height };
-
-		cameraConstants.NearZ = cmptCamera->clippingPlaneMin;
-		cameraConstants.FarZ = cmptCamera->clippingPlaneMax;
-		cameraConstants.TotalTime = GameTimer::Instance().TotalTime();
-		cameraConstants.DeltaTime = GameTimer::Instance().DeltaTime();
-
-		cameraConstants.Jitter.x = JitterX;
-		cameraConstants.Jitter.y = JitterY;
-		cameraConstants.padding0 = 0;
-		cameraConstants.padding1 = 0;
-	}
 }
 
 void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData& cameraData, size_t cameraIdx, ID3D12Resource* default_rtb, const ResourceMap& worldRsrc) {
@@ -1563,7 +1500,7 @@ void StdDXRPipeline::Impl::Render(
 	// If not, wait until the GPU has completed commands up to this fence point.
 	frameRsrcMngr.BeginFrame();
 
-	UpdateCrossFrameCameraResources(cameras, defaultRTs);
+	UpdateCrossFrameCameraResources(crossFrameCameraRsrcMngr, cameras, defaultRTs);
 
 	frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<CameraRsrcMngr>>("CameraRsrcMngr")
@@ -1590,7 +1527,7 @@ void StdDXRPipeline::Impl::Render(
 			linkedCameras.push_back(cameras[camIdx]);
 		std::vector<const CameraConstants*> cameraConstantsVector;
 		for (const auto& linkedCamera : linkedCameras) {
-			auto* camConts = &crossFrameCameraRsrcs.Get(linkedCamera).Get<CameraConstants>(key_CameraConstants);
+			auto* camConts = &crossFrameCameraRsrcMngr.Get(linkedCamera).Get<CameraConstants>(key_CameraConstants);
 			cameraConstantsVector.push_back(camConts);
 		}
 		shaderCBMngr->RegisterRenderContext(ctx, cameraConstantsVector);

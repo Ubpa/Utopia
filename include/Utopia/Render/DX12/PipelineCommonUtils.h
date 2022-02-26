@@ -4,6 +4,7 @@
 #include <Utopia/Render/Texture2D.h>
 #include <Utopia/Render/TextureCube.h>
 #include <Utopia/Render/DX12/IPipeline.h>
+#include <Utopia/Render/DX12/CameraRsrcMngr.h>
 
 #include <Utopia/Core/SharedVar.h>
 #include <Utopia/Core/ResourceMap.h>
@@ -17,6 +18,7 @@
 #include <map>
 #include <unordered_set>
 #include <unordered_map>
+#include <span>
 
 namespace Ubpa::Utopia {
 	struct Material;
@@ -175,6 +177,13 @@ namespace Ubpa::Utopia {
 		DXGI_FORMAT rtFormat,
 		D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress,
 		D3D12_GPU_DESCRIPTOR_HANDLE iblDataSrvGpuHandle);
+
+	static constexpr const char key_CameraConstants[] = "CameraConstants";
+	static constexpr const char key_CameraJitterIndex[] = "CameraJitterIndex";
+	void UpdateCrossFrameCameraResources(
+		CameraRsrcMngr& crossFrameCameraRsrcMngr,
+		std::span<const IPipeline::CameraData> cameras,
+		std::span<ID3D12Resource* const> defaultRTs);
 
 	constexpr float HaltonSequence2[8] = { 1.f / 2.f,1.f / 4.f,3.f / 4.f,1.f / 8.f,5.f / 8.f,3.f / 8.f,7.f / 8.f,1.f / 16.f };
 	constexpr float HaltonSequence3[8] = { 1.f / 3.f,2.f / 3.f,1.f / 9.f,4.f / 9.f,7.f / 9.f,2.f / 9.f,5.f / 9.f,8.f / 9.f };

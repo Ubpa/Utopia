@@ -18,6 +18,7 @@
 #include <Utopia/Core/Components/WorldToLocal.h>
 #include <Utopia/Core/Components/PrevLocalToWorld.h>
 #include <Utopia/Core/AssetMngr.h>
+#include <Utopia/Core/GameTimer.h>
 
 #include <UECS/UECS.hpp>
 
@@ -623,4 +624,69 @@ void Ubpa::Utopia::DrawObjects(
 
 	for (const auto& obj : ctx.renderQueue.GetTransparents())
 		Draw(obj);
+}
+
+void Ubpa::Utopia::UpdateCrossFrameCameraResources(
+	CameraRsrcMngr& crossFrameCameraRsrcMngr,
+	std::span<const IPipeline::CameraData> cameras,
+	std::span<ID3D12Resource* const> defaultRTs)
+{
+	crossFrameCameraRsrcMngr.Update(cameras);
+
+	for (size_t i = 0; i < cameras.size(); ++i) {
+		const auto& camera = cameras[i];
+		auto desc = defaultRTs[i]->GetDesc();
+		size_t defalut_width = desc.Width;
+		size_t defalut_height = desc.Height;
+
+		auto& cameraRsrcMap = crossFrameCameraRsrcMngr.Get(camera);
+		if (!cameraRsrcMap.Contains(key_CameraConstants))
+			cameraRsrcMap.Register(key_CameraConstants, CameraConstants{});
+		auto& cameraConstants = cameraRsrcMap.Get<CameraConstants>(key_CameraConstants);
+		if (!cameraRsrcMap.Contains(key_CameraJitterIndex))
+			cameraRsrcMap.Register(key_CameraJitterIndex, 0);
+		auto& cameraJitterIndex = cameraRsrcMap.Get<int>(key_CameraJitterIndex);
+
+		auto cmptCamera = camera.world->entityMngr.ReadComponent<Camera>(camera.entity);
+		auto cmptW2L = camera.world->entityMngr.ReadComponent<WorldToLocal>(camera.entity);
+		auto cmptTranslation = camera.world->entityMngr.ReadComponent<Translation>(camera.entity);
+		size_t rt_width = defalut_width, rt_height = defalut_height;
+		if (cmptCamera->renderTarget) {
+			rt_width = cmptCamera->renderTarget->image.GetWidth();
+			rt_height = cmptCamera->renderTarget->image.GetHeight();
+		}
+
+		float SampleX = HaltonSequence2[(cameraJitterIndex % 8)];
+		float SampleY = HaltonSequence3[(cameraJitterIndex % 8)];
+		cameraJitterIndex++;
+		float JitterX = (SampleX * 2.0f - 1.0f) / rt_width;
+		float JitterY = (SampleY * 2.0f - 1.0f) / rt_height;
+		transformf view = cmptW2L ? cmptW2L->value : transformf::eye();
+		transformf proj = cmptCamera->prjectionMatrix;
+		transformf unjitteredProj = proj;
+		proj[2][0] += JitterX;
+		proj[2][1] += JitterY;
+		cameraConstants.View = view;
+		cameraConstants.InvView = view.inverse();
+		cameraConstants.Proj = proj;
+		cameraConstants.InvProj = proj.inverse();
+		cameraConstants.PrevViewProj = cameraConstants.UnjitteredViewProj;
+		cameraConstants.ViewProj = proj * view;
+		cameraConstants.UnjitteredViewProj = unjitteredProj * view;
+		cameraConstants.InvViewProj = view.inverse() * proj.inverse();
+		cameraConstants.EyePosW = cmptTranslation ? cmptTranslation->value.as<pointf3>() : pointf3{ 0.f };
+		cameraConstants.FrameCount = cameraConstants.FrameCount + 1;
+		cameraConstants.RenderTargetSize = { rt_width, rt_height };
+		cameraConstants.InvRenderTargetSize = { 1.0f / rt_width, 1.0f / rt_height };
+
+		cameraConstants.NearZ = cmptCamera->clippingPlaneMin;
+		cameraConstants.FarZ = cmptCamera->clippingPlaneMax;
+		cameraConstants.TotalTime = GameTimer::Instance().TotalTime();
+		cameraConstants.DeltaTime = GameTimer::Instance().DeltaTime();
+
+		cameraConstants.Jitter.x = JitterX;
+		cameraConstants.Jitter.y = JitterY;
+		cameraConstants.padding0 = 0;
+		cameraConstants.padding1 = 0;
+	}
 }
