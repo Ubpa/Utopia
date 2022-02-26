@@ -666,6 +666,7 @@ struct StdDXRPipeline::Impl {
 
 	CameraRsrcMngr crossFrameCameraRsrcs;
 	static constexpr const char key_CameraConstants[] = "CameraConstants";
+	static constexpr const char key_CameraJitterIndex[] = "CameraJitterIndex";
 
 	size_t hitgroupsize = 0;
 
@@ -829,6 +830,9 @@ void StdDXRPipeline::Impl::UpdateCrossFrameCameraResources(std::span<const Camer
 		if (!cameraRsrcMap.Contains(key_CameraConstants))
 			cameraRsrcMap.Register(key_CameraConstants, CameraConstants{});
 		auto& cameraConstants = cameraRsrcMap.Get<CameraConstants>(key_CameraConstants);
+		if (!cameraRsrcMap.Contains(key_CameraJitterIndex))
+			cameraRsrcMap.Register(key_CameraJitterIndex, 0);
+		auto& cameraJitterIndex = cameraRsrcMap.Get<int>(key_CameraJitterIndex);
 
 		auto cmptCamera = camera.world->entityMngr.ReadComponent<Camera>(camera.entity);
 		auto cmptW2L = camera.world->entityMngr.ReadComponent<WorldToLocal>(camera.entity);
@@ -839,8 +843,9 @@ void StdDXRPipeline::Impl::UpdateCrossFrameCameraResources(std::span<const Camer
 			rt_height = cmptCamera->renderTarget->image.GetHeight();
 		}
 
-		float SampleX = rand01<float>();
-		float SampleY = rand01<float>();
+		float SampleX = HaltonSequence2[(cameraJitterIndex % 8)];
+		float SampleY = HaltonSequence3[(cameraJitterIndex % 8)];
+		cameraJitterIndex++;
 		float JitterX = (SampleX * 2.0f - 1.0f) / rt_width;
 		float JitterY = (SampleY * 2.0f - 1.0f) / rt_height;
 		transformf view = cmptW2L ? cmptW2L->value : transformf::eye();

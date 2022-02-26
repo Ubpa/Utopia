@@ -176,6 +176,9 @@ namespace Ubpa::Utopia {
 		D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress,
 		D3D12_GPU_DESCRIPTOR_HANDLE iblDataSrvGpuHandle);
 
+	constexpr float HaltonSequence2[8] = { 1.f / 2.f,1.f / 4.f,3.f / 4.f,1.f / 8.f,5.f / 8.f,3.f / 8.f,7.f / 8.f,1.f / 16.f };
+	constexpr float HaltonSequence3[8] = { 1.f / 3.f,2.f / 3.f,1.f / 9.f,4.f / 9.f,7.f / 9.f,2.f / 9.f,5.f / 9.f,8.f / 9.f };
+
 	class PipelineCommonResourceMngr {
 	public:
 		static PipelineCommonResourceMngr& GetInstance();

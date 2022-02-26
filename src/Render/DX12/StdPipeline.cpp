@@ -57,14 +57,21 @@ struct StdPipeline::Impl {
 		frameRsrcMngr{ initDesc.numFrame, initDesc.device },
 		fg { "Standard Pipeline" }
 	{
-		BuildTextures();
-		BuildFrameResources();
+		for (const auto& fr : frameRsrcMngr.GetFrameResources()) {
+			fr->RegisterResource("ShaderCBMngr", std::make_shared<ShaderCBMngr>(initDesc.device));
+
+			fr->RegisterResource("CameraRsrcMngr", std::make_shared<CameraRsrcMngr>());
+			fr->RegisterResource("WorldRsrcMngr", std::make_shared<WorldRsrcMngr>());
+
+			fr->RegisterResource("Stages", std::make_shared<Stages>());
+		}
 	}
 
 	~Impl();
 
 	CameraRsrcMngr crossFrameCameraRsrcs;
 	static constexpr const char key_CameraConstants[] = "CameraConstants";
+	static constexpr const char key_CameraJitterIndex[] = "CameraJitterIndex";
 
 	struct Stages {
 		GeometryBuffer geometryBuffer;
@@ -97,9 +104,6 @@ struct StdPipeline::Impl {
 		Microsoft::WRL::ComPtr<ID3D12Resource> taaPrevRsrc;
 	};
 
-	void BuildTextures();
-	void BuildFrameResources();
-
 	void UpdateCrossFrameCameraResources(std::span<const CameraData> cameras, std::span<ID3D12Resource* const> defaultRTs);
 	void Render(
 		std::span<const UECS::World* const> worlds,
@@ -112,20 +116,6 @@ struct StdPipeline::Impl {
 };
 
 StdPipeline::Impl::~Impl() {
-}
-
-void StdPipeline::Impl::BuildTextures() {
-}
-
-void StdPipeline::Impl::BuildFrameResources() {
-	for (const auto& fr : frameRsrcMngr.GetFrameResources()) {
-		fr->RegisterResource("ShaderCBMngr", std::make_shared<ShaderCBMngr>(initDesc.device));
-
-		fr->RegisterResource("CameraRsrcMngr", std::make_shared<CameraRsrcMngr>());
-		fr->RegisterResource("WorldRsrcMngr", std::make_shared<WorldRsrcMngr>());
-
-		fr->RegisterResource("Stages", std::make_shared<Stages>());
-	}
 }
 
 void StdPipeline::Impl::UpdateCrossFrameCameraResources(std::span<const CameraData> cameras, std::span<ID3D12Resource* const> defaultRTs) {
@@ -141,6 +131,9 @@ void StdPipeline::Impl::UpdateCrossFrameCameraResources(std::span<const CameraDa
 		if (!cameraRsrcMap.Contains(key_CameraConstants))
 			cameraRsrcMap.Register(key_CameraConstants, CameraConstants{});
 		auto& cameraConstants = cameraRsrcMap.Get<CameraConstants>(key_CameraConstants);
+		if (!cameraRsrcMap.Contains(key_CameraJitterIndex))
+			cameraRsrcMap.Register(key_CameraJitterIndex, 0);
+		auto& cameraJitterIndex = cameraRsrcMap.Get<int>(key_CameraJitterIndex);
 
 		auto cmptCamera = camera.world->entityMngr.ReadComponent<Camera>(camera.entity);
 		auto cmptW2L = camera.world->entityMngr.ReadComponent<WorldToLocal>(camera.entity);
@@ -151,8 +144,9 @@ void StdPipeline::Impl::UpdateCrossFrameCameraResources(std::span<const CameraDa
 			rt_height = cmptCamera->renderTarget->image.GetHeight();
 		}
 
-		float SampleX = rand01<float>();
-		float SampleY = rand01<float>();
+		float SampleX = HaltonSequence2[(cameraJitterIndex % 8)];
+		float SampleY = HaltonSequence3[(cameraJitterIndex % 8)];
+		cameraJitterIndex++;
 		float JitterX = (SampleX * 2.0f - 1.0f) / rt_width;
 		float JitterY = (SampleY * 2.0f - 1.0f) / rt_height;
 		transformf view = cmptW2L ? cmptW2L->value : transformf::eye();
@@ -285,7 +279,6 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 	gbuffer_clearvalue.Color[2] = 0;
 	gbuffer_clearvalue.Color[3] = 0;
 
-	auto dsvDesc = UDX12::Desc::DSV::Basic(dsFormat);
 	auto rt2dDesc = UDX12::Desc::RSRC::RT2D(width, (UINT)height, DXGI_FORMAT_R32G32B32A32_FLOAT);
 
 	auto iblData = worldRsrc.Get<std::shared_ptr<IBLData>>("IBL data");
