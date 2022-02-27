@@ -7,34 +7,19 @@
 #include <Utopia/Render/DX12/WorldRsrcMngr.h>
 
 #include <Utopia/Render/DX12/GPURsrcMngrDX12.h>
-#include <Utopia/Render/DX12/MeshLayoutMngr.h>
 #include <Utopia/Render/ShaderMngr.h>
 #include <Utopia/Render/Texture2D.h>
-#include <Utopia/Render/TextureCube.h>
 #include <Utopia/Render/HLSLFile.h>
 #include <Utopia/Render/Shader.h>
+#include <Utopia/Render/Material.h>
 #include <Utopia/Render/Mesh.h>
 #include <Utopia/Render/RenderQueue.h>
 
 #include <Utopia/Core/AssetMngr.h>
 
-#include <Utopia/Core/Image.h>
 #include <Utopia/Render/Components/Camera.h>
-#include <Utopia/Render/Components/MeshFilter.h>
-#include <Utopia/Render/Components/MeshRenderer.h>
-#include <Utopia/Render/Components/Skybox.h>
-#include <Utopia/Render/Components/Light.h>
-
-#include <Utopia/Core/Components/LocalToWorld.h>
-#include <Utopia/Core/Components/Translation.h>
-#include <Utopia/Core/Components/WorldToLocal.h>
-#include <Utopia/Core/Components/PrevLocalToWorld.h>
 
 #include <UECS/UECS.hpp>
-
-#include <_deps/imgui/imgui.h>
-#include <_deps/imgui/imgui_impl_win32.h>
-#include <_deps/imgui/imgui_impl_dx12.h>
 
 #include <UDX12/FrameResourceMngr.h>
 
@@ -617,6 +602,24 @@ Microsoft::WRL::ComPtr<ID3D12Resource> createShaderTable(
 #pragma endregion
 
 struct StdDXRPipeline::Impl {
+	struct Stages {
+		GeometryBuffer geometryBuffer{ true };
+		DeferredLighting deferredLighting;
+		ForwardLighting forwardLighting;
+		Sky sky;
+		Tonemapping tonemapping;
+		TAA taa;
+	};
+
+	struct FrameRsrcs {
+		FrameRsrcs(ID3D12Device* device) : shaderCBMngr(device) {}
+
+		ShaderCBMngr shaderCBMngr;
+		CameraRsrcMngr cameraRsrcMngr;
+		WorldRsrcMngr worldRsrcMngr;
+		Stages stages;
+	};
+
 	Impl(InitDesc initDesc) :
 		initDesc{ initDesc },
 		frameRsrcMngr{ initDesc.numFrame, initDesc.device },
@@ -656,27 +659,18 @@ struct StdDXRPipeline::Impl {
 		grsdesc.desc.NumStaticSamplers = (UINT)samplers.size();
 		grsdesc.desc.pStaticSamplers = samplers.data();
 		mpGlobalRootSig = UDX12::Device{ Microsoft::WRL::ComPtr<ID3D12Device>(initDesc.device) }.CreateRootSignature(grsdesc.desc);
-		BuildTextures();
-		BuildFrameResources();
+
+		for (const auto& fr : frameRsrcMngr.GetFrameResources())
+			fr->RegisterResource("FrameRsrcs", std::make_shared<FrameRsrcs>(initDesc.device));
+
 		BuildShaders();
 	}
 
 	~Impl();
 
 	CameraRsrcMngr crossFrameCameraRsrcMngr;
-	static constexpr const char key_CameraConstants[] = "CameraConstants";
-	static constexpr const char key_CameraJitterIndex[] = "CameraJitterIndex";
 
 	size_t hitgroupsize = 0;
-
-	struct Stages {
-		GeometryBuffer geometryBuffer{ true };
-		DeferredLighting deferredLighting;
-		ForwardLighting forwardLighting;
-		Sky sky;
-		Tonemapping tonemapping;
-		TAA taa;
-	};
 
 	const InitDesc initDesc;
 
@@ -693,8 +687,6 @@ struct StdDXRPipeline::Impl {
 	std::shared_ptr<Shader> filterMomentsShader;
 
 	WorldRsrcMngr crossFrameWorldRsrcMngr;
-
-	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
 
 	const DXGI_FORMAT dsFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
@@ -738,8 +730,6 @@ struct StdDXRPipeline::Impl {
 		Microsoft::WRL::ComPtr<ID3D12Resource> rtLinearZ;
 	};
 
-	void BuildTextures();
-	void BuildFrameResources();
 	void BuildShaders();
 
 	void Render(
@@ -789,22 +779,7 @@ void StdDXRPipeline::Impl::TLASData::Reserve(ID3D12Device* device,
 	instanceDescs.FastReserve(std::max<size_t>(1,new_cnt_instances) * sizeof(D3D12_RAYTRACING_INSTANCE_DESC));
 }
 
-StdDXRPipeline::Impl::~Impl() {
-}
-
-void StdDXRPipeline::Impl::BuildTextures() {
-}
-
-void StdDXRPipeline::Impl::BuildFrameResources() {
-	for (const auto& fr : frameRsrcMngr.GetFrameResources()) {
-		fr->RegisterResource("ShaderCBMngr", std::make_shared<ShaderCBMngr>(initDesc.device));
-
-		fr->RegisterResource("CameraRsrcMngr", std::make_shared<CameraRsrcMngr>());
-		fr->RegisterResource("WorldRsrcMngr", std::make_shared<WorldRsrcMngr>());
-
-		fr->RegisterResource("Stages", std::make_shared<Stages>());
-	}
-}
+StdDXRPipeline::Impl::~Impl() = default;
 
 void StdDXRPipeline::Impl::BuildShaders() {
 	gaussBlurXShader = ShaderMngr::Instance().Get("StdPipeline/GaussBlur_x");
@@ -834,29 +809,31 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 
 	UpdateCameraResource(cameraData, width, height);
 
-	auto cameraRsrcMngr = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<std::shared_ptr<CameraRsrcMngr>>("CameraRsrcMngr");
+	auto frameRsrcs = frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<std::shared_ptr<FrameRsrcs>>("FrameRsrcs");
 
-	auto stages = frameRsrcMngr.GetCurrentFrameResource()->GetResource<std::shared_ptr<Stages>>("Stages");
+	auto& cameraRsrcMngr = frameRsrcs->cameraRsrcMngr;
 
-	if (!cameraRsrcMngr->Get(cameraData).Contains("FrameGraphRsrcMngr"))
-		cameraRsrcMngr->Get(cameraData).Register("FrameGraphRsrcMngr", std::make_shared<UDX12::FG::RsrcMngr>(initDesc.device));
-	auto fgRsrcMngr = cameraRsrcMngr->Get(cameraData).Get<std::shared_ptr<UDX12::FG::RsrcMngr>>("FrameGraphRsrcMngr");
+	auto& stages = frameRsrcs->stages;
 
-	if (!cameraRsrcMngr->Get(cameraData).Contains("FrameGraphExecutor"))
-		cameraRsrcMngr->Get(cameraData).Register("FrameGraphExecutor", std::make_shared<UDX12::FG::Executor>(initDesc.device));
-	auto fgExecutor = cameraRsrcMngr->Get(cameraData).Get<std::shared_ptr<UDX12::FG::Executor>>("FrameGraphExecutor");
+	if (!cameraRsrcMngr.Get(cameraData).Contains("FrameGraphRsrcMngr"))
+		cameraRsrcMngr.Get(cameraData).Register("FrameGraphRsrcMngr", std::make_shared<UDX12::FG::RsrcMngr>(initDesc.device));
+	auto fgRsrcMngr = cameraRsrcMngr.Get(cameraData).Get<std::shared_ptr<UDX12::FG::RsrcMngr>>("FrameGraphRsrcMngr");
+
+	if (!cameraRsrcMngr.Get(cameraData).Contains("FrameGraphExecutor"))
+		cameraRsrcMngr.Get(cameraData).Register("FrameGraphExecutor", std::make_shared<UDX12::FG::Executor>(initDesc.device));
+	auto fgExecutor = cameraRsrcMngr.Get(cameraData).Get<std::shared_ptr<UDX12::FG::Executor>>("FrameGraphExecutor");
 
 	fgExecutor->NewFrame();
 	fgRsrcMngr->NewFrame();
-	stages->geometryBuffer.NewFrame();
-	stages->deferredLighting.NewFrame();
-	stages->forwardLighting.NewFrame();
-	stages->sky.NewFrame();
-	stages->taa.NewFrame();
-	stages->tonemapping.NewFrame();
+	stages.geometryBuffer.NewFrame();
+	stages.deferredLighting.NewFrame();
+	stages.forwardLighting.NewFrame();
+	stages.sky.NewFrame();
+	stages.taa.NewFrame();
+	stages.tonemapping.NewFrame();
 
-	const auto& cameraResizeData = cameraRsrcMngr->Get(cameraData).Get<CameraResizeData>(key_CameraResizeData);
+	const auto& cameraResizeData = cameraRsrcMngr.Get(cameraData).Get<CameraResizeData>(key_CameraResizeData);
 	auto rtSRsrc = cameraResizeData.rtSRsrc;
 	auto rtURsrc = cameraResizeData.rtURsrc;
 	auto rtColorMoment = cameraResizeData.rtColorMoment;
@@ -869,25 +846,25 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 
 	fg.Clear();
 
-	stages->geometryBuffer.RegisterInputOutputPassNodes(fg, {});
+	stages.geometryBuffer.RegisterInputOutputPassNodes(fg, {});
 
-	auto gbuffer0 = stages->geometryBuffer.GetOutputNodeIDs()[0];
-	auto gbuffer1 = stages->geometryBuffer.GetOutputNodeIDs()[1];
-	auto gbuffer2 = stages->geometryBuffer.GetOutputNodeIDs()[2];
-	auto motion = stages->geometryBuffer.GetOutputNodeIDs()[3];
-	auto deferDS = stages->geometryBuffer.GetOutputNodeIDs()[4];
-	auto linearZ = stages->geometryBuffer.GetOutputNodeIDs()[5];
+	auto gbuffer0 = stages.geometryBuffer.GetOutputNodeIDs()[0];
+	auto gbuffer1 = stages.geometryBuffer.GetOutputNodeIDs()[1];
+	auto gbuffer2 = stages.geometryBuffer.GetOutputNodeIDs()[2];
+	auto motion = stages.geometryBuffer.GetOutputNodeIDs()[3];
+	auto deferDS = stages.geometryBuffer.GetOutputNodeIDs()[4];
+	auto linearZ = stages.geometryBuffer.GetOutputNodeIDs()[5];
 	auto irradianceMap = fg.RegisterResourceNode("Irradiance Map");
 	auto prefilterMap = fg.RegisterResourceNode("PreFilter Map");
 	const size_t deferredLightingInputs[6] = { gbuffer0, gbuffer1, gbuffer2, deferDS, irradianceMap, prefilterMap };
-	stages->deferredLighting.RegisterInputOutputPassNodes(fg, deferredLightingInputs);
-	auto deferLightedRT = stages->deferredLighting.GetOutputNodeIDs()[0];
+	stages.deferredLighting.RegisterInputOutputPassNodes(fg, deferredLightingInputs);
+	auto deferLightedRT = stages.deferredLighting.GetOutputNodeIDs()[0];
 	const size_t forwardLightingInputs[2] = { irradianceMap, prefilterMap };
-	stages->forwardLighting.RegisterInputOutputPassNodes(fg, forwardLightingInputs);
-	auto sceneRT = stages->forwardLighting.GetOutputNodeIDs()[0];
-	auto forwardDS = stages->forwardLighting.GetOutputNodeIDs()[1];
-	stages->sky.RegisterInputOutputPassNodes(fg, { &deferDS, 1 });
-	auto deferLightedSkyRT = stages->sky.GetOutputNodeIDs()[0];
+	stages.forwardLighting.RegisterInputOutputPassNodes(fg, forwardLightingInputs);
+	auto sceneRT = stages.forwardLighting.GetOutputNodeIDs()[0];
+	auto forwardDS = stages.forwardLighting.GetOutputNodeIDs()[1];
+	stages.sky.RegisterInputOutputPassNodes(fg, { &deferDS, 1 });
+	auto deferLightedSkyRT = stages.sky.GetOutputNodeIDs()[0];
 	auto presentedRT = fg.RegisterResourceNode("Present");
 	auto TLAS = fg.RegisterResourceNode("TLAS");
 	auto historyLength = fg.RegisterResourceNode("History Length");
@@ -904,10 +881,10 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 	auto colorMoment = fg.RegisterResourceNode("Color Moment");
 	auto taaPrevResult = fg.RegisterResourceNode("TAA Prev Result");
 	const size_t taaInputs[3] = {taaPrevResult, sceneRT, motion};
-	stages->taa.RegisterInputOutputPassNodes(fg, taaInputs);
-	auto taaResult = stages->taa.GetOutputNodeIDs().front();
-	stages->tonemapping.RegisterInputOutputPassNodes(fg, { &taaResult, 1 });
-	auto tonemappedRT = stages->tonemapping.GetOutputNodeIDs().front();
+	stages.taa.RegisterInputOutputPassNodes(fg, taaInputs);
+	auto taaResult = stages.taa.GetOutputNodeIDs().front();
+	stages.tonemapping.RegisterInputOutputPassNodes(fg, { &taaResult, 1 });
+	auto tonemappedRT = stages.tonemapping.GetOutputNodeIDs().front();
 	std::array<std::size_t, ATrousN> rtATrousDenoiseResults;
 	for (std::size_t i = 0; i < ATrousN; i++)
 		rtATrousDenoiseResults[i] = fg.RegisterResourceNode("RT ATrous denoised result " + std::to_string(i));
@@ -1172,36 +1149,35 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 		.RegisterPassRsrc(rtWithBRDFLUTPass, rtWithBRDFLUT, D3D12_RESOURCE_STATE_RENDER_TARGET, rtvNull)
 		;
 
-	stages->geometryBuffer.RegisterPassResources(*fgRsrcMngr);
-	stages->deferredLighting.RegisterPassResources(*fgRsrcMngr);
-	stages->forwardLighting.RegisterPassResources(*fgRsrcMngr);
-	stages->sky.RegisterPassResources(*fgRsrcMngr);
-	stages->taa.RegisterPassResources(*fgRsrcMngr);
-	stages->tonemapping.RegisterPassResources(*fgRsrcMngr);
+	stages.geometryBuffer.RegisterPassResources(*fgRsrcMngr);
+	stages.deferredLighting.RegisterPassResources(*fgRsrcMngr);
+	stages.forwardLighting.RegisterPassResources(*fgRsrcMngr);
+	stages.sky.RegisterPassResources(*fgRsrcMngr);
+	stages.taa.RegisterPassResources(*fgRsrcMngr);
+	stages.tonemapping.RegisterPassResources(*fgRsrcMngr);
 
-	auto shaderCBMngr = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<std::shared_ptr<ShaderCBMngr>>("ShaderCBMngr");
+	auto& shaderCBMngr = frameRsrcs->shaderCBMngr;
 
-	const D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress = shaderCBMngr->GetCameraCBAddress(ctx.ID, cameraIdx);
+	const D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress = shaderCBMngr.GetCameraCBAddress(ctx.ID, cameraIdx);
 
-	const D3D12_GPU_VIRTUAL_ADDRESS lightCBAddress = shaderCBMngr->GetLightCBAddress(ctx.ID);
+	const D3D12_GPU_VIRTUAL_ADDRESS lightCBAddress = shaderCBMngr.GetLightCBAddress(ctx.ID);
 
 	// irradiance, prefilter, BRDF LUT
 	const D3D12_GPU_DESCRIPTOR_HANDLE iblDataSrvGpuHandle = ctx.skyboxSrvGpuHandle.ptr == PipelineCommonResourceMngr::GetInstance().GetDefaultSkyboxGpuHandle().ptr ?
 		PipelineCommonResourceMngr::GetInstance().GetDefaultIBLSrvDHA().GetGpuHandle()
 		: iblData->SRVDH.GetGpuHandle();
 
-	stages->geometryBuffer.RegisterPassFuncData(cameraCBAddress, shaderCBMngr.get(), &ctx, "RTDeferred");
-	stages->geometryBuffer.RegisterPassFunc(*fgExecutor);
+	stages.geometryBuffer.RegisterPassFuncData(cameraCBAddress, &shaderCBMngr, &ctx, "RTDeferred");
+	stages.geometryBuffer.RegisterPassFunc(*fgExecutor);
 
-	stages->deferredLighting.RegisterPassFuncData(iblDataSrvGpuHandle, cameraCBAddress, lightCBAddress);
-	stages->deferredLighting.RegisterPassFunc(*fgExecutor);
+	stages.deferredLighting.RegisterPassFuncData(iblDataSrvGpuHandle, cameraCBAddress, lightCBAddress);
+	stages.deferredLighting.RegisterPassFunc(*fgExecutor);
 
-	stages->forwardLighting.RegisterPassFuncData(iblData->SRVDH.GetGpuHandle(), cameraCBAddress, shaderCBMngr.get(), &ctx);
-	stages->forwardLighting.RegisterPassFunc(*fgExecutor);
+	stages.forwardLighting.RegisterPassFuncData(iblData->SRVDH.GetGpuHandle(), cameraCBAddress, &shaderCBMngr, &ctx);
+	stages.forwardLighting.RegisterPassFunc(*fgExecutor);
 
-	stages->sky.RegisterPassFuncData(ctx.skyboxSrvGpuHandle, cameraCBAddress);
-	stages->sky.RegisterPassFunc(*fgExecutor);
+	stages.sky.RegisterPassFuncData(ctx.skyboxSrvGpuHandle, cameraCBAddress);
+	stages.sky.RegisterPassFunc(*fgExecutor);
 
 	fgExecutor->RegisterPassFunc(
 		rtPass,
@@ -1470,10 +1446,10 @@ void StdDXRPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraDa
 		}
 	);
 
-	stages->taa.RegisterPassFuncData(cameraCBAddress);
-	stages->taa.RegisterPassFunc(*fgExecutor);
+	stages.taa.RegisterPassFuncData(cameraCBAddress);
+	stages.taa.RegisterPassFunc(*fgExecutor);
 
-	stages->tonemapping.RegisterPassFunc(*fgExecutor);
+	stages.tonemapping.RegisterPassFunc(*fgExecutor);
 
 	static bool flag{ false };
 	if (!flag) {
@@ -1502,9 +1478,10 @@ void StdDXRPipeline::Impl::Render(
 
 	UpdateCrossFrameCameraResources(crossFrameCameraRsrcMngr, cameras, defaultRTs);
 
-	frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<std::shared_ptr<CameraRsrcMngr>>("CameraRsrcMngr")
-		->Update(cameras);
+	auto frameRsrcs = frameRsrcMngr.GetCurrentFrameResource()
+		->GetResource<std::shared_ptr<FrameRsrcs>>("FrameRsrcs");
+
+	frameRsrcs->cameraRsrcMngr.Update(cameras);
 
 	std::vector<std::vector<const UECS::World*>> worldArrs;
 	for (const auto& link : links) {
@@ -1514,9 +1491,8 @@ void StdDXRPipeline::Impl::Render(
 		worldArrs.push_back(std::move(worldArr));
 	}
 
-	auto shaderCBMngr = frameRsrcMngr.GetCurrentFrameResource()
-		->GetResource<std::shared_ptr<ShaderCBMngr>>("ShaderCBMngr");
-	shaderCBMngr->NewFrame();
+	auto& shaderCBMngr = frameRsrcs->shaderCBMngr;
+	shaderCBMngr.NewFrame();
 
 	std::vector<RenderContext> ctxs;
 	for (size_t i = 0; i < worldArrs.size(); ++i) {
@@ -1530,7 +1506,7 @@ void StdDXRPipeline::Impl::Render(
 			auto* camConts = &crossFrameCameraRsrcMngr.Get(linkedCamera).Get<CameraConstants>(key_CameraConstants);
 			cameraConstantsVector.push_back(camConts);
 		}
-		shaderCBMngr->RegisterRenderContext(ctx, cameraConstantsVector);
+		shaderCBMngr.RegisterRenderContext(ctx, cameraConstantsVector);
 
 		ctxs.push_back(std::move(ctx));
 	}
@@ -1538,13 +1514,13 @@ void StdDXRPipeline::Impl::Render(
 	hitgroupsize = 0;
 
 	crossFrameWorldRsrcMngr.Update(worldArrs, initDesc.numFrame);
-	auto curFrameWorldRsrcMngr = frameRsrcMngr.GetCurrentFrameResource()->GetResource<std::shared_ptr<WorldRsrcMngr>>("WorldRsrcMngr");
-	curFrameWorldRsrcMngr->Update(worldArrs);
+	auto& curFrameWorldRsrcMngr = frameRsrcs->worldRsrcMngr;
+	curFrameWorldRsrcMngr.Update(worldArrs);
 
 	for (size_t linkIdx = 0; linkIdx < links.size(); ++linkIdx) {
 		auto& ctx = ctxs[linkIdx];
 		auto& crossFrameWorldRsrc = crossFrameWorldRsrcMngr.Get(worldArrs[linkIdx]);
-		auto& curFrameWorldRsrc = curFrameWorldRsrcMngr->Get(worldArrs[linkIdx]);
+		auto& curFrameWorldRsrc = curFrameWorldRsrcMngr.Get(worldArrs[linkIdx]);
 
 		if (!curFrameWorldRsrc.Contains("FrameGraphRsrcMngr"))
 			curFrameWorldRsrc.Register("FrameGraphRsrcMngr", std::make_shared<UDX12::FG::RsrcMngr>(initDesc.device));
@@ -1776,12 +1752,12 @@ void StdDXRPipeline::Render(
 }
 
 void StdDXRPipeline::Impl::UpdateCameraResource(const CameraData& cameraData, size_t width, size_t height)  {
-	auto cameraRsrcMngr = frameRsrcMngr.GetCurrentFrameResource()->GetResource<std::shared_ptr<CameraRsrcMngr>>("CameraRsrcMngr");
-	if(cameraRsrcMngr->Get(cameraData).Contains(key_CameraResizeData_Backup))
-		cameraRsrcMngr->Get(cameraData).Unregister(key_CameraResizeData_Backup);
-	if (!cameraRsrcMngr->Get(cameraData).Contains(key_CameraResizeData))
-		cameraRsrcMngr->Get(cameraData).Register(key_CameraResizeData, CameraResizeData{});
-	const auto& currCameraResizeData = cameraRsrcMngr->Get(cameraData).Get<CameraResizeData>(key_CameraResizeData);
+	auto& cameraRsrcMngr = frameRsrcMngr.GetCurrentFrameResource()->GetResource<std::shared_ptr<FrameRsrcs>>("FrameRsrcs")->cameraRsrcMngr;
+	if(cameraRsrcMngr.Get(cameraData).Contains(key_CameraResizeData_Backup))
+		cameraRsrcMngr.Get(cameraData).Unregister(key_CameraResizeData_Backup);
+	if (!cameraRsrcMngr.Get(cameraData).Contains(key_CameraResizeData))
+		cameraRsrcMngr.Get(cameraData).Register(key_CameraResizeData, CameraResizeData{});
+	const auto& currCameraResizeData = cameraRsrcMngr.Get(cameraData).Get<CameraResizeData>(key_CameraResizeData);
 	if (currCameraResizeData.width == width && currCameraResizeData.height == height)
 		return;
 	CameraResizeData cameraResizeData;
@@ -1889,27 +1865,27 @@ void StdDXRPipeline::Impl::UpdateCameraResource(const CameraData& cameraData, si
 	cameraResizeData.rtLinearZ = std::move(rtLinearZ);
 	cameraResizeData.taaPrevRsrc = std::move(taaPrevRsrc);
 
-	cameraRsrcMngr->Get(cameraData).Unregister(key_CameraResizeData);
-	cameraRsrcMngr->Get(cameraData).Register(key_CameraResizeData, cameraResizeData);
+	cameraRsrcMngr.Get(cameraData).Unregister(key_CameraResizeData);
+	cameraRsrcMngr.Get(cameraData).Register(key_CameraResizeData, cameraResizeData);
 
 	for (auto& frsrc : frameRsrcMngr.GetFrameResources()) {
 		if (frsrc.get() == frameRsrcMngr.GetCurrentFrameResource())
 			continue;
 
-		auto cameraRsrcMngr = frsrc->GetResource<std::shared_ptr<CameraRsrcMngr>>("CameraRsrcMngr");
-		if(!cameraRsrcMngr->Contains(cameraData))
+		auto& cameraRsrcMngr = frsrc->GetResource<std::shared_ptr<FrameRsrcs>>("FrameRsrcs")->cameraRsrcMngr;
+		if(!cameraRsrcMngr.Contains(cameraData))
 			continue;
 
-		if (!cameraRsrcMngr->Get(cameraData).Contains(key_CameraResizeData))
-			cameraRsrcMngr->Get(cameraData).Register(key_CameraResizeData, CameraResizeData{});
+		if (!cameraRsrcMngr.Get(cameraData).Contains(key_CameraResizeData))
+			cameraRsrcMngr.Get(cameraData).Register(key_CameraResizeData, CameraResizeData{});
 
-		if (!cameraRsrcMngr->Get(cameraData).Contains(key_CameraResizeData_Backup)){
-			cameraRsrcMngr->Get(cameraData).Register(
+		if (!cameraRsrcMngr.Get(cameraData).Contains(key_CameraResizeData_Backup)){
+			cameraRsrcMngr.Get(cameraData).Register(
 				key_CameraResizeData_Backup,
-				std::move(cameraRsrcMngr->Get(cameraData).Get<CameraResizeData>(key_CameraResizeData))
+				std::move(cameraRsrcMngr.Get(cameraData).Get<CameraResizeData>(key_CameraResizeData))
 			);
 		}
 		
-		cameraRsrcMngr->Get(cameraData).Get<CameraResizeData>(key_CameraResizeData) = cameraResizeData;
+		cameraRsrcMngr.Get(cameraData).Get<CameraResizeData>(key_CameraResizeData) = cameraResizeData;
 	}
 }
