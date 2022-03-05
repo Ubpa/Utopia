@@ -14,6 +14,7 @@ namespace Ubpa::Utopia {
 			std::span<const WorldCameraLink> links,
 			std::span<ID3D12Resource* const> defaultRTs
 		) override;
+		virtual const std::map<std::string, UFG::FrameGraph>& GetFrameGraphMap() const override;
 
 	private:
 		struct Impl;

@@ -26,16 +26,17 @@ int main(int argc, const char* argv[]) {
 		return -1;
 	}
 
-	double sumLuminance = 0.;
+	rgbd sumColor(0.);
 
 	for (size_t y = 0; y < h; y++) {
-		for (size_t x = 0; x < w; x++) {
-			sumLuminance += img.At<rgbf>(x, y).illumination();
-		}
+		for (size_t x = 0; x < w; x++)
+			sumColor += img.At<rgbf>(x, y).cast_to<rgbd>();
 	}
-	sumLuminance /= w * h;
+	sumColor /= w * h;
+	double luminance = sumColor.illumination();
 
-	cout << sumLuminance << endl;
+	cout << sumColor << endl;
+	cout << luminance << endl;
 
 	return 0;
 }

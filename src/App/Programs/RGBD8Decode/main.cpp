@@ -21,21 +21,12 @@ int main(int argc, const char* argv[]) {
 	const auto h = img.GetHeight();
 	const auto c = img.GetChannel();
 
-	if (c != 4) {
-		cerr << "[Error] RGBD8 image must have 4 channels." << endl;
+	if (c != 3) {
+		cerr << "[Error] image must have 3 channels." << endl;
 		return -1;
 	}
 
-	Image result(w, h, 3);
-
-	for (size_t y = 0; y < h; y++) {
-		for (size_t x = 0; x < w; x++) {
-			rgbaf src = img.At<rgbaf>(x, y);
-			rgbf decodeColor = src.rgb.to_impl() / ((1.f - (src.a)) * 0.928571403f + 0.071428575f);
-			result.At<rgbf>(x, y) = decodeColor;
-		}
-	}
-	result.Save(filename + ".decode.hdr");
+	img.Save(filename + ".png");
 
 	return 0;
 }

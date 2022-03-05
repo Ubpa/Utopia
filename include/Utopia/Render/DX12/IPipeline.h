@@ -4,6 +4,8 @@
 
 #include <UECS/Entity.hpp>
 
+#include <UFG/UFG.hpp>
+
 #include <vector>
 #include <span>
 
@@ -37,5 +39,6 @@ namespace Ubpa::Utopia {
 			std::span<const WorldCameraLink> links,
 			std::span<ID3D12Resource* const> defaultRTs
 		) = 0;
+		virtual const std::map<std::string, UFG::FrameGraph>& GetFrameGraphMap() const = 0;
 	};
 }

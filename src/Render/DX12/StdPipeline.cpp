@@ -47,8 +47,7 @@ struct StdPipeline::Impl {
 
 	Impl(InitDesc initDesc) :
 		initDesc{ initDesc },
-		frameRsrcMngr{ initDesc.numFrame, initDesc.device },
-		fg { "Standard Pipeline" }
+		frameRsrcMngr{ initDesc.numFrame, initDesc.device }
 	{
 		for (const auto& fr : frameRsrcMngr.GetFrameResources())
 			fr->RegisterResource("FrameRsrcs", std::make_shared<FrameRsrcs>(initDesc.device));
@@ -63,7 +62,6 @@ struct StdPipeline::Impl {
 	UDX12::FrameResourceMngr frameRsrcMngr;
 
 	UFG::Compiler fgCompiler;
-	UFG::FrameGraph fg;
 
 	WorldRsrcMngr crossFrameWorldRsrcMngr;
 
@@ -78,20 +76,35 @@ struct StdPipeline::Impl {
 		Microsoft::WRL::ComPtr<ID3D12Resource> taaPrevRsrc;
 	};
 
+	std::map<std::string, UFG::FrameGraph> frameGraphMap;
+
 	void Render(
 		std::span<const UECS::World* const> worlds,
 		std::span<const CameraData> cameras,
 		std::span<const WorldCameraLink> links,
 		std::span<ID3D12Resource* const> defaultRTs);
 
-	void CameraRender(const RenderContext& ctx, const CameraData& cameraData, size_t cameraIdx, ID3D12Resource* rtb, const ResourceMap& worldRsrc);
+	void CameraRender(
+		const RenderContext& ctx,
+		const CameraData& cameraData,
+		D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress,
+		ID3D12Resource* default_rtb,
+		const ResourceMap& worldRsrc,
+		std::string_view fgName);
+
 	void UpdateCameraResource(const CameraData& cameraData, size_t width, size_t height);
 };
 
-StdPipeline::Impl::~Impl() {
-}
+StdPipeline::Impl::~Impl() = default;
 
-void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData& cameraData, size_t cameraIdx, ID3D12Resource* default_rtb, const ResourceMap& worldRsrc) {
+void StdPipeline::Impl::CameraRender(
+	const RenderContext& ctx,
+	const CameraData& cameraData,
+	D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress,
+	ID3D12Resource* default_rtb,
+	const ResourceMap& worldRsrc,
+	std::string_view fgName)
+{
 	ID3D12Resource* rtb = default_rtb;
 	{ // set rtb
 		if (cameraData.entity.Valid()) {
@@ -109,8 +122,10 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 	D3D12_RECT scissorRect(0.f, 0.f, static_cast<LONG>(width), static_cast<LONG>(height));
 
 	UpdateCameraResource(cameraData, width, height);
-	
-	fg.Clear();
+
+	auto [frameGraphMapIter, frameGraphEmplaceSuccess] = frameGraphMap.emplace(std::string(fgName), UFG::FrameGraph{ std::string(fgName) });
+	assert(frameGraphEmplaceSuccess);
+	UFG::FrameGraph& fg = frameGraphMapIter->second;
 
 	auto frameRsrcs = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<FrameRsrcs>>("FrameRsrcs");
@@ -204,8 +219,6 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 		.RegisterTemporalRsrc(motion, rt2dDesc, gbuffer_clearvalue)
 		.RegisterTemporalRsrc(deferDS, dsDesc, dsClear)
 		.RegisterTemporalRsrcAutoClear(deferLightedRT, rt2dDesc)
-		//.RegisterTemporalRsrcAutoClear(deferLightedSkyRT, rt2dDesc)
-		//.RegisterTemporalRsrcAutoClear(sceneRT, rt2dDesc)
 		.RegisterTemporalRsrcAutoClear(taaResult, rt2dDesc)
 
 		.RegisterImportedRsrc(tonemappedRT, {rtb, D3D12_RESOURCE_STATE_PRESENT})
@@ -221,7 +234,6 @@ void StdPipeline::Impl::CameraRender(const RenderContext& ctx, const CameraData&
 	stages.taa.RegisterPassResources(*fgRsrcMngr);
 	stages.tonemapping.RegisterPassResources(*fgRsrcMngr);
 
-	const D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress = shaderCBMngr.GetCameraCBAddress(ctx.ID, cameraIdx);
 	const D3D12_GPU_VIRTUAL_ADDRESS lightCBAddress = shaderCBMngr.GetLightCBAddress(ctx.ID);
 	// irradiance, prefilter, BRDF LUT
 	const D3D12_GPU_DESCRIPTOR_HANDLE iblDataSrvGpuHandle = ctx.skyboxSrvGpuHandle.ptr == PipelineCommonResourceMngr::GetInstance().GetDefaultSkyboxGpuHandle().ptr ?
@@ -269,6 +281,8 @@ void StdPipeline::Impl::Render(
 	// Has the GPU finished processing the commands of the current frame resource?
 	// If not, wait until the GPU has completed commands up to this fence point.
 	frameRsrcMngr.BeginFrame();
+
+	frameGraphMap.clear();
 
 	UpdateCrossFrameCameraResources(crossFrameCameraRsrcMngr, cameras, defaultRTs);
 
@@ -338,7 +352,10 @@ void StdPipeline::Impl::Render(
 			curFrameWorldRsrc.Register("IBL data", crossFrameWorldRsrc.Get<std::shared_ptr<IBLData>>("IBL data"));
 		auto iblData = curFrameWorldRsrc.Get<std::shared_ptr<IBLData>>("IBL data");
 
-		fg.Clear();
+		const std::string fgName = "L" + std::to_string(linkIdx);
+		auto [frameGraphMapIter, frameGraphEmplaceSuccess] = frameGraphMap.emplace(fgName, UFG::FrameGraph{ fgName });
+		assert(frameGraphEmplaceSuccess);
+		UFG::FrameGraph& fg = frameGraphMapIter->second;
 
 		iblPreprocess->RegisterInputOutputPassNodes(fg, {});
 		auto irradianceMap = iblPreprocess->GetOutputNodeIDs()[0];
@@ -370,7 +387,13 @@ void StdPipeline::Impl::Render(
 
 		for (size_t i = 0; i < links[linkIdx].cameraIndices.size(); ++i) {
 			size_t cameraIdx = links[linkIdx].cameraIndices[i];
-			CameraRender(ctx, cameras[cameraIdx], i, defaultRTs[cameraIdx], curFrameWorldRsrc);
+			CameraRender(
+				ctx,
+				cameras[cameraIdx],
+				shaderCBMngr.GetCameraCBAddress(ctx.ID, i),
+				defaultRTs[cameraIdx],
+				curFrameWorldRsrc,
+				fgName + "C" + std::to_string(i));
 		}
 	}
 
@@ -392,6 +415,11 @@ void StdPipeline::Render(
 {
 	assert(pImpl);
 	pImpl->Render(worlds, cameras, links, defaultRTs);
+}
+
+const std::map<std::string, UFG::FrameGraph>& StdPipeline::GetFrameGraphMap() const {
+	assert(pImpl);
+	return pImpl->frameGraphMap;
 }
 
 void StdPipeline::Impl::UpdateCameraResource(const CameraData& cameraData, size_t width, size_t height) {

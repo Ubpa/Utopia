@@ -1,15 +1,24 @@
 #include <Utopia/Editor/Core/Editor.h>
 
-// DXR
-#include <Utopia/Render/DX12/StdDXRPipeline.h>
-#include <Utopia/Render/DX12/PipelineCommonUtils.h>
+#include <Utopia/Editor/DX12App/DX12App.h>
 
 #include <Utopia/Editor/Core/Components/Hierarchy.h>
 #include <Utopia/Editor/Core/Components/Inspector.h>
 #include <Utopia/Editor/Core/Components/ProjectViewer.h>
 #include <Utopia/Editor/Core/Components/SystemController.h>
+#include <Utopia/Editor/Core/Components/FrameGraphVistualizer.h>
 
-#include <Utopia/Core/WorldAssetImporter.h>
+#include <Utopia/Editor/Core/InspectorRegistry.h>
+
+#include <Utopia/Editor/Core/Systems/HierarchySystem.h>
+#include <Utopia/Editor/Core/Systems/InspectorSystem.h>
+#include <Utopia/Editor/Core/Systems/ProjectViewerSystem.h>
+#include <Utopia/Editor/Core/Systems/LoggerSystem.h>
+#include <Utopia/Editor/Core/Systems/SystemControllerSystem.h>
+#include <Utopia/Editor/Core/Systems/FrameGraphVistualizerSystem.h>
+
+#include <Utopia/Render/DX12/StdDXRPipeline.h>
+#include <Utopia/Render/DX12/PipelineCommonUtils.h>
 #include <Utopia/Render/HLSLFileImporter.h>
 #include <Utopia/Render/TextureImporter.h>
 #include <Utopia/Render/TextureCubeImporter.h>
@@ -18,19 +27,6 @@
 #include <Utopia/Render/MeshImporter.h>
 #include <Utopia/Render/ModelImporter.h>
 #include <Utopia/Render/DX12/PipelineImporter.h>
-
-#include <Utopia/Editor/Core/Systems/HierarchySystem.h>
-#include <Utopia/Editor/Core/Systems/InspectorSystem.h>
-#include <Utopia/Editor/Core/Systems/ProjectViewerSystem.h>
-#include <Utopia/Editor/Core/Systems/LoggerSystem.h>
-#include <Utopia/Editor/Core/Systems/SystemControllerSystem.h>
-
-#include <Utopia/Editor/Core/InspectorRegistry.h>
-
-#include <Utopia/Editor/DX12App/DX12App.h>
-
-#include <Utopia/Core/AssetMngr.h>
-#include <Utopia/Core/Serializer.h>
 
 #include <Utopia/Render/DX12/GPURsrcMngrDX12.h>
 #include <Utopia/Render/DX12/StdPipeline.h>
@@ -43,6 +39,11 @@
 #include <Utopia/Render/Mesh.h>
 #include <Utopia/Render/Components/Components.h>
 #include <Utopia/Render/Systems/Systems.h>
+#include <Utopia/Render/Register_Render.h>
+
+#include <Utopia/Core/AssetMngr.h>
+#include <Utopia/Core/Serializer.h>
+#include <Utopia/Core/WorldAssetImporter.h>
 
 #include <Utopia/Core/GameTimer.h>
 #include <Utopia/Core/Components/Components.h>
@@ -50,13 +51,12 @@
 #include <Utopia/Core/ImGUIMngr.h>
 
 #include <Utopia/Core/Register_Core.h>
-#include <Utopia/Render/Register_Render.h>
+#include <Utopia/Core/StringsSink.h>
 
 #include <_deps/imgui/imgui.h>
 #include <_deps/imgui/imgui_impl_win32.h>
 #include <_deps/imgui/imgui_impl_dx12.h>
 
-#include <Utopia/Core/StringsSink.h>
 #include <spdlog/spdlog.h>
 
 using namespace Ubpa::Utopia;
@@ -383,6 +383,7 @@ void Editor::Impl::Update() {
 			{
 				ImGuiID dockspace_id = ImGui::GetID("MyDockSpace");
 				ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), dockspace_flags);
+				ImGui::End(); // "DockSpace"
 			}
 			else
 			{
@@ -392,8 +393,6 @@ void Editor::Impl::Update() {
 				if (ImGui::SmallButton("click here"))
 					io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 			}
-
-			ImGui::End(); // "DockSpace"
 		}
 
 		bool isFlush = false;
@@ -817,7 +816,8 @@ void Editor::Impl::InitWorld(Ubpa::UECS::World& w) {
 		HierarchySystem,
 		InspectorSystem,
 		ProjectViewerSystem,
-		SystemControllerSystem
+		SystemControllerSystem,
+		FrameGraphVistualizerSystem
 	>();
 	for (auto idx : indices)
 		w.systemMngr.Activate(idx);
@@ -851,7 +851,8 @@ void Editor::Impl::InitWorld(Ubpa::UECS::World& w) {
 		Hierarchy,
 		Inspector,
 		ProjectViewer,
-		SystemController
+		SystemController,
+		FrameGraphVistualizer
 	>();
 }
 
@@ -901,10 +902,15 @@ void Editor::Impl::BuildWorld() {
 			auto systemCtrl = editorWorld.entityMngr.WriteComponent<SystemController>(e);
 			systemCtrl->world = &gameWorld;
 		}
+		{ // frame graph vistualizer
+			auto e = editorWorld.entityMngr.Create(TypeIDs_of<FrameGraphVistualizer>);
+			auto frameGraphVistualizer = editorWorld.entityMngr.WriteComponent<FrameGraphVistualizer>(e);
+			frameGraphVistualizer->ctx = ax::NodeEditor::CreateEditor();
+		}
 		editorWorld.entityMngr.Create(TypeIDs_of<Inspector>);
 		editorWorld.entityMngr.Create(TypeIDs_of<ProjectViewer>);
 		editorWorld.entityMngr.Create(TypeIDs_of<Input>);
-		editorWorld.systemMngr.RegisterAndActivate<LoggerSystem, SystemControllerSystem>();
+		editorWorld.systemMngr.RegisterAndActivate<LoggerSystem, SystemControllerSystem, FrameGraphVistualizerSystem>();
 	}
 }
 
