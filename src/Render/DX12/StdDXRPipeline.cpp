@@ -1765,6 +1765,10 @@ void StdDXRPipeline::Init(InitDesc desc) {
 		pImpl = new Impl{ desc };
 }
 
+bool StdDXRPipeline::IsInitialized() const {
+	return pImpl != nullptr;
+}
+
 StdDXRPipeline::~StdDXRPipeline() { delete pImpl; }
 
 void StdDXRPipeline::Render(

@@ -445,14 +445,8 @@ void    ImGui_ImplWin32_NewFrame(ImVec2 offset, ImVec2 size)
 #if 0
 // Copy this line into your .cpp file to forward declare the function.
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler_Shared(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler_Context(ImGuiContext* ctx, bool ignore_mouse, bool ignore_keyboard, HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 #endif
-
-IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler_Shared(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
-{
-    return 0;
-}
 
 IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler_Context(ImGuiContext* ctx, bool ignore_mouse, bool ignore_keyboard, HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {

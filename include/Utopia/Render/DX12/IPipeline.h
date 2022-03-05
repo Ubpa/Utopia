@@ -33,6 +33,7 @@ namespace Ubpa::Utopia {
 		virtual ~IPipeline() = default;
 
 		virtual void Init(InitDesc desc) = 0;
+		virtual bool IsInitialized() const = 0;
 		virtual void Render(
 			std::span<const UECS::World* const> worlds,
 			std::span<const CameraData> cameras,

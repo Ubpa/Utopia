@@ -124,34 +124,30 @@ struct Editor::Impl {
 };
 
 // Forward declare message handler from imgui_impl_win32.cpp
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler_Shared(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler_Context(ImGuiContext* ctx, bool ingore_mouse, bool ingore_keyboard, HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 LRESULT Editor::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-	if (ImGui_ImplWin32_WndProcHandler_Shared(hwnd, msg, wParam, lParam))
-		return 1;
-
 	if (pImpl->gameImGuiCtx && pImpl->sceneImGuiCtx && pImpl->editorImGuiCtx) {
-		auto& gameIO = ImGui::GetIO(pImpl->gameImGuiCtx);
-		bool gameWantCaptureMouse = gameIO.WantCaptureMouse;
-		bool gameWantCaptureKeyboard = gameIO.WantCaptureKeyboard;
-		auto& sceneIO = ImGui::GetIO(pImpl->sceneImGuiCtx);
-		bool sceneWantCaptureMouse = sceneIO.WantCaptureMouse;
-		bool sceneWantCaptureKeyboard = sceneIO.WantCaptureKeyboard;
 		auto& editorIO = ImGui::GetIO(pImpl->editorImGuiCtx);
 		bool editorWantCaptureMouse = editorIO.WantCaptureMouse;
 		bool editorWantCaptureKeyboard = editorIO.WantCaptureKeyboard;
+		auto& sceneIO = ImGui::GetIO(pImpl->sceneImGuiCtx);
+		bool sceneWantCaptureMouse = sceneIO.WantCaptureMouse;
+		bool sceneWantCaptureKeyboard = sceneIO.WantCaptureKeyboard;
+		auto& gameIO = ImGui::GetIO(pImpl->gameImGuiCtx);
+		bool gameWantCaptureMouse = gameIO.WantCaptureMouse;
+		bool gameWantCaptureKeyboard = gameIO.WantCaptureKeyboard;
 
-		if (ImGui_ImplWin32_WndProcHandler_Context(pImpl->gameImGuiCtx, false, false, hwnd, msg, wParam, lParam))
+		if (ImGui_ImplWin32_WndProcHandler_Context(pImpl->editorImGuiCtx, false, false, hwnd, msg, wParam, lParam))
 			return 1;
 
-		if (ImGui_ImplWin32_WndProcHandler_Context(pImpl->sceneImGuiCtx, gameWantCaptureMouse, gameWantCaptureKeyboard, hwnd, msg, wParam, lParam))
+		if (ImGui_ImplWin32_WndProcHandler_Context(pImpl->sceneImGuiCtx, editorWantCaptureMouse, editorWantCaptureKeyboard, hwnd, msg, wParam, lParam))
 			return 1;
 
 		if (ImGui_ImplWin32_WndProcHandler_Context(
-				pImpl->editorImGuiCtx,
-				gameWantCaptureMouse || sceneWantCaptureMouse,
-				gameWantCaptureKeyboard || sceneWantCaptureKeyboard,
+				pImpl->gameImGuiCtx,
+				editorWantCaptureMouse || sceneWantCaptureMouse,
+				editorWantCaptureKeyboard || sceneWantCaptureKeyboard,
 				hwnd, msg, wParam, lParam))
 		{
 			return 1;
@@ -213,6 +209,10 @@ void Editor::Update() {
 }
 
 Editor::Impl::~Impl() {
+	gameWorld.entityMngr.Clear();
+	sceneWorld.entityMngr.Clear();
+	editorWorld.entityMngr.Clear();
+
 	PipelineCommonResourceMngr::GetInstance().Release();
 
 	if (!gameRT_SRV.IsNull())
@@ -484,6 +484,11 @@ void Editor::Impl::Update() {
 			}
 		}
 		ImGui::End(); // Game Control window
+
+		editorWorld.RunEntityJob([&](UECS::Write<FrameGraphVistualizer> frameGraphVistualizer) {
+			if (stdPipeline && stdPipeline->IsInitialized())
+				frameGraphVistualizer->frameGraphMap = stdPipeline->GetFrameGraphMap();
+		}, false);
 
 		editorWorld.Update();
 	}

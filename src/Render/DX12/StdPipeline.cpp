@@ -405,6 +405,10 @@ void StdPipeline::Init(InitDesc desc) {
 		pImpl = new Impl{ desc };
 }
 
+bool StdPipeline::IsInitialized() const {
+	return pImpl != nullptr;
+}
+
 StdPipeline::~StdPipeline() { delete pImpl; }
 
 void StdPipeline::Render(

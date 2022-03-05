@@ -8,6 +8,7 @@ namespace Ubpa::Utopia {
 		virtual ~StdDXRPipeline();
 
 		virtual void Init(InitDesc desc) override;
+		virtual bool IsInitialized() const override;
 		virtual void Render(
 			std::span<const UECS::World* const> worlds,
 			std::span<const CameraData> cameras,
