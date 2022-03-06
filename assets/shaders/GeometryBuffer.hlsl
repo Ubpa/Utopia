@@ -109,7 +109,6 @@ PixelOut PS(VertexOut pin)
     prevPos = prevPos / prevPos.w;
     prevPos.xy = prevPos.xy / float2(2.0f, -2.0f) + float2(0.5f, 0.5f);//negate Y because world coord and tex coord have different Y axis.
     float2 prevTexc = prevPos.xy;
-    float normFWidth = fwidth(length(pin.N));
 
     pout.gbuffer0 = float4(albedo.xyz, roughness);
     pout.gbuffer1 = float4(N         , metalness);
@@ -119,9 +118,11 @@ PixelOut PS(VertexOut pin)
      * displacement: currTexc - prevTexc
      * time: unit 1
      */
-    pout.motion = float4(currTexc - prevTexc, 0, normFWidth);
+    pout.motion = float4(currTexc - prevTexc, 0, 1);
 
 #ifdef UBPA_STD_RAY_TRACING
+    float normFWidth = fwidth(length(pin.N));
+    pout.motion.w = normFWidth;
     pout.linearZ = float4(Z, maxChangeZ, prevZ, asfloat(DirToOct(pin.NormalL)));
 #endif // UBPA_STD_RAY_TRACING
 

@@ -10,8 +10,6 @@ static constexpr size_t offset_write_pin = 1;
 static constexpr size_t offset_read_pin = 2;
 static constexpr size_t offset_move_in_pin = 3;
 static constexpr size_t offset_move_out_pin = 4;
-static constexpr size_t offset_copy_in_pin = 5;
-static constexpr size_t offset_copy_out_pin = 6;
 
 void Ubpa::Utopia::FrameGraphVisualizerSystem::OnUpdate(UECS::Schedule& schedule) {
 	UECS::World* world = schedule.GetWorld();
@@ -44,19 +42,21 @@ void Ubpa::Utopia::FrameGraphVisualizerSystem::OnUpdate(UECS::Schedule& schedule
 
                 ed::Begin("FrameGraphVisualizer");
 
-
                 if (FrameGraphVisualizer->ctx && !FrameGraphVisualizer->currFrameGraphName.empty()) {
                     const auto& fgData = FrameGraphVisualizer->frameGraphDataMap.at(FrameGraphVisualizer->currFrameGraphName);
                     const UFG::FrameGraph& fg = fgData.fg;
                     size_t fgId = string_hash(FrameGraphVisualizer->currFrameGraphName.data());
-                    std::map<size_t, size_t> imagedOutputIDs; // nodeID -> idx
+                    std::map<size_t, size_t> imagedIDs; // nodeID -> idx
                     if (fgData.stage) {
-                        for (size_t i = 0; i < fgData.stage->GetOutputNodeIDs().size(); i++)
-                            imagedOutputIDs.emplace(fgData.stage->GetOutputNodeIDs()[i], i);
+                        for (size_t i = 0; i < fgData.stage->GetInputNodeIDs().size(); i++)
+                            imagedIDs.emplace(fgData.stage->GetInputNodeIDs()[i], i);
                     }
 
                     // resource nodes
                     for (const auto& node : fg.GetResourceNodes()) {
+                        if (node.Name().starts_with(FrameGraphVisualize::NamePrefix))
+                            continue;
+
                         size_t nodeId = fgId + string_hash(node.Name().data());
                         ed::BeginNode(nodeId);
                             ImGui::Text(node.Name().data());
@@ -77,17 +77,9 @@ void Ubpa::Utopia::FrameGraphVisualizerSystem::OnUpdate(UECS::Schedule& schedule
                             ImGui::Text("Move Out ->");
                             ed::EndPin();
 
-                            ed::BeginPin(nodeId + offset_copy_in_pin, ed::PinKind::Input);
-                            ImGui::Text("-> Copy In");
-                            ed::EndPin();
-                            ImGui::SameLine();
-                            ed::BeginPin(nodeId + offset_copy_out_pin, ed::PinKind::Output);
-                            ImGui::Text("Copy Out ->");
-                            ed::EndPin();
-
-                            if (auto target = imagedOutputIDs.find(fg.GetResourceNodeIndex(node.Name())); target != imagedOutputIDs.end()) {
+                            if (auto target = imagedIDs.find(fg.GetResourceNodeIndex(node.Name())); target != imagedIDs.end()) {
                                 assert(fgData.stage);
-                                ImGui::Image((ImTextureID)fgData.stage->GetOutputSrvGpuHandles()[target->second].ptr, { 256,256 });
+                                ImGui::Image((ImTextureID)fgData.stage->GetOutputSrvGpuHandles()[target->second].ptr, {256,256});
                             }
                         ed::EndNode();
                     }
@@ -95,6 +87,9 @@ void Ubpa::Utopia::FrameGraphVisualizerSystem::OnUpdate(UECS::Schedule& schedule
                     // pass nodes
                     for (const auto& pass : fg.GetPassNodes()) {
                         if (pass.GetType() == UFG::PassNode::Type::Copy)
+                            continue;
+
+                        if (pass.Name().starts_with(FrameGraphVisualize::NamePrefix))
                             continue;
 
                         size_t passId = fgId + string_hash(pass.Name().data());
@@ -105,14 +100,16 @@ void Ubpa::Utopia::FrameGraphVisualizerSystem::OnUpdate(UECS::Schedule& schedule
                             for (size_t i = 0; i < N; i++) {
                                 if (i < pass.Inputs().size()) {
                                     ed::BeginPin(passId + 1 + i, ed::PinKind::Input);
-                                    ImGui::Text(("-> " + std::string(fg.GetResourceNodes()[pass.Inputs()[i]].Name())).data());
+                                    const std::string name = "-> " + std::string(fg.GetResourceNodes()[pass.Inputs()[i]].Name());
+                                    ImGui::Text(name.data());
                                     ed::EndPin();
                                 }
                                 if (i < pass.Inputs().size() && i < pass.Outputs().size())
                                     ImGui::SameLine();
                                 if (i < pass.Outputs().size()) {
                                     ed::BeginPin(passId + 1 + pass.Inputs().size() + i, ed::PinKind::Output);
-                                    ImGui::Text((std::string(fg.GetResourceNodes()[pass.Outputs()[i]].Name()) + " ->").data());
+                                    const std::string name = std::string(fg.GetResourceNodes()[pass.Outputs()[i]].Name()) + " ->";
+                                    ImGui::Text(name.data());
                                     ed::EndPin();
                                 }
                             }
@@ -121,35 +118,25 @@ void Ubpa::Utopia::FrameGraphVisualizerSystem::OnUpdate(UECS::Schedule& schedule
 
                     // links
                     for (const auto& pass : fg.GetPassNodes()) {
+                        if (pass.GetType() == UFG::PassNode::Type::Copy)
+                            continue;
+
                         size_t passId = fgId + string_hash(pass.Name().data());
-                        if (pass.GetType() == UFG::PassNode::Type::Copy) {
-                            for (size_t i = 0; i < pass.Inputs().size(); i++) {
-                                size_t nodeInputId = fgId + string_hash(fg.GetResourceNodes()[pass.Inputs()[i]].Name().data());
-                                size_t nodeOutputId = fgId + string_hash(fg.GetResourceNodes()[pass.Outputs()[i]].Name().data());
-                                size_t nodeCopyOutPinId = nodeInputId + offset_copy_out_pin;
-                                size_t nodeCopyInPinId = nodeOutputId + offset_copy_in_pin;
 
-                                ed::Link(passId, nodeCopyOutPinId, nodeCopyInPinId);
-                            }
+                        size_t linkId = passId + 1 + pass.Inputs().size() + pass.Outputs().size();
+
+                        for (size_t i = 0; i < pass.Inputs().size(); i++) {
+                            size_t nodeId = fgId + string_hash(fg.GetResourceNodes()[pass.Inputs()[i]].Name().data());
+                            size_t nodePinId = nodeId + offset_read_pin;
+
+                            ed::Link(linkId + i, nodePinId, passId + 1 + i, { 0.608f,0.733f,0.349f,1.f });
                         }
-                        else {
-                            size_t linkId = passId + 1 + pass.Inputs().size() + pass.Outputs().size();
 
-                            for (size_t i = 0; i < pass.Inputs().size(); i++) {
-                                size_t nodeId = fgId + string_hash(fg.GetResourceNodes()[pass.Inputs()[i]].Name().data());
-                                size_t nodePinId = pass.GetType() == UFG::PassNode::Type::General ? nodeId + offset_read_pin
-                                    : nodeId + offset_copy_out_pin;
+                        for (size_t i = 0; i < pass.Outputs().size(); i++) {
+                            size_t nodeId = fgId + string_hash(fg.GetResourceNodes()[pass.Outputs()[i]].Name().data());
+                            size_t nodePinId = nodeId + offset_write_pin;
 
-                                ed::Link(linkId + i, nodePinId, passId + 1 + i);
-                            }
-
-                            for (size_t i = 0; i < pass.Outputs().size(); i++) {
-                                size_t nodeId = fgId + string_hash(fg.GetResourceNodes()[pass.Outputs()[i]].Name().data());
-                                size_t nodePinId = pass.GetType() == UFG::PassNode::Type::General ? nodeId + offset_write_pin
-                                    : nodeId + offset_copy_in_pin;
-
-                                ed::Link(linkId + pass.Inputs().size() + i, nodePinId, passId + 1 + pass.Inputs().size() + i);
-                            }
+                            ed::Link(linkId + pass.Inputs().size() + i, nodePinId, passId + 1 + pass.Inputs().size() + i, { 0.929f,0.110f,0.141f,1.f });
                         }
                     }
 
@@ -161,7 +148,7 @@ void Ubpa::Utopia::FrameGraphVisualizerSystem::OnUpdate(UECS::Schedule& schedule
                         size_t nodeMoveOutPinId = nodeInputId + offset_move_out_pin;
                         size_t nodeMoveInPinId = nodeOutputId + offset_move_in_pin;
 
-                        ed::Link(moveId, nodeMoveOutPinId, nodeMoveInPinId);
+                        ed::Link(moveId, nodeMoveOutPinId, nodeMoveInPinId, { 0.969f,0.588f,0.275f,1.f });
                     }
                 }
 

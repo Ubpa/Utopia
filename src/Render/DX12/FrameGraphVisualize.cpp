@@ -6,7 +6,7 @@
 Ubpa::Utopia::FrameGraphVisualize::FrameGraphVisualize()
 	: width(0)
 	, height(0)
-	, passID(static_cast<size_t>(-1))
+	, uiPassID(static_cast<size_t>(-1))
 {
 	shader = ShaderMngr::Instance().Get("StdPipeline/ImageScaler");
 	outputSrvDesc = UDX12::Desc::SRV::Tex2D(outputFormat);
@@ -18,26 +18,44 @@ void Ubpa::Utopia::FrameGraphVisualize::NewFrame() {
 	width = 0;
 	height = 0;
 	inputIDs.clear();
+	inputOriginIDs.clear();
 	outputIDs.clear();
-	passID = static_cast<size_t>(-1);
+	passIDs.clear();
+	uiPassID = static_cast<size_t>(-1);
 	outputSrvGpuHandles.clear();
 	outputSrvCpuHandles.clear();
 }
 
 bool Ubpa::Utopia::FrameGraphVisualize::RegisterInputOutputPassNodes(UFG::FrameGraph& framegraph, std::span<const size_t> inputNodeIDs) {
 	inputIDs = std::vector(inputNodeIDs.begin(), inputNodeIDs.end());
+
 	for (size_t inputID : inputIDs) {
-		size_t outputID = framegraph.RegisterResourceNode("FrameGraphVisualize::" + std::string(framegraph.GetResourceNodes()[inputID].Name()));
+		size_t inputOriginID = inputID;
+		while (framegraph.IsMovedIn(inputOriginID))
+			inputOriginID = framegraph.GetMoveSourceNodeIndex(inputOriginID);
+		inputOriginIDs.push_back(inputOriginID);
+
+		std::string name = NamePrefix + std::string("::") + std::string(framegraph.GetResourceNodes()[inputID].Name());
+		size_t outputID = framegraph.RegisterResourceNode(std::move(name));
 		outputIDs.push_back(outputID);
 	}
 
-	passID = framegraph.RegisterGeneralPassNode("FrameGraphVisualize", inputIDs, outputIDs);
+	for (size_t i = 0; i < inputIDs.size(); i++){
+		size_t passID = framegraph.RegisterGeneralPassNode(NamePrefix + std::to_string(i), { inputIDs[i] }, { outputIDs[i] });
+		passIDs.push_back(passID);
+	}
+	if (!outputIDs.empty())
+		uiPassID = framegraph.RegisterGeneralPassNode(NamePrefix + std::string("UI"), outputIDs, {});
 
 	return true;
 }
 
 std::span<const size_t> Ubpa::Utopia::FrameGraphVisualize::GetOutputNodeIDs() const {
 	return outputIDs;
+}
+
+std::span<const size_t> Ubpa::Utopia::FrameGraphVisualize::GetInputNodeIDs() const {
+	return inputIDs;
 }
 
 std::span<const D3D12_GPU_DESCRIPTOR_HANDLE> Ubpa::Utopia::FrameGraphVisualize::GetOutputSrvGpuHandles() const {
@@ -54,8 +72,15 @@ void Ubpa::Utopia::FrameGraphVisualize::RegisterPassResourcesData(size_t inWidth
 }
 
 void Ubpa::Utopia::FrameGraphVisualize::RegisterPassResources(UDX12::FG::RsrcMngr& rsrcMngr) {
-	for (size_t inputID : inputIDs) {
-		const DXGI_FORMAT inputFormat = rsrcMngr.GetResourceFormat(inputID);
+	assert(width != 0 && height != 0);
+
+	for (size_t i = 0; i < inputIDs.size(); i++) {
+		const size_t inputID = inputIDs[i];
+		const size_t inputOriginID = inputOriginIDs[i];
+		const size_t outputID = outputIDs[i];
+		const size_t passID = passIDs[i];
+
+		const DXGI_FORMAT inputFormat = rsrcMngr.GetResourceFormat(inputOriginID);
 		assert(inputFormat != DXGI_FORMAT_UNKNOWN);
 		rsrcMngr.RegisterPassRsrc(
 			passID,
@@ -63,40 +88,35 @@ void Ubpa::Utopia::FrameGraphVisualize::RegisterPassResources(UDX12::FG::RsrcMng
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 			UDX12::Desc::SRV::Tex2D(inputFormat)
 		);
-	}
 
-	assert(width != 0 && height != 0);
-	for (size_t outputID : outputIDs) {
-		rsrcMngr.RegisterTemporalRsrc(outputID, UDX12::Desc::RSRC::RT2D(width, (UINT)height, outputFormat), false);
+		rsrcMngr.RegisterTemporalRsrc(outputID, UDX12::Desc::RSRC::RT2D(width, (UINT)height, outputFormat));
+		rsrcMngr.RegisterTemporalRsrcReusable(outputID, false);
+		rsrcMngr.RegisterTemporalRsrcConstructState(outputID, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 		rsrcMngr.RegisterPassRsrc(
 			passID,
 			outputID,
 			D3D12_RESOURCE_STATE_RENDER_TARGET,
 			UDX12::FG::RsrcImplDesc_RTV_Null{}
 		);
+
 		rsrcMngr.RegisterPassRsrc(
-			passID,
+			uiPassID,
 			outputID,
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 			outputSrvDesc
 		);
 	}
-
 }
 
 void Ubpa::Utopia::FrameGraphVisualize::RegisterPassFunc(UDX12::FG::Executor& executor) {
-	executor.RegisterPassFunc(
-		passID,
-		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
-			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*shader));
-
-			for (size_t i = 0; i < inputIDs.size(); i++) {
+	for (size_t i = 0; i < inputIDs.size(); i++) {
+		executor.RegisterPassFunc(
+			passIDs[i],
+			[&, i](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
 				auto img = rsrcs.at(inputIDs[i]);
 				auto rt = rsrcs.at(outputIDs[i]);
 
-				const auto& rtHandle = rt.info->GetAnySRV(outputSrvDesc);
-				outputSrvGpuHandles.push_back(rtHandle.gpuHandle);
-				outputSrvCpuHandles.push_back(rtHandle.cpuHandle);
+				cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*shader));
 
 				cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetOrCreateShaderPSO(
 					*shader,
@@ -140,6 +160,19 @@ void Ubpa::Utopia::FrameGraphVisualize::RegisterPassFunc(UDX12::FG::Executor& ex
 				cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 				cmdList->DrawInstanced(6, 1, 0, 0);
 			}
+		);
+	}
+
+	executor.RegisterPassFunc(
+		uiPassID,
+		[&](ID3D12GraphicsCommandList* cmdList, const UDX12::FG::PassRsrcs& rsrcs) {
+			for (size_t i = 0; i < outputIDs.size(); i++) {
+				auto img = rsrcs.at(outputIDs[i]);
+				const auto& cpuGpuInfo = img.info->GetAnySRV(outputSrvDesc);
+				outputSrvGpuHandles.push_back(cpuGpuInfo.gpuHandle);
+				outputSrvCpuHandles.push_back(cpuGpuInfo.cpuHandle);
+			}
 		}
 	);
+
 }

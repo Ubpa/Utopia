@@ -5,6 +5,8 @@
 namespace Ubpa::Utopia {
 	class FrameGraphVisualize : public IPipelineStage {
 	public:
+		static constexpr const char NamePrefix[] = "FrameGraphVisualize";
+
 		FrameGraphVisualize();
 		virtual ~FrameGraphVisualize();
 
@@ -17,6 +19,7 @@ namespace Ubpa::Utopia {
 		virtual void RegisterPassFunc(UDX12::FG::Executor& executor) override;
 
 		virtual std::span<const size_t> GetOutputNodeIDs() const override;
+		std::span<const size_t> GetInputNodeIDs() const;
 		std::span<const D3D12_GPU_DESCRIPTOR_HANDLE> GetOutputSrvGpuHandles() const;
 		std::span<const D3D12_CPU_DESCRIPTOR_HANDLE> GetOutputSrvCpuHandles() const;
 	private:
@@ -29,8 +32,10 @@ namespace Ubpa::Utopia {
 		size_t height;
 
 		std::vector<size_t> inputIDs;
+		std::vector<size_t> inputOriginIDs;
 		std::vector<size_t> outputIDs;
-		size_t passID;
+		std::vector<size_t> passIDs;
+		size_t uiPassID;
 
 		std::vector<D3D12_GPU_DESCRIPTOR_HANDLE> outputSrvGpuHandles;
 		std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> outputSrvCpuHandles;

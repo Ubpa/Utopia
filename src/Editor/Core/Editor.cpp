@@ -120,6 +120,9 @@ struct Editor::Impl {
 	};
 	GameState gameState = GameState::NotStart;
 
+	bool isGameWindowFocus = false;
+	bool isSceneWindowFocus = false;
+
 	static void InspectMaterial(Material* material, InspectorRegistry::InspectContext ctx);
 };
 
@@ -132,22 +135,22 @@ LRESULT Editor::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		bool editorWantCaptureMouse = editorIO.WantCaptureMouse;
 		bool editorWantCaptureKeyboard = editorIO.WantCaptureKeyboard;
 		auto& sceneIO = ImGui::GetIO(pImpl->sceneImGuiCtx);
-		bool sceneWantCaptureMouse = sceneIO.WantCaptureMouse;
-		bool sceneWantCaptureKeyboard = sceneIO.WantCaptureKeyboard;
+		bool sceneWantCaptureMouse = pImpl->isSceneWindowFocus && sceneIO.WantCaptureMouse;
+		bool sceneWantCaptureKeyboard = pImpl->isSceneWindowFocus && sceneIO.WantCaptureKeyboard;
 		auto& gameIO = ImGui::GetIO(pImpl->gameImGuiCtx);
-		bool gameWantCaptureMouse = gameIO.WantCaptureMouse;
-		bool gameWantCaptureKeyboard = gameIO.WantCaptureKeyboard;
+		bool gameWantCaptureMouse = pImpl->isGameWindowFocus && gameIO.WantCaptureMouse;
+		bool gameWantCaptureKeyboard = pImpl->isGameWindowFocus && gameIO.WantCaptureKeyboard;
 
-		if (ImGui_ImplWin32_WndProcHandler_Context(pImpl->editorImGuiCtx, false, false, hwnd, msg, wParam, lParam))
+		if (pImpl->isGameWindowFocus && ImGui_ImplWin32_WndProcHandler_Context(pImpl->gameImGuiCtx, false, false, hwnd, msg, wParam, lParam))
 			return 1;
 
-		if (ImGui_ImplWin32_WndProcHandler_Context(pImpl->sceneImGuiCtx, editorWantCaptureMouse, editorWantCaptureKeyboard, hwnd, msg, wParam, lParam))
+		if (pImpl->isSceneWindowFocus && ImGui_ImplWin32_WndProcHandler_Context(pImpl->sceneImGuiCtx, gameWantCaptureMouse, gameWantCaptureKeyboard, hwnd, msg, wParam, lParam))
 			return 1;
 
 		if (ImGui_ImplWin32_WndProcHandler_Context(
-				pImpl->gameImGuiCtx,
-				editorWantCaptureMouse || sceneWantCaptureMouse,
-				editorWantCaptureKeyboard || sceneWantCaptureKeyboard,
+				pImpl->editorImGuiCtx,
+				gameWantCaptureMouse || sceneWantCaptureMouse,
+				gameWantCaptureKeyboard || sceneWantCaptureKeyboard,
 				hwnd, msg, wParam, lParam))
 		{
 			return 1;
@@ -324,6 +327,8 @@ void Editor::Impl::OnSceneResize() {
 }
 
 void Editor::Impl::Update() {
+	pEditor->GetFrameResourceMngr()->BeginFrame();
+
 	bool isGameOpen = false;
 	bool isSceneOpen = false;
 	{ // editor
@@ -398,6 +403,8 @@ void Editor::Impl::Update() {
 		bool isFlush = false;
 		// 1. game window
 		if (ImGui::Begin("Game", nullptr, ImGuiWindowFlags_NoScrollbar)) {
+			isGameWindowFocus = ImGui::IsWindowFocused();
+
 			isGameOpen = true;
 			auto content_max_minus_local_pos = ImGui::GetContentRegionAvail();
 			auto content_max = ImGui::GetWindowContentRegionMax();
@@ -430,6 +437,8 @@ void Editor::Impl::Update() {
 
 		// 2. scene window
 		if (ImGui::Begin("Scene", nullptr, ImGuiWindowFlags_NoScrollbar)) {
+			isSceneWindowFocus = ImGui::IsWindowFocused();
+
 			isSceneOpen = true;
 			auto content_max_minus_local_pos = ImGui::GetContentRegionAvail();
 			auto content_max = ImGui::GetWindowContentRegionMax();
@@ -484,13 +493,6 @@ void Editor::Impl::Update() {
 			}
 		}
 		ImGui::End(); // Game Control window
-
-		editorWorld.RunEntityJob([&](UECS::Write<FrameGraphVisualizer> FrameGraphVisualizer) {
-			if (stdPipeline && stdPipeline->IsInitialized())
-				FrameGraphVisualizer->frameGraphDataMap = stdPipeline->GetFrameGraphDataMap();
-		}, false);
-
-		editorWorld.Update();
 	}
 
 	{ // game update
@@ -502,7 +504,6 @@ void Editor::Impl::Update() {
 		switch (gameState)
 		{
 		case Impl::GameState::NotStart:
-			gameWorld.Update();
 			break;
 		case Impl::GameState::Starting:
 		{
@@ -518,10 +519,6 @@ void Editor::Impl::Update() {
 		}
 		[[fallthrough]];
 		case Impl::GameState::Running:
-			runningGameWorld->Update();
-			//ImGui::Begin("in game");
-			//ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-			//ImGui::End();
 			break;
 		case Impl::GameState::Stopping:
 		{
@@ -546,85 +543,10 @@ void Editor::Impl::Update() {
 		ImGui_ImplWin32_NewFrame(scenePos, ImVec2((float)sceneWidth, (float)sceneHeight));
 		ImGui::NewFrame(); // scene ctx
 
-		//UpdateCamera();
-		sceneWorld.Update();
 		ImGui::Begin("in scene");
 		ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
 		ImGui::End();
 	}
-
-	ImGui::SetCurrentContext(nullptr);
-
-	// update mesh, texture ...
-	pEditor->GetFrameResourceMngr()->BeginFrame();
-
-	auto cmdAlloc = pEditor->GetCurFrameCommandAllocator();
-	cmdAlloc->Reset();
-
-	ThrowIfFailed(pEditor->uGCmdList->Reset(cmdAlloc, nullptr));
-
-	auto UpdateRenderResource = [&](Ubpa::UECS::World* w) {
-		w->RunEntityJob([&](MeshFilter* meshFilter, MeshRenderer* meshRenderer) {
-			if (!meshFilter->mesh)
-				return;
-
-			GPURsrcMngrDX12::Instance().RegisterMesh(
-				pEditor->uGCmdList.Get(),
-				*meshFilter->mesh
-			);
-
-			for (auto& material : meshRenderer->materials) {
-				if (!material)
-					continue;
-				for (auto& [name, property] : material->properties) {
-					if (std::holds_alternative<SharedVar<Texture2D>>(property.value)) {
-						GPURsrcMngrDX12::Instance().RegisterTexture2D(
-							*std::get<SharedVar<Texture2D>>(property.value)
-						);
-					}
-					else if (std::holds_alternative<SharedVar<TextureCube>>(property.value)) {
-						GPURsrcMngrDX12::Instance().RegisterTextureCube(
-							*std::get<SharedVar<TextureCube>>(property.value)
-						);
-					}
-				}
-			}
-		}, false);
-
-		if (auto skybox = w->entityMngr.WriteSingleton<Skybox>(); skybox && skybox->material) {
-			for (auto& [name, property] : skybox->material->properties) {
-				if (std::holds_alternative<SharedVar<Texture2D>>(property.value)) {
-					GPURsrcMngrDX12::Instance().RegisterTexture2D(
-						*std::get<SharedVar<Texture2D>>(property.value)
-					);
-				}
-				else if (std::holds_alternative<SharedVar<TextureCube>>(property.value)) {
-					GPURsrcMngrDX12::Instance().RegisterTextureCube(
-						*std::get<SharedVar<TextureCube>>(property.value)
-					);
-				}
-			}
-		}
-	};
-	UpdateRenderResource(&gameWorld);
-	UpdateRenderResource(&sceneWorld);
-
-	// commit upload, delete ...
-	pEditor->uGCmdList->Close();
-	auto deletebatch = GPURsrcMngrDX12::Instance().CommitUploadAndTakeDeleteBatch(pEditor->uCmdQueue.Get()); // upload before execute uGCmdList
-	pEditor->uCmdQueue.Execute(pEditor->uGCmdList.Get());
-	pEditor->GetFrameResourceMngr()->GetCurrentFrameResource()->RegisterResource("deletebatch", std::make_shared<UDX12::ResourceDeleteBatch>(std::move(deletebatch)));
-	pEditor->GetFrameResourceMngr()->GetCurrentFrameResource()->DelayUnregisterResource("deletebatch");
-
-	{
-		static bool flag = false;
-		if (!flag) {
-			OutputDebugStringA(curGameWorld->GenUpdateFrameGraph().Dump().c_str());
-			flag = true;
-		}
-	}
-
-	ThrowIfFailed(pEditor->uGCmdList->Reset(cmdAlloc, nullptr));
 
 	std::map<IPipeline*, std::vector<IPipeline::CameraData>> gameCameras;
 	std::map<IPipeline*, std::vector<IPipeline::CameraData>> sceneCameras;
@@ -646,7 +568,7 @@ void Editor::Impl::Update() {
 				break;
 			}
 			gameCameras[pipeline].emplace_back(e, curGameWorld);
-		}, false);
+			}, false);
 	}
 	if (isSceneOpen) {
 		sceneWorld.RunEntityJob([&](Ubpa::UECS::Entity e, Camera* cam) {
@@ -665,7 +587,7 @@ void Editor::Impl::Update() {
 				break;
 			}
 			sceneCameras[pipeline].emplace_back(e, &sceneWorld);
-		}, false);
+			}, false);
 	}
 
 	std::set<IPipeline*> pipelines;
@@ -739,6 +661,102 @@ void Editor::Impl::Update() {
 			pipeline->Render(worlds, cameras, links, defaultRTs);
 	}
 
+	{ // editor update
+		ImGui::WrapContextGuard ImGuiContextGuard(editorImGuiCtx);
+
+		editorWorld.RunEntityJob([&](UECS::Write<FrameGraphVisualizer> FrameGraphVisualizer) {
+			if (stdPipeline && stdPipeline->IsInitialized())
+				FrameGraphVisualizer->frameGraphDataMap = stdPipeline->GetFrameGraphDataMap();
+			}, false);
+
+		editorWorld.Update();
+	}
+
+	{ // scene update
+		ImGui::WrapContextGuard ImGuiContextGuard(sceneImGuiCtx);
+		sceneWorld.Update();
+	}
+
+	{ // game update
+		ImGui::WrapContextGuard ImGuiContextGuard(gameImGuiCtx);
+		if (gameState == GameState::Running) {
+			assert(runningGameWorld);
+			runningGameWorld->Update();
+		}
+		else
+			gameWorld.Update();
+	}
+
+	ImGui::SetCurrentContext(editorImGuiCtx);
+
+	auto cmdAlloc = pEditor->GetCurFrameCommandAllocator();
+	cmdAlloc->Reset();
+
+	ThrowIfFailed(pEditor->uGCmdList->Reset(cmdAlloc, nullptr));
+
+	auto UpdateRenderResource = [&](Ubpa::UECS::World* w) {
+		w->RunEntityJob([&](MeshFilter* meshFilter, MeshRenderer* meshRenderer) {
+			if (!meshFilter->mesh)
+				return;
+
+			GPURsrcMngrDX12::Instance().RegisterMesh(
+				pEditor->uGCmdList.Get(),
+				*meshFilter->mesh
+			);
+
+			for (auto& material : meshRenderer->materials) {
+				if (!material)
+					continue;
+				for (auto& [name, property] : material->properties) {
+					if (std::holds_alternative<SharedVar<Texture2D>>(property.value)) {
+						GPURsrcMngrDX12::Instance().RegisterTexture2D(
+							*std::get<SharedVar<Texture2D>>(property.value)
+						);
+					}
+					else if (std::holds_alternative<SharedVar<TextureCube>>(property.value)) {
+						GPURsrcMngrDX12::Instance().RegisterTextureCube(
+							*std::get<SharedVar<TextureCube>>(property.value)
+						);
+					}
+				}
+			}
+		}, false);
+
+		if (auto skybox = w->entityMngr.WriteSingleton<Skybox>(); skybox && skybox->material) {
+			for (auto& [name, property] : skybox->material->properties) {
+				if (std::holds_alternative<SharedVar<Texture2D>>(property.value)) {
+					GPURsrcMngrDX12::Instance().RegisterTexture2D(
+						*std::get<SharedVar<Texture2D>>(property.value)
+					);
+				}
+				else if (std::holds_alternative<SharedVar<TextureCube>>(property.value)) {
+					GPURsrcMngrDX12::Instance().RegisterTextureCube(
+						*std::get<SharedVar<TextureCube>>(property.value)
+					);
+				}
+			}
+		}
+	};
+	UpdateRenderResource(&gameWorld);
+	UpdateRenderResource(&sceneWorld);
+
+	// commit upload, delete ...
+	pEditor->uGCmdList->Close();
+	auto deletebatch = GPURsrcMngrDX12::Instance().CommitUploadAndTakeDeleteBatch(pEditor->uCmdQueue.Get()); // upload before execute uGCmdList
+	pEditor->uCmdQueue.Execute(pEditor->uGCmdList.Get());
+	pEditor->GetFrameResourceMngr()->GetCurrentFrameResource()->RegisterResource("deletebatch", std::make_shared<UDX12::ResourceDeleteBatch>(std::move(deletebatch)));
+	pEditor->GetFrameResourceMngr()->GetCurrentFrameResource()->DelayUnregisterResource("deletebatch");
+
+	{
+		static bool flag = false;
+		if (!flag) {
+			OutputDebugStringA(curGameWorld->GenUpdateFrameGraph().Dump().c_str());
+			flag = true;
+		}
+	}
+
+	ThrowIfFailed(pEditor->uGCmdList->Reset(cmdAlloc, nullptr));
+
 	{ // game
 		ImGui::SetCurrentContext(gameImGuiCtx);
 		ImGui::Render();
@@ -782,15 +800,6 @@ void Editor::Impl::Update() {
 		pEditor->uGCmdList.ResourceBarrierTransition(pEditor->CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 	}
 
-	ImGui::SetCurrentContext(editorImGuiCtx);
-
-	pEditor->uGCmdList->Close();
-	pEditor->uCmdQueue.Execute(pEditor->uGCmdList.Get());
-
-	pEditor->SwapBackBuffer();
-
-	pEditor->GetFrameResourceMngr()->EndFrame(pEditor->uCmdQueue.Get());
-
 	ImGui::WrapContextCall(editorImGuiCtx, [this]() {
 		// Update and Render additional Platform Windows
 		if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
@@ -799,6 +808,13 @@ void Editor::Impl::Update() {
 			ImGui::RenderPlatformWindowsDefault(NULL, pEditor->uGCmdList.Get());
 		}
 	});
+
+	pEditor->uGCmdList->Close();
+	pEditor->uCmdQueue.Execute(pEditor->uGCmdList.Get());
+
+	pEditor->SwapBackBuffer();
+
+	pEditor->GetFrameResourceMngr()->EndFrame(pEditor->uCmdQueue.Get());
 }
 
 void Editor::Impl::InitWorld(Ubpa::UECS::World& w) {

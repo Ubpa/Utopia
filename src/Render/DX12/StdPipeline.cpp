@@ -194,7 +194,11 @@ void StdPipeline::Impl::CameraRender(
 	fg.RegisterMoveNode(deferLightedSkyRT, deferLightedRT);
 	fg.RegisterMoveNode(sceneRT, deferLightedSkyRT);
 	fg.RegisterMoveNode(presentedRT, tonemappedRT);
-	const size_t frameGraphVisualizeInputs[] = { gbuffer0, gbuffer1, gbuffer2 };
+	const size_t frameGraphVisualizeInputs[] = {
+		gbuffer0, gbuffer1, gbuffer2, motion,
+		deferLightedRT, deferLightedSkyRT, sceneRT,
+		taaPrevResult, taaResult,
+		tonemappedRT };
 	stages.frameGraphVisualize.RegisterInputOutputPassNodes(fg, frameGraphVisualizeInputs);
 
 	D3D12_RESOURCE_DESC dsDesc = UDX12::Desc::RSRC::Basic(
