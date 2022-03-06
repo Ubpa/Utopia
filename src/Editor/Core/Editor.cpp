@@ -6,7 +6,7 @@
 #include <Utopia/Editor/Core/Components/Inspector.h>
 #include <Utopia/Editor/Core/Components/ProjectViewer.h>
 #include <Utopia/Editor/Core/Components/SystemController.h>
-#include <Utopia/Editor/Core/Components/FrameGraphVistualizer.h>
+#include <Utopia/Editor/Core/Components/FrameGraphVisualizer.h>
 
 #include <Utopia/Editor/Core/InspectorRegistry.h>
 
@@ -15,7 +15,7 @@
 #include <Utopia/Editor/Core/Systems/ProjectViewerSystem.h>
 #include <Utopia/Editor/Core/Systems/LoggerSystem.h>
 #include <Utopia/Editor/Core/Systems/SystemControllerSystem.h>
-#include <Utopia/Editor/Core/Systems/FrameGraphVistualizerSystem.h>
+#include <Utopia/Editor/Core/Systems/FrameGraphVisualizerSystem.h>
 
 #include <Utopia/Render/DX12/StdDXRPipeline.h>
 #include <Utopia/Render/DX12/PipelineCommonUtils.h>
@@ -485,9 +485,9 @@ void Editor::Impl::Update() {
 		}
 		ImGui::End(); // Game Control window
 
-		editorWorld.RunEntityJob([&](UECS::Write<FrameGraphVistualizer> frameGraphVistualizer) {
+		editorWorld.RunEntityJob([&](UECS::Write<FrameGraphVisualizer> FrameGraphVisualizer) {
 			if (stdPipeline && stdPipeline->IsInitialized())
-				frameGraphVistualizer->frameGraphMap = stdPipeline->GetFrameGraphMap();
+				FrameGraphVisualizer->frameGraphDataMap = stdPipeline->GetFrameGraphDataMap();
 		}, false);
 
 		editorWorld.Update();
@@ -822,7 +822,7 @@ void Editor::Impl::InitWorld(Ubpa::UECS::World& w) {
 		InspectorSystem,
 		ProjectViewerSystem,
 		SystemControllerSystem,
-		FrameGraphVistualizerSystem
+		FrameGraphVisualizerSystem
 	>();
 	for (auto idx : indices)
 		w.systemMngr.Activate(idx);
@@ -857,7 +857,7 @@ void Editor::Impl::InitWorld(Ubpa::UECS::World& w) {
 		Inspector,
 		ProjectViewer,
 		SystemController,
-		FrameGraphVistualizer
+		FrameGraphVisualizer
 	>();
 }
 
@@ -908,14 +908,14 @@ void Editor::Impl::BuildWorld() {
 			systemCtrl->world = &gameWorld;
 		}
 		{ // frame graph vistualizer
-			auto e = editorWorld.entityMngr.Create(TypeIDs_of<FrameGraphVistualizer>);
-			auto frameGraphVistualizer = editorWorld.entityMngr.WriteComponent<FrameGraphVistualizer>(e);
-			frameGraphVistualizer->ctx = ax::NodeEditor::CreateEditor();
+			auto e = editorWorld.entityMngr.Create(TypeIDs_of<FrameGraphVisualizer>);
+			auto frameGraphVisualizer = editorWorld.entityMngr.WriteComponent<FrameGraphVisualizer>(e);
+			frameGraphVisualizer->ctx = ax::NodeEditor::CreateEditor();
 		}
 		editorWorld.entityMngr.Create(TypeIDs_of<Inspector>);
 		editorWorld.entityMngr.Create(TypeIDs_of<ProjectViewer>);
 		editorWorld.entityMngr.Create(TypeIDs_of<Input>);
-		editorWorld.systemMngr.RegisterAndActivate<LoggerSystem, SystemControllerSystem, FrameGraphVistualizerSystem>();
+		editorWorld.systemMngr.RegisterAndActivate<LoggerSystem, SystemControllerSystem, FrameGraphVisualizerSystem>();
 	}
 }
 

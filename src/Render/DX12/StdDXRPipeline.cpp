@@ -30,6 +30,7 @@
 #include "Sky.h"
 #include "Tonemapping.h"
 #include "TAA.h"
+#include <Utopia/Render/DX12/FrameGraphVisualize.h>
 
 using namespace Ubpa::Utopia;
 using namespace Ubpa::UECS;
@@ -602,13 +603,19 @@ Microsoft::WRL::ComPtr<ID3D12Resource> createShaderTable(
 #pragma endregion
 
 struct StdDXRPipeline::Impl {
-	struct Stages {
-		GeometryBuffer geometryBuffer{ true };
+	struct CameraStages {
+		GeometryBuffer geometryBuffer;
 		DeferredLighting deferredLighting;
 		ForwardLighting forwardLighting;
 		Sky sky;
 		Tonemapping tonemapping;
 		TAA taa;
+		FrameGraphVisualize frameGraphVisualize;
+	};
+
+	struct WorldStages {
+		IBLPreprocess iblPreprocess;
+		FrameGraphVisualize frameGraphVisualize;
 	};
 
 	struct FrameRsrcs {
@@ -617,7 +624,6 @@ struct StdDXRPipeline::Impl {
 		ShaderCBMngr shaderCBMngr;
 		CameraRsrcMngr cameraRsrcMngr;
 		WorldRsrcMngr worldRsrcMngr;
-		Stages stages;
 	};
 
 	Impl(InitDesc initDesc) :
@@ -667,6 +673,7 @@ struct StdDXRPipeline::Impl {
 
 	~Impl();
 
+	WorldRsrcMngr crossFrameWorldRsrcMngr;
 	CameraRsrcMngr crossFrameCameraRsrcMngr;
 
 	size_t hitgroupsize = 0;
@@ -676,7 +683,7 @@ struct StdDXRPipeline::Impl {
 	UDX12::FrameResourceMngr frameRsrcMngr;
 
 	UFG::Compiler fgCompiler;
-	std::map<std::string, UFG::FrameGraph> frameGraphMap;
+	std::map<std::string, FrameGraphData> frameGraphDataMap;
 
 	std::shared_ptr<Shader> gaussBlurXShader;
 	std::shared_ptr<Shader> gaussBlurYShader;
@@ -684,8 +691,6 @@ struct StdDXRPipeline::Impl {
 	std::shared_ptr<Shader> rtWithBRDFLUTShader;
 	std::shared_ptr<Shader> rtReprojectShader;
 	std::shared_ptr<Shader> filterMomentsShader;
-
-	WorldRsrcMngr crossFrameWorldRsrcMngr;
 
 	const DXGI_FORMAT dsFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
@@ -826,9 +831,11 @@ void StdDXRPipeline::Impl::CameraRender(
 	auto frameRsrcs = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<FrameRsrcs>>("FrameRsrcs");
 
-	auto& cameraRsrcMngr = frameRsrcs->cameraRsrcMngr;
+	if (!crossFrameCameraRsrcMngr.Get(cameraData).Contains("CameraStages"))
+		crossFrameCameraRsrcMngr.Get(cameraData).Register("CameraStages", std::make_shared<CameraStages>());
+	auto& stages = *crossFrameCameraRsrcMngr.Get(cameraData).Get<std::shared_ptr<CameraStages>>("CameraStages");
 
-	auto& stages = frameRsrcs->stages;
+	auto& cameraRsrcMngr = frameRsrcs->cameraRsrcMngr;
 
 	if (!cameraRsrcMngr.Get(cameraData).Contains("FrameGraphRsrcMngr"))
 		cameraRsrcMngr.Get(cameraData).Register("FrameGraphRsrcMngr", std::make_shared<UDX12::FG::RsrcMngr>(initDesc.device));
@@ -846,6 +853,7 @@ void StdDXRPipeline::Impl::CameraRender(
 	stages.sky.NewFrame();
 	stages.taa.NewFrame();
 	stages.tonemapping.NewFrame();
+	stages.frameGraphVisualize.NewFrame();
 
 	const auto& cameraResizeData = cameraRsrcMngr.Get(cameraData).Get<CameraResizeData>(key_CameraResizeData);
 	auto rtSRsrc = cameraResizeData.rtSRsrc;
@@ -858,9 +866,11 @@ void StdDXRPipeline::Impl::CameraRender(
 	auto iblData = worldRsrc.Get<std::shared_ptr<IBLData>>("IBL data");
 	auto tlasBuffers = worldRsrc.Get<std::shared_ptr<TLASData>>("TLASData");
 
-	auto [frameGraphMapIter, frameGraphEmplaceSuccess] = frameGraphMap.emplace(std::string(fgName), UFG::FrameGraph{ std::string(fgName) });
-	assert(frameGraphEmplaceSuccess);
-	UFG::FrameGraph& fg = frameGraphMapIter->second;
+	auto [frameGraphDataMapIter, frameGraphDataEmplaceSuccess] = frameGraphDataMap.emplace(std::string(fgName),
+		FrameGraphData{ UFG::FrameGraph{std::string(fgName) }, &stages.frameGraphVisualize });
+
+	assert(frameGraphDataEmplaceSuccess);
+	UFG::FrameGraph& fg = frameGraphDataMapIter->second.fg;
 
 	stages.geometryBuffer.RegisterInputOutputPassNodes(fg, {});
 
@@ -954,6 +964,8 @@ void StdDXRPipeline::Impl::CameraRender(
 	fg.RegisterMoveNode(forwardDS, deferDS);
 	fg.RegisterMoveNode(sceneRT, deferLightedSkyRT);
 	fg.RegisterMoveNode(presentedRT, tonemappedRT);
+	const size_t frameGraphVisualizeInputs[] = { gbuffer0, gbuffer1, gbuffer2 };
+	stages.frameGraphVisualize.RegisterInputOutputPassNodes(fg, frameGraphVisualizeInputs);
 
 	D3D12_RESOURCE_DESC dsDesc = UDX12::Desc::RSRC::Basic(
 		D3D12_RESOURCE_DIMENSION_TEXTURE2D,
@@ -1171,6 +1183,8 @@ void StdDXRPipeline::Impl::CameraRender(
 	stages.sky.RegisterPassResources(*fgRsrcMngr);
 	stages.taa.RegisterPassResources(*fgRsrcMngr);
 	stages.tonemapping.RegisterPassResources(*fgRsrcMngr);
+	stages.frameGraphVisualize.RegisterPassResourcesData(256, 256);
+	stages.frameGraphVisualize.RegisterPassResources(*fgRsrcMngr);
 
 	auto& shaderCBMngr = frameRsrcs->shaderCBMngr;
 
@@ -1465,6 +1479,8 @@ void StdDXRPipeline::Impl::CameraRender(
 
 	stages.tonemapping.RegisterPassFunc(*fgExecutor);
 
+	stages.frameGraphVisualize.RegisterPassFunc(*fgExecutor);
+
 	static bool flag{ false };
 	if (!flag) {
 		OutputDebugStringA(fg.ToGraphvizGraph2().Dump().c_str());
@@ -1490,7 +1506,7 @@ void StdDXRPipeline::Impl::Render(
 	// If not, wait until the GPU has completed commands up to this fence point.
 	frameRsrcMngr.BeginFrame();
 
-	frameGraphMap.clear();
+	frameGraphDataMap.clear();
 
 	UpdateCrossFrameCameraResources(crossFrameCameraRsrcMngr, cameras, defaultRTs);
 
@@ -1554,10 +1570,11 @@ void StdDXRPipeline::Impl::Render(
 			crossFrameWorldRsrc.Register("IBL data", iblData);
 		}
 
-		if (!crossFrameWorldRsrc.Contains("IBLPreprocess"))
-			crossFrameWorldRsrc.Register("IBLPreprocess", std::make_shared<IBLPreprocess>());
-		auto iblPreprocess = crossFrameWorldRsrc.Get<std::shared_ptr<IBLPreprocess>>("IBLPreprocess");
-		iblPreprocess->NewFrame();
+		if (!crossFrameWorldRsrc.Contains("WorldStages"))
+			crossFrameWorldRsrc.Register("WorldStages", std::make_shared<WorldStages>());
+		auto& stages = *crossFrameWorldRsrc.Get<std::shared_ptr<WorldStages>>("WorldStages");
+		stages.iblPreprocess.NewFrame();
+		stages.frameGraphVisualize.NewFrame();
 
 		if (!curFrameWorldRsrc.Contains("IBL data"))
 			curFrameWorldRsrc.Register("IBL data", crossFrameWorldRsrc.Get<std::shared_ptr<IBLData>>("IBL data"));
@@ -1584,14 +1601,15 @@ void StdDXRPipeline::Impl::Render(
 		}
 
 		const std::string fgName = "L" + std::to_string(linkIdx);
-		auto [frameGraphMapIter, frameGraphEmplaceSuccess] = frameGraphMap.emplace(fgName, UFG::FrameGraph{ fgName });
+		auto [frameGraphDataMapIter, frameGraphEmplaceSuccess] = frameGraphDataMap.emplace(fgName, UFG::FrameGraph{ fgName });
 		assert(frameGraphEmplaceSuccess);
-		UFG::FrameGraph& fg = frameGraphMapIter->second;
+		UFG::FrameGraph& fg = frameGraphDataMapIter->second.fg;
 
-		iblPreprocess->RegisterInputOutputPassNodes(fg, {});
-		auto irradianceMap = iblPreprocess->GetOutputNodeIDs()[0];
-		auto prefilterMap = iblPreprocess->GetOutputNodeIDs()[1];
+		stages.iblPreprocess.RegisterInputOutputPassNodes(fg, {});
+		auto irradianceMap = stages.iblPreprocess.GetOutputNodeIDs()[0];
+		auto prefilterMap = stages.iblPreprocess.GetOutputNodeIDs()[1];
 		auto TLAS = fg.RegisterResourceNode("TLAS");
+		stages.frameGraphVisualize.RegisterInputOutputPassNodes(fg, {});
 
 		auto tlasPass = fg.RegisterGeneralPassNode(
 			"TLAS Pass",
@@ -1614,11 +1632,11 @@ void StdDXRPipeline::Impl::Render(
 			.RegisterPassRsrcState(tlasPass, TLAS, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE)
 			;
 
-		iblPreprocess->RegisterPassResources(*fgRsrcMngr);
+		stages.iblPreprocess.RegisterPassResources(*fgRsrcMngr);
 
-		iblPreprocess->RegisterPassFuncData(iblData.get(), ctx.skyboxSrvGpuHandle);
+		stages.iblPreprocess.RegisterPassFuncData(iblData.get(), ctx.skyboxSrvGpuHandle);
 
-		iblPreprocess->RegisterPassFunc(*fgExecutor);
+		stages.iblPreprocess.RegisterPassFunc(*fgExecutor);
 
 		fgExecutor->RegisterPassFunc(
 			tlasPass,
@@ -1732,6 +1750,10 @@ void StdDXRPipeline::Impl::Render(
 			}
 		);
 
+		stages.frameGraphVisualize.RegisterPassResourcesData(256, 256);
+		stages.frameGraphVisualize.RegisterPassResources(*fgRsrcMngr);
+		stages.frameGraphVisualize.RegisterPassFunc(*fgExecutor);
+
 		static bool flag{ false };
 		if (!flag) {
 			OutputDebugStringA(fg.ToGraphvizGraph2().Dump().c_str());
@@ -1781,9 +1803,9 @@ void StdDXRPipeline::Render(
 	pImpl->Render(worlds, cameras, links, defaultRTs);
 }
 
-const std::map<std::string, UFG::FrameGraph>& StdDXRPipeline::GetFrameGraphMap() const {
+const std::map<std::string, IPipeline::FrameGraphData>& StdDXRPipeline::GetFrameGraphDataMap() const {
 	assert(pImpl);
-	return pImpl->frameGraphMap;
+	return pImpl->frameGraphDataMap;
 }
 
 void StdDXRPipeline::Impl::UpdateCameraResource(const CameraData& cameraData, size_t width, size_t height)  {

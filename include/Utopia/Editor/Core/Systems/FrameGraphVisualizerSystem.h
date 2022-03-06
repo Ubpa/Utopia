@@ -3,7 +3,7 @@
 #include <UECS/UECS.hpp>
 
 namespace Ubpa::Utopia {
-	struct FrameGraphVistualizerSystem {
+	struct FrameGraphVisualizerSystem {
 		static void OnUpdate(UECS::Schedule&);
 	};
 }

@@ -22,18 +22,25 @@
 #include "Sky.h"
 #include "Tonemapping.h"
 #include "TAA.h"
+#include <Utopia/Render/DX12/FrameGraphVisualize.h>
 
 using namespace Ubpa::Utopia;
 using namespace Ubpa;
 
 struct StdPipeline::Impl {
-	struct Stages {
+	struct CameraStages {
 		GeometryBuffer geometryBuffer;
 		DeferredLighting deferredLighting;
 		ForwardLighting forwardLighting;
 		Sky sky;
 		Tonemapping tonemapping;
 		TAA taa;
+		FrameGraphVisualize frameGraphVisualize;
+	};
+
+	struct WorldStages {
+		IBLPreprocess iblPreprocess;
+		FrameGraphVisualize frameGraphVisualize;
 	};
 
 	struct FrameRsrcs {
@@ -42,7 +49,6 @@ struct StdPipeline::Impl {
 		ShaderCBMngr shaderCBMngr;
 		CameraRsrcMngr cameraRsrcMngr;
 		WorldRsrcMngr worldRsrcMngr;
-		Stages stages;
 	};
 
 	Impl(InitDesc initDesc) :
@@ -55,6 +61,7 @@ struct StdPipeline::Impl {
 
 	~Impl();
 
+	WorldRsrcMngr crossFrameWorldRsrcMngr;
 	CameraRsrcMngr crossFrameCameraRsrcMngr;
 
 	const InitDesc initDesc;
@@ -63,7 +70,6 @@ struct StdPipeline::Impl {
 
 	UFG::Compiler fgCompiler;
 
-	WorldRsrcMngr crossFrameWorldRsrcMngr;
 
 	const DXGI_FORMAT dsFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
@@ -76,7 +82,7 @@ struct StdPipeline::Impl {
 		Microsoft::WRL::ComPtr<ID3D12Resource> taaPrevRsrc;
 	};
 
-	std::map<std::string, UFG::FrameGraph> frameGraphMap;
+	std::map<std::string, FrameGraphData> frameGraphDataMap;
 
 	void Render(
 		std::span<const UECS::World* const> worlds,
@@ -123,16 +129,14 @@ void StdPipeline::Impl::CameraRender(
 
 	UpdateCameraResource(cameraData, width, height);
 
-	auto [frameGraphMapIter, frameGraphEmplaceSuccess] = frameGraphMap.emplace(std::string(fgName), UFG::FrameGraph{ std::string(fgName) });
-	assert(frameGraphEmplaceSuccess);
-	UFG::FrameGraph& fg = frameGraphMapIter->second;
-
 	auto frameRsrcs = frameRsrcMngr.GetCurrentFrameResource()
 		->GetResource<std::shared_ptr<FrameRsrcs>>("FrameRsrcs");
 	auto& cameraRsrcMngr = frameRsrcs->cameraRsrcMngr;
 	auto& shaderCBMngr = frameRsrcs->shaderCBMngr;
 
-	auto& stages = frameRsrcs->stages;
+	if (!crossFrameCameraRsrcMngr.Get(cameraData).Contains("CameraStages"))
+		crossFrameCameraRsrcMngr.Get(cameraData).Register("CameraStages", std::make_shared<CameraStages>());
+	auto& stages = *crossFrameCameraRsrcMngr.Get(cameraData).Get<std::shared_ptr<CameraStages>>("CameraStages");
 
 	if (!cameraRsrcMngr.Get(cameraData).Contains("FrameGraphRsrcMngr"))
 		cameraRsrcMngr.Get(cameraData).Register("FrameGraphRsrcMngr", std::make_shared<UDX12::FG::RsrcMngr>(initDesc.device));
@@ -142,6 +146,12 @@ void StdPipeline::Impl::CameraRender(
 		cameraRsrcMngr.Get(cameraData).Register("FrameGraphExecutor", std::make_shared<UDX12::FG::Executor>(initDesc.device));
 	auto fgExecutor = cameraRsrcMngr.Get(cameraData).Get<std::shared_ptr<UDX12::FG::Executor>>("FrameGraphExecutor");
 
+	auto [frameGraphDataMapIter, frameGraphDataEmplaceSuccess] = frameGraphDataMap.emplace(std::string(fgName),
+		FrameGraphData{ UFG::FrameGraph{std::string(fgName) }, &stages.frameGraphVisualize });
+
+	assert(frameGraphDataEmplaceSuccess);
+	UFG::FrameGraph& fg = frameGraphDataMapIter->second.fg;
+
 	fgRsrcMngr->NewFrame();
 	fgExecutor->NewFrame();
 	stages.geometryBuffer.NewFrame();
@@ -150,6 +160,7 @@ void StdPipeline::Impl::CameraRender(
 	stages.sky.NewFrame();
 	stages.taa.NewFrame();
 	stages.tonemapping.NewFrame();
+	stages.frameGraphVisualize.NewFrame();
 
 	const auto& cameraResizeData = cameraRsrcMngr.Get(cameraData).Get<CameraResizeData>(key_CameraResizeData);
 	auto taaPrevRsrc = cameraResizeData.taaPrevRsrc;
@@ -183,6 +194,8 @@ void StdPipeline::Impl::CameraRender(
 	fg.RegisterMoveNode(deferLightedSkyRT, deferLightedRT);
 	fg.RegisterMoveNode(sceneRT, deferLightedSkyRT);
 	fg.RegisterMoveNode(presentedRT, tonemappedRT);
+	const size_t frameGraphVisualizeInputs[] = { gbuffer0, gbuffer1, gbuffer2 };
+	stages.frameGraphVisualize.RegisterInputOutputPassNodes(fg, frameGraphVisualizeInputs);
 
 	D3D12_RESOURCE_DESC dsDesc = UDX12::Desc::RSRC::Basic(
 		D3D12_RESOURCE_DIMENSION_TEXTURE2D,
@@ -233,6 +246,8 @@ void StdPipeline::Impl::CameraRender(
 	stages.sky.RegisterPassResources(*fgRsrcMngr);
 	stages.taa.RegisterPassResources(*fgRsrcMngr);
 	stages.tonemapping.RegisterPassResources(*fgRsrcMngr);
+	stages.frameGraphVisualize.RegisterPassResourcesData(256, 256);
+	stages.frameGraphVisualize.RegisterPassResources(*fgRsrcMngr);
 
 	const D3D12_GPU_VIRTUAL_ADDRESS lightCBAddress = shaderCBMngr.GetLightCBAddress(ctx.ID);
 	// irradiance, prefilter, BRDF LUT
@@ -256,6 +271,8 @@ void StdPipeline::Impl::CameraRender(
 	stages.taa.RegisterPassFunc(*fgExecutor);
 
 	stages.tonemapping.RegisterPassFunc(*fgExecutor);
+
+	stages.frameGraphVisualize.RegisterPassFunc(*fgExecutor);
 
 	static bool flag{ false };
 	if (!flag) {
@@ -282,7 +299,7 @@ void StdPipeline::Impl::Render(
 	// If not, wait until the GPU has completed commands up to this fence point.
 	frameRsrcMngr.BeginFrame();
 
-	frameGraphMap.clear();
+	frameGraphDataMap.clear();
 
 	UpdateCrossFrameCameraResources(crossFrameCameraRsrcMngr, cameras, defaultRTs);
 
@@ -343,34 +360,42 @@ void StdPipeline::Impl::Render(
 			crossFrameWorldRsrc.Register("IBL data", iblData);
 		}
 
-		if (!crossFrameWorldRsrc.Contains("IBLPreprocess"))
-			crossFrameWorldRsrc.Register("IBLPreprocess", std::make_shared<IBLPreprocess>());
-		auto iblPreprocess = crossFrameWorldRsrc.Get<std::shared_ptr<IBLPreprocess>>("IBLPreprocess");
-		iblPreprocess->NewFrame();
+		if (!crossFrameWorldRsrc.Contains("WorldStages"))
+			crossFrameWorldRsrc.Register("WorldStages", std::make_shared<WorldStages>());
+		auto& stages = *crossFrameWorldRsrc.Get<std::shared_ptr<WorldStages>>("WorldStages");
+		stages.iblPreprocess.NewFrame();
+		stages.frameGraphVisualize.NewFrame();
 
 		if (!curFrameWorldRsrc.Contains("IBL data"))
 			curFrameWorldRsrc.Register("IBL data", crossFrameWorldRsrc.Get<std::shared_ptr<IBLData>>("IBL data"));
 		auto iblData = curFrameWorldRsrc.Get<std::shared_ptr<IBLData>>("IBL data");
 
 		const std::string fgName = "L" + std::to_string(linkIdx);
-		auto [frameGraphMapIter, frameGraphEmplaceSuccess] = frameGraphMap.emplace(fgName, UFG::FrameGraph{ fgName });
-		assert(frameGraphEmplaceSuccess);
-		UFG::FrameGraph& fg = frameGraphMapIter->second;
 
-		iblPreprocess->RegisterInputOutputPassNodes(fg, {});
-		auto irradianceMap = iblPreprocess->GetOutputNodeIDs()[0];
-		auto prefilterMap = iblPreprocess->GetOutputNodeIDs()[1];
+		auto [frameGraphDataMapIter, frameGraphDataEmplaceSuccess] = frameGraphDataMap.emplace(std::string(fgName),
+			FrameGraphData{ UFG::FrameGraph{std::string(fgName) }, &stages.frameGraphVisualize });
+
+		assert(frameGraphDataEmplaceSuccess);
+		UFG::FrameGraph& fg = frameGraphDataMapIter->second.fg;
+
+		stages.iblPreprocess.RegisterInputOutputPassNodes(fg, {});
+		auto irradianceMap = stages.iblPreprocess.GetOutputNodeIDs()[0];
+		auto prefilterMap = stages.iblPreprocess.GetOutputNodeIDs()[1];
+
+		stages.frameGraphVisualize.RegisterInputOutputPassNodes(fg, {});
 
 		(*fgRsrcMngr)
 			.RegisterImportedRsrc(irradianceMap, { iblData->irradianceMapResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
 			.RegisterImportedRsrc(prefilterMap, { iblData->prefilterMapResource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
 			;
 
-		iblPreprocess->RegisterPassResources(*fgRsrcMngr);
+		stages.iblPreprocess.RegisterPassResources(*fgRsrcMngr);
+		stages.iblPreprocess.RegisterPassFuncData(iblData.get(), ctx.skyboxSrvGpuHandle);
+		stages.iblPreprocess.RegisterPassFunc(*fgExecutor);
 
-		iblPreprocess->RegisterPassFuncData(iblData.get(), ctx.skyboxSrvGpuHandle);
-
-		iblPreprocess->RegisterPassFunc(*fgExecutor);
+		stages.frameGraphVisualize.RegisterPassResourcesData(256, 256);
+		stages.frameGraphVisualize.RegisterPassResources(*fgRsrcMngr);
+		stages.frameGraphVisualize.RegisterPassFunc(*fgExecutor);
 
 		static bool flag{ false };
 		if (!flag) {
@@ -421,9 +446,9 @@ void StdPipeline::Render(
 	pImpl->Render(worlds, cameras, links, defaultRTs);
 }
 
-const std::map<std::string, UFG::FrameGraph>& StdPipeline::GetFrameGraphMap() const {
+const std::map<std::string, IPipeline::FrameGraphData>& StdPipeline::GetFrameGraphDataMap() const {
 	assert(pImpl);
-	return pImpl->frameGraphMap;
+	return pImpl->frameGraphDataMap;
 }
 
 void StdPipeline::Impl::UpdateCameraResource(const CameraData& cameraData, size_t width, size_t height) {

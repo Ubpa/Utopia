@@ -1,6 +1,8 @@
-#include <Utopia/Editor/Core/Systems/FrameGraphVistualizerSystem.h>
+#include <Utopia/Editor/Core/Systems/FrameGraphVisualizerSystem.h>
 
-#include <Utopia/Editor/Core/Components/FrameGraphVistualizer.h>
+#include <Utopia/Editor/Core/Components/FrameGraphVisualizer.h>
+
+#include <Utopia/Render/DX12/FrameGraphVisualize.h>
 
 namespace ed = ax::NodeEditor;
 
@@ -11,21 +13,22 @@ static constexpr size_t offset_move_out_pin = 4;
 static constexpr size_t offset_copy_in_pin = 5;
 static constexpr size_t offset_copy_out_pin = 6;
 
-void Ubpa::Utopia::FrameGraphVistualizerSystem::OnUpdate(UECS::Schedule& schedule) {
+void Ubpa::Utopia::FrameGraphVisualizerSystem::OnUpdate(UECS::Schedule& schedule) {
 	UECS::World* world = schedule.GetWorld();
 	world->AddCommand([world]{
-		world->RunEntityJob([](UECS::Write<FrameGraphVistualizer> frameGraphVistualizer) {
-            if (!frameGraphVistualizer->frameGraphMap.contains(frameGraphVistualizer->currFrameGraphName))
-                frameGraphVistualizer->currFrameGraphName = "";
+		world->RunEntityJob([](UECS::Write<FrameGraphVisualizer> FrameGraphVisualizer) {
+            if (!FrameGraphVisualizer->frameGraphDataMap.contains(FrameGraphVisualizer->currFrameGraphName))
+                FrameGraphVisualizer->currFrameGraphName = "";
 
-            if (ImGui::Begin("FrameGraphVistualizer Config")) {
+            if (ImGui::Begin("FrameGraphVisualizer Config")) {
                 ImGuiComboFlags flag = 0;
-                if (ImGui::BeginCombo("FrameGraphName", frameGraphVistualizer->currFrameGraphName.data(), flag))
+                if (ImGui::BeginCombo("FrameGraphName", FrameGraphVisualizer->currFrameGraphName.data(), flag))
                 {
-                    for (const auto& [name, fg] : frameGraphVistualizer->frameGraphMap) {
-                        bool isSelected = name == frameGraphVistualizer->currFrameGraphName;
+                    for (const auto& iter : FrameGraphVisualizer->frameGraphDataMap) {
+                        const std::string& name = iter.first;
+                        bool isSelected = name == FrameGraphVisualizer->currFrameGraphName;
                         if (ImGui::Selectable(name.data(), isSelected))
-                            frameGraphVistualizer->currFrameGraphName = name;
+                            FrameGraphVisualizer->currFrameGraphName = name;
 
                         // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
                         if (isSelected)
@@ -37,14 +40,20 @@ void Ubpa::Utopia::FrameGraphVistualizerSystem::OnUpdate(UECS::Schedule& schedul
             ImGui::End();
 
             { // node editor
-                ed::SetCurrentEditor(frameGraphVistualizer->ctx);
+                ed::SetCurrentEditor(FrameGraphVisualizer->ctx);
 
-                ed::Begin("FrameGraphVistualizer");
+                ed::Begin("FrameGraphVisualizer");
 
 
-                if (frameGraphVistualizer->ctx && !frameGraphVistualizer->currFrameGraphName.empty()) {
-                    const UFG::FrameGraph& fg = frameGraphVistualizer->frameGraphMap.at(frameGraphVistualizer->currFrameGraphName);
-                    size_t fgId = string_hash(frameGraphVistualizer->currFrameGraphName.data());
+                if (FrameGraphVisualizer->ctx && !FrameGraphVisualizer->currFrameGraphName.empty()) {
+                    const auto& fgData = FrameGraphVisualizer->frameGraphDataMap.at(FrameGraphVisualizer->currFrameGraphName);
+                    const UFG::FrameGraph& fg = fgData.fg;
+                    size_t fgId = string_hash(FrameGraphVisualizer->currFrameGraphName.data());
+                    std::map<size_t, size_t> imagedOutputIDs; // nodeID -> idx
+                    if (fgData.stage) {
+                        for (size_t i = 0; i < fgData.stage->GetOutputNodeIDs().size(); i++)
+                            imagedOutputIDs.emplace(fgData.stage->GetOutputNodeIDs()[i], i);
+                    }
 
                     // resource nodes
                     for (const auto& node : fg.GetResourceNodes()) {
@@ -75,6 +84,11 @@ void Ubpa::Utopia::FrameGraphVistualizerSystem::OnUpdate(UECS::Schedule& schedul
                             ed::BeginPin(nodeId + offset_copy_out_pin, ed::PinKind::Output);
                             ImGui::Text("Copy Out ->");
                             ed::EndPin();
+
+                            if (auto target = imagedOutputIDs.find(fg.GetResourceNodeIndex(node.Name())); target != imagedOutputIDs.end()) {
+                                assert(fgData.stage);
+                                ImGui::Image((ImTextureID)fgData.stage->GetOutputSrvGpuHandles()[target->second].ptr, { 256,256 });
+                            }
                         ed::EndNode();
                     }
 

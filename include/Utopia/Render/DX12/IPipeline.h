@@ -14,6 +14,8 @@ namespace Ubpa::UECS {
 }
 
 namespace Ubpa::Utopia {
+	class FrameGraphVisualize;
+
 	class IPipeline {
 	public:
 		struct InitDesc {
@@ -29,6 +31,10 @@ namespace Ubpa::Utopia {
 			std::vector<size_t> worldIndices;
 			std::vector<size_t> cameraIndices;
 		};
+		struct FrameGraphData {
+			UFG::FrameGraph fg;
+			const FrameGraphVisualize* stage{ nullptr };
+		};
 
 		virtual ~IPipeline() = default;
 
@@ -40,6 +46,6 @@ namespace Ubpa::Utopia {
 			std::span<const WorldCameraLink> links,
 			std::span<ID3D12Resource* const> defaultRTs
 		) = 0;
-		virtual const std::map<std::string, UFG::FrameGraph>& GetFrameGraphMap() const = 0;
+		virtual const std::map<std::string, FrameGraphData>& GetFrameGraphDataMap() const = 0;
 	};
 }
