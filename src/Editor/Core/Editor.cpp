@@ -806,6 +806,14 @@ void Editor::Impl::Update() {
 		{
 			ImGui::UpdatePlatformWindows();
 			ImGui::RenderPlatformWindowsDefault(NULL, pEditor->uGCmdList.Get());
+
+			/**
+			 * Workaround
+			 * viewport will draw last frame data,
+			 * so we call it twice for drawing current frame data at current frame.
+			 */
+			ImGui::UpdatePlatformWindows();
+			ImGui::RenderPlatformWindowsDefault(NULL, pEditor->uGCmdList.Get());
 		}
 	});
 
