@@ -45,3 +45,10 @@ bool ImGui::IsAnyMouseDown(ImGuiContext* ctx)
             return true;
     return false;
 }
+
+void ImGui::Hack_CorrectFrameCountPlatformEnded() {
+    ImGuiContext* ctx = ImGui::GetCurrentContext();
+    IM_ASSERT(ctx && ctx->FrameCountPlatformEnded <= ctx->FrameCount);
+    if (ctx->FrameCountPlatformEnded == ctx->FrameCount)
+        ctx->FrameCountPlatformEnded = ctx->FrameCount - 1;
+}

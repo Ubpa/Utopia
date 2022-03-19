@@ -128,6 +128,7 @@ namespace ImGui
     IMGUI_API ImGuiIO& GetIO(ImGuiContext* ctx);
     IMGUI_API ImGuiMouseCursor GetMouseCursor(ImGuiContext* ctx);
     IMGUI_API bool IsAnyMouseDown(ImGuiContext* ctx);
+    IMGUI_API void Hack_CorrectFrameCountPlatformEnded();
 
     class IMGUI_API WrapContextGuard {
         ImGuiContext* prevCtx;
@@ -143,3 +144,5 @@ namespace ImGui
         return std::forward<Func>(func)(std::forward<Args>(args)...);
     }
 }
+
+#undef IMGUI_API
