@@ -1,0 +1,1 @@
+{"__Type":"Ubpa::Utopia::Material","__Data":{"shader":{"__Type":"Ubpa::Utopia::SharedVar<{Ubpa::Utopia::Shader}>","__Data":{"__Name":"main","__Guid":"1b9db5a5-f74c-44e2-a25d-c375f73007b9"}},"properties":{"__Type":"std::map<{std::string,Ubpa::Utopia::ShaderProperty,std::less<{void}>}>","__Data":[]}}}

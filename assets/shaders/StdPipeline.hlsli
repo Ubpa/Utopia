@@ -49,6 +49,12 @@ cbuffer StdPipeline_cbPerCamera : register(b##x) \
     uint _padding1;                              \
 }
 
+#define STD_PIPELINE_CB_DIRECTIONAL_SHADOW(x)            \
+cbuffer StdPipeline_cbDirectionalShadow : register(b##x) \
+{                                                        \
+    float4x4 gDirectionalShadowViewProj;                 \
+}
+
 // 1. directional light
 // color
 // dir

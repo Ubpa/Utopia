@@ -22,6 +22,7 @@
 #include "Sky.h"
 #include "Tonemapping.h"
 #include "TAA.h"
+#include "DirectionalShadow.h"
 #include <Utopia/Render/DX12/FrameGraphVisualize.h>
 
 using namespace Ubpa::Utopia;
@@ -29,6 +30,7 @@ using namespace Ubpa;
 
 struct StdPipeline::Impl {
 	struct CameraStages {
+		DirectionalShadow directionalShadow;
 		GeometryBuffer geometryBuffer;
 		DeferredLighting deferredLighting;
 		ForwardLighting forwardLighting;
@@ -154,6 +156,7 @@ void StdPipeline::Impl::CameraRender(
 
 	fgRsrcMngr->NewFrame();
 	fgExecutor->NewFrame();
+	stages.directionalShadow.NewFrame();
 	stages.geometryBuffer.NewFrame();
 	stages.deferredLighting.NewFrame();
 	stages.forwardLighting.NewFrame();
@@ -165,8 +168,9 @@ void StdPipeline::Impl::CameraRender(
 	const auto& cameraResizeData = cameraRsrcMngr.Get(cameraData).Get<CameraResizeData>(key_CameraResizeData);
 	auto taaPrevRsrc = cameraResizeData.taaPrevRsrc;
 
+	stages.directionalShadow.RegisterInputOutputPassNodes(fg, {});
+	auto shadowmap = stages.directionalShadow.GetOutputNodeIDs()[0];
 	stages.geometryBuffer.RegisterInputOutputPassNodes(fg, {});
-
 	auto gbuffer0 = stages.geometryBuffer.GetOutputNodeIDs()[0];
 	auto gbuffer1 = stages.geometryBuffer.GetOutputNodeIDs()[1];
 	auto gbuffer2 = stages.geometryBuffer.GetOutputNodeIDs()[2];
@@ -213,10 +217,21 @@ void StdPipeline::Impl::CameraRender(
 		// we need to create the depth buffer resource with a typeless format.  
 		D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL
 	);
+	D3D12_RESOURCE_DESC depthDesc = UDX12::Desc::RSRC::Basic(
+		D3D12_RESOURCE_DIMENSION_TEXTURE2D,
+		width,
+		(UINT)height,
+		DXGI_FORMAT_D32_FLOAT,
+		D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL
+	);
 	D3D12_CLEAR_VALUE dsClear;
 	dsClear.Format = dsFormat;
 	dsClear.DepthStencil.Depth = 1.0f;
 	dsClear.DepthStencil.Stencil = 0;
+	D3D12_CLEAR_VALUE depthClear;
+	depthClear.Format = DXGI_FORMAT_D32_FLOAT;
+	depthClear.DepthStencil.Depth = 1.0f;
+	depthClear.DepthStencil.Stencil = 0;
 
 	D3D12_CLEAR_VALUE gbuffer_clearvalue = {};
 	gbuffer_clearvalue.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
@@ -230,6 +245,7 @@ void StdPipeline::Impl::CameraRender(
 	auto iblData = worldRsrc.Get<std::shared_ptr<IBLData>>("IBL data");
 
 	(*fgRsrcMngr)
+		.RegisterTemporalRsrc(shadowmap, depthDesc, depthClear)
 		.RegisterTemporalRsrc(gbuffer0, rt2dDesc, gbuffer_clearvalue)
 		.RegisterTemporalRsrc(gbuffer1, rt2dDesc, gbuffer_clearvalue)
 		.RegisterTemporalRsrc(gbuffer2, rt2dDesc, gbuffer_clearvalue)
@@ -244,6 +260,7 @@ void StdPipeline::Impl::CameraRender(
 		.RegisterImportedRsrc(taaPrevResult, { taaPrevRsrc.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE })
 		;
 
+	stages.directionalShadow.RegisterPassResources(*fgRsrcMngr);
 	stages.geometryBuffer.RegisterPassResources(*fgRsrcMngr);
 	stages.deferredLighting.RegisterPassResources(*fgRsrcMngr);
 	stages.forwardLighting.RegisterPassResources(*fgRsrcMngr);
@@ -258,6 +275,9 @@ void StdPipeline::Impl::CameraRender(
 	const D3D12_GPU_DESCRIPTOR_HANDLE iblDataSrvGpuHandle = ctx.skyboxSrvGpuHandle.ptr == PipelineCommonResourceMngr::GetInstance().GetDefaultSkyboxGpuHandle().ptr ?
 		PipelineCommonResourceMngr::GetInstance().GetDefaultIBLSrvDHA().GetGpuHandle()
 		: iblData->SRVDH.GetGpuHandle();
+
+	stages.directionalShadow.RegisterPassFuncData(&shaderCBMngr, &ctx);
+	stages.directionalShadow.RegisterPassFunc(*fgExecutor);
 
 	stages.geometryBuffer.RegisterPassFuncData(cameraCBAddress, &shaderCBMngr, &ctx, "Deferred");
 	stages.geometryBuffer.RegisterPassFunc(*fgExecutor);

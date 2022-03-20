@@ -29,6 +29,7 @@ namespace Ubpa::Utopia {
 	static constexpr char StdPipeline_cbPerObject[] = "StdPipeline_cbPerObject";
 	static constexpr char StdPipeline_cbPerCamera[] = "StdPipeline_cbPerCamera";
 	static constexpr char StdPipeline_cbLightArray[] = "StdPipeline_cbLightArray";
+	static constexpr char StdPipeline_cbDirectionalShadow[] = "StdPipeline_cbDirectionalShadow";
 	static constexpr char StdPipeline_srvIBL[] = "StdPipeline_IrradianceMap";
 	static constexpr char StdPipeline_srvLTC[] = "StdPipeline_LTC0";
 
@@ -69,6 +70,10 @@ namespace Ubpa::Utopia {
 		valf2 Jitter;
 		unsigned int padding0;
 		unsigned int padding1;
+	};
+
+	struct DirectionalShadowConstants {
+		val<float, 16> DirectionalShadowViewProj;
 	};
 
 	struct ShaderLight {
@@ -126,7 +131,11 @@ namespace Ubpa::Utopia {
 
 		LightArray lightArray;
 
+		DirectionalShadowConstants directionalShadow;
+
 		std::unordered_map<size_t, EntityData> entity2data;
+
+		bboxf3 boundingBox;
 	};
 
 	struct QuadPositionLs {
@@ -175,8 +184,10 @@ namespace Ubpa::Utopia {
 		std::string_view lightMode,
 		size_t rtNum,
 		DXGI_FORMAT rtFormat,
+		DXGI_FORMAT dsvFormat,
 		D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress,
-		D3D12_GPU_DESCRIPTOR_HANDLE iblDataSrvGpuHandle);
+		D3D12_GPU_DESCRIPTOR_HANDLE iblDataSrvGpuHandle,
+		const Material* defaultMaterial = nullptr);
 
 	static constexpr const char key_CameraConstants[] = "CameraConstants";
 	static constexpr const char key_CameraJitterIndex[] = "CameraJitterIndex";
@@ -188,6 +199,16 @@ namespace Ubpa::Utopia {
 	constexpr float HaltonSequence2[8] = { 1.f / 2.f,1.f / 4.f,3.f / 4.f,1.f / 8.f,5.f / 8.f,3.f / 8.f,7.f / 8.f,1.f / 16.f };
 	constexpr float HaltonSequence3[8] = { 1.f / 3.f,2.f / 3.f,1.f / 9.f,4.f / 9.f,7.f / 9.f,2.f / 9.f,5.f / 9.f,8.f / 9.f };
 
+	struct MaterialCBDesc {
+		// beginOffset + registerIdx2LocalOffset[registerIdx]
+
+		size_t beginOffset{ 0 };
+		size_t size{ 0 };
+		std::map<size_t, size_t> registerIdx2LocalOffset;
+	};
+
+	MaterialCBDesc RegisterMaterialCB(UDX12::DynamicUploadVector& buffer, const Material& material);
+
 	class PipelineCommonResourceMngr {
 	public:
 		static PipelineCommonResourceMngr& GetInstance();
@@ -195,6 +216,8 @@ namespace Ubpa::Utopia {
 		void Release();
 
 		std::shared_ptr<Material> GetErrorMaterial() const;
+		std::shared_ptr<Material> GetDirectionalShadowMaterial() const;
+
 		D3D12_GPU_DESCRIPTOR_HANDLE GetDefaultSkyboxGpuHandle() const;
 		bool IsCommonCB(std::string_view cbDescName) const;
 		const UDX12::DescriptorHeapAllocation& GetDefaultIBLSrvDHA() const;
@@ -232,6 +255,7 @@ namespace Ubpa::Utopia {
 		std::shared_ptr<TextureCube> blackTexCube;
 
 		std::shared_ptr<Material> errorMat;
+		std::shared_ptr<Material> directionalShadowMat;
 
 		D3D12_GPU_DESCRIPTOR_HANDLE defaultSkyboxGpuHandle;
 		/**

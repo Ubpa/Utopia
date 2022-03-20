@@ -25,6 +25,8 @@ namespace Ubpa::Utopia {
 		const std::vector<uint32_t>&          GetIndices() const noexcept { return indices; }
 		const std::vector<SubMeshDescriptor>& GetSubMeshes() const noexcept { return submeshes; }
 
+		bboxf3 GetBoundingBox() const noexcept;
+
 		// must editable
 		void SetPositions(std::vector<pointf3> positions) noexcept;
 		void SetUV(std::vector<pointf2> uv) noexcept;

@@ -175,6 +175,7 @@ void Ubpa::Utopia::GeometryBuffer::RegisterPassFunc(UDX12::FG::Executor& executo
 				lightMode,
 				rtHandles.size(),
 				DXGI_FORMAT_R32G32B32A32_FLOAT,
+				dsvDesc.Format,
 				cameraCBAddress,
 				D3D12_GPU_DESCRIPTOR_HANDLE{ .ptr = 0 });
 		}

@@ -28,6 +28,100 @@ using namespace Ubpa;
 using namespace Ubpa::Utopia;
 using namespace Ubpa::UECS;
 
+MaterialCBDesc Utopia::RegisterMaterialCB(UDX12::DynamicUploadVector& buffer, const Material& material) {
+	const Shader& shader = *material.shader;
+	MaterialCBDesc rst;
+	rst.beginOffset = buffer.Size();
+
+	auto CalculateSize = [&](ID3D12ShaderReflection* refl) {
+		D3D12_SHADER_DESC shaderDesc;
+		ThrowIfFailed(refl->GetDesc(&shaderDesc));
+
+		for (UINT i = 0; i < shaderDesc.ConstantBuffers; i++) {
+			auto cb = refl->GetConstantBufferByIndex(i);
+			D3D12_SHADER_BUFFER_DESC cbDesc;
+			ThrowIfFailed(cb->GetDesc(&cbDesc));
+
+			if (PipelineCommonResourceMngr::GetInstance().IsCommonCB(cbDesc.Name))
+				continue;
+
+			D3D12_SHADER_INPUT_BIND_DESC rsrcDesc;
+			refl->GetResourceBindingDescByName(cbDesc.Name, &rsrcDesc);
+
+			auto target = rst.registerIdx2LocalOffset.find(rsrcDesc.BindPoint);
+			if (target != rst.registerIdx2LocalOffset.end())
+				continue;
+
+			rst.registerIdx2LocalOffset.emplace(std::pair{ rsrcDesc.BindPoint, rst.size });
+			rst.size += UDX12::Util::CalcConstantBufferByteSize(cbDesc.Size);
+		}
+	};
+
+	for (size_t i = 0; i < shader.passes.size(); i++) {
+		CalculateSize(GPURsrcMngrDX12::Instance().GetShaderRefl_vs(shader, i));
+		CalculateSize(GPURsrcMngrDX12::Instance().GetShaderRefl_ps(shader, i));
+	}
+
+	buffer.Resize(buffer.Size() + rst.size);
+
+	auto UpdateShaderCBsForRefl = [&](std::set<size_t>& flags, const Material& material, ID3D12ShaderReflection* refl) {
+		D3D12_SHADER_DESC shaderDesc;
+		ThrowIfFailed(refl->GetDesc(&shaderDesc));
+
+		for (UINT i = 0; i < shaderDesc.ConstantBuffers; i++) {
+			auto cb = refl->GetConstantBufferByIndex(i);
+			D3D12_SHADER_BUFFER_DESC cbDesc;
+			ThrowIfFailed(cb->GetDesc(&cbDesc));
+
+			D3D12_SHADER_INPUT_BIND_DESC rsrcDesc;
+			refl->GetResourceBindingDescByName(cbDesc.Name, &rsrcDesc);
+
+			if (rst.registerIdx2LocalOffset.find(rsrcDesc.BindPoint) == rst.registerIdx2LocalOffset.end())
+				continue;
+
+			if (flags.find(rsrcDesc.BindPoint) != flags.end())
+				continue;
+
+			flags.insert(rsrcDesc.BindPoint);
+
+			size_t offset = rst.beginOffset + rst.registerIdx2LocalOffset.at(rsrcDesc.BindPoint);
+
+			for (UINT j = 0; j < cbDesc.Variables; j++) {
+				auto var = cb->GetVariableByIndex(j);
+				D3D12_SHADER_VARIABLE_DESC varDesc;
+				ThrowIfFailed(var->GetDesc(&varDesc));
+
+				auto target = material.properties.find(varDesc.Name);
+				if (target == material.properties.end())
+					continue;
+
+				std::visit([&](const auto& value) {
+					using Value = std::decay_t<decltype(value)>;
+					if constexpr (std::is_same_v<Value, bool>) {
+						auto v = static_cast<unsigned int>(value);
+						assert(varDesc.Size == sizeof(unsigned int));
+						buffer.Set(offset + varDesc.StartOffset, &v, sizeof(unsigned int));
+					}
+					else if constexpr (std::is_same_v<Value, SharedVar<Texture2D>> || std::is_same_v<Value, SharedVar<TextureCube>>)
+						assert(false);
+					else {
+						assert(varDesc.Size == sizeof(Value));
+						buffer.Set(offset + varDesc.StartOffset, &value, varDesc.Size);
+					}
+					}, target->second.value);
+			}
+		}
+	};
+
+	std::set<size_t> flags;
+	for (size_t i = 0; i < shader.passes.size(); i++) {
+		UpdateShaderCBsForRefl(flags, material, GPURsrcMngrDX12::Instance().GetShaderRefl_vs(shader, i));
+		UpdateShaderCBsForRefl(flags, material, GPURsrcMngrDX12::Instance().GetShaderRefl_ps(shader, i));
+	}
+
+	return rst;
+}
+
 PipelineCommonResourceMngr::PipelineCommonResourceMngr()
 	: defaultSkyboxGpuHandle{ 0 }
 {}
@@ -39,6 +133,7 @@ PipelineCommonResourceMngr& PipelineCommonResourceMngr::GetInstance() {
 
 void PipelineCommonResourceMngr::Init(ID3D12Device* device) {
 	errorMat = AssetMngr::Instance().LoadAsset<Material>(LR"(_internal\materials\error.mat)");
+	directionalShadowMat = AssetMngr::Instance().LoadAsset<Material>(LR"(_internal\materials\directionalShadow.mat)");
 
 	blackTex2D = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\textures\black.png)");
 	whiteTex2D = AssetMngr::Instance().LoadAsset<Texture2D>(LR"(_internal\textures\white.png)");
@@ -86,6 +181,7 @@ void PipelineCommonResourceMngr::Init(ID3D12Device* device) {
 		"StdPipeline_cbPerObject",
 		"StdPipeline_cbPerCamera",
 		"StdPipeline_cbLightArray",
+		"StdPipeline_cbDirectionalShadow",
 	};
 	const vecf3 origin[6] = {
 		{ 1,-1, 1}, // +x right
@@ -162,6 +258,7 @@ void PipelineCommonResourceMngr::Release() {
 	blackTexCube = nullptr;
 	whiteTexCube = nullptr;
 	errorMat = nullptr;
+	directionalShadowMat = nullptr;
 	defaultSkyboxGpuHandle.ptr = 0;
 	UDX12::DescriptorHeapMngr::Instance().GetCSUGpuDH()->Free(std::move(defaultIBLSrvDHA));
 	commonCBs.clear();
@@ -169,6 +266,8 @@ void PipelineCommonResourceMngr::Release() {
 }
 
 std::shared_ptr<Material> PipelineCommonResourceMngr::GetErrorMaterial() const { return errorMat; }
+
+std::shared_ptr<Material> PipelineCommonResourceMngr::GetDirectionalShadowMaterial() const { return directionalShadowMat; }
 
 D3D12_GPU_DESCRIPTOR_HANDLE PipelineCommonResourceMngr::GetDefaultSkyboxGpuHandle() const { return defaultSkyboxGpuHandle; }
 
@@ -385,6 +484,9 @@ RenderContext Ubpa::Utopia::GenerateRenderContext(size_t ID, std::span<const UEC
 						data.mesh = meshFilter.mesh;
 						data.materials = meshRenderer.materials;
 						ctx.entity2data.emplace_hint(target, std::pair{ obj.entity.index, data });
+
+						bboxf3 boungdingBoxWS = L2Ws[i].value * data.mesh->GetBoundingBox();
+						ctx.boundingBox.combine_to_self(boungdingBoxWS);
 					}
 				},
 				{ // ArchetypeFilter
@@ -513,6 +615,32 @@ RenderContext Ubpa::Utopia::GenerateRenderContext(size_t ID, std::span<const UEC
 		}
 	}
 
+	{ // directional shadow
+		bool foundDirectionalLight = false;
+		for (auto world : worlds) {
+			if (foundDirectionalLight)
+				break;
+			world->RunEntityJob(
+				[&](const Light* light, const LocalToWorld* l2w) {
+					if (foundDirectionalLight)
+						return;
+					if (light->mode != Light::Mode::Directional)
+						return;
+					transformf w2l = l2w->value.inverse();
+					bboxf3 boundingBox = w2l * ctx.boundingBox;
+					vecf3 diagonal = boundingBox.diagonal();
+					vecf3 dir{ 0,0,1 };
+					transformf translate(vecf3(0, 0, 0) - (boundingBox.center().as<vecf3>() - dir * diagonal.z * 0.5));
+					transformf rotate(quatf::rotate_with<Axis::Y>(to_radian(180.f)));
+
+					ctx.directionalShadow.DirectionalShadowViewProj =
+						transformf::orthographic(diagonal.x, diagonal.y, 0, diagonal.z) * rotate * translate * w2l;
+				},
+				false
+			);
+		}
+	}
+
 	// use first skybox in the world vector
 	ctx.skyboxSrvGpuHandle = defaultSkyboxGpuHandle;
 	for (auto world : worlds) {
@@ -536,8 +664,10 @@ void Ubpa::Utopia::DrawObjects(
 	std::string_view lightMode,
 	size_t rtNum,
 	DXGI_FORMAT rtFormat,
+	DXGI_FORMAT dsvFormat,
 	D3D12_GPU_VIRTUAL_ADDRESS cameraCBAddress,
-	D3D12_GPU_DESCRIPTOR_HANDLE iblDataSrvGpuHandle)
+	D3D12_GPU_DESCRIPTOR_HANDLE iblDataSrvGpuHandle,
+	const Material* defaultMaterial)
 {
 	D3D12_GPU_DESCRIPTOR_HANDLE ibl;
 	if (ctx.skyboxSrvGpuHandle.ptr == PipelineCommonResourceMngr::GetInstance().GetDefaultSkyboxGpuHandle().ptr)
@@ -545,32 +675,41 @@ void Ubpa::Utopia::DrawObjects(
 	else
 		ibl = iblDataSrvGpuHandle;
 
-	std::shared_ptr<const Shader> shader;
+	if (defaultMaterial)
+		cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*defaultMaterial->shader));
+
+	const Shader* currRootSignatureShader = defaultMaterial ? defaultMaterial->shader.get() : nullptr;
 
 	auto Draw = [&](const RenderObject& obj) {
-		const auto& pass = obj.material->shader->passes[obj.passIdx];
+		const Material* material = defaultMaterial ? defaultMaterial : obj.material.get();
+		const Shader* shader = material->shader.get();
+		// TODO: default pass index
+		size_t passIdx = defaultMaterial ? 0 : obj.passIdx;
+		const auto& pass = shader->passes[passIdx];
 
 		if (auto target = pass.tags.find("LightMode"); target == pass.tags.end() || target->second != lightMode)
 			return;
 
-		if (shader.get() != obj.material->shader.get()) {
-			shader = obj.material->shader;
-			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*shader));
+		if (currRootSignatureShader != shader) {
+			currRootSignatureShader = shader;
+			cmdList->SetGraphicsRootSignature(GPURsrcMngrDX12::Instance().GetShaderRootSignature(*currRootSignatureShader));
 		}
 
 		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = shaderCBMngr.GetObjectCBAddress(ctx.ID, obj.entity.index);
 
-		auto lightCBAdress = shaderCBMngr.GetLightCBAddress(ctx.ID);
+		auto lightCBAddress = shaderCBMngr.GetLightCBAddress(ctx.ID);
+
+		auto directionalShadowCBAddress = shaderCBMngr.GetDirectionalShadowCBAddress(ctx.ID);
 
 		shaderCBMngr.SetGraphicsRoot_CBV_SRV(
 			cmdList,
 			ctx.ID,
-			shader.get(),
-			*obj.material,
+			*material,
 			{
 				{StdPipeline_cbPerObject, objCBAddress},
 				{StdPipeline_cbPerCamera, cameraCBAddress},
-				{StdPipeline_cbLightArray, lightCBAdress}
+				{StdPipeline_cbLightArray, lightCBAddress},
+				{StdPipeline_cbDirectionalShadow, directionalShadowCBAddress}
 			},
 			{
 				{StdPipeline_srvIBL, ibl},
@@ -607,11 +746,11 @@ void Ubpa::Utopia::DrawObjects(
 		}
 		cmdList->IASetPrimitiveTopology(d3d12Topology);
 
-		if (shader->passes[obj.passIdx].renderState.stencilState.enable)
-			cmdList->OMSetStencilRef(shader->passes[obj.passIdx].renderState.stencilState.ref);
+		if (pass.renderState.stencilState.enable)
+			cmdList->OMSetStencilRef(pass.renderState.stencilState.ref);
 		cmdList->SetPipelineState(GPURsrcMngrDX12::Instance().GetOrCreateShaderPSO(
 			*shader,
-			obj.passIdx,
+			passIdx,
 			MeshLayoutMngr::Instance().GetMeshLayoutID(*obj.mesh),
 			rtNum,
 			rtFormat

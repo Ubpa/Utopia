@@ -2,6 +2,13 @@
 
 using namespace Ubpa::Utopia;
 
+Ubpa::bboxf3 Mesh::GetBoundingBox() const noexcept {
+	bboxf3 box;
+	for (const auto& submesh : submeshes)
+		box.combine_to_self(submesh.bounds);
+	return box;
+}
+
 void Mesh::SetPositions(std::vector<pointf3> positions) noexcept {
 	if (!IsEditable())
 		return;

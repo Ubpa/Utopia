@@ -141,6 +141,7 @@ void Ubpa::Utopia::ForwardLighting::RegisterPassFunc(UDX12::FG::Executor& execut
 				"Forward",
 				1,
 				DXGI_FORMAT_R32G32B32A32_FLOAT,
+				dsvDesc.Format,
 				cameraCBAddress,
 				iblDataSrvGpuHandle);
 		}

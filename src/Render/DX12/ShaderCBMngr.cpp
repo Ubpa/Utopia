@@ -18,6 +18,19 @@ void ShaderCBMngr::NewFrame() {
 	renderCtxDataMap.clear();
 	materialCBUploadVector.Clear();
 	commonCBUploadVector.Clear();
+	commonMaterialCBDescMap.clear();
+
+	{
+		auto material = PipelineCommonResourceMngr::GetInstance().GetErrorMaterial();
+		auto materialCBDesc = RegisterMaterialCB(materialCBUploadVector, *material);
+		commonMaterialCBDescMap.emplace(material->GetInstanceID(), std::move(materialCBDesc));
+	}
+
+	{
+		auto material = PipelineCommonResourceMngr::GetInstance().GetDirectionalShadowMaterial();
+		auto materialCBDesc = RegisterMaterialCB(materialCBUploadVector, *material);
+		commonMaterialCBDescMap.emplace(material->GetInstanceID(), std::move(materialCBDesc));
+	}
 }
 
 void ShaderCBMngr::RegisterRenderContext(const RenderContext& ctx,
@@ -30,13 +43,16 @@ void ShaderCBMngr::RegisterRenderContext(const RenderContext& ctx,
 	renderCtxData.cameraOffset = commonCBUploadVector.Size();
 	renderCtxData.lightOffset = renderCtxData.cameraOffset
 		+ cameraConstantsSpan.size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants));
-	renderCtxData.objectOffset = renderCtxData.lightOffset
+	renderCtxData.directionalShadowOffset = renderCtxData.lightOffset
+		+ UDX12::Util::CalcConstantBufferByteSize(sizeof(DirectionalShadowConstants));
+	renderCtxData.objectOffset = renderCtxData.directionalShadowOffset
 		+ UDX12::Util::CalcConstantBufferByteSize(sizeof(LightArray));
 
 	commonCBUploadVector.Resize(
 		commonCBUploadVector.Size()
 		+ cameraConstantsSpan.size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(CameraConstants))
 		+ UDX12::Util::CalcConstantBufferByteSize(sizeof(LightArray))
+		+ UDX12::Util::CalcConstantBufferByteSize(sizeof(DirectionalShadowConstants))
 		+ ctx.entity2data.size() * UDX12::Util::CalcConstantBufferByteSize(sizeof(ObjectConstants))
 	);
 
@@ -50,6 +66,9 @@ void ShaderCBMngr::RegisterRenderContext(const RenderContext& ctx,
 
 	// light array
 	commonCBUploadVector.Set(renderCtxData.lightOffset, &ctx.lightArray, sizeof(LightArray));
+
+	// directional shadow
+	commonCBUploadVector.Set(renderCtxData.directionalShadowOffset, &ctx.directionalShadow, sizeof(DirectionalShadowConstants));
 
 	// objects
 	size_t offset = renderCtxData.objectOffset;
@@ -67,22 +86,14 @@ void ShaderCBMngr::RegisterRenderContext(const RenderContext& ctx,
 	// MaterialCB //
 	////////////////
 
-	std::unordered_map<const Shader*, std::unordered_set<const Material*>> opaqueMaterialMap;
-	for (const auto& opaque : ctx.renderQueue.GetOpaques())
-		opaqueMaterialMap[opaque.material->shader.get()].insert(opaque.material.get());
-
-	std::unordered_map<const Shader*, std::unordered_set<const Material*>> transparentMaterialMap;
-	for (const auto& transparent : ctx.renderQueue.GetTransparents())
-		transparentMaterialMap[transparent.material->shader.get()].insert(transparent.material.get());
-
-	for (const auto& [shader, materials] : opaqueMaterialMap) {
-		auto materialCBDesc = RegisterShaderMaterialCB(shader, materials);
-		renderCtxData.materialCBDescMap.emplace(shader, std::move(materialCBDesc));
+	for (const auto& obj : ctx.renderQueue.GetOpaques()) {
+		auto materialCBDesc = RegisterMaterialCB(materialCBUploadVector, *obj.material);
+		renderCtxData.materialCBDescMap.emplace(obj.material->GetInstanceID(), std::move(materialCBDesc));
 	}
 
-	for (const auto& [shader, materials] : transparentMaterialMap) {
-		auto materialCBDesc = RegisterShaderMaterialCB(shader, materials);
-		renderCtxData.materialCBDescMap.emplace(shader, std::move(materialCBDesc));
+	for (const auto& obj : ctx.renderQueue.GetTransparents()) {
+		auto materialCBDesc = RegisterMaterialCB(materialCBUploadVector, *obj.material);
+		renderCtxData.materialCBDescMap.emplace(obj.material->GetInstanceID(), std::move(materialCBDesc));
 	}
 
 	/////////
@@ -95,16 +106,19 @@ void ShaderCBMngr::RegisterRenderContext(const RenderContext& ctx,
 void ShaderCBMngr::SetGraphicsRoot_CBV_SRV(
 	ID3D12GraphicsCommandList* cmdList,
 	size_t ctxID,
-	const Shader* shader,
 	const Material& material,
 	const std::map<std::string_view, D3D12_GPU_VIRTUAL_ADDRESS>& commonCBs,
 	const std::map<std::string_view, D3D12_GPU_DESCRIPTOR_HANDLE>& commonSRVs
 ) const
 {
-	const auto& materialCBDesc = renderCtxDataMap.at(ctxID).materialCBDescMap.at(shader);
+	const MaterialCBDesc* materialCBDescPtr;
+	if (auto target = commonMaterialCBDescMap.find(material.GetInstanceID()); target != commonMaterialCBDescMap.end())
+		materialCBDescPtr = &target->second;
+	else
+		materialCBDescPtr = &renderCtxDataMap.at(ctxID).materialCBDescMap.at(material.GetInstanceID());
+	const auto& materialCBDesc = *materialCBDescPtr;
 
-	size_t cbPos = materialCBUploadVector.GetResource()->GetGPUVirtualAddress()
-		+ materialCBDesc.begin_offset + materialCBDesc.indexMap.at(material.GetInstanceID()) * materialCBDesc.materialCBSize;
+	size_t cbPos = materialCBUploadVector.GetResource()->GetGPUVirtualAddress() + materialCBDesc.beginOffset;
 
 	auto SetGraphicsRoot_Refl = [&](ID3D12ShaderReflection* refl) {
 		D3D12_SHADER_DESC shaderDesc;
@@ -178,7 +192,7 @@ void ShaderCBMngr::SetGraphicsRoot_CBV_SRV(
 				UINT idx = GetCBVRootParamIndex(rsrcDesc.BindPoint);
 				D3D12_GPU_VIRTUAL_ADDRESS adress;
 
-				if (auto target = materialCBDesc.offsetMap.find(rsrcDesc.BindPoint); target != materialCBDesc.offsetMap.end())
+				if (auto target = materialCBDesc.registerIdx2LocalOffset.find(rsrcDesc.BindPoint); target != materialCBDesc.registerIdx2LocalOffset.end())
 					adress = cbPos + target->second;
 				else if (auto target = commonCBs.find(rsrcDesc.Name); target != commonCBs.end())
 					adress = target->second;
@@ -241,111 +255,6 @@ void ShaderCBMngr::SetGraphicsRoot_CBV_SRV(
 	}
 }
 
-MaterialCBDesc ShaderCBMngr::RegisterShaderMaterialCB(
-	const Shader* shader,
-	const std::unordered_set<const Material*>& materials
-) {
-	MaterialCBDesc rst;
-	rst.begin_offset = materialCBUploadVector.Size();
-
-	auto CalculateSize = [&](ID3D12ShaderReflection* refl) {
-		D3D12_SHADER_DESC shaderDesc;
-		ThrowIfFailed(refl->GetDesc(&shaderDesc));
-
-		for (UINT i = 0; i < shaderDesc.ConstantBuffers; i++) {
-			auto cb = refl->GetConstantBufferByIndex(i);
-			D3D12_SHADER_BUFFER_DESC cbDesc;
-			ThrowIfFailed(cb->GetDesc(&cbDesc));
-
-			if (PipelineCommonResourceMngr::GetInstance().IsCommonCB(cbDesc.Name))
-				continue;
-
-			D3D12_SHADER_INPUT_BIND_DESC rsrcDesc;
-			refl->GetResourceBindingDescByName(cbDesc.Name, &rsrcDesc);
-
-			auto target = rst.offsetMap.find(rsrcDesc.BindPoint);
-			if (target != rst.offsetMap.end())
-				continue;
-
-			rst.offsetMap.emplace(std::pair{ rsrcDesc.BindPoint, rst.materialCBSize });
-			rst.materialCBSize += UDX12::Util::CalcConstantBufferByteSize(cbDesc.Size);
-		}
-	};
-
-	for (size_t i = 0; i < shader->passes.size(); i++) {
-		CalculateSize(GPURsrcMngrDX12::Instance().GetShaderRefl_vs(*shader, i));
-		CalculateSize(GPURsrcMngrDX12::Instance().GetShaderRefl_ps(*shader, i));
-	}
-
-	for (auto material : materials) {
-		size_t idx = rst.indexMap.size();
-		rst.indexMap[material->GetInstanceID()] = idx;
-	}
-
-	materialCBUploadVector.Resize(materialCBUploadVector.Size() + rst.materialCBSize * materials.size());
-
-	auto UpdateShaderCBsForRefl = [&](std::set<size_t>& flags, const Material& material, ID3D12ShaderReflection* refl) {
-		size_t index = rst.indexMap.at(material.GetInstanceID());
-
-		D3D12_SHADER_DESC shaderDesc;
-		ThrowIfFailed(refl->GetDesc(&shaderDesc));
-
-		for (UINT i = 0; i < shaderDesc.ConstantBuffers; i++) {
-			auto cb = refl->GetConstantBufferByIndex(i);
-			D3D12_SHADER_BUFFER_DESC cbDesc;
-			ThrowIfFailed(cb->GetDesc(&cbDesc));
-
-			D3D12_SHADER_INPUT_BIND_DESC rsrcDesc;
-			refl->GetResourceBindingDescByName(cbDesc.Name, &rsrcDesc);
-
-			if (rst.offsetMap.find(rsrcDesc.BindPoint) == rst.offsetMap.end())
-				continue;
-
-			if (flags.find(rsrcDesc.BindPoint) != flags.end())
-				continue;
-
-			flags.insert(rsrcDesc.BindPoint);
-
-			size_t offset = rst.begin_offset + rst.materialCBSize * index + rst.offsetMap.at(rsrcDesc.BindPoint);
-
-			for (UINT j = 0; j < cbDesc.Variables; j++) {
-				auto var = cb->GetVariableByIndex(j);
-				D3D12_SHADER_VARIABLE_DESC varDesc;
-				ThrowIfFailed(var->GetDesc(&varDesc));
-
-				auto target = material.properties.find(varDesc.Name);
-				if (target == material.properties.end())
-					continue;
-
-				std::visit([&](const auto& value) {
-					using Value = std::decay_t<decltype(value)>;
-					if constexpr (std::is_same_v<Value, bool>) {
-						auto v = static_cast<unsigned int>(value);
-						assert(varDesc.Size == sizeof(unsigned int));
-						materialCBUploadVector.Set(offset + varDesc.StartOffset, &v, sizeof(unsigned int));
-					}
-					else if constexpr (std::is_same_v<Value, SharedVar<Texture2D>> || std::is_same_v<Value, SharedVar<TextureCube>>)
-						assert(false);
-					else {
-						assert(varDesc.Size == sizeof(Value));
-						materialCBUploadVector.Set(offset + varDesc.StartOffset, &value, varDesc.Size);
-					}
-					}, target->second.value);
-			}
-		}
-	};
-
-	for (auto material : materials) {
-		std::set<size_t> flags;
-		for (size_t i = 0; i < shader->passes.size(); i++) {
-			UpdateShaderCBsForRefl(flags, *material, GPURsrcMngrDX12::Instance().GetShaderRefl_vs(*shader, i));
-			UpdateShaderCBsForRefl(flags, *material, GPURsrcMngrDX12::Instance().GetShaderRefl_ps(*shader, i));
-		}
-	}
-
-	return rst;
-}
-
 D3D12_GPU_VIRTUAL_ADDRESS ShaderCBMngr::GetCameraCBAddress(size_t ctxID, size_t cameraIdx) const {
 	return commonCBUploadVector.GetResource()->GetGPUVirtualAddress()
 		+ renderCtxDataMap.at(ctxID).cameraOffset
@@ -355,6 +264,11 @@ D3D12_GPU_VIRTUAL_ADDRESS ShaderCBMngr::GetCameraCBAddress(size_t ctxID, size_t 
 D3D12_GPU_VIRTUAL_ADDRESS ShaderCBMngr::GetLightCBAddress(size_t ctxID) const {
 	return commonCBUploadVector.GetResource()->GetGPUVirtualAddress()
 		+ renderCtxDataMap.at(ctxID).lightOffset;
+}
+
+D3D12_GPU_VIRTUAL_ADDRESS ShaderCBMngr::GetDirectionalShadowCBAddress(size_t ctxID) const {
+	return commonCBUploadVector.GetResource()->GetGPUVirtualAddress()
+		+ renderCtxDataMap.at(ctxID).directionalShadowOffset;
 }
 
 D3D12_GPU_VIRTUAL_ADDRESS ShaderCBMngr::GetObjectCBAddress(size_t ctxID, size_t entityIdx) const {
